@@ -406,11 +406,11 @@ int main(int argc,char **argv){
         ggExplore.frame=20+k*4;
         ggExpRenderMode(guarded.img,0);
         if(k==2||k==5){
-            GgPersonMotion sample=ggPersonMotionSample(
-                1001,(cr[0].x<<8)+128,(cr[0].y<<8)+128,
-                ggExplore.frame,0);
-            if(!sample.walking){
-                fprintf(stderr,"MESH CAPTURE FAIL: moving resident looks stationary at frame %d\n",k);
+            if(ggMeshPersonWalkingDrawn!=1){
+                fprintf(stderr,
+                    "MESH CAPTURE FAIL: resident animation not visible at frame %d (drawn %d, people %d, pixels %d, creature cell %d,%d)\n",
+                    k,ggMeshPersonWalkingDrawn,ggMeshPersonCount,
+                    ggMeshPersonPixels,cr[0].x,cr[0].y);
                 fclose(meshMetrics);return 33;
             }
             motionFrames++;
