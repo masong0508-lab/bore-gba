@@ -781,9 +781,14 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #else
     filmWorldContinuity(clip,beat,elapsed);
 #endif
-    filmAtmosphere(beat,elapsed);
 #ifdef __3DS__
-    filmStageLight(beat,elapsed);
+    // Environment, weather, tree sway and background people continue
+    // across edits. The spoken line, prop contact and actor poses remain
+    // local to the current shot, preserving exact timing.
+    filmAtmosphere(beat,ggFilmSceneTime(elapsed));
+    filmStageLight(beat,ggFilmSceneTime(elapsed));
+#else
+    filmAtmosphere(beat,elapsed);
 #endif
 
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
@@ -834,6 +839,9 @@ static int fmvRenderAt(const FmvClip *clip,int elapsed){
         return 1;
     }
     elapsed-=baked;
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    ggFilmWorldClock=elapsed;
+#endif
     const FilmBeat *beat=filmBeatAt(clip,&elapsed);
     if(!beat||elapsed%FILM_STAGE_TICKS) return 0;
     filmDrawBeat(clip,beat,elapsed);
