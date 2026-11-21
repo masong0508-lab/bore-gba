@@ -12,7 +12,10 @@ int main(void){
         for(int y=0;y<67;y++)for(int x=0;x<71;x++){
             int r=136,g=136,b=136;
             ggMatSample(material,x,y,0x54b3d1a2u,&r,&g,&b);
-            int a=r,bb=g,c=b;
+            // Compare identical starting colors: this sampler adds
+            // material shading IN PLACE, so feeding its prior output
+            // back into itself is not a determinism test.
+            int a=136,bb=136,c=136;
             ggMatSample(material,x,y,0x54b3d1a2u,&a,&bb,&c);
             ok(a==r&&bb==g&&c==b,
                "world-surface material sampling changes between frames");
