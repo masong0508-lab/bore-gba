@@ -20,6 +20,10 @@ static inline unsigned msPressureResume(unsigned mem,unsigned first){
 }
 // Each sustained support (friends, wellbeing, funded care) offsets pressure.
 // Three supports slowly recover the appeal. Always clamp before assigning to u8.
+// A positive social event can arrive immediately after loading a save.
+static inline unsigned msPressureEase(unsigned pressure,unsigned amount){
+    return pressure>amount?pressure-amount:0u;
+}
 static inline unsigned msPressureStep(unsigned pressure,unsigned supports){
     int next=(int)pressure+2-(int)(supports>3u?3u:supports);
     return next<0?0u:next>100?100u:(unsigned)next;
