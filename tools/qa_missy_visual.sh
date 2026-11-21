@@ -36,16 +36,25 @@ capture(){
   rm -f "screenshots/$name.xwd"
 }
 capture "${label}-opening"
-xdotool windowfocus "$win" || true
+xdotool windowfocus "$win" || { echo "Unable to focus mGBA before input" >&2; exit 1; }
 # mGBA's default key bindings: X for A, Z for B. Alternate them so the
 # typewriter and caption pagination don't swallow one giant held-down key.
 for i in $(seq 1 16); do
-  xdotool key --clearmodifiers --window "$win" x || true
+  xdotool key --clearmodifiers --window "$win" x
   sleep 0.22
-  xdotool key --clearmodifiers --window "$win" z || true
+  xdotool key --clearmodifiers --window "$win" z
   sleep 0.22
 done
 sleep 2
+if ! kill -0 "$pid" 2>/dev/null; then
+  cat "screenshots/${label}-emulator.log"
+  echo "mGBA exited while advancing Missy dialogue" >&2
+  exit 1
+fi
+if ! xwininfo -id "$win" >/dev/null 2>&1; then
+  echo "mGBA window disappeared during Missy dialogue" >&2
+  exit 1
+fi
 capture "${label}-bedside"
 for file in "screenshots/${label}-"*.png; do
   dims=$(magick identify -format '%w %h %k' "$file")
