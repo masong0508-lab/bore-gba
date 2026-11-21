@@ -426,8 +426,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                         b=(trim?59:stone?91:69)*shade/256;
                         if(edge==8){r+=18;g+=12;b+=8;}
                     }else if(d<15&&edge>16&&edge<68){
-                        int window=surfaceU>42&&surfaceU<86||
-                                   surfaceU>172&&surfaceU<216;
+                        int window=(surfaceU>42&&surfaceU<86)||
+                                   (surfaceU>172&&surfaceU<216);
                         if(window){
                             if(edge>=25&&edge<=48){
                                 int frame=edge<28||edge>45||
