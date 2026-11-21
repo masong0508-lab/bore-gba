@@ -76,7 +76,9 @@ static const char *shpRow(int shape,int frame,int row){
     (void)shape;(void)frame;
     return body[row];
 }
-#include "3ds/population3d.h"
+ #include "3ds/population3d.h"
+static int chapter,storyDone;
+#include "3ds/chronicles3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -243,6 +245,61 @@ int main(void){
     occ[45][47]=0;
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "live NPC sprite animation exceeded the 3DS top framebuffer");
+    // ASHEN CHRONICLES: the existing 2D story gates the separate 3DS
+    // campaign. All objectives must occupy reachable real world tiles.
+    chapter=0;
+    check(!ggChronReady(),"3DS side story opened before its 2D unlock");
+    chapter=3;
+    check(ggChronReady()&&!ggChronUnlockedAct(1),
+          "campaign acts ignored their original-story chapter gates");
+    ggExplore.actorId=0;
+    ggChron.loaded=1;ggChron.cleared=0;
+    check(ggChronBegin(60,60,0)==1&&ggChron.active,
+          "chapter 3 cannot enter the unlocked companion campaign");
+    check(ggChron.foeN>=3&&ggChron.foeN<=GG_CHRON_FOES,
+          "campaign has no bounded enemy encounters");
+    for(int i=0;i<GG_CHRON_POSTS;i++){
+        check(ggChronLand(ggChron.px[i],ggChron.py[i]),
+              "the campaign objective is on blocked or water terrain");
+        for(int j=0;j<i;j++)
+            check(ggChronNear(ggChron.px[i],ggChron.py[i],
+                              ggChron.px[j],ggChron.py[j])>=5,
+                  "two mission objectives share an indistinguishable site");
+    }
+    ggChron.briefTime=0;
+    ggExplore.angle=0;
+    int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
+    ggChron.foeN=1;
+    ggChron.foe[0]=(GgChronFoe){cx+1,cy,25,0,0};
+    ggChronStep(KEY_A);
+    check(ggChron.foe[0].hp<25&&ggChron.attackWait>0,
+          "real-time aimed melee did not hit a visible guard");
+    ggChronStep(0);
+    ggChron.hp=55;
+    int rations=ggChron.rations;
+    ggChronStep(KEY_Y);
+    check(ggChron.hp>55&&ggChron.rations==rations-1,
+          "survival rations did not consume supplies and restore health");
+    ggChron.foeN=0;
+    for(int i=0;i<GG_CHRON_POSTS;i++){
+        ggChron.briefTime=0;
+        ggExplore.px=ggChron.px[i]*256+128;
+        ggExplore.py=ggChron.py[i]*256+128;
+        ggChronStep(0); // release X between capture attempts
+        ggChronStep(KEY_X);
+        check(ggChron.post==i+1,"guard-cleared outpost failed to capture");
+    }
+    check(ggChron.won&&ggChron.cleared==1,
+          "campaign victory did not unlock the following act");
+    check(ggChronBegin(60,60,0)==-1,
+          "later chapters bypassed their 2D storyline prerequisite");
+    storyDone=1;
+    check(ggChronBegin(60,60,0)==1&&ggChron.act==1,
+          "completed original story cannot access the next campaign act");
+    ggExpRender(guarded.img);
+    ggChronDraw(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "campaign banners or HUD overran the shared 3DS framebuffer");
     double elapsed=1000.0*(clock()-started)/CLOCKS_PER_SEC;
     printf("EXPLORE3D OK: hybrid minds, stable IDs, selection, 2D/3D "
            "actor movement, protected homes, safe frame buffers; "
