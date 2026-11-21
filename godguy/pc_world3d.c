@@ -40,7 +40,7 @@ static unsigned long hashFrame(void){
 static unsigned long frame(int place,int camera,int t){
     FilmBeat b={place,camera,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&b,t,filmEase(t,420),t/300);
+    ggFilmWorldDraw(&b,t,filmEase(t,420),t/300,1);
     return hashFrame();
 }
 int main(void){
@@ -65,6 +65,17 @@ int main(void){
                 "world renderer wrote outside the 256x192 film surface");
     }
     require(populated>=10,"set geometry missing in most locations");
+    require(frame(F_PORCH,F_NEAR,0)!=frame(F_COUCH,F_NEAR,0),
+            "the first-rain porch is still a generic couch stage");
+    // The worksite has visibly exposed rafters before its completed roof.
+    FilmBeat village={F_VILLAGE,F_WIDE,F_MIRA,F_THORGRIM,F_NO_PROP};
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&village,0,128,2,0);
+    unsigned long roofOpen=hashFrame();
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&village,0,128,2,1);
+    require(hashFrame()!=roofOpen,
+            "the house roof did not change when construction finished");
     require(frame(F_SHORE,F_NEAR,0)!=frame(F_SHORE,F_NEAR,180),
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
