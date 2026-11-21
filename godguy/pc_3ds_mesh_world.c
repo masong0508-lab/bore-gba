@@ -90,6 +90,31 @@ int main(void){
                 ggMeshPersonFacing(192,0)==2,
                 "world-anchored procedural people have incorrect turn directions");
     occ[64][66]=0;nCr=0;
+    // Wall/world occlusion cannot be bypassed by the new generated
+    // sprite painter. Front/behind use the SAME camera and geometry.
+    ggMeshBegin(&ggMeshContext,pixels,2,0,0,10,4096,0,42,65,89);
+    ggMeshContext.fogMax=0;
+    ggMeshQuad(&ggMeshContext,
+               ggMeshV(512,-400,0),ggMeshV(512,400,0),
+               ggMeshV(512,400,40),ggMeshV(512,-400,40),
+               111,101,93);
+    ggMeshPersonCount=ggMeshPersonPixels=0;
+    ggMeshPersonDraw(&ggMeshContext,1024,0,0,1024,0,
+                     1001,4,128,60,0,colors);
+    meshRequire(ggMeshPersonPixels==0&&ggMeshPersonCount==0,
+                "procedural person visible through nearer stone building");
+    ggMeshPersonDraw(&ggMeshContext,256,0,0,256,0,
+                     1001,4,128,60,0,colors);
+    meshRequire(ggMeshPersonCount==1&&ggMeshPersonPixels>50,
+                "nearer procedural person clipped behind farther wall");
+    // Test a stable city resident's eight orientations without an
+    // artist-drawn atlas or any camera-animated face randomization.
+    GgPersonCel still,blink;
+    ggPersonGenerate(&still,1001,4,0,60,0,colors);
+    ggPersonGenerate(&blink,1001,4,0,135,0,colors);
+    meshRequire(!memcmp(still.palette,blink.palette,
+                        sizeof still.palette),
+                "procedural citizen rerolled colors between frames");
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;
     ggExpRenderMode(pixels,0);
