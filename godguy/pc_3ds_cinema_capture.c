@@ -408,9 +408,18 @@ int main(int argc,char **argv){
         if(k==2||k==5){
             if(ggMeshPersonWalkingDrawn!=1){
                 fprintf(stderr,
-                    "MESH CAPTURE FAIL: resident animation not visible at frame %d (drawn %d, people %d, pixels %d, creature cell %d,%d)\n",
-                    k,ggMeshPersonWalkingDrawn,ggMeshPersonCount,
-                    ggMeshPersonPixels,cr[0].x,cr[0].y);
+                    "MESH CAPTURE FAIL: resident animation not visible at frame %d (tick %d, drawn %d, people %d, pixels %d, creature cell %d,%d)\n",
+                    k,ggExplore.frame,ggMeshPersonWalkingDrawn,
+                    ggMeshPersonCount,ggMeshPersonPixels,cr[0].x,cr[0].y);
+                for(int i=0;i<GG_PERSON_TRACK_SLOTS;i++)
+                    if(ggPersonTracks[i].id==1001u){
+                        const GgPersonTrack *p=&ggPersonTracks[i];
+                        fprintf(stderr,
+                            "TRACK DEBUG: slot=%d id=%u from=(%d,%d) to=(%d,%d) start=%d lastSeen=%d elapsed=%d\n",
+                            i,(unsigned)p->id,p->fromX,p->fromY,
+                            p->toX,p->toY,p->start,p->lastSeen,
+                            ggExplore.frame-p->start);
+                    }
                 fclose(meshMetrics);return 33;
             }
             motionFrames++;
