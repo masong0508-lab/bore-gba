@@ -45,7 +45,7 @@ static int ggChronNear(int ax,int ay,int bx,int by){
 }
 // A tiny, once-per-mission flood fill chooses reachable real-world
 // objectives, not arbitrary mountains, islands or impossible water crossings.
-static void ggChronRoute(void){
+static int ggChronRoute(void){
     unsigned char dist[GG_CHRON_CELLS];
     unsigned short queue[GG_CHRON_CELLS];
     const int sx=ggExplore.px>>8,sy=ggExplore.py>>8;
@@ -56,6 +56,7 @@ static void ggChronRoute(void){
     queue[back++]=16*GG_CHRON_GRID+16;
     while(front<back){
         int pos=queue[front++],x=pos%GG_CHRON_GRID,y=pos/GG_CHRON_GRID;
+        if(dist[pos]>=254)continue; // no unsigned-distance wrap in a maze
         static const signed char dx[4]={1,0,-1,0},dy[4]={0,1,0,-1};
         for(int k=0;k<4;k++){
             int nx=x+dx[k],ny=y+dy[k];
@@ -94,7 +95,9 @@ static void ggChronRoute(void){
         }
         ggChron.px[post]=(short)(ox+choice%GG_CHRON_GRID);
         ggChron.py[post]=(short)(oy+choice/GG_CHRON_GRID);
+        if(best==0x7fffffff)return 0; // no reachable distinct site
     }
+    return 1;
 }
 static void ggChronSpawn(void){
     ggChron.foeN=0;
@@ -154,6 +157,7 @@ static int ggChronBegin(int x,int y,int oldPause){
     if(!ggChronReady())return 0;
     int act=ggChron.cleared<GG_CHRON_ACTS?ggChron.cleared:GG_CHRON_ACTS-1;
     if(!ggChronUnlockedAct(act))return -1;
+    ggExplore.actorId=0; // do not inherit a former hybrid POV walk rule
     ggExpBegin(x,y,oldPause);
     ggChron.active=1;
     ggChron.act=act;
@@ -167,7 +171,11 @@ static int ggChronBegin(int x,int y,int oldPause){
     // random sapient citizen from the original story.
     ggExplore.actorId=0;
     ggExplore.actorIndex=-1;
-    ggChronRoute();
+    if(!ggChronRoute()){
+        ggChron.active=0;
+        ggExplore.active=0;
+        return -2; // no traversable route: never create a soft-locked act
+    }
     ggChronSpawn();
     return 1;
 }
