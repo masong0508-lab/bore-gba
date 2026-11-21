@@ -672,9 +672,14 @@ static void ggSagaResolveSides(int tx,int ty){
     ggSagaShot.plusY=(ty+dy)*256+128;
     ggSagaShot.minusX=(tx-dx)*256+128;
     ggSagaShot.minusY=(ty-dy)*256+128;
+    int stageHeight=ggExpGround(world[ty][tx]);
     ggSagaShot.plusValid=ggChronLand(tx+dx,ty+dy)&&
+                         ggFilmStageHeightOK(stageHeight,
+                           ggExpGround(world[ty+dy][tx+dx]))&&
                          ggExpLineClear(px,py,tx+dx,ty+dy);
     ggSagaShot.minusValid=ggChronLand(tx-dx,ty-dy)&&
+                          ggFilmStageHeightOK(stageHeight,
+                            ggExpGround(world[ty-dy][tx-dx]))&&
                           ggExpLineClear(px,py,tx-dx,ty-dy);
     ggSagaShot.sidesResolved=1;
 }
@@ -863,6 +868,12 @@ static void ggSagaDraw(u8 *out){
         }
     }
     int guestCount=primaryGuest<0?0:secondGuest<0?1:2;
+    int firstSide=ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                       ggSagaShot.minusValid,0);
+    int secondSide=ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                        ggSagaShot.minusValid,1);
+    int speakerSide=activeStyle==primaryGuest?firstSide:
+                    activeStyle==secondGuest?secondSide:0;
     int propSide=ggFilmStagePropSide(ggSagaShot.plusValid,
                                       ggSagaShot.minusValid,guestCount);
     if(propSide){
@@ -889,6 +900,8 @@ static void ggSagaDraw(u8 *out){
             GgFilmPose performance=ggFilmPoseFor(spoken?spoken->line:"",
                       index,local,1,
                       spoken&&!strcmp(spoken->voice,"YOU"),walking,propKind);
+            performance.gaze=(signed char)ggFilmStageGaze(0,
+                                  speakerSide? speakerSide:firstSide);
             ggFilmDrawActor(out,item->x,item->feet,item->size,
                             ggOriginHairRGB[ggOrigin.hair],
                             ggOriginSkinRGB[ggOrigin.skin],
@@ -900,6 +913,10 @@ static void ggSagaDraw(u8 *out){
             GgFilmPose performance=ggFilmPoseFor(spoken->line,index,local,
                                                  0,activeStyle==style,
                                                  0,propKind);
+            int ownSide=item->kind==GG_STAGE_GUEST_ONE?
+                        firstSide:secondSide;
+            int lookSide=activeStyle==style?0:speakerSide;
+            performance.gaze=(signed char)ggFilmStageGaze(ownSide,lookSide);
             ggFilmDrawActor(out,item->x,item->feet,item->size,
                             ggFilmGuestPalette[style][0],
                             ggFilmGuestPalette[style][1],
