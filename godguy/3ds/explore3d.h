@@ -14,6 +14,7 @@
 #include "film_floor3d.h"
 #include "film_occlusion3d.h"
 #include "film_scenery3d.h"
+#include "mesh_raster3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -221,6 +222,14 @@ static inline void ggExpDotInView(u8 *out,int x,int y,int r,int g,int b){
 // Actor overlay depth is zero for the world, HUD, exploration and 2D screens.
 static GgFilmOcclusionColumn ggExpFilmOcclusion[GG_FILM_OCCLUSION_COLS];
 static int ggExpFilmDrawDepth;
+// Real 3D is the default view on 3DS. Keep a safe independent fallback
+// for SDK/hardware profiling and unsupported hardware paths.
+#ifdef GG_EXP_FORCE_VOXEL
+static int ggExpMeshEnabled=0;
+#else
+static int ggExpMeshEnabled=1;
+#endif
+static int ggExpMeshActive;
 // Declared before ggExpRenderMode; populated later by population3d.h.
 // The first-person facade and actor compositors share this depth
 // without an include-order dependency or a second creature search.
@@ -229,8 +238,10 @@ static int ggExpNpcClosestDepth;
 // align to that pixel grid rather than introducing mismatched 1px props.
 static int ggExpScenicCoarse;
 static inline int ggExpFilmPixelHidden(int x,int y){
-    return ggExpFilmDrawDepth>0&&
-           ggFilmOcclusionHidden(ggExpFilmOcclusion,x,y,ggExpFilmDrawDepth);
+    if(ggExpFilmDrawDepth<=0)return 0;
+    if(ggExpMeshActive)
+        return ggMeshHidden(&ggMeshContext,x,y,ggExpFilmDrawDepth);
+    return ggFilmOcclusionHidden(ggExpFilmOcclusion,x,y,ggExpFilmDrawDepth);
 }
 static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
     if(ggExpScenicCoarse){
@@ -582,8 +593,17 @@ compiled:
     ggExpScenicForegroundPass=0;
     ggExpFilmDrawDepth=0;
 }
+#include "mesh_world3d.h"
 static void ggExpRenderMode(u8 *top,int cinematic){
     ggExpFilmDrawDepth=0;
+    ggExpMeshActive=0;
+    if(ggExpMeshEnabled){
+        // Physical triangle world replaces the column raycaster here.
+        // Story, actor, HUD and gameplay modes all reuse its own depth.
+        ggMeshWorldDraw(top,cinematic);
+        ggExpMeshActive=1;
+        goto mesh_world_ready;
+    }
     if(cinematic)ggFilmOcclusionClear(ggExpFilmOcclusion);
     int columns=cinematic?400:GG_EXP_W;
     int screenHeight=cinematic?240:GG_EXP_H;
@@ -995,9 +1015,12 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(!highest)break;
         }
     }
-    ggExpScenicCoarse=!cinematic;
-    ggExpScenicDraw(top,0,0);
-    ggExpScenicCoarse=0;
+mesh_world_ready:
+    if(!ggExpMeshActive){
+        ggExpScenicCoarse=!cinematic;
+        ggExpScenicDraw(top,0,0);
+        ggExpScenicCoarse=0;
+    }
     // Draw nearby live inhabitants as indexed 2D cels projected onto
     // the same raycast world. A bounded on-map search avoids scanning the
     // whole creature list or allocating skeletal 3D models.
@@ -1006,7 +1029,7 @@ static void ggExpRenderMode(u8 *top,int cinematic){
     ggExpRenderCreatures(top);
     // Nearby foliage can pass in FRONT of actual world-depth citizens.
     // Reuse the existing POV scenery selection, no second tile scan.
-    if(ggExpNpcClosestDepth){
+    if(!ggExpMeshActive&&ggExpNpcClosestDepth){
         ggExpScenicCoarse=1;
         ggExpScenicDraw(top,1,ggExpNpcClosestDepth);
         ggExpScenicCoarse=0;

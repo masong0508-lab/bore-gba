@@ -23,6 +23,9 @@ static void ggExpNpcContactShade(u8*out,int center,int feet,int span){
     int from=ggExpClamp(center-span/2,0,400);
     int to=ggExpClamp(center+span/2,0,400);
     for(int x=from;x<to;x++){
+        if(ggExpMeshActive&&
+           ggMeshHidden(&ggMeshContext,x,y,ggExpFilmDrawDepth))
+            continue;
         u8*p=out+(y*400+x)*3;
         p[0]=(u8)(p[0]*204/256);
         p[1]=(u8)(p[1]*204/256);
@@ -107,8 +110,15 @@ static void ggExpRenderCreatures(u8 *top){
                     ((ggExplore.stepPhase/5)&1):0;
         ggExpNpcProject(npc.forward,npc.side,eye-13,ground,
                         walkBob,scale,&sx,&feet);
+        if(ggExpMeshActive){
+            GgMeshCameraVertex point={npc.forward,npc.side,ground};
+            GgMeshProjected projected=ggMeshProject(&ggMeshContext,point);
+            sx=projected.x*ggMeshContext.scale-4*scale;
+            feet=projected.y*ggMeshContext.scale+walkBob*2;
+        }
         if(sx>=400||sx+8*scale<0||feet-8*scale>=240||feet<0)
             continue;
+        ggExpFilmDrawDepth=npc.forward;
         ggExpNpcContactShade(top,sx+4*scale,feet,scale*6);
         int pose=((ggExplore.frame>>4)+npc.index)&1;
         for(int y=0;y<8;y++){
@@ -136,6 +146,7 @@ static void ggExpRenderCreatures(u8 *top){
         if(!ggExpNpcClosestDepth||npc.forward<ggExpNpcClosestDepth)
             ggExpNpcClosestDepth=npc.forward;
         ggExpNpcsDrawn++;
+        ggExpFilmDrawDepth=0;
     }
 }
 #endif
