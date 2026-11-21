@@ -40,6 +40,7 @@ typedef struct {
     int skyR,skyG,skyB;
     int material,materialSeed,textureSamples;
     int ambientLight;
+    int opacity,blendedFragments;
     int texBaseU,texBaseV;
 } GgMeshContext;
 static uint16_t ggMeshDepthStorage[GG_MESH_MAX_W*GG_MESH_MAX_H];
@@ -60,6 +61,7 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
     m->triangles=0;m->fragments=0;m->textureSamples=0;
     m->material=GG_MAT_NONE;m->materialSeed=0;
     m->ambientLight=212;
+    m->opacity=256;m->blendedFragments=0;
     m->texBaseU=m->texBaseV=0;
     memset(m->depth,0,(size_t)m->w*m->h*sizeof(uint16_t));
     // At low quality, directly write 2x2 pixels to the sole RGB screen.
@@ -196,12 +198,20 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                     for(int py=0;py<scale;py++){
                         unsigned char*dst=m->rgb+index+py*400*3;
                         for(int px=0;px<scale;px++){
-                            dst[px*3]=(unsigned char)tr;
-                            dst[px*3+1]=(unsigned char)tg;
-                            dst[px*3+2]=(unsigned char)tb;
+                            if(m->opacity<256){
+                                int a=ggMeshClamp(m->opacity,0,256);
+                                dst[px*3]=(unsigned char)((dst[px*3]*(256-a)+tr*a)>>8);
+                                dst[px*3+1]=(unsigned char)((dst[px*3+1]*(256-a)+tg*a)>>8);
+                                dst[px*3+2]=(unsigned char)((dst[px*3+2]*(256-a)+tb*a)>>8);
+                            }else{
+                                dst[px*3]=(unsigned char)tr;
+                                dst[px*3+1]=(unsigned char)tg;
+                                dst[px*3+2]=(unsigned char)tb;
+                            }
                         }
                     }
                     m->fragments++;
+                    if(m->opacity<256)m->blendedFragments++;
                 }
             }
             w0+=stepX0;w1+=stepX1;w2+=stepX2;iz+=dx;
