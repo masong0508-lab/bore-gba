@@ -17,6 +17,13 @@ static int ggFilmFrameProject(int cameraX,int cameraY,int cosA,int sinA,
     *screenX=sx;*depth=forward;
     return 1;
 }
+// A camera far above/below the actors flattens their silhouettes
+// against tall terrain columns. Prefer shared elevations; unlike an
+// absolute rejection, a lone cliff-edge scene can still be filmed.
+static int ggFilmFrameHeightPenalty(int stageHeight,int cameraHeight){
+    int diff=stageHeight-cameraHeight;
+    return (diff<0?-diff:diff)*18;
+}
 // Larger scores represent stronger compositions: hero always on screen,
 // first guest distinguishable beside them, second guest visible if available.
 // Readable player/cast spacing outranks arbitrary rotating camera angles.
