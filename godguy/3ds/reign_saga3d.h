@@ -340,7 +340,7 @@ static const GgSagaBeat *ggSagaCurrentBeat(int n){
     return &ggSagaAfter[ggChron.act][
         (ggSaga.decisions>>ggChron.act)&1][n%GG_SAGA_OUTRO_BEATS];
 }
-static void ggSagaCamera(int beat,int local){
+static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
     // Moving camera cut from one real expedition landmark to another.
     // Smooth 3/4-tile dolly is bounded; all camera math is fixed point.
     int anchor=beat%4,tx=ggExplore.px>>8,ty=ggExplore.py>>8;
@@ -348,6 +348,7 @@ static void ggSagaCamera(int beat,int local){
         tx=ggChron.px[anchor-1];
         ty=ggChron.py[anchor-1];
     }
+    *anchorX=tx;*anchorY=ty;
     int a=(beat*51+ggChron.act*23+32)&255;
     int move=local*192/GG_SAGA_BEAT_TICKS;
     int distance=(4+(beat&1))*256-move;
@@ -369,19 +370,23 @@ static void ggSagaDraw(u8 *out){
     int px=ggExplore.px,py=ggExplore.py;
     int angle=ggExplore.angle,frame=ggExplore.frame;
     int chronFrame=ggChron.frame;
-    ggSagaCamera(index,local);
+    int stageX,stageY;
+    ggSagaCamera(index,local,&stageX,&stageY);
     ggExpRender(out);
     ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
     ggReignSceneDraw(out);
     ggChron.frame=chronFrame;
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
-    // Preserve material shapes and location continuity across each shot.
-    // The customized adult actor is seated in the foreground, with feet
-    // planted on terrain, never enlarged by a jarring camera zoom.
-    if(ggOrigin.complete&&index%3!=2)
-        ggOriginPortrait(out,248+(local/10)%6,183,2,
-                         (ggSaga.frame/17)&1,0);
+    // The protagonist is projected from the SAME world-space landmark
+    // used by the camera. Occluding real buildings hide the cel. This
+    // eliminates the previous floating 2D overlay in outdoor shots.
+    if(ggOrigin.complete&&index%3!=2){
+        int x,feet,size;
+        if(ggChronProject(stageX,stageY,&x,&feet,&size))
+            ggOriginPortrait(out,x,feet,ggExpClamp(size/12,1,3),
+                             (ggSaga.frame/17)&1,0);
+    }
     ggExpRect(out,0,0,400,43,13,24,37);
     ggExpRect(out,0,41,400,2,204,156,88);
     ggExpRect(out,0,185,400,55,13,23,36);
@@ -440,9 +445,9 @@ static void ggSagaFateDraw(u8 *out){
     snprintf(line,sizeof line,"ACT CHOICES %d/4   DISCOVERED ENDINGS %d/%d",
              chosen,seen,GG_SAGA_ENDINGS);
     ggExpText(out,25,79,line,236,221,176);
-    snprintf(line,sizeof line,"LAST CHOICE: %s",
-             chosen?(ggSaga.decisions&(1u<<3)?"CROWN":"FREEDOM"):
-                    "NOT YET WRITTEN");
+    snprintf(line,sizeof line,"FINAL CHOICE: %s",
+             !(ggSaga.decided&(1u<<3))?"NOT YET WRITTEN":
+             (ggSaga.decisions&(1u<<3))?"PERSONAL RULE":"SHARED FREEDOM");
     ggExpText(out,25,98,line,195,217,230);
     ggExpText(out,25,118,"CAREERS, TOWNS, POWER AND OATHS SHAPE THE END.",
               195,210,221);
