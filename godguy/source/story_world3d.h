@@ -481,8 +481,13 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
         ggFilmTree(cam,-530,910,158,scenic,0);
         ggFilmTree(cam,515,1180,190,scenic,2);
-        if(chapter>=2)ggFilmBackgroundWorker(cam,-175,1070,scenic,1);
-        if(chapter>=10)ggFilmBackgroundWorker(cam,140,1280,scenic,0);
+        // One physical character cannot work in the distance and speak
+        // in the foreground simultaneously. Keep the 2D performers
+        // distinct across every cut, even during large ensemble shots.
+        if(chapter>=2&&beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM)
+            ggFilmBackgroundWorker(cam,-175,1070,scenic,1);
+        if(chapter>=10&&beat->lead!=F_NESSA&&beat->other!=F_NESSA)
+            ggFilmBackgroundWorker(cam,140,1280,scenic,0);
         // Roads become active as the village grows. The moving cart and
         // its cargo share the same world transform over all dialogue cuts.
         if(chapter>=5)ggFilmMarketCart(cam,scenic);
@@ -496,7 +501,8 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         if(p==F_FORD){
             if(chapter>=8){
                 ggFilmBridge(cam,chapter==9,scenic);
-                if(chapter>=10)ggFilmBackgroundWorker(cam,172,1120,scenic,1);
+                if(chapter>=10&&beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM)
+                    ggFilmBackgroundWorker(cam,172,1120,scenic,1);
             }else{
                 for(int k=0;k<5;k++){
                     // The original raised stones remain where travelers
