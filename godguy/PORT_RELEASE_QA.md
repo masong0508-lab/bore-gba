@@ -42,7 +42,13 @@ unnecessarily increase download/storage size.
 
 The verifier rejects absent core images, invalid Nintendo DS header
 CRC or ARM segment bounds, a mislabeled 16 MiB DSi ROM, malformed 3DSX
-headers and conflicting duplicate executable builds. Independent
+headers and conflicting duplicate Nintendo DS builds. When the two
+independent SDK jobs produce valid but byte-different `godguy.3dsx`
+executables, the mixed-console job's binary is authoritative. The
+independent cinema binary is **not** distributed and its separate hash,
+size and origin are recorded in the manifest for reproducibility review.
+Both SDK jobs now print compiler versions and generated 3DS asset hashes.
+Independent
 `GodGuy multiport image format and release packaging` CI exercises
 corrupt synthetic fixtures before the large console builds finish.
 
