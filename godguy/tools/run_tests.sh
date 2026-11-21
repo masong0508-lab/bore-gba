@@ -72,6 +72,7 @@ gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_walkin pc_3ds_walkin.c && 
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_camera pc_3ds_camera.c && /tmp/gg_3ds_camera
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_acting pc_3ds_acting.c && /tmp/gg_3ds_acting
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_staging pc_3ds_staging.c && /tmp/gg_3ds_staging
+gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_partner pc_3ds_partner.c && /tmp/gg_3ds_partner
 # DSi mode (step 9): a 768 x 768 planet saves, packs into the 2 MB block and loads back identical
 gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_vilsave pc_vilsave.c -lm && /tmp/gg_vilsave | tail -1
 # the DSi-mode boot probe under Unicorn (only when pip's unicorn and an arm-none-eabi compiler are installed; build_dsi.sh's build_dsi16/arm9.elf is used when it exists)
