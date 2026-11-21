@@ -436,10 +436,26 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         ggFilmBox(cam,370,45,1340,45,19-compression,34,25,24,26);
         ggFilmBeam(cam,363,58-compression,1303,8,8,45,24);
     }else if(p==F_COUCH||p==F_HEARTH){
-        ggFilmBox(cam,175,18,1200,220,46,83,24,20,25);
-        ggFilmBox(cam,175,59,1237,220,72,25,21,24,25);
-        ggFilmBox(cam,58,30,1200,25,69,105,21,24,25);
-        ggFilmBox(cam,292,30,1200,25,69,105,21,24,25);
+        // A closer, readable couch on the 3DS has a real sitting plane.
+        // The couch and seated 2D cels project from matching world depth;
+        // the older distant couch made characters look like standing dolls
+        // in front of miniature furniture.
+        int sofaZ=p==F_COUCH?920:1200;
+        ggFilmBox(cam,175,18,sofaZ,220,46,83,24,20,25);
+        ggFilmBox(cam,175,59,sofaZ+37,220,72,25,21,24,25);
+        ggFilmBox(cam,58,30,sofaZ,25,69,105,21,24,25);
+        ggFilmBox(cam,292,30,sofaZ,25,69,105,21,24,25);
+        if(p==F_COUCH){
+            // Furnishing and an anchored pendulum give the room an
+            // identifiable silhouette and a continuous slow action.
+            ggFilmBox(cam,-224,0,1180,118,70,95,20,24,25);
+            ggFilmBox(cam,-224,70,1180,137,11,108,24,20,26);
+            ggFilmBox(cam,-224,87,1190,16,27,16,(t/28)&1?9:10,24,25);
+            ggFilmBox(cam,-360,0,1510,92,190,38,21,20,25);
+            int swing=((t/24)%13)-6;
+            ggFilmBeam(cam,-360,99,1484,4,48,7,25);
+            ggFilmBox(cam,-360+swing,92,1481,18,19,10,25,24,26);
+        }
         if(p==F_HEARTH){
             // Hearth stonework, recessed fire and mantel are fixed to the
             // rear wall. Firelight flickers *inside* its opening.
@@ -599,6 +615,26 @@ static void ggFilmWorldBlocking(const FilmBeat *beat,int elapsed,int move,
         b->otherX=pt.x;
         b->otherFeet=pt.y-(beat->other==F_WISP?33:0);
         b->otherHeight=beat->other==F_WISP?22:130*260/(oz-cam.z);
+    }
+    if(beat->place==F_COUCH){
+        // Seated actors and sofa share a specific Z plane. Their hips
+        // land on the 18-unit cushion; their shoes touch the 0-unit floor.
+        // Wisp is a hovering spark and never assumes a human sitting rig.
+        const int seatZ=865;
+        if(active&&beat->lead!=F_WISP){
+            int worldX=paired?(leadLeft?86:260):176;
+            GgS2 pt=ggFilmProject(cam,ggV3(worldX,0,seatZ));
+            b->leadX=pt.x;
+            b->leadFeet=pt.y;
+            b->leadHeight=130*260/(seatZ-cam.z);
+        }
+        if(paired&&beat->other!=F_WISP){
+            int worldX=leadLeft?260:86;
+            GgS2 pt=ggFilmProject(cam,ggV3(worldX,0,seatZ));
+            b->otherX=pt.x;
+            b->otherFeet=pt.y;
+            b->otherHeight=130*260/(seatZ-cam.z);
+        }
     }
 }
 #endif
