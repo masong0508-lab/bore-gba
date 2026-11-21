@@ -123,6 +123,10 @@ assert "backstage doorway" in cut
 assert "warm twin footlights" in cut
 assert "if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) csWardFront()" in cut
 assert cut.index("csFtrack=0;") < cut.index("csWardFront();")  # bed rail is an occluder, after patient
+qa = Path("tools/qa_missy_visual.sh").read_text(encoding="utf-8")
+assert 'game_h=$((win_w*2/3))' in qa, "emulator screenshots must crop to the actual 3:2 game viewport"
+assert '-crop "${win_w}x${game_h}+0+${top}"' in qa
+assert 'test $((width*2)) -eq $((height*3))' in qa, "visual smoke must reject emulator chrome outside the game frame"
 makefile = Path("Makefile").read_text(encoding="utf-8")
 assert "preview-missy: bore-missy-preview.gba" in makefile
 assert "preview-missy-awake: bore-missy-awake.gba" in makefile
