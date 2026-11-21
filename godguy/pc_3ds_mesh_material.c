@@ -19,7 +19,8 @@ int main(void){
             ok(r>=0&&r<=255&&g>=0&&g<=255&&b>=0&&b<=255,
                "material leaves 8-bit component range");
             if(r!=136||g!=136||b!=136)changed++;
-            if(r<min)min=r;if(r>max)max=r;
+            if(r<min)min=r;
+            if(r>max)max=r;
         }
         ok(max-min>=7,"material surface is still a flat untextured polygon");
         ok(max-min<=125,"material contrast destroys readable daylight volumes");
