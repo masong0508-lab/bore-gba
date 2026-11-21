@@ -284,6 +284,11 @@ jobs:
         run: |
           gcc -O2 -DNDSSHIM -D__3DS__ -Icompat -Isource -w pc_cinema_display3ds.c -lm -o /tmp/gg-3ds-film-screen
           /tmp/gg-3ds-film-screen
+      - name: Verify playable 3DS block-world controls, safe edits and memory
+        working-directory: godguy
+        run: |
+          gcc -O2 -std=c11 -Wall -Wextra -Icompat -Isource pc_explore3d.c -lm -o /tmp/gg-3ds-explore
+          /tmp/gg-3ds-explore
       - name: Host-test saved-world coastline and settlement capture
         working-directory: godguy
         run: |
