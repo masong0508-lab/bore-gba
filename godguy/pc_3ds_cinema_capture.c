@@ -443,10 +443,22 @@ int main(int argc,char **argv){
     }
     occ[65][66]=0;occ[66][67]=0;occ[66][66]=0;
     nCr=0;ggPersonTrackReset();
-    // Old 3DS uses the exact same 3D geometry at lower pixel density
-    // while preserving 400x240 output and the game's HUD overlay.
+    // Release target deliberately keeps 400x240 native geometry even
+    // under frame pressure. Only shading, atmosphere and decoration
+    // complexity are throttled. Original non-New3DS test code remains
+    // available to check the legacy 2x software path.
     ggExpScenicQuality=1;
     ggExpRenderMode(guarded.img,0);
+#ifdef GG_NEW3DS_ONLY
+    if(ggMeshContext.w!=400||ggMeshContext.h!=240||
+       ggMeshContext.textureSamples!=0||
+       !ggCaptureSave(argv[1],"mesh_new3ds_budget_playable.ppm"))
+        return 28;
+    fprintf(meshMetrics,"new3ds_budget_playable,%d,%d,%d,%d,%d,%d,,400x240-native\n",
+            ggMeshContext.triangles,ggMeshContext.fragments,
+            ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
+            ggMeshBuildingsDrawn,ggMeshPropsDrawn);
+#else
     if(ggMeshContext.w!=200||ggMeshContext.h!=120||
        !ggCaptureSave(argv[1],"mesh_old3ds_playable.ppm"))
         return 28;
@@ -454,6 +466,7 @@ int main(int argc,char **argv){
             ggMeshContext.triangles,ggMeshContext.fragments,
             ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
             ggMeshBuildingsDrawn,ggMeshPropsDrawn);
+#endif
     ggExpScenicQuality=2;
     ggExpRenderMode(guarded.img,1);
     fprintf(meshMetrics,"high_detail_check,%d,%d,%d,%d,%d,%d,,400x240\n",
