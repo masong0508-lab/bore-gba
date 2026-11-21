@@ -3,6 +3,7 @@
 // No heap, per-frame ray searches, texture assets or second framebuffer.
 #ifndef GG_FILM_FRAMING3D_H
 #define GG_FILM_FRAMING3D_H
+#include "film_projection3d.h"
 // Match the existing 3DS actor projector's perspective in a tighter,
 // subtitle-safe composition. Reject actors clipped by either picture edge.
 static int ggFilmFrameProject(int cameraX,int cameraY,int cosA,int sinA,
@@ -12,7 +13,7 @@ static int ggFilmFrameProject(int cameraX,int cameraY,int cosA,int sinA,
     int side=(-dx*sinA+dy*cosA)/4096;
     if(forward<=80||forward>16*256||
        (side<0?-side:side)*4>forward*5)return 0;
-    int sx=200+side*140/forward;
+    int sx=ggFilmProjectScreenX(side,forward);
     if(sx<65||sx>335)return 0;
     *screenX=sx;*depth=forward;
     return 1;
@@ -23,6 +24,19 @@ static int ggFilmFrameProject(int cameraX,int cameraY,int cosA,int sinA,
 static int ggFilmFrameHeightPenalty(int stageHeight,int cameraHeight){
     int diff=stageHeight-cameraHeight;
     return (diff<0?-diff:diff)*18;
+}
+// A large nearby building can clip into the side of a scene even
+// if the CENTER line of sight is clear. Score its intrusion using the
+// same camera lens as characters. Called only while selecting a shot,
+// never in the 400-column per-frame terrain renderer.
+static int ggFilmFrameObstructionPenalty(int forward,int side,int building){
+    if(!building||forward<=64||forward>=4*256)return 0;
+    int sx=ggFilmProjectScreenX(side,forward);
+    if(sx < -45 || sx > 445)return 0;
+    int fromCenter=sx-200;if(fromCenter<0)fromCenter=-fromCenter;
+    int severity=(4*256-forward)/8;
+    // Camera-center obstruction is twice as disruptive as an edge cut.
+    return severity*(fromCenter<145?2:1);
 }
 // Larger scores represent stronger compositions: hero always on screen,
 // first guest distinguishable beside them, second guest visible if available.
@@ -39,7 +53,10 @@ static int ggFilmFrameScore(int cameraX,int cameraY,int cosA,int sinA,
     // Nearby grounded actors read more clearly than tiny distant figures;
     // retain some horizon in the frame rather than forcing zero distance.
     int distance=hDepth-576;if(distance<0)distance=-distance;
-    score-=distance/44;
+    // With the corrected 250px focal length a distant 4-tile shot
+    // can otherwise outscore a legible 3-tile two-shot. Prefer actors
+    // that occupy the frame without cropping or exaggerating perspective.
+    score-=distance/6;
     if(plusValid||minusValid){
         int gx=plusValid?plusX:minusX,gy=plusValid?plusY:minusY;
         if(!ggFilmFrameProject(cameraX,cameraY,cosA,sinA,

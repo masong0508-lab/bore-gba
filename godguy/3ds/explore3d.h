@@ -342,11 +342,27 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 baseG=(baseG*3+71)/4;
                 baseB=(baseB*4+91)/5;
             }
+            if(cinematic&&!build&&(type==T_GRASS||type==T_FOREST)){
+                // The old highly saturated grass bands looked like a
+                // flat fluorescent carpet. Ground uses a calmer natural
+                // green, while distant layers gradually blend into air.
+                baseG=(baseG*4+baseR)/5;
+                baseB=(baseB*3+baseG)/4;
+            }
             int shade=256-d*3;
             if(shade<110)shade=110;
             baseR=baseR*shade/256;
             baseG=baseG*shade/256;
             baseB=baseB*shade/256;
+            if(cinematic){
+                // Fog is evaluated ONCE for a ray's visible world cell,
+                // not for every painted pixel. Keep far buildings
+                // recognizable without hard green/gray cutout layers.
+                int mist=ggExpClamp((d-6)*6,0,144);
+                baseR=(baseR*(256-mist)+76*mist)/256;
+                baseG=(baseG*(256-mist)+95*mist)/256;
+                baseB=(baseB*(256-mist)+113*mist)/256;
+            }
             int bright=build?13:6;
             // One material coordinate per ray/visible tile rather than
             // calling RNG or scanning any texture map per pixel.

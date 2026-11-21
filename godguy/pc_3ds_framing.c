@@ -14,13 +14,22 @@ int main(void){
     check(ggFilmFrameProject(nearX,hy,4096,0,hx,hy,&x,&depth)&&
           x==200&&depth==512,"protagonist not projected to shot center");
     check(ggFilmFrameProject(nearX,hy,4096,0,plusX,plusY,&x,&depth)&&
-          x==270,"right guest not visible at legible separation");
+          x==325,"right guest not visible at legible separation");
     check(ggFilmFrameProject(nearX,hy,4096,0,minusX,minusY,&x,&depth)&&
-          x==130,"left guest not visible at legible separation");
+          x==75,"left guest not visible at legible separation");
     check(!ggFilmFrameProject(hx+512,hy,4096,0,hx,hy,&x,&depth),
           "character behind the camera incorrectly visible");
     check(!ggFilmFrameProject(nearX,hy,4096,0,hx,hy+2048,&x,&depth),
           "clipped off-screen speaker passed frame safety check");
+    check(ggFilmFrameObstructionPenalty(256,0,1)>
+          ggFilmFrameObstructionPenalty(256,200,1)&&
+          ggFilmFrameObstructionPenalty(256,200,1)>0,
+          "nearby obstructing walls were not penalized by camera coverage");
+    check(!ggFilmFrameObstructionPenalty(256,0,0)&&
+          !ggFilmFrameObstructionPenalty(-256,0,1)&&
+          !ggFilmFrameObstructionPenalty(1024,0,1)&&
+          !ggFilmFrameObstructionPenalty(256,700,1),
+          "remote / behind-camera buildings contaminated framing score");
     const int both=ggFilmFrameScore(nearX,hy,4096,0,hx,hy,
                           plusX,plusY,minusX,minusY,1,1);
     const int one=ggFilmFrameScore(nearX,hy,4096,0,hx,hy,
