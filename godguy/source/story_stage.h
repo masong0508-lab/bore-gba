@@ -105,7 +105,24 @@ static void filmDrawSet(const FilmBeat *beat,int move){
     FilmFraming camera=filmFraming(beat,move);
     u8 columns[256];
     int sx=camera.x, sy=camera.y;
+#ifndef __3DS__
+    // Extremely cheap DS/DSi reverse-angle coverage. The foreground
+    // speaker changes the locked framing by one *source* pixel while the
+    // set landmarks and actor screen sides remain consistent. Recalculate
+    // the 256-entry source-column table once, never inside the pixel loop.
+    int reverse=(beat->lead<F_ACTOR_N &&
+                 (beat->camera==F_NEAR||beat->camera==F_HAND))?
+                ((beat->lead&1)?-1:1):0;
+    sx+=reverse*256;
+    for(int x=0;x<256;x++,sx+=camera.dx){
+        int col=sx>>8;
+        if(col<0)col=0;
+        if(col>=FMV_W)col=FMV_W-1;
+        columns[x]=(u8)col;
+    }
+#else
     for(int x=0;x<256;x++,sx+=camera.dx) columns[x]=(u8)(sx>>8);
+#endif
     for(int y=FILM_TOP;y<FILM_BOTTOM;y++,sy+=camera.dy){
         const u8 *row=uiNew+(sy>>8)*FMV_W*FILM_PLATE_SCALE;
         u8 *out=uiBuf+y*256;
