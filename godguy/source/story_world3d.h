@@ -221,10 +221,14 @@ static void ggFilmFloor(GgFilmCamera cam,int p,int t,int winter){
     if(wet){
         // Natural banks, not a graph-paper sea. Waves live at y=2 on
         // the water plane, so distance really changes their size.
-        ggFilmQuad(cam,ggV3(-850,1,400),ggV3(-600,1,400),
-                       ggV3(-455,1,1800),ggV3(-850,1,1800),winter?22:21);
-        ggFilmQuad(cam,ggV3(615,1,400),ggV3(850,1,400),
-                       ggV3(850,1,1800),ggV3(460,1,1800),winter?23:20);
+        if(!filmVista[FILM_VISTA_COAST].valid){
+            // Early scripted scenes without a sampled coast still have
+            // the established banks; a real saved coast supersedes them.
+            ggFilmQuad(cam,ggV3(-850,1,400),ggV3(-600,1,400),
+                           ggV3(-455,1,1800),ggV3(-850,1,1800),winter?22:21);
+            ggFilmQuad(cam,ggV3(615,1,400),ggV3(850,1,400),
+                           ggV3(850,1,1800),ggV3(460,1,1800),winter?23:20);
+        }
         for(int i=0;i<16;i++){
             int z=460+(i*113)%1180;
             int x=((i*257+t/5)%850)-425;
@@ -552,6 +556,81 @@ static int ggFilmRealTown(GgFilmCamera cam){
     }
     return count;
 }
+// Low-poly terrain from the *same 25x9 game-world snapshot* used for the
+// 2D film skyline. This is no longer only a static distant backdrop: coast,
+// cliffs and mountains now occupy projected world-space planes. Only the
+// 3DS gets this geometric depth; DS keeps its cheap illustrated shoreline.
+// 3 rows x 11 columns, <=33 top faces; 0 heap/framebuffers and bounded CPU.
+// Cels remain detailed 2D art instead of being replaced by polygon heads.
+static int ggFilmTerrainHeight(int t){
+    return t==T_MOUNT?165:t==T_HILL?72:t==T_SNOW?42:
+           t==T_FOREST?23:t==T_JUNGLE?26:
+           t==T_GRASS?12:t==T_SWAMP?6:
+           t==T_SAND?3:t==T_DESERT?9:t==T_DIRT?8:0;
+}
+static u8 ggFilmTerrainInk(int t,int side){
+    return t==T_MOUNT?(side?20:21):t==T_HILL?(side?20:24):
+           t==T_SNOW?(side?21:23):t==T_FOREST?16:
+           t==T_JUNGLE?17:t==T_SWAMP?13:t==T_SAND?26:
+           t==T_DESERT?25:t==T_DIRT?24:18;
+}
+static void ggFilmLandmarkTerrain(GgFilmCamera cam,int place,int t){
+    int kind=filmVistaPlace(place);
+    if(kind!=FILM_VISTA_COAST&&kind!=FILM_VISTA_RIDGE)return;
+    const FilmVista *v=&filmVista[kind];
+    if(!v->valid)return;
+    int seenTrees=0,seenRock=0;
+    // Painter's order: far samples first, near samples last. That gives
+    // plausible cliff/shore occlusion without a depth buffer.
+    for(int row=0;row<3;row++){
+        int my=2+row*2;
+        int z=1790-row*275;
+        for(int col=0;col<11;col++){
+            int mx=2+col*2;
+            int terr=filmVistaRead(v,mx,my,0);
+            int h=ggFilmTerrainHeight(terr);
+            if(!h)continue; // actual sea stays sea; never build fake shore
+            int x=(col-5)*145;
+            int w=144,d=279;
+            // Land-tops follow the sampled biome. Slopes are capped per
+            // tile and terraces form natural, legible beach and cliff faces.
+            ggFilmQuad(cam,ggV3(x-w/2,h,z-d/2),
+                           ggV3(x+w/2,h,z-d/2),
+                           ggV3(x+w/2,h,z+d/2),
+                           ggV3(x-w/2,h,z+d/2),
+                           ggFilmTerrainInk(terr,0));
+            int front=filmVistaRead(v,mx,my+1,0);
+            int frontH=ggFilmTerrainHeight(front);
+            if(h>frontH+8){
+                ggFilmQuad(cam,ggV3(x-w/2,frontH,z-d/2),
+                               ggV3(x+w/2,frontH,z-d/2),
+                               ggV3(x+w/2,h,z-d/2),
+                               ggV3(x-w/2,h,z-d/2),
+                               ggFilmTerrainInk(terr,1));
+            }
+            // Surging foam follows *real* sand/water boundaries only.
+            // The animated line is anchored to tile coordinates, not
+            // randomized screen pixels that change with dialogue cuts.
+            if(kind==FILM_VISTA_COAST&&filmVistaIsWater(front)&&
+               (terr==T_SAND||terr==T_GRASS||terr==T_DIRT)){
+                int surf=1+(t/18+col*3+row)%4;
+                ggFilmQuad(cam,ggV3(x-w/2+7,2,z-d/2-surf),
+                               ggV3(x+w/2-7,2,z-d/2-surf),
+                               ggV3(x+w/2-7,2,z-d/2-surf-4),
+                               ggV3(x-w/2+7,2,z-d/2-surf-4),15);
+            }
+            // Only a few fixed landmarks are outlined in full. Foliage
+            // sways at its real cell position and keeps background legible.
+            if((terr==T_FOREST||terr==T_JUNGLE)&&seenTrees<2){
+                ggFilmTree(cam,x,z,82,t,col+row);
+                seenTrees++;
+            }else if((terr==T_MOUNT||terr==T_HILL)&&seenRock<3){
+                ggFilmBox(cam,x,0,z,35,h/2+14,39,21,20,24);
+                seenRock++;
+            }
+        }
+    }
+}
 static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
                             int chapter,int roofFinished,int winter){
     int p=beat->place;
@@ -565,6 +644,7 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
     if(inside){ggFilmInterior(cam,p,scenic,chapter,winter);return;}
     ggFilmFloor(cam,p,scenic,winter);
     ggFilmRealHorizon(cam,p);
+    ggFilmLandmarkTerrain(cam,p,scenic);
     if(p==F_GATE||p==F_RUINS){
         if(p==F_GATE)ggFilmRealTown(cam);
         ggFilmArch(cam,-170,1260,p==F_RUINS);
