@@ -92,7 +92,30 @@ int main(void){
     require(batch.tiles==225&&!batch.overflow&&
             batch.count<=GG_GPU_MAX_VERTS,
             "real New3DS city-scene budget exceeds 192 KiB GPU geometry cap");
-    printf("NEW3DS GPU BATCH OK: %d grounded tiles, %d buildings, %d trees, %d vertices, deterministic PICA vertex stream and bounded memory\n",
-           batch.tiles,batch.buildings,batch.trees,batch.count);
+    int normalTiles=batch.tiles,normalBuildings=batch.buildings,
+        normalTrees=batch.trees,normalVertices=batch.count;
+    // Artificially overcrowd the GPU world while shrinking the VBO.
+    // The first complete house must be the camera's nearest tile,
+    // not a distant item from the old y/x row-major scan.
+    for(int i=0;i<W*W;i++)building[i]=2;
+    batch.capacity=64;
+    vertices[64]=(GgGpuVertex){88,88,88,88,88,88};
+    ggGpuSceneBuild(&batch,terrain,building,W,W,W,
+                    24*256+128,24*256+128,7);
+    require(batch.overflow&&batch.count==54&&
+            batch.tiles==1&&batch.buildings==1&&
+            vertices[0].x==0.0f&&vertices[0].z==0.0f&&
+            vertices[64].x==88.0f,
+            "full city overflow dropped the nearest house or split its walls");
+    // With just 15 vertices, permit a complete 12-vertex ground cell,
+    // but never begin a 42-vertex architectural shell without room.
+    batch.capacity=15;
+    ggGpuSceneBuild(&batch,terrain,building,W,W,W,
+                    24*256+128,24*256+128,7);
+    require(batch.overflow&&batch.tiles==1&&
+            batch.buildings==0&&batch.count==12,
+            "PICA buffer overflow emits half a building or partial terrain");
+    printf("NEW3DS GPU BATCH OK: %d grounded tiles, %d buildings, %d trees, %d vertices, deterministic PICA stream, nearest-first overflow and atomic architecture\n",
+           normalTiles,normalBuildings,normalTrees,normalVertices);
     return 0;
 }
