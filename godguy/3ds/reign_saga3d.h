@@ -1002,8 +1002,10 @@ static void ggSagaDraw(u8 *out){
             // Transfer only on verified visible hand contact. Once
             // transferred, possession persists while both actors
             // step apart; never draw two copies of the same object.
-            int holderHero=ggSagaShot.pairSourceHero!=
-                           ggSagaShot.pairTransferred;
+            int owner=ggFilmPairObjectOwner(pairKind,touching&&
+                            elapsed>=GG_SAGA_BEAT_TICKS-8,
+                            ggSagaShot.pairTransferred);
+            int holderHero=ggSagaShot.pairSourceHero!=owner;
             int hx=holderHero?heroHandX:guestHandX;
             int hy=holderHero?heroHandY:guestHandY;
             int size=holderHero?heroItem->size:partnerItem->size;
