@@ -3,8 +3,56 @@
 // Integer Q8 interpolation; no heap, second scene buffer or GPU assets.
 #ifndef GG_FILM_CAMERA3D_H
 #define GG_FILM_CAMERA3D_H
+#include "film_projection3d.h"
 typedef struct {int fromX,fromY,toX,toY;} GgFilmCameraTrack;
 typedef int (*GgFilmCameraCell)(int x,int y,int elevation,void *context);
+// Three is the upper bound: hero, one guest and optional second guest.
+// Only short-lived stack state during one-shot planning.
+typedef struct {int x,y,ground;} GgFilmCameraSubject;
+static int ggFilmCameraSubjectFits(int cameraX,int cameraY,
+                                    int cosA,int sinA,int cameraGround,
+                                    GgFilmCameraSubject subject,int scale){
+    int dx=subject.x-cameraX,dy=subject.y-cameraY;
+    int forward=(dx*cosA+dy*sinA)/4096;
+    int side=(-dx*sinA+dy*cosA)/4096;
+    if(forward<=80||forward>16*256||
+       (side<0?-side:side)*4>forward*5)return 0;
+    int screenX=ggFilmProjectScreenX(side,forward);
+    int feet=ggFilmProjectFootY(forward,cameraGround,subject.ground);
+    return ggFilmFootSafe(screenX,feet,scale);
+}
+// The original director scores only the opening frame. A 3/4-tile dolly
+// can bring boots into the subtitles or move a guest beyond the screen
+// edge halfway through a two-line take. Shorten the already collision-
+// checked track to the farthest still-readable frame. No render-time
+// visibility searches and no additional framebuffer are required.
+static void ggFilmCameraKeepCastInFrame(GgFilmCameraTrack *track,
+                                        const GgFilmCameraSubject *cast,
+                                        int count,int cosA,int sinA,
+                                        int cameraGround,int scale){
+    if(count<1)return;
+    if(count>3)count=3;
+    int fullX=track->toX,fullY=track->toY;
+    for(int fraction=4;fraction>=0;fraction--){
+        int x=track->fromX+
+              (fullX-track->fromX)*fraction/4;
+        int y=track->fromY+
+              (fullY-track->fromY)*fraction/4;
+        int allFit=1;
+        for(int i=0;i<count;i++)
+            if(!ggFilmCameraSubjectFits(x,y,cosA,sinA,
+                                       cameraGround,cast[i],scale)){
+                allFit=0;break;
+            }
+        if(allFit){
+            track->toX=x;track->toY=y;
+            return;
+        }
+    }
+    // No safe optical endpoint: don't compound an already crowded shot.
+    track->toX=track->fromX;
+    track->toY=track->fromY;
+}
 static int ggFilmCameraEase(int t){
     if(t<0)t=0;
     if(t>256)t=256;
