@@ -60,17 +60,20 @@ static void filmRoutePosition(int t,int *x,int *y){
     }
     // Distance-proportional movement keeps average travel speed constant
     // across each segment (not a sudden speed-up for the distant ridge).
-    int travel=t*r->total/r->duration;
+    // Q8 distance retains sub-tile motion on every rendered frame;
+    // moving one whole tile at a time would produce visible camera hops.
+    int travel=(int)((long long)t*r->total*256/r->duration);
     int segment=0;
-    while(segment<r->count-2&&travel>=r->length[segment]){
-        travel-=r->length[segment];
+    while(segment<r->count-2&&
+          travel>=r->length[segment]*256){
+        travel-=r->length[segment]*256;
         segment++;
     }
     int distance=r->length[segment];
     *x=r->x[segment]*256+
-       (r->x[segment+1]-r->x[segment])*256*travel/distance;
+       (r->x[segment+1]-r->x[segment])*travel/distance;
     *y=r->y[segment]*256+
-       (r->y[segment+1]-r->y[segment])*256*travel/distance;
+       (r->y[segment+1]-r->y[segment])*travel/distance;
 }
 static FilmRouteCamera filmRouteCameraAt(int t){
     FilmRouteCamera c;
