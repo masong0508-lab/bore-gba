@@ -78,9 +78,11 @@ static void ggFilmBeam(GgFilmCamera cam,int x,int y,int z,int w,int h,int d,
 
 // Facade is an actual set of surfaces at one depth. A real door is inset,
 // and each shutter has a raised side and lintel, not scribbled-on pixels.
-static void ggFilmHouse(GgFilmCamera cam,int x,int z,int w,int height,int lit){
+static void ggFilmHouse(GgFilmCamera cam,int x,int z,int w,int height,int lit,
+                        int roofFinished){
     int f=z-43,top=height;
     ggFilmBox(cam,x,0,z,w,height,86,21,20,24);
+    if(roofFinished){
     // Pitched roof: two slopes around a continuous ridge, plus gable.
     ggFilmQuad(cam,ggV3(x-w/2-8,top,f-7),ggV3(x,top+45,f-7),
                    ggV3(x,top+45,z+48),ggV3(x-w/2-8,top,z+48),24);
@@ -95,6 +97,22 @@ static void ggFilmHouse(GgFilmCamera cam,int x,int z,int w,int height,int lit){
         int tileZ=f-7+i*13;
         ggFilmQuad(cam,ggV3(x-w/2-8,top,tileZ),ggV3(x,top+45,tileZ),
                        ggV3(x,top+46,tileZ+2),ggV3(x-w/2-8,top+1,tileZ+2),26);
+    }
+    }else{
+        // Visible rafter skeleton under construction: the player can
+        // actually SEE the missing roof during Thorgrim's early dialogue.
+        ggFilmBox(cam,x,top+39,z,9,9,111,25,24,26);
+        for(int k=0;k<4;k++){
+            int rz=f-8+k*31;
+            ggFilmQuad(cam,ggV3(x-w/2-8,top,rz),
+                           ggV3(x,top+45,rz),
+                           ggV3(x,top+46,rz+5),
+                           ggV3(x-w/2-8,top+3,rz+5),24);
+            ggFilmQuad(cam,ggV3(x,top+45,rz),
+                           ggV3(x+w/2+8,top,rz),
+                           ggV3(x+w/2+8,top+3,rz+5),
+                           ggV3(x,top+46,rz+5),25);
+        }
     }
     ggFilmBeam(cam,x-w/2+8,0,f-3,5,height,7,25);
     ggFilmBeam(cam,x+w/2-8,0,f-3,5,height,7,25);
@@ -349,7 +367,8 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t){
         }
     }
 }
-static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,int chapter){
+static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
+                            int chapter,int roofFinished){
     int p=beat->place;
     if(p==F_ORBIT)return; // globe remains the spherical dedicated renderer
     GgFilmCamera cam=ggFilmCameraAt(beat,move);
@@ -367,10 +386,10 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,int chapte
         // Persist the same village plan, but let the town actually GROW:
         // one founding shelter, then its first neighbor, then the hall.
         // Later stories never jump back to a vanished building.
-        ggFilmHouse(cam,-340,1190,158,138,1);
-        if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1);
-        if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0);
-        if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1);
+        ggFilmHouse(cam,-340,1190,158,138,1,1);
+        if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1,roofFinished);
+        if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0,1);
+        if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
         ggFilmTree(cam,-530,910,158,elapsed,0);
         ggFilmTree(cam,515,1180,190,elapsed,2);
         if(chapter>=2)ggFilmBackgroundWorker(cam,-175,1070,elapsed,1);
