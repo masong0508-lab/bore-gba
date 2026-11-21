@@ -25,6 +25,7 @@ static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
 }
 #include "3ds/film_acting3d.h"
 static u8 front[400*240*3],side[400*240*3];
+static u8 tintedGround[400*240*3];
 static void check(int okay,const char*why){
     if(!okay){fprintf(stderr,"3DS VISUAL FAIL: %s\n",why);exit(1);}
 }
@@ -40,6 +41,28 @@ int main(void){
     const u8 *hair=ggFilmGuestPalette[0][0],
              *skin=ggFilmGuestPalette[0][1],
              *coat=ggFilmGuestPalette[0][2];
+    // The contact shadow should tint *existing* grass, snow or stone,
+    // not paste a flat black capsule. Ensure color ratios survive and the
+    // alpha falloff stops precisely at the projected foot row.
+    for(int pixel=0;pixel<400*240;pixel++){
+        tintedGround[pixel*3]=205;
+        tintedGround[pixel*3+1]=220;
+        tintedGround[pixel*3+2]=235;
+    }
+    ggFilmArtContactShadow(tintedGround,200,150,2);
+    int shaded=(148*400+200)*3;
+    int outer=(148*400+170)*3;
+    int below=(150*400+200)*3;
+    check(tintedGround[shaded]<205&&
+          tintedGround[shaded+1]<220&&
+          tintedGround[shaded+2]<235,
+          "the contact shadow does not actually blend with the terrain");
+    check(tintedGround[shaded]<tintedGround[shaded+1]&&
+          tintedGround[shaded+1]<tintedGround[shaded+2],
+          "shadow destroyed world material hue by painting a black oval");
+    check(tintedGround[outer]==205&&tintedGround[outer+1]==220&&
+          tintedGround[below]==205&&tintedGround[below+2]==235,
+          "contact shadow spread outside its footprint or below the boots");
     GgFilmPose frontPose=ggFilmPoseFor("The village lives.",1,48,0,0,0,0);
     GgFilmPose profilePose=frontPose;profilePose.turn=4;
     ggFilmDrawGuestActor(front,200,150,2,hair,skin,coat,&frontPose,0);
