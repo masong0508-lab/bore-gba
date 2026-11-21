@@ -748,6 +748,21 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     }else if(feature==GG_FACADE_TRIM){
                         r=113*wallShade/256;g=103*wallShade/256;
                         b=94*wallShade/256;
+                    }else if(feature==GG_FACADE_SILL){
+                        r=163*wallShade/256;g=157*wallShade/256;
+                        b=138*wallShade/256;
+                    }else if(feature==GG_FACADE_CORNICE){
+                        r=130*wallShade/256;g=122*wallShade/256;
+                        b=115*wallShade/256;
+                    }else if(feature==GG_FACADE_BRACE){
+                        r=105*wallShade/256;g=76*wallShade/256;
+                        b=53*wallShade/256;
+                    }else if(feature==GG_FACADE_MOSS){
+                        r=62*wallShade/256;g=94*wallShade/256;
+                        b=76*wallShade/256;
+                    }else if(feature==GG_FACADE_SCULPT){
+                        r=171*wallShade/256;g=159*wallShade/256;
+                        b=140*wallShade/256;
                     }
                 }else if(cinematic&&!build){
                     // Restrained grass and stone microtexture in genuine
