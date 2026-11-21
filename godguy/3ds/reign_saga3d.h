@@ -868,10 +868,12 @@ static void ggSagaDraw(u8 *out){
         }
     }
     int guestCount=primaryGuest<0?0:secondGuest<0?1:2;
-    int firstSide=ggFilmStageGuestSide(ggSagaShot.plusValid,
-                                       ggSagaShot.minusValid,0);
-    int secondSide=ggFilmStageGuestSide(ggSagaShot.plusValid,
-                                        ggSagaShot.minusValid,1);
+    int firstSide=guestCount?
+                  ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                       ggSagaShot.minusValid,0):0;
+    int secondSide=guestCount>1?
+                   ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                        ggSagaShot.minusValid,1):0;
     int speakerSide=activeStyle==primaryGuest?firstSide:
                     activeStyle==secondGuest?secondSide:0;
     int propSide=ggFilmStagePropSide(ggSagaShot.plusValid,
