@@ -24,3 +24,6 @@ Band 0 now restores a genuine 0..6 hospital pressure level rather than resetting
 
 ## Screenshot-driven animation correction
 Review of the actual mGBA ICU/awakening stills showed that the neck/gown were breathing on a different vertical phase than Missy’s face. The close-up and distant heads now follow the same 1px breath phase; this adds no new assets or buffers. Native capture should be reviewed again for head-to-neck continuity.
+
+## Save-entry pressure restoration and screenshot scope
+A chapter-four save load now invalidates the in-memory hospital clock and restores the persisted pressure before the first scene/goal check. The TQ_PLUG goal also defensively restores before evaluating completion, so a stale default PLUG_START cannot satisfy a multi-goal chapter on a load whose pressure is high. The mGBA smoke now crops the Qt menu row and checks the actual 3:2 GBA viewport only; a local crop check against the archived 480x340 capture produced a 480x320 game frame with 108 colours. CI must still rerun both current previews to validate the new head/neck motion and cropped artifact.
