@@ -319,6 +319,8 @@ jobs:
           /tmp/gg-3ds-staging
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_framing.c -o /tmp/gg-3ds-framing
           /tmp/gg-3ds-framing
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_projection.c -o /tmp/gg-3ds-projection
+          /tmp/gg-3ds-projection
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_partner.c -o /tmp/gg-3ds-partner
           /tmp/gg-3ds-partner
       - name: Build native 3DS homebrew executable
