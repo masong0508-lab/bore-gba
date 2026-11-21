@@ -17,7 +17,8 @@ static int ggFilmStageGuestSide(int plusValid,int minusValid,int slot){
 // Static props must NEVER spawn under a guest's shoes. With two distinct
 // guests both tiles are reserved; otherwise choose the free opposite tile.
 static int ggFilmStagePropSide(int plusValid,int minusValid,int guests){
-    if(guests!=1)return 0;
+    if(guests>=2)return 0;
+    if(guests<=0)return minusValid?-1:plusValid?1:0;
     int first=ggFilmStageGuestSide(plusValid,minusValid,0);
     if(first==1&&minusValid)return -1;
     if(first==-1&&plusValid)return 1;
