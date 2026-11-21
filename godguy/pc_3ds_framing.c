@@ -29,6 +29,12 @@ int main(void){
                           plusX,plusY,minusX,minusY,0,0);
     check(both>one&&one>none,
           "director preferred an empty or one-speaker shot");
+    check(ggFilmFrameHeightPenalty(8,8)==0&&
+          ggFilmFrameHeightPenalty(8,12)==72&&
+          ggFilmFrameHeightPenalty(12,8)==72,
+          "camera height bias is not symmetric or scale-bounded");
+    check(both-ggFilmFrameHeightPenalty(8,14)<one,
+          "director preferred perched guest silhouettes over level terrain");
     const int distant=ggFilmFrameScore(farX,hy,4096,0,hx,hy,
                           plusX,plusY,minusX,minusY,1,1);
     check(both>distant,"distant tiny figures were favored over legible cels");
