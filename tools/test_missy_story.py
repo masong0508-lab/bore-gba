@@ -89,7 +89,7 @@ for needle in [
     "if(s==STY_TVSHOW&&custom)",
     "plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=plugNight=0;",
     "if(s==STY_TVSHOW) stmPut(0);",
-    "replaying this story in the same household",
+    "m=stTvMamesyMember(patientUid);",
     "if(stId==STY_TVSHOW&&stCh==4&&stKid!=255",
     "if((cl!=8&&cl!=12)", "slwPut(w,(u8)(stId==STY_TVSHOW?stmGet():0))",
     "SRAM_BASE[STB_OFF+i]=c.p[9+i]",
