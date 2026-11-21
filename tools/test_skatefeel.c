@@ -10,6 +10,7 @@ enum { AB_GRIP, AB_JUMP, SFX_STICK };
 static int lsp,lvx,lvy,lhd,lvz,lz,lfx,lfy,lfr,lflip,lspecOn,bdOwn,stage,cview,lnoteT;
 static const char *lnote;
 static const int stSpd[5]={50,75,90,100,80};
+static const int hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}}; // walk-only mock heading table
 static int moodTop(int v){ return v; }
 static int abOf(int n){ (void)n; return 2; }
 static int abPct(int n,int v){ (void)n; (void)v; return 100; }
