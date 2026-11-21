@@ -109,10 +109,12 @@ static int filmVistaDiscover(int width,int height,int kind,
         int nextX=x+step<width?x+step:x;
         int nextY=y+step<height?y+step:y;
         int east=cell(nextX,y,0),south=cell(x,nextY,0);
+        // A sandy desert is not a coastline; only probe a candidate
+        // where there is a genuine land/water transition. Global scans
+        // must be sparse and cheap even on a 1024x1024 player planet.
         int possible=kind==FILM_VISTA_COAST?
             (filmVistaIsWater(terr)!=filmVistaIsWater(east)||
-             filmVistaIsWater(terr)!=filmVistaIsWater(south)||
-             terr==T_SAND):
+             filmVistaIsWater(terr)!=filmVistaIsWater(south)):
             (filmVistaIsRidge(terr)||terr==T_SNOW);
         if(possible&&filmVistaFind(x,y,width,height,kind,
                                   cell,bestX,bestY))return 1;
