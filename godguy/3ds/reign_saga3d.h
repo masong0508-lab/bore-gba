@@ -852,7 +852,7 @@ static void ggSagaDraw(u8 *out){
     int chronFrame=ggChron.frame;
     int stageX,stageY;
     ggSagaCamera(index,local,&stageX,&stageY);
-    ggExpRender(out);
+    ggExpRenderMode(out,1); // true-resolution 3DS cinema, HUD-free
     ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
     ggReignSceneDraw(out);
     ggChron.frame=chronFrame;
@@ -1028,10 +1028,11 @@ static void ggSagaDraw(u8 *out){
                                  &guestHandX,&guestHandY);
                 if(pairKind>=GG_FILM_PAIR_BOOK)performance.holdProp=0;
             }
-            ggFilmDrawActor(out,item->x,item->feet,item->size,
-                            ggFilmGuestPalette[style][0],
-                            ggFilmGuestPalette[style][1],
-                            ggFilmGuestPalette[style][2],&performance);
+            ggFilmDrawGuestActor(out,item->x,item->feet,item->size,
+                                 ggFilmGuestPalette[style][0],
+                                 ggFilmGuestPalette[style][1],
+                                 ggFilmGuestPalette[style][2],
+                                 &performance,style);
         }
     }
     if(pairVisible){
