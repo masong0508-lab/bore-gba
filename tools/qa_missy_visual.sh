@@ -20,15 +20,17 @@ if ! kill -0 "$pid" 2>/dev/null; then
   exit 1
 fi
 # Search only visible windows; prefer the actual emulator over an offscreen UI.
-win=$(xdotool search --onlyvisible --name 'mGBA' | head -n 1 || true)
+# Select only the window owned by this invocation. A shared CI desktop may
+# contain other emulator windows; their animation must not satisfy this smoke.
+win=$(xdotool search --onlyvisible --pid "$pid" --name 'mGBA' | head -n 1 || true)
 if [ -z "$win" ]; then
   cat "screenshots/${label}-emulator.log"
-  xwininfo -root -tree || true
+  xdotool search --onlyvisible --name mGBA || true
   echo 'mGBA game window not found in Xvfb' >&2
   exit 1
 fi
 echo "mGBA window: $win"
-xwininfo -id "$win" | head -n 26 || true
+xdotool getwindowname "$win" || true
 capture(){
   local name="$1"
   xwd -silent -id "$win" -out "screenshots/$name.xwd"
@@ -36,16 +38,27 @@ capture(){
   rm -f "screenshots/$name.xwd"
 }
 capture "${label}-opening"
+# A headless Xvfb server may have no window manager; focus is best-effort.
+# Send keys to the explicit window below, and fail if that injection fails.
 xdotool windowfocus "$win" || true
 # mGBA's default key bindings: X for A, Z for B. Alternate them so the
 # typewriter and caption pagination don't swallow one giant held-down key.
 for i in $(seq 1 16); do
-  xdotool key --clearmodifiers --window "$win" x || true
+  xdotool key --clearmodifiers --window "$win" x
   sleep 0.22
-  xdotool key --clearmodifiers --window "$win" z || true
+  xdotool key --clearmodifiers --window "$win" z
   sleep 0.22
 done
 sleep 2
+if ! kill -0 "$pid" 2>/dev/null; then
+  cat "screenshots/${label}-emulator.log"
+  echo "mGBA exited while advancing Missy dialogue" >&2
+  exit 1
+fi
+if ! xdotool getwindowname "$win" >/dev/null 2>&1; then
+  echo "mGBA window disappeared during Missy dialogue" >&2
+  exit 1
+fi
 capture "${label}-bedside"
 for file in "screenshots/${label}-"*.png; do
   dims=$(magick identify -format '%w %h %k' "$file")

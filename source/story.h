@@ -240,10 +240,10 @@ static u8 stTkL, stPending;   // tasks: bits 3-5; Missy's unwatched transition s
 static const StB* stBkNow(void){ return (stCh<5&&stId>=1&&stId!=STY_TVSHOW&&stId<STY_N)?&stBk[stId<STY_TVSHOW?stId-1:stId-2][stCh]:0; }   // (TV SHOW & TELL has no task rows: the ten stories after it follow the first ten)
 static int stTkN(const StB*b){ int n=0; if(b) while(n<3&&b->t[n].k) n++; return n; }
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
-static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|((stTkL&7)<<3)|(stPending?MS_PENDING_SCENE:0)|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
+static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)msStatusPack(stCh,stTkL,stPending,stGuest); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
 static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0;
     if(m[0]!='S'||m[1]!='Y'||m[2]>=STY_N||m[7]!=stSum(m)) return;
-    stId=m[2]; stCh=(u8)(m[3]&7); stTkL=(u8)((m[3]>>3)&7); stPending=(u8)((m[3]&MS_PENDING_SCENE)!=0); stGuest=(u8)(m[3]>>7); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
+    stId=m[2]; stCh=(u8)msStatusChapter(m[3]); stTkL=(u8)msStatusTasks(m[3]); stPending=(u8)msStatusPending(m[3]); stGuest=(u8)msStatusGuest(m[3]); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
 static void stUidMap(const u8*nu,int n){   // house.h hhLoad gave the uids out again (you 0, the members 1..): the story's partner and kid move with them, in RAM and in SRAM
     volatile u8*m=SRAM_BASE+STORY_OFF; int ok=m[0]=='S'&&m[1]=='Y'&&m[2]<STY_N&&m[7]==stSum(m);
     if(stPart<n&&nu[stPart]!=255) stPart=nu[stPart]; if(stKid<n&&nu[stKid]!=255) stKid=nu[stKid];
@@ -319,6 +319,11 @@ static long long stbGet(void){ volatile u8*m=SRAM_BASE+STB_OFF; return (long lon
 static void stbSet(void){ long long c=(long long)simMoneyI(); if(c<0) c=0; u32 v=(u32)((c+63)/64); if(v>0xFFFFFF) v=0xFFFFFF; volatile u8*m=SRAM_BASE+STB_OFF; m[0]=(u8)v; m[1]=(u8)(v>>8); m[2]=(u8)(v>>16); }
 static int stbEarned(void){ long long c=(long long)simMoneyI(), b=stbGet(); if(b>c+64){ stbSet(); b=stbGet(); } long long e=c-b; return e<0?0:e>0x7FFFFFFF?0x7FFFFFFF:(int)e; }
 static void plugRemember(int v){ int old=stmGet(), next=(int)msPressurePack((unsigned)old,(unsigned)v); if(next!=old) stmPut(next); }
+static void plugRestore(void){   // Events may arrive before the first hospital tick after loading SRAM.
+    if(plugDay!=0xFFFF) return;
+    plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
+    plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);
+}
 static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) return; int n=(m>>sh)&3; if(n<3) stmPut((m&~(3<<sh))|((n+1)<<sh)); }
 // CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
 // line of the story (who calls, what changes). Same order as stqT.
@@ -366,7 +371,7 @@ static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long:
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
     if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255&&(ev==SE_FRIEND||ev==SE_BFF||ev==SE_PROMO)){   // step 4: good news eases the hospital
-        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); plugRemember(plugV); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
+        plugRestore(); int d=ev==SE_BFF?15:10; plugV=(u8)msPressureEase(plugV,(unsigned)d); plugRemember(plugV); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
     stmSlip(stCh); stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
@@ -561,10 +566,7 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; plugNight=0; return; }
     if(++plugSec<60) return; plugSec=0;
     static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,8000};
-    if(plugDay==0xFFFF){ // restore a resumed appeal instead of granting a fresh reprieve after reloading
-        plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
-        plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);
-    }
+    plugRestore(); // restore before any hospital pressure changes
     int old=plugV, v=plugV;
     if((u16)simDay!=plugDay){ plugDay=(u16)simDay;   // a new day: Dr. Okafor calls about the life support
         v+=8; { static const char* const ok3[3]={"Okafor called. Bill's paid.","Bill paid. One more day.","Paid. Okafor sounds calmer."}, * const no3[3]={"You can't cover the bill.","Okafor called. No money.","Overdue bill. Okafor noticed."}; int r=rnd8()%3; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote=ok3[r]; } else { v+=20; lnote=no3[r]; } } lnoteT=120; }
@@ -572,8 +574,8 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
         v=(int)msPressureStep((unsigned)(v>100?100:v),support);
     }
     if(v>100) v=100;
-    if(v>=100&&plugNight){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
-    if(v>=100){   // a final-night extension, no erasing the existing bedside progress
+    if(msPressureOutcome((unsigned)v,(unsigned)plugNight)==2u){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
+    if(msPressureOutcome((unsigned)v,(unsigned)plugNight)==1u){   // one final-night extension, keep bedside progress
         v=50; if(simMoney>=1000) simMoney-=1000; plugNight=1; stmPut(stmGet()|16);
         toast("One more night. One extra day."); lnote="There won't be another one."; lnoteT=200; }
     else if(old<90&&v>=90){ static const char* const l90[3]={"Last chance. Save Missy.","She's almost out of time.","Mamesy, hurry. Please."}; lnote=l90[rnd8()%3]; lnoteT=150; }
