@@ -96,24 +96,39 @@ def inspect(data, name):
         return inspect_3dsx(data, name)
     raise ValueError(f"Unsupported ROM format: {name}")
 
-def scan(roots):
+def scan(roots, alternate_builds=None):
     available = {}
     for root in roots:
         root = pathlib.Path(root)
         if not root.is_dir():
             raise ValueError(f"Artifact directory not found: {root}")
-        for path in root.rglob("*"):
+        for path in sorted(root.rglob("*")):
             if not path.is_file() or path.name not in ALL:
                 continue
             data = path.read_bytes()
             if path.name in available:
                 if available[path.name] != data:
-                    raise ValueError(f"Duplicate ROMs differ: {path.name}")
+                    if path.name != GAME_3DSX:
+                        raise ValueError(f"Duplicate ROMs differ: {path.name}")
+                    # Independent 3DS CI jobs can compile with different
+                    # package installation sequences. Keep the main mixed
+                    # console artifact canonical; record the SECOND
+                    # fully-validated executable rather than silently
+                    # mixing it into the download or blocking DS bundles.
+                    inspected = inspect(data, path.name)
+                    if alternate_builds is not None:
+                        alternate_builds.append({
+                            "file": path.name,
+                            "role": "separate 3DS cinema job, not distributed",
+                            "sha256": hashlib.sha256(data).hexdigest(),
+                            "bytes": len(data),
+                            **inspected,
+                        })
                 continue
             available[path.name] = data
     return available
 
-def readme(kind, commit, package_files):
+def readme(kind, commit, package_files, alternates=None):
     lines = [
         f"GodGuy {kind.upper()} ports candidate",
         f"Git commit: {commit}",
@@ -143,6 +158,14 @@ def readme(kind, commit, package_files):
             "godguy_hw_audio_only.nds: saves disabled diagnostic.",
             "godguy_hw_save_only.nds: audio disabled diagnostic.",
             "godguy_hw_nocache.nds: optional memory-cache diagnostic.",
+        ]
+    if alternates:
+        lines += [
+            "",
+            "REPRODUCIBILITY NOTE: The separately compiled 3DS cinema job",
+            "produced a valid but byte-different executable. The main",
+            "mixed-port build is canonical. Both SHA-256 digests and",
+            "sizes are recorded in PORTS_MANIFEST.json for investigation.",
         ]
     lines += ["", "Included files:", *(" - " + x for x in package_files),
               "", "SHA256SUMS.txt lists the exact binaries inside this ZIP.",
@@ -175,7 +198,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if len(args.commit) < 7 or not all(c in "0123456789abcdef" for c in args.commit.lower()):
         parser.error("--commit must be a Git SHA")
-    image = scan(args.artifact_dir)
+    alternates = []
+    image = scan(args.artifact_dir, alternates)
     mandatory = set(REQUIRED_DS + (GAME_3DSX, GPU_3DSX))
     missing = sorted(mandatory - set(image))
     if missing:
@@ -195,6 +219,7 @@ def main(argv=None):
         "git_commit": args.commit,
         "qualification": "automated-build-and-format-only; hardware unverified",
         "artifacts": records,
+        "alternate_builds": alternates,
     }
     stem = f"godguy_{args.commit[:10]}"
     for kind, names in PACKAGES.items():
@@ -202,7 +227,8 @@ def main(argv=None):
         submanifest = {**manifest,"package":kind,
                        "contents":sorted(selected)}
         out = destination / f"{stem}_{kind}.zip"
-        write_zip(out, selected, readme(kind,args.commit,sorted(selected)),
+        write_zip(out, selected,
+                  readme(kind,args.commit,sorted(selected),alternates),
                   submanifest)
         print(f"CREATED {out} ({out.stat().st_size} compressed bytes)")
     (destination / "PORTS_MANIFEST.json").write_text(
