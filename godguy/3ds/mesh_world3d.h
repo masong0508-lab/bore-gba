@@ -277,6 +277,59 @@ static void ggMeshSideFacade(GgMeshContext*m,int wallX,int facing,
             ggMeshV(pane-facing,q-2,high),62,65,66);
     }
 }
+// Geometric masonry/wood courses use real world height and wall
+// normals, so highlights, seams, and framing stay planted during
+// camera turns. No UV atlas, screen-space noise or extra framebuffer.
+static void ggMeshWallFinish(GgMeshContext*m,int x0,int y0,
+                             int x1,int y1,int ground,int height,
+                             int wood){
+    int spacing=wood?6:5;
+    int lower=ground+3,upper=ground+height-3;
+    int windowLow=ground+height*2/5;
+    for(int z=lower;z<upper;z+=spacing){
+        if(z>=windowLow-2&&z<=windowLow+10)continue;
+        int r=wood?104:126,g=wood?80:124,b=wood?63:117;
+        if((z/spacing)&1){r+=10;g+=9;b+=8;}
+        ggMeshQuad(m,ggMeshV(x0+9,y0-4,z),
+            ggMeshV(x1-9,y0-4,z),
+            ggMeshV(x1-9,y0-4,z+1),
+            ggMeshV(x0+9,y0-4,z+1),r,g,b);
+        ggMeshQuad(m,ggMeshV(x0+9,y1+4,z),
+            ggMeshV(x1-9,y1+4,z),
+            ggMeshV(x1-9,y1+4,z+1),
+            ggMeshV(x0+9,y1+4,z+1),r,g,b);
+        ggMeshQuad(m,ggMeshV(x0-4,y0+9,z),
+            ggMeshV(x0-4,y1-9,z),
+            ggMeshV(x0-4,y1-9,z+1),
+            ggMeshV(x0-4,y0+9,z+1),r,g,b);
+        ggMeshQuad(m,ggMeshV(x1+4,y0+9,z),
+            ggMeshV(x1+4,y1-9,z),
+            ggMeshV(x1+4,y1-9,z+1),
+            ggMeshV(x1+4,y0+9,z+1),r,g,b);
+    }
+}
+static void ggMeshBuildingLanding(GgMeshContext*m,int x0,int y0,
+                                   int y1,int ground){
+    // Short physical flagstone approach at the actual entrance. The
+    // landing samples the SAME sloping world-surface triangle plane
+    // rather than floating at the nominal tile center height.
+    int centerY=(y0+y1)/2;
+    for(int tile=0;tile<4;tile++){
+        int x=x0-13-tile*20;
+        int half=23+((tile&1)?3:0);
+        int top=centerY-half,bottom=centerY+half;
+        GgMeshVertex a=ggMeshV(x,top,ggMeshGroundAtQ8(x,top)+1);
+        GgMeshVertex b=ggMeshV(x+16,top,
+                                ggMeshGroundAtQ8(x+16,top)+1);
+        GgMeshVertex cc=ggMeshV(x+16,bottom,
+                                 ggMeshGroundAtQ8(x+16,bottom)+1);
+        GgMeshVertex d=ggMeshV(x,bottom,
+                                ggMeshGroundAtQ8(x,bottom)+1);
+        ggMeshQuad(m,a,b,cc,d,tile&1?133:146,
+                   tile&1?128:136,tile&1?116:121);
+    }
+    (void)ground;
+}
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     int x0=tx*256+28,x1=tx*256+228;
@@ -369,6 +422,10 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         ggMeshWindow(m,x0,x1,y1,-1,ground,h);
         ggMeshSideFacade(m,x0,1,y0,y1,ground,h);
         ggMeshSideFacade(m,x1,-1,y0,y1,ground,h);
+        ggMeshWallFinish(m,x0,y0,x1,y1,ground,h,wood);
+        if(build==B_HOUSE||build==B_HUT||build==B_HALL||
+           build==B_TEMPLE||build==B_LIBRARY)
+            ggMeshBuildingLanding(m,x0,y0,y1,ground);
         // Vertical corner quoins or timber beams connect floor to
         // eaves and keep every view from looking like a plain cube.
         int trimR=wood?102:181,trimG=wood?77:170,trimB=wood?58:149;
