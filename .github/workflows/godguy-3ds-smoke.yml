@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: godguy-3ds-smoke-${{ github.workflow }}-${{ github.ref }}
+  group: godguy-3ds-smoke-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
