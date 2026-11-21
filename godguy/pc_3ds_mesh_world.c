@@ -31,6 +31,9 @@ int main(void){
                 ggMeshContext.fragments>1500&&
                 ggMeshTilesDrawn>20&&ggMeshBuildingsDrawn>=2,
                 "live world polygons or building volumes are missing");
+    meshRequire(ggMeshPropsDrawn>0&&
+                ggMeshPropsDrawn<=ggFilmScenicBudget(ggExpScenicQuality,0),
+                "visible scenery budget is empty or allocates beyond the fixed queue");
     // Dynamic polygonal people and animals use real 3D bones and
     // floor joints. The image itself must change between poses, not
     // just a simulated animation counter.
@@ -167,6 +170,41 @@ int main(void){
     meshRequire(!memcmp(still.palette,blink.palette,
                         sizeof still.palette),
                 "procedural citizen rerolled colors between frames");
+    // The actual jittered location must meet the camera's horizontal
+    // frustum before it can spend one of the 34/56/84 decor slots.
+    ggMeshBegin(&ggMeshContext,pixels,2,0,0,10,4096,0,42,65,89);
+    int sceneryForward=0;
+    meshRequire(ggMeshSceneryVisible(&ggMeshContext,1024,0,96,
+                                    &sceneryForward)&&
+                sceneryForward==1024,
+                "centerline village decoration is rejected by culling");
+    meshRequire(ggMeshSceneryVisible(&ggMeshContext,1024,900,96,0)&&
+                ggMeshSceneryVisible(&ggMeshContext,1024,-900,96,0),
+                "near-screen-edge prop crowns pop away prematurely");
+    meshRequire(!ggMeshSceneryVisible(&ggMeshContext,1024,1900,96,0)&&
+                !ggMeshSceneryVisible(&ggMeshContext,1024,-1900,96,0)&&
+                !ggMeshSceneryVisible(&ggMeshContext,-1024,0,96,0),
+                "offscreen or behind-camera scenery wastes the polygon budget");
+    ggMeshBegin(&ggMeshContext,pixels,1,0,0,10,0,4096,42,65,89);
+    meshRequire(ggMeshSceneryVisible(&ggMeshContext,0,1024,96,0)&&
+                !ggMeshSceneryVisible(&ggMeshContext,1600,1024,96,0),
+                "Old 3DS scene-culling ignores camera rotation/low-res viewport");
+    // The Old 3DS world uses 200x120 depth and a 2x2 output grid.
+    // An actor drawn on single 400x240 pixels creates flickering limbs,
+    // inconsistent silhouettes, and four times as many depth probes.
+    ggMeshBegin(&ggMeshContext,pixels,1,0,0,10,4096,0,42,65,89);
+    ggMeshPersonCount=ggMeshPersonPixels=0;
+    ggMeshPersonDraw(&ggMeshContext,512,0,0,512,0,
+                     1001,4,128,60,0,colors);
+    meshRequire(ggMeshPersonCount==1&&ggMeshPersonPixels>100,
+                "coarse Old 3DS citizen disappears after depth-grid alignment");
+    for(int y=0;y<240;y+=2)for(int x=0;x<400;x+=2){
+        const unsigned char *p=pixels+(y*400+x)*3;
+        meshRequire(!memcmp(p,p+3,3)&&
+                    !memcmp(p,p+400*3,3)&&
+                    !memcmp(p,p+400*3+3,3),
+                    "coarse citizen writes broken 2x2 pixels over 3D geometry");
+    }
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;
     ggExpRenderMode(pixels,0);
