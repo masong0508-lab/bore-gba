@@ -353,7 +353,7 @@ static int stqVal(const StQ*q){
     case TQ_SECURE: { int c=secCount('n'), g=secCount('j'); return (c>2?2:c)+(g>2?2:g); }   // chapter 3: tight security = 2 SECURITY CAMERAS and 2 SECURITY GATES on the lot you are on
     case TQ_GUEST: return stGuest?1:0;
     case TQ_HAPPY: return moodState()>=MS_HAPPY;
-    case TQ_PLUG: return plugV<=PLUG_OK;   // chapter 4: the hospital is held off (60 or less)
+    case TQ_PLUG: if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255) plugRestore(); return plugV<=PLUG_OK;   // chapter 4: restore before a multi-goal completion check
     }
     return 0;
 }
@@ -688,7 +688,7 @@ static void stqBeatTick(void){   // a goal reached for the first time this chapt
 }
 static void stTick(void){ { static u8 bt; if(++bt>=45){ bt=0; stqBeatTick(); } } papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stFix(void);
-static void stEnter(void){ stLoad(); stFix(); if(stId){
+static void stEnter(void){ stLoad(); stFix(); if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255){ plugDay=0xFFFF; plugSec=plugTen=0; plugRestore(); } if(stId){
         if(stId==STY_TVSHOW){
             int unavailable=stCh==3?stKid:stCh>=4?stPart:255;
             if(unavailable!=255&&hhPUid!=unavailable){ int m=stMember(unavailable);
