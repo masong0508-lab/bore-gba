@@ -58,7 +58,7 @@ static void bzShadow(const Bz*f){
     const BzCam*c=&bzCam; int sx,sy,iv; if(f->fall||!bzProjI(c,bzCamS,bzCamC,f->x,0,f->z,&sx,&sy,&iv)) return;
     int k=256-f->y*256/2600; if(k<40) k=40;
     int rx=(520*iv>>16)*k>>8, ry=rx*c->h*(iv>>8)/(c->f*256); if(ry<1) ry=1; if(rx<2) return;
-    for(int dy=-ry;dy<=ry;dy++){ int ad=dy<0?-dy:dy; int rad=ry<=BZ_RMAX?bzHW[ry][ad]:bzSqrt(ry*ry-ad*ad); int hw=rx*rad/ry; rect(sx-hw,sy+dy,hw*2+1,1,RGB(1,2,6)); }
+    for(int dy=-ry;dy<=ry;dy++){ int ad=dy<0?-dy:dy; int rad=ry<=BZ_RMAX?(ad==ry?0:bzHW[ry][ad]):bzSqrt(ry*ry-ad*ad); int hw=rx*rad/ry; rect(sx-hw,sy+dy,hw*2+1,1,RGB(1,2,6)); }
 }
 // bzHW is shared by discs and shadows (allocated above), and filled once at BALLZ MODE entry.
 static void bzDisc(int cx,int cy,int r,u16 col){ if(r<1) r=1; if(r>BZ_RMAX) r=BZ_RMAX; discLut(cx,cy,r,col,bzHW[r]); }   // (discLut: main.c, in IWRAM)
