@@ -10,6 +10,7 @@
 #ifndef GG_EXPLORE3D_H
 #define GG_EXPLORE3D_H
 #include "film_architecture3d.h"
+#include "film_floor3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -282,6 +283,50 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 ggExpDot(top,cx,cy,122,160,184);
         }
     }
+    // Film-only perspective floor: the same projected ground that cast
+    // boots touch, unlike the old succession of solid green voxel steps.
+    // The row distance is computed only 123 times. Rays share the 400px
+    // top buffer, exactly like the existing renderer: no new framebuffer.
+    if(cinematic){
+        int rowDistance[240],rowMist[240];
+        int cameraGround=ggExpGround(terrain);
+        for(int py=horizon+1;py<240;py++){
+            rowDistance[py]=ggFilmFloorForward(py,horizon,
+                eye-cameraGround,GG_EXP_MAX_DEPTH*256);
+            rowMist[py]=ggFilmFloorMist(rowDistance[py]);
+        }
+        for(int x=0;x<400;x++){
+            int skew=x-200;
+            int floorRayX=dirX+rightX*skew/GG_FILM_FOCAL;
+            int floorRayY=dirY+rightY*skew/GG_FILM_FOCAL;
+            for(int y=horizon+1;y<240;y++){
+                int d=rowDistance[y];
+                int wx=ggExplore.px+floorRayX*d/4096;
+                int wy=ggExplore.py+floorRayY*d/4096;
+                int tx=wx>>8,ty=wy>>8;
+                int type=(unsigned)tx<WW&&(unsigned)ty<WH?
+                    world[ty][tx]:T_DIRT;
+                if((unsigned)type>=T_N)type=T_DIRT;
+                int r=(terrCol[type][0]*8*4+72)/5;
+                int g=(terrCol[type][1]*8*3+71)/4;
+                int b=(terrCol[type][2]*8*4+91)/5;
+                if(type==T_GRASS||type==T_FOREST){
+                    g=(g*4+r)/5;
+                    b=(b*3+g)/4;
+                }
+                int grain=ggFilmFloorGrain(wx,wy,ggExplore.frame);
+                r+=grain;g+=grain;b+=grain;
+                int mist=rowMist[y];
+                r=(r*(256-mist)+76*mist)/256;
+                g=(g*(256-mist)+95*mist)/256;
+                b=(b*(256-mist)+113*mist)/256;
+                u8*p=top+(y*400+x)*3;
+                p[0]=(u8)ggExpClamp(r,0,255);
+                p[1]=(u8)ggExpClamp(g,0,255);
+                p[2]=(u8)ggExpClamp(b,0,255);
+            }
+        }
+    }
     // Front-to-back silhouette-buffer voxel ray caster. 200 rays, max
     // 42 terrain samples each, with every cell read directly from the
     // live 3DS game world. No second mesh, z-buffer or GPU allocation.
@@ -307,6 +352,11 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             int type=world[ty][tx],build=bld[ty][tx];
             if((unsigned)type>=T_N)type=T_DIRT;
             int ground=ggExpGround(type),rise=ggExpBuilding(build);
+            // The ground plane has already drawn level or lower land.
+            // Only actual raised cliffs and building VOLUMES must be
+            // added by the silhouette caster; never redraw a green
+            // vertical wall all the way to the screen's bottom.
+            if(cinematic&&!build&&ground<=ggExpGround(terrain))continue;
             int h=ground+rise;
             GgFilmRoofVolume roof={h,h,0,256};
             if(cinematic&&build){
@@ -329,6 +379,13 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(projected>=highest)continue;
             int from=ggExpClamp(projected,0,screenHeight);
             int to=ggExpClamp(highest,0,screenHeight);
+            if(cinematic&&build){
+                // Wall facades physically stop at their ground-footprint,
+                // rather than extending like giant cardboard rectangles
+                // toward the player through the continuous terrain.
+                int groundFoot=horizon-(ground-eye)*12/(d+1);
+                if(groundFoot<to)to=ggExpClamp(groundFoot,from,to);
+            }
             int baseR,baseG,baseB;
             if(build){
                 // Stone, timber, roofs and towers are recognizable solid
