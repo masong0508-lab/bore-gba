@@ -1,6 +1,8 @@
 # GODGUY — The Long Film Edition (3DS) / Story Edition (DS)
 
-**Screenplay implementation status, 20 November 2026:** the 3DS cinematic timeline is now scripted for **84 minutes 44 seconds of campaign-directed shots**: 34:44 of shared/existing extended scenes plus 375 newly authored eight-second beats (50:00). Six independent, replayable, chapter-unlocked anthology films add **exactly 40:00** of scenes (300 additional eight-second beats), for **124 minutes 44 seconds of authored, directed screenplay** plus the original baked movie footage. The DS/DSi retains the stronger shared 20:44 directed scenes. All totals describe **scheduled scene lengths in source**, not an emulator-verified or fully rendered two-hour movie. Realistic acting pace, native 3DS character geometry, animation, audio mix, old-hardware FPS, and complete film playback still require verification and polish.
+**Screenplay implementation status, 20 November 2026:** the 3DS cinematic timeline is now scripted for **84 minutes 48 seconds of campaign-directed shots**: 34:44 of shared/existing extended scenes plus 375 newly authored eight-second beats (50:00). Six independent, replayable, chapter-unlocked anthology films add **exactly 40:00** of scenes (300 additional eight-second beats), for **124 minutes 48 seconds of authored, directed screenplay** plus the original baked movie footage. The DS/DSi retains the stronger shared 20:44 directed scenes. All totals describe **scheduled scene lengths in source**, not an emulator-verified or fully rendered two-hour movie. Realistic acting pace, native 3DS character geometry, animation, audio mix, old-hardware FPS, and complete film playback still require verification and polish.
+
+**Measured host playback:** the completed GitHub Actions screenplay/playback regression reports **86:27 campaign including baked scenes**, **40:00 unlockable anthology**, and **2:06:27 combined scheduled film timeline**. This is a verified sequence clock, not a claim that every screen has final full-body 3D character models or certified hardware FPS.
 
 ## What makes the film work
 
@@ -18,7 +20,7 @@ Neither is there solely to recite exposition. Both have goals, obstacles, changi
 
 ## Directed acts — implemented script schedule
 
-The 15 feature-chapter arrays in `source/story_feature_3ds.h` add 25 purpose-written eight-second shots to each existing 3DS episode. Every new beat has a named location, camera, physical performers and/or an authored action. The main arc reaches **84:44** of staged material; the older baked prologues add additional time.
+The 15 feature-chapter arrays in `source/story_feature_3ds.h` add 25 purpose-written eight-second shots to each existing 3DS episode. Every new beat has a named location, camera, physical performers and/or an authored action. The main arc reaches **84:48** of staged material; the older baked prologues add additional time.
 
 | Act | Chapters | Main conflict |
 | --- | --- | --- |
@@ -41,7 +43,7 @@ Access: **Extras → Film Archive** on the 3DS only. Unlocks follow save-compati
 | Names at Dawn | Chapter 14 | 6:40 | Elowen and Elder Mira leave space for those not ready to remember publicly |
 | After the Crown | Campaign completion | 6:40 | Hollow respects refusal and chooses ordinary, accountable work |
 
-**Calculated totals:** 15×25×8 seconds = 50:00 newly staged campaign material, plus 34:44 existing staged campaign = **84:44**; six×50×8 seconds = **40:00** bonus; combined staged schedule = **2:04:44** before the pre-rendered film portions. If it feels like padded dialogue, the right response is to write and animate more purposeful coverage—not simply increase shot durations.
+**Calculated totals:** 15×25×8 seconds = 50:00 newly staged campaign material, plus 34:44 existing staged campaign = **84:48**; six×50×8 seconds = **40:00** bonus; combined staged schedule = **2:04:44** before the pre-rendered film portions. If it feels like padded dialogue, the right response is to write and animate more purposeful coverage—not simply increase shot durations.
 
 ## Ending — the strongest rewriting priority
 
@@ -84,5 +86,5 @@ Avoid cheap comedy undercutting grief. Humor from Dave and the goat is welcome i
 
 1. Verify this new renderer's build/test pipeline and inspect 3DS cinematic frames in an emulator; correct clipping or geometry occlusion before expanding scene complexity.
 2. Move physical prop supports into the same 3D scene transform instead of keeping their legacy fixed screen coordinates.
-3. Review and improve the authored 84:44 campaign and 40:00 bonus timeline shot by shot; give every silent beat physical action, lip timing, reaction and continuity. Revise unnatural holds rather than hiding them in the runtime total.
+3. Review and improve the authored 84:48 campaign and 40:00 bonus timeline shot by shot; give every silent beat physical action, lip timing, reaction and continuity. Revise unnatural holds rather than hiding them in the runtime total.
 4. Upgrade from 2D character billboards to articulated 3D body models where the hardware budget permits, while retaining sharp close-up acting portraits and the DS cutscene fallback.
