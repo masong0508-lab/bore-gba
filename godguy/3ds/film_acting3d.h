@@ -155,6 +155,11 @@ static void ggFilmPairActPose(GgFilmPose *p,int dir,int inset){
     p->legL=(signed char)(dir*(inset/48));
     p->legR=(signed char)-p->legL;
     p->bob=0; // planted feet while reaching, not endless idle bobbing
+    // Keep the rendered sleeve coincident with the separately projected
+    // shared prop/other person's hand. Secondary torso movement would
+    // otherwise displace the wrist by one pixel during contact.
+    p->breath=0;
+    p->weightShift=0;
 }
 static void ggFilmPairHandAt(int x,int feet,int scale,int targetX,
                               const GgFilmPose *p,int *hx,int *hy){
