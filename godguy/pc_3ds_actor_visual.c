@@ -14,7 +14,8 @@ static int ggExpClamp(int n,int low,int high){
 static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
     if(w<=0||h<=0){fputs("VISUAL FAIL: empty primitive\n",stderr);exit(1);}
     int x0=x<0?0:x,y0=y<0?0:y,x1=x+w,y1=y+h;
-    if(x1>400)x1=400;if(y1>240)y1=240;
+    if(x1>400)x1=400;
+    if(y1>240)y1=240;
     for(int py=y0;py<y1;py++)for(int px=x0;px<x1;px++){
         u8*p=out+(py*400+px)*3;
         p[0]=(u8)ggExpClamp(r,0,255);
@@ -65,6 +66,18 @@ int main(void){
     ggFilmDrawGuestActor(side,200,150,2,hair,skin,coat,&other,0);
     check(whites(side)>0,
           "opposite three-quarter profile lost its visible eye");
+    // Exercise the actor integration, legacy script-pose entry and
+    // partner contact geometry under the SAME strict -Werror unit.
+    GgFilmPose legacy=ggFilmPoseAt("YOU","The records are open.",
+                                  2,48,1,0,2);
+    check(legacy.holdProp==3,
+          "scripting compatibility lost the public-records prop");
+    check(ggFilmPairProjectedContact(120,140,3,172,140,3),
+          "two character hands cannot meet in a legal full-body shot");
+    ggFilmDrawActor(front,120,170,2,hair,skin,coat,&legacy);
+    ggOriginHumanCel[0][0]='X';
+    check(ggOriginHumanCel[0][0]=='X',
+          "unused legacy portrait storage corrupted");
     puts("3DS VISUAL OK: actually distinct profiles, correct far-eye occlusion and physically planted shadows");
     return 0;
 }
