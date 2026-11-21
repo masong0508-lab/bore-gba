@@ -390,10 +390,31 @@ int main(int argc,char **argv){
     cr[0]=(Cr){0,66,65,1,0};crId[0]=1001;
     cr[1]=(Cr){1,66,66,1,0};crId[1]=1002;
     occ[65][66]=1;occ[66][66]=2;
-    int movingPeople=0;
-    for(int k=0;k<4;k++){
-        ggExplore.frame=20+k*16;
+    ggPersonTrackReset();
+    int movingPeople=0,motionFrames=0;
+    // Source screenshots contain an actual citizen walking east, then
+    // turning south, not just four randomized standing cels.
+    for(int k=0;k<6;k++){
+        if(k==1){
+            occ[65][66]=0;
+            cr[0].x=67;occ[65][67]=1;
+        }
+        if(k==4){
+            occ[65][67]=0;
+            cr[0].y=66;occ[66][67]=1;
+        }
+        ggExplore.frame=20+k*4;
         ggExpRenderMode(guarded.img,0);
+        if(k==2||k==5){
+            GgPersonMotion sample=ggPersonMotionSample(
+                1001,(cr[0].x<<8)+128,(cr[0].y<<8)+128,
+                ggExplore.frame,0);
+            if(!sample.walking){
+                fprintf(stderr,"MESH CAPTURE FAIL: moving resident looks stationary at frame %d\n",k);
+                fclose(meshMetrics);return 33;
+            }
+            motionFrames++;
+        }
         if(ggExpNpcsDrawn!=2||ggMeshPersonCount!=1||
            ggMeshPersonPixels<40){
             fprintf(stderr,"MESH CAPTURE FAIL: living procedural person missing (%d actors, %d sprite people, %d pixels)\n",
@@ -415,12 +436,13 @@ int main(int argc,char **argv){
                 ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
                 ggMeshBuildingsDrawn,ggMeshPropsDrawn);
     }
-    if(movingPeople<40){
+    if(motionFrames!=2||movingPeople<40){
         fprintf(stderr,"MESH CAPTURE FAIL: real citizens altered only %d pixels\n",
                 movingPeople);
         fclose(meshMetrics);return 32;
     }
-    occ[65][66]=0;occ[66][66]=0;nCr=0;
+    occ[65][66]=0;occ[66][67]=0;occ[66][66]=0;
+    nCr=0;ggPersonTrackReset();
     // Old 3DS uses the exact same 3D geometry at lower pixel density
     // while preserving 400x240 output and the game's HUD overlay.
     ggExpScenicQuality=1;
@@ -439,7 +461,7 @@ int main(int argc,char **argv){
             ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
             ggMeshBuildingsDrawn,ggMeshPropsDrawn);
     fclose(meshMetrics);
-    printf("3DS TRUE MESH CAPTURE OK: eight polygonal biomes, six moving-camera images, four living-world frames with procedural 32x48 people and volumetric animals, %d changed pixels, %d triangles in scene zero, %d cumulative triangles\n",
+    printf("3DS TRUE MESH CAPTURE OK: eight polygonal biomes, six moving-camera images, six living-world motion frames (two verified walking strides) with procedural 32x48 people and volumetric animals, %d changed pixels, %d triangles in scene zero, %d cumulative triangles\n",
            movingPeople,firstPolys,totalTriangles);
     printf("3DS CAPTURE OK: 12 story frames, 15 cast turntable views, 8 biomes, 6 playable POV frames and wall occlusion; %d props across biomes, minimum %d scenic pixel changes, %d playable POV changes; %.3f ms/host scene frame, %.6f/%.6f ms actor without/with depth; %zu B depth+scenery scratch\n",
            visibleProps,minScenicPixels,povPixels,
