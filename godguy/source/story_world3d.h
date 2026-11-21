@@ -23,35 +23,38 @@ static int ggFilmSceneTime(int local){
 static GgV3 ggV3(int x,int y,int z){
     GgV3 v={(short)x,(short)y,(short)z}; return v;
 }
-// Deterministic physical camera positions, not zooms of a painted plate.
-// Similar dialogue cuts still observe the *same* room and landmarks, but
-// from a distinct real angle. No random-per-frame camera jitter.
-static int ggFilmShotIdentity(const FilmBeat *beat){
-    unsigned id=(unsigned)beat->place*29u+(unsigned)beat->camera*17u+
-                (unsigned)beat->lead*7u+(unsigned)beat->other*11u+
-                (unsigned)beat->prop*3u;
-    if(beat->line)
-        for(int j=0;j<5&&beat->line[j];j++)
-            id=id*33u+(unsigned char)beat->line[j];
-    return (int)(id%63u);
-}
+// Coherent coverage grammar: keep a location's establishing angle, repeat
+// each speaker's familiar near angle, and reserve traveling moves for TRACK.
+// The old system hashed subtitle text, creating a jarring camera jump on
+// virtually every spoken line in the same room. That is not filmmaking.
+// World geometry, light sources and screen direction stay anchored.
 static GgFilmCamera ggFilmCameraAt(const FilmBeat *beat,int move){
-    int id=ggFilmShotIdentity(beat);
+    int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
+    int speakerLeft=paired?filmActorLeftOf(beat->lead,beat->other):
+                    beat->lead==F_WISP;
     GgFilmCamera c={0,0};
-    // Distinct stable framing, even on five successive conversation beats
-    // in the same house. Restrained x/Z values keep scene geography stable.
-    c.x=((id%5)-2)*19;
-    c.z=((id/5)%3-1)*31;
-    if(beat->camera==F_TRACK){
-        c.x+=(move-128)/3;  // purposeful world-space tracking
-        c.z+=(move-128)/5;
-    }else if(beat->camera==F_WIDE){
-        c.x+=(move-128)/12;
-        c.z+=(move-128)/3;
+    if(beat->camera==F_WIDE){
+        // This is the audience's spatial anchor; return here regularly.
+        c.z=-22;
+        // A deliberate arrival shot may dolly into the fixed geography.
+        if(beat->lead==F_OFFSCREEN||!paired){
+            c.x=(move-128)/14;
+            c.z+=(move-128)/4;
+        }
+    }else if(beat->camera==F_NEAR){
+        // Two actors share the same line of action. Each character
+        // receives ONE repeatable three-quarter angle per conversation.
+        c.x=speakerLeft?-29:29;
+        c.z=17;
+    }else if(beat->camera==F_TRACK){
+        c.x=(speakerLeft?-22:22)+(move-128)/3;
+        c.z=6+(move-128)/5;
     }else if(beat->camera==F_HAND){
-        c.z+=24;
+        // Shared insert/prop coverage returns to the same work surface.
+        c.x=speakerLeft?-12:12;
+        c.z=26;
     }else if(beat->camera==F_INSERT){
-        c.x+=((id/11)%3-1)*9;
+        c.z=22;
     }
     return c;
 }
