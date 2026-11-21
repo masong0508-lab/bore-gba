@@ -67,3 +67,14 @@ one-byte value and 0-100 pressure, including the spent one-more-night flag.
 camera shots at the same beat and frame, missing scene sequencing, and
 accidental removal of the musical start/fade. The GBA workflow runs both
 before building. A redundant, shadowed scene-6 beat-8 camera shot was removed.
+
+### Hospital-patient AI coherence
+The chapter-four Missy household member is flagged away before any household
+AI decision. She cannot go to work, walk around the house, respond to talks,
+or be selected while the film shows her unconscious in hospital. The guard
+applies even when free will is disabled, because the normal HA_AWAY handler
+otherwise sends absent Sims back inside instantly. On chapter five the
+hospital flag ends and Missy's off-lot proxy is returned to a valid exit tile
+before she is switched back into the player's control. A different manually
+selected housemate cannot permanently block the hand-back. The goals cannot
+complete while the player is controlling the wrong sister.

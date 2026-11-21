@@ -452,6 +452,14 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
 // MAMESY'S LOOK: fixed, so the game and the cutscenes (csart.h csface.h) show the same woman: a slim-average build, Missy's skin (they are sisters), long brown hair, a teal long-sleeve top, jeans.
 static const u8 stMamesyLook[LK_N]={[LK_SHAPE]=0,[LK_SKIN]=1,[LK_EYES]=1,[LK_MOUTH]=1,[LK_EARS]=1,[LK_HSTYLE]=2,[LK_HCOL]=1,[LK_TOP]=0,[LK_BOT]=0,[LK_BROW]=1,[LK_NOSE]=1,[LK_CHEEK]=1,[LK_TOPSTY]=1};
 static u8 stTvWant, stTvWarn;
+static int stTvHospitalUid(int uid){ // house.h calls this before any household AI decisions
+    return stId==STY_TVSHOW&&stCh==3&&stKid!=255&&hhPUid!=(int)stKid&&uid==(int)stKid;
+}
+static void stTvPatientRest(int m){ // the recovery scene is over: Missy may be controlled again
+    HhSim*s=&hhM[m]; s->act=HA_IDLE; s->use=HN_FUN; s->item=0;
+    s->pn=s->pi=0; s->gok=0; s->think=20; hhUp[m]=0; hhFl[m]=0;
+    s->fx=(s32)hhExX*256+128; s->fy=(s32)hhExY*256+128;
+}
 static int stTvCan(int m){ return m>=0&&!custom&&!(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m)); }   // the switch would work right now (else we ask again in a second, silently)
 static void stTvControl(void){
     if(stId!=STY_TVSHOW||!stTvWant){ stTvWant=0; return; }
@@ -472,9 +480,11 @@ static void stTvControl(void){
         int me=hhPUid; hhSwitchTo(m);
         if(hhPUid!=(int)stPart) return;   // it did not switch: try again later
         stKid=(u8)me; stTvWant=0;
-    } else {   // later chapters: Missy again
-        if(stCh<4||stPart==255||stKid==255||hhPUid!=(int)stPart){ stTvWant=0; return; }
-        int m=stMember(stKid); if(m<0){ stTvWant=0; return; }
+    } else {   // chapter 5: return to Missy, even if the player selected a different housemate
+        if(stCh<4||stPart==255||stKid==255){ stTvWant=0; return; }
+        if(hhPUid==(int)stKid){ stTvWant=0; return; }
+        int m=stMember(stKid); if(m<0) return;  // never delete the pending handover
+        if(hhM[m].act==HA_AWAY&&!hhUp[m]) stTvPatientRest(m);
         if(!stTvCan(m)) return;
         hhSwitchTo(m);
         if(hhPUid!=(int)stKid) return;
@@ -548,6 +558,9 @@ static void stTick0(void){   // once per logic step in the life game: is this ch
     const StCh*c=&stChs[stId][stCh];
     if(c->goal==SG_TASKS) stTkTick();
     if(c->goal==SG_END) return;
+    // The story cannot finish a bedside chapter while the wrong person is being played.
+    if(stId==STY_TVSHOW&&stCh==3&&(stPart==255||hhPUid!=(int)stPart)){ stTvWant=1; return; }
+    if(stId==STY_TVSHOW&&stCh==4&&stKid!=255&&hhPUid!=(int)stKid){ stTvWant=2; return; }
     if(c->goal==SG_DAYS&&stKidDay==255){ u8 b=(u8)(simDay&255); stKidDay=b==255?254:b; stSave(); return; }   // the clock starts when the chapter does
     if(c->goal==SG_MULTI&&stKidDay==255){ stKidDay=stqDay(); stGuest=0; stSave(); return; }   // (the chapter clock starts with the chapter)
     if(c->goal==SG_KID){   // a day after the chapter starts the child comes home
@@ -838,7 +851,7 @@ static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over o
     int kind=stModal; stRunModal0(); if(kind==3) return;   // (3 = chapter 4 lost: lifeModeRun leaves play when sgDiscard is 2)
     if(stId!=STY_TVSHOW) return;
     if(stCh==3&&(stPart==255||hhPUid!=(int)stPart)) stTvWant=1;  // reload mid-handover must still give Mamesy control
-    else if(stCh>=4&&stPart!=255&&stKid!=255&&hhPUid==(int)stPart&&(kind==2||stCh==4)) stTvWant=2;
+    else if(stCh==4&&stPart!=255&&stKid!=255&&hhPUid!=(int)stKid) stTvWant=2;
     stTvControl();
 }
 // STORY CAST (story step 1): STORY MODE does not make you build a Sim. Every story has its own pre-made lead, who is who you play (the creator is for CREATE A BORE).

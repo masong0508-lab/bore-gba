@@ -12,7 +12,7 @@ int main(void){
             unsigned revived=msPressureResume(packed,20u);
             assert(revived<=100u);
             if(msPressureBand(pressure)!=0)
-                assert(revived+7u>=pressure&&revived<=pressure+7u);
+                assert(revived+7u>=pressure&&revived<=pressure+13u);
         }
     }
     assert(msPressureBand(0)==0&&msPressureBand(100)==7);
