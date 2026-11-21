@@ -27,6 +27,8 @@ int main(int argc,char**argv){
                     "different citizens generated the same identity");
     }
     for(int turn=0;turn<8;turn++){
+        memset(&a,0xa5,sizeof a);
+        memset(&b,0x3c,sizeof b);
         ggPersonGenerate(&a,1001u,4,turn,50,0,palette);
         ggPersonGenerate(&b,1001u,4,turn,50,0,palette);
         require(!memcmp(&a,&b,sizeof a),

@@ -140,7 +140,10 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
                              int turn,int tick,int active,
                              const unsigned char coat[3][3]){
     GgPersonTraits p=ggPersonTraits(id,family);
-    memset(c->pixels,0,sizeof c->pixels);
+    // The transparent ink must be initialized too: two regenerations
+    // on different stacks must produce byte-for-byte identical sprites.
+    // This is just one 1.6 KiB reusable cel, not an allocation.
+    memset(c,0,sizeof *c);
     ggPersonColors(c,p,coat);
     turn&=7;
     int front=turn==0||turn==1||turn==7;
