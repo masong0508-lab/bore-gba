@@ -37,6 +37,48 @@ static void ggMeshBox(GgMeshContext*m,int x0,int y0,int x1,int y1,
 static inline int ggMeshShade(int c,int light){
     return ggMeshClamp(c*light/256,0,255);
 }
+// Small world-space plants, cobbles and weathering instead of a
+// monolithic triangle carpet. Only nearby native-detail tiles get these
+// facets; distant / Old 3DS tiles retain the original four triangles.
+static void ggMeshGroundLife(GgMeshContext*m,int tx,int ty,int type,
+                             int ground,uint32_t key){
+    if(type<=T_WATER||type==T_LAVA)return;
+    for(int i=0;i<3;i++){
+        int sx=tx*256+72+(int)((key>>(i*5))&95u);
+        int sy=ty*256+66+(int)((key>>(i*7+2))&111u);
+        int z=ground+1;
+        if(type==T_GRASS||type==T_FOREST||type==T_JUNGLE||
+           type==T_SWAMP){
+            int height=type==T_JUNGLE?7:4+(int)((key>>(i*3))&3u);
+            ggMeshTriangle(m,ggMeshV(sx-13,sy-8,z),
+                ggMeshV(sx+11,sy+8,z),
+                ggMeshV(sx+5,sy-5,z+height),
+                51+(i*7),103+(i*5),60+(i*3));
+            if((key>>(i*6))&1u)
+                ggMeshTriangle(m,ggMeshV(sx-5,sy+12,z),
+                    ggMeshV(sx+10,sy-8,z),
+                    ggMeshV(sx-7,sy+3,z+height-1),70,116,71);
+        }else if(type==T_SAND||type==T_DESERT){
+            ggMeshQuad(m,ggMeshV(sx-28,sy-5,z),
+                ggMeshV(sx+28,sy-5,z),
+                ggMeshV(sx+26,sy+2,z),
+                ggMeshV(sx-25,sy+2,z),164,140,91);
+        }else if(type==T_SNOW){
+            ggMeshTriangle(m,ggMeshV(sx-24,sy-12,z),
+                ggMeshV(sx+23,sy-10,z),
+                ggMeshV(sx+7,sy+15,z),205,217,222);
+        }else if(type==T_MOUNT||type==T_HILL){
+            ggMeshTriangle(m,ggMeshV(sx-22,sy-15,z),
+                ggMeshV(sx+20,sy-13,z),
+                ggMeshV(sx,sy+14,z+2),102,112,109);
+        }else if(type==T_DIRT){
+            ggMeshQuad(m,ggMeshV(sx-14,sy-12,z),
+                ggMeshV(sx+19,sy-12,z),
+                ggMeshV(sx+19,sy+7,z),
+                ggMeshV(sx-14,sy+7,z),118,100,77);
+        }
+    }
+}
 static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
                               int type,uint32_t key){
     int left=tx*256,right=left+256,top=ty*256,bottom=top+256;
@@ -109,6 +151,27 @@ static void ggMeshRoof(GgMeshContext*m,int build,
                ggMeshV(x1+10,y1+10,wallTop),
                ggMeshV(x0-10,y1+10,wallTop),
                roofR*3/4,roofG*3/4,roofB*3/4);
+    // Tile courses are real narrow roof geometry, not a vertical
+    // stripe on a ray column. They keep the pitched surface legible
+    // as the player walks around all four sides of a dwelling.
+    if(build==B_HOUSE||build==B_HUT||build==B_HALL||
+       build==B_LIBRARY){
+        for(int row=1;row<=3;row++){
+            int yy=y0+(ridgeY-y0)*row/4;
+            int z=wallTop+roofRise*row/4+1;
+            ggMeshQuad(m,ggMeshV(x0-10,yy-3,z),
+                ggMeshV(x1+10,yy-3,z),
+                ggMeshV(x1+10,yy+3,z),
+                ggMeshV(x0-10,yy+3,z),
+                roofR*4/5,roofG*4/5,roofB*4/5);
+            yy=y1-(y1-ridgeY)*row/4;
+            ggMeshQuad(m,ggMeshV(x0-10,yy-3,z),
+                ggMeshV(x1+10,yy-3,z),
+                ggMeshV(x1+10,yy+3,z),
+                ggMeshV(x0-10,yy+3,z),
+                roofR*3/5,roofG*3/5,roofB*3/5);
+        }
+    }
     // Actual closed gables, with triangular geometry rather than a
     // 2D roof sticker floating above an otherwise flat cube.
     ggMeshTriangle(m,ggMeshV(x0,y0,wallTop),
@@ -151,6 +214,35 @@ static void ggMeshWindow(GgMeshContext*m,int x0,int x1,
                    ggMeshV(center-2,paneY-facing,winTop),62,67,72);
     }
 }
+static void ggMeshSideFacade(GgMeshContext*m,int wallX,int facing,
+                             int y0,int y1,int ground,int height){
+    // A physically rotated version of the front glazing, with its
+    // own x-plane. The original y-only windows left the wall directly
+    // facing the default eastward camera completely blank.
+    if(height<13)return;
+    int face=wallX-facing*3,pane=face-facing*3;
+    int cy=(y0+y1)/2;
+    int low=ground+height*2/5,high=low+8;
+    ggMeshQuad(m,ggMeshV(face,cy-22,ground+1),
+        ggMeshV(face,cy+22,ground+1),
+        ggMeshV(face,cy+22,ground+10),
+        ggMeshV(face,cy-22,ground+10),46,51,58);
+    for(int n=-1;n<=1;n+=2){
+        int q=cy+n*(y1-y0)/3;
+        ggMeshQuad(m,ggMeshV(face,q-23,low-1),
+            ggMeshV(face,q+23,low-1),
+            ggMeshV(face,q+23,high+1),
+            ggMeshV(face,q-23,high+1),80,77,74);
+        ggMeshQuad(m,ggMeshV(pane,q-19,low),
+            ggMeshV(pane,q+19,low),
+            ggMeshV(pane,q+19,high),
+            ggMeshV(pane,q-19,high),177,145,104);
+        ggMeshQuad(m,ggMeshV(pane-facing,q-2,low),
+            ggMeshV(pane-facing,q+2,low),
+            ggMeshV(pane-facing,q+2,high),
+            ggMeshV(pane-facing,q-2,high),62,65,66);
+    }
+}
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     int x0=tx*256+28,x1=tx*256+228;
@@ -177,8 +269,28 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         ggMeshBox(m,x1-34,y1-34,x1,y1,h,h+5,164,163,154);
     }
     if(nearDetail){
-        ggMeshWindow(m,x0,x1,y0,1,ground,wallTop-ground);
-        ggMeshWindow(m,x0,x1,y1,-1,ground,wallTop-ground);
+        int h=wallTop-ground;
+        // Ground-contact plinth and roof cornice extend beyond every
+        // wall face, showing real parallax, height and shade.
+        ggMeshBox(m,x0-5,y0-5,x1+5,y1+5,
+                  ground,ground+2,107,105,98);
+        ggMeshBox(m,x0-6,y0-6,x1+6,y1+6,
+                  wallTop-3,wallTop-1,177,164,137);
+        ggMeshWindow(m,x0,x1,y0,1,ground,h);
+        ggMeshWindow(m,x0,x1,y1,-1,ground,h);
+        ggMeshSideFacade(m,x0,1,y0,y1,ground,h);
+        ggMeshSideFacade(m,x1,-1,y0,y1,ground,h);
+        // Vertical corner quoins or timber beams connect floor to
+        // eaves and keep every view from looking like a plain cube.
+        int trimR=wood?102:181,trimG=wood?77:170,trimB=wood?58:149;
+        ggMeshBox(m,x0-7,y0-7,x0+10,y0+10,ground,wallTop,
+                  trimR,trimG,trimB);
+        ggMeshBox(m,x1-10,y0-7,x1+7,y0+10,ground,wallTop,
+                  trimR,trimG,trimB);
+        ggMeshBox(m,x0-7,y1-10,x0+10,y1+7,ground,wallTop,
+                  trimR,trimG,trimB);
+        ggMeshBox(m,x1-10,y1-10,x1+7,y1+7,ground,wallTop,
+                  trimR,trimG,trimB);
         if(build==B_TEMPLE||build==B_HALL){
             // Real colonnade projecting ahead of the wall, with an
             // enclosed upper lintel that receives perspective shading.
@@ -306,6 +418,38 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     }
     ggMeshPropsDrawn++;
 }
+static void ggMeshCloudBank(GgMeshContext*m,int camTileX,int camTileY,
+                             int frame,int hazeR,int hazeG,int hazeB){
+    // Clouds are actually floating, depth-tested polygonal volumes at
+    // deterministic sky-world positions. They drift slightly on the
+    // global timeline and turn with parallax; they are not a static
+    // screen overlay or a second image layer.
+    int gx=(camTileX/16)*16,gy=(camTileY/16)*16;
+    for(int row=-2;row<=2;row++){
+        for(int col=-2;col<=2;col++){
+            int tx=gx+col*8+4,ty=gy+row*8+4;
+            uint32_t key=ggFilmScenicHash(tx,ty,31);
+            if(((key>>16)&3u)==0u)continue;
+            int cx=tx*256+(int)(key&255u)+frame/8;
+            int cy=ty*256+(int)((key>>8)&255u);
+            int z=78+(int)((key>>20)&15u);
+            int width=150+(int)((key>>11)&63u);
+            int height=7+(int)((key>>24)&7u);
+            int dr=hazeR+23,dg=hazeG+25,db=hazeB+23;
+            ggMeshTriangle(m,ggMeshV(cx-width,cy,z),
+                ggMeshV(cx,cy-100,z+height),
+                ggMeshV(cx+width,cy,z),dr,dg,db);
+            ggMeshTriangle(m,ggMeshV(cx-width/2,cy+60,z),
+                ggMeshV(cx,cy-90,z+height+3),
+                ggMeshV(cx+width/2,cy+60,z),
+                dr+9,dg+7,db+5);
+            ggMeshTriangle(m,ggMeshV(cx-width,cy,z),
+                ggMeshV(cx+width,cy,z),
+                ggMeshV(cx,cy+110,z-3),
+                dr-15,dg-14,db-12);
+        }
+    }
+}
 static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     int quality=ggExpScenicQuality>=2&&cinematic?2:1;
     int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
@@ -320,6 +464,8 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                 35+atmosphere.skyR,59+atmosphere.skyG,
                 90+atmosphere.skyB);
     ggMeshTilesDrawn=ggMeshBuildingsDrawn=ggMeshPropsDrawn=0;
+    ggMeshCloudBank(m,cx,cy,ggExplore.frame,atmosphere.hazeR,
+                    atmosphere.hazeG,atmosphere.hazeB);
     int radius=quality>=2?9:7;
     int propCap=ggFilmScenicBudget(ggExpScenicQuality,0);
     int sceneLimit=0;
@@ -339,6 +485,8 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
             int t=ggMeshTerrainAt(tx,ty);
             uint32_t key=ggFilmScenicHash(tx,ty,17);
             ggMeshGroundTile(m,tx,ty,t,key);
+            if(quality>=2&&forward>0&&forward<4*256)
+                ggMeshGroundLife(m,tx,ty,t,ggExpGround(t),key);
             int build=bld[ty][tx];
             if(build){
                 int detailed=forward<6*256&&forward>-128;
