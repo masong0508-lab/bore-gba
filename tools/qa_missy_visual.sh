@@ -25,12 +25,12 @@ fi
 win=$(xdotool search --onlyvisible --pid "$pid" --name 'mGBA' | head -n 1 || true)
 if [ -z "$win" ]; then
   cat "screenshots/${label}-emulator.log"
-  xwininfo -root -tree || true
+  xdotool search --onlyvisible --name mGBA || true
   echo 'mGBA game window not found in Xvfb' >&2
   exit 1
 fi
 echo "mGBA window: $win"
-xwininfo -id "$win" | head -n 26 || true
+xdotool getwindowname "$win" || true
 capture(){
   local name="$1"
   xwd -silent -id "$win" -out "screenshots/$name.xwd"
@@ -55,7 +55,7 @@ if ! kill -0 "$pid" 2>/dev/null; then
   echo "mGBA exited while advancing Missy dialogue" >&2
   exit 1
 fi
-if ! xwininfo -id "$win" >/dev/null 2>&1; then
+if ! xdotool getwindowname "$win" >/dev/null 2>&1; then
   echo "mGBA window disappeared during Missy dialogue" >&2
   exit 1
 fi
