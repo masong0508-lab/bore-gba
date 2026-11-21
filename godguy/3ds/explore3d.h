@@ -865,6 +865,13 @@ static void ggExpRenderMode(u8 *top,int cinematic){
     if(cinematic)return; // no first-person crosshair, build HUD or 2x
                         // creature cels pasted over filmed cast
     ggExpRenderCreatures(top);
+    // Nearby foliage can pass in FRONT of actual world-depth citizens.
+    // Reuse the existing POV scenery selection, no second tile scan.
+    if(ggExpNpcClosestDepth){
+        ggExpScenicCoarse=1;
+        ggExpScenicDraw(top,1,ggExpNpcClosestDepth);
+        ggExpScenicCoarse=0;
+    }
     // Smaller brass-bracketed aim marker; it communicates the true
     // editable world target without a huge retro-computer cross.
     ggExpRect(top,195,115,4,1,34,41,47);
