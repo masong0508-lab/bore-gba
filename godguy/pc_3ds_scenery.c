@@ -80,7 +80,10 @@ int main(void){
           ggFilmScenicFloorDetail(T_GRASS,0,0),
           "floor detail depends on frame time");
     int minGrain=100,maxGrain=-100,windLeft=0,windRight=0;
-    for(int y=0;y<1024;y+=64)for(int x=0;x<1024;x+=64){
+    // Offset samples from the tiny grass-stem lattice. Sampling
+    // exclusively on exact 64-Q8 boundaries hit the same stem highlight
+    // every time and incorrectly reported a flat floor.
+    for(int y=39;y<1024;y+=64)for(int x=37;x<1024;x+=64){
         int g=ggFilmScenicFloorDetail(T_GRASS,x,y);
         if(g<minGrain)minGrain=g;
         if(g>maxGrain)maxGrain=g;
