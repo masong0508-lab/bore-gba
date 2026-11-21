@@ -15,6 +15,25 @@ int main(void){
                 assert(revived+7u>=pressure&&revived<=pressure+13u);
         }
     }
+    // Reloading hospital pressure before a good-news event must keep the
+    // benefit. Regression: the old event handler eased PLUG_START=20 first,
+    // then the first hospital tick overwrote it from the save's pressure band.
+    for(unsigned old=0;old<=100;old++){
+        unsigned saved=msPressurePack(0,old);
+        unsigned restored=msPressureResume(saved,20u);
+        for(unsigned relief=10;relief<=15;relief+=5){
+            unsigned eased=msPressureEase(restored,relief);
+            assert(eased==(restored>relief?restored-relief:0u));
+            assert(eased<=restored && eased<=100u);
+            unsigned stored=msPressurePack(saved,eased);
+            unsigned resumed=msPressureResume(stored,20u);
+            assert(resumed<=100u);
+            assert(msNightUsed(stored)==msNightUsed(saved));
+        }
+    }
+    assert(msPressureEase(0,15)==0u);
+    assert(msPressureEase(20,15)==5u);
+    assert(msPressureEase(90,10)==80u);
     assert(msPressureBand(0)==0&&msPressureBand(100)==7);
     assert(msPressureResume(0,20)==20);
     assert(msPressureResume(msPressurePack(16,88),20)>=84);
