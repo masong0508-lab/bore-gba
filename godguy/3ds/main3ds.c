@@ -332,6 +332,7 @@ void shimPresent(void){
         // for subtle clouds/feedback. Static scenes reuse the existing
         // RGB output; there is no second 400x240 framebuffer or hash scan.
         static int lastX,lastY,lastA,lastEdits,lastFx,lastSky;
+        static int lastMeshQuality=-1;
         int sky=ggExplore.frame/8;
         // During authored 3D movie shots we render at a steady, bounded
         // 30fps-like cadence (every 2nd 60Hz tick), rather than paying the
@@ -339,7 +340,10 @@ void shimPresent(void){
         // still interpolates from real-world landmarks each rendered frame.
         // A stale ggChron.dirty flag must NOT force every movie frame.
         int movie=ggChron.active&&ggSaga.mode;
+        // A quality transition requires a fresh real-3D projection,
+        // even when the camera is still and no sky tick is due.
         int dirty=!ggExpRenderValid||
+                  ggExpScenicQuality!=lastMeshQuality||
                   (movie ? (ggSaga.mode==GG_SAGA_CHOICE||ggSaga.paused?
                             0:!(ggSaga.frame&1)) :
                    tc||ggExplore.px!=lastX||ggExplore.py!=lastY||
@@ -366,11 +370,13 @@ void shimPresent(void){
             lastX=ggExplore.px;lastY=ggExplore.py;
             lastA=ggExplore.angle;lastEdits=ggExplore.edits;
             lastFx=ggExplore.feedback;lastSky=sky;
+            lastMeshQuality=ggExpScenicQuality;
             tc=1;
         }
     }
-    // While exploring, the left-eye RGB world is rendered as real live
-    // voxel columns. The 2D globe's unrelated depth map must not warp it.
+    // While exploring, the left-eye RGB image now contains real
+    // perspective polygons with physical depth; the 2D globe's
+    // unrelated disparity map must never warp these world surfaces.
     plat_present(topBuf,botBuf,tc,bc,sndBuf,n,
                  ggExplore.active?0:(shimSwap?0:shimDepth));
 }
