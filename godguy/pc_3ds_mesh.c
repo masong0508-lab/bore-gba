@@ -88,6 +88,19 @@ int main(void){
     verify(pixel(200,116)[0]>28&&pixel(200,116)[0]<120&&
            m->blendedFragments>40,
            "transparent terrain contact shadow is not compositing");
+    // Shadow decals must not acquire solid geometry depth. Otherwise a
+    // building or passing citizen drawn afterwards disappears behind an
+    // invisible ground-shadow polygon despite being in front of the floor.
+    verify(!ggMeshHidden(m,200,116,768),
+           "translucent shadow writes solid depth and clips world geometry");
+    m->opacity=256;
+    GgMeshVertex mid[4]={
+        ggMeshV(768,-280,0),ggMeshV(768,280,0),
+        ggMeshV(768,280,21),ggMeshV(768,-280,21)
+    };
+    ggMeshQuad(m,mid[0],mid[1],mid[2],mid[3],207,151,82);
+    verify(pixel(200,116)[0]==207&&pixel(200,116)[1]==151,
+           "opaque architecture could not draw after translucent ground decal");
     ggMeshBegin(m,image.rgb,1,0,0,10,4096,0,36,59,89);
     verify(m->w==200&&m->h==120&&m->scale==2,
            "Old 3DS low-resolution geometry mode changed aspect");
