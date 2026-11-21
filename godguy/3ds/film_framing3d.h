@@ -25,6 +25,19 @@ static int ggFilmFrameHeightPenalty(int stageHeight,int cameraHeight){
     int diff=stageHeight-cameraHeight;
     return (diff<0?-diff:diff)*18;
 }
+// A large nearby building can clip into the side of a scene even
+// if the CENTER line of sight is clear. Score its intrusion using the
+// same camera lens as characters. Called only while selecting a shot,
+// never in the 400-column per-frame terrain renderer.
+static int ggFilmFrameObstructionPenalty(int forward,int side,int building){
+    if(!building||forward<=64||forward>=4*256)return 0;
+    int sx=ggFilmProjectScreenX(side,forward);
+    if(sx < -45 || sx > 445)return 0;
+    int fromCenter=sx-200;if(fromCenter<0)fromCenter=-fromCenter;
+    int severity=(4*256-forward)/8;
+    // Camera-center obstruction is twice as disruptive as an edge cut.
+    return severity*(fromCenter<145?2:1);
+}
 // Larger scores represent stronger compositions: hero always on screen,
 // first guest distinguishable beside them, second guest visible if available.
 // Readable player/cast spacing outranks arbitrary rotating camera angles.
