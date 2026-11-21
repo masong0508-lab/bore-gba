@@ -372,6 +372,53 @@ int main(int argc,char **argv){
         fputs("MESH CAPTURE FAIL: physical 3D perspective remains static on camera move\n",stderr);
         return 27;
     }
+    // Source-real playable creatures. Keep the same camera and actual
+    // world cells with/without people. These images exercise the live
+    // population lookup rather than manually drawing a test character.
+    for(int yy=0;yy<WH;yy++)for(int xx=0;xx<WW;xx++){
+        world[yy][xx]=T_GRASS;bld[yy][xx]=0;occ[yy][xx]=0;
+    }
+    ggExplore.px=64*256+128;ggExplore.py=65*256+128;
+    ggExplore.angle=0;ggExplore.frame=20;ggExplore.actorId=0;
+    ggExpScenicQuality=2;
+    nCr=0;
+    ggExpRenderMode(guarded.img,0);
+    memcpy(unmaskedFrame,guarded.img,sizeof unmaskedFrame);
+    nCr=2;
+    sp[0].a=0;arch[0].diet=4;arch[0].shape=1;
+    sp[1].a=1;arch[1].diet=1;arch[1].shape=4;
+    cr[0]=(Cr){0,66,65,1,0};crId[0]=1001;
+    cr[1]=(Cr){1,66,66,1,0};crId[1]=1002;
+    occ[65][66]=1;occ[66][66]=2;
+    int movingPeople=0;
+    for(int k=0;k<4;k++){
+        ggExplore.frame=20+k*16;
+        ggExpRenderMode(guarded.img,0);
+        if(ggExpNpcsDrawn!=2){
+            fprintf(stderr,"MESH CAPTURE FAIL: live mesh actors missing (%d)\n",
+                    ggExpNpcsDrawn);
+            fclose(meshMetrics);return 30;
+        }
+        char filename[40];
+        snprintf(filename,sizeof filename,"mesh_citizens_%02d.ppm",k);
+        if(!ggCaptureSave(argv[1],filename))return 31;
+        if(!k){
+            for(int i=0;i<400*240*3;i+=3)
+                if(memcmp(unmaskedFrame+i,guarded.img+i,3))
+                    movingPeople++;
+        }
+        fprintf(meshMetrics,
+                "living_mesh_people_%d,%d,%d,%d,%d,%d,%d,,400x240\n",
+                k,ggMeshContext.triangles,ggMeshContext.fragments,
+                ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
+                ggMeshBuildingsDrawn,ggMeshPropsDrawn);
+    }
+    if(movingPeople<40){
+        fprintf(stderr,"MESH CAPTURE FAIL: real citizens altered only %d pixels\n",
+                movingPeople);
+        fclose(meshMetrics);return 32;
+    }
+    occ[65][66]=0;occ[66][66]=0;nCr=0;
     // Old 3DS uses the exact same 3D geometry at lower pixel density
     // while preserving 400x240 output and the game's HUD overlay.
     ggExpScenicQuality=1;
@@ -390,8 +437,8 @@ int main(int argc,char **argv){
             ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
             ggMeshBuildingsDrawn,ggMeshPropsDrawn);
     fclose(meshMetrics);
-    printf("3DS TRUE MESH CAPTURE OK: eight polygonal biomes, six moving-camera images, %d triangles in scene zero, %d cumulative triangles, real inverse-depth ground and buildings\n",
-           firstPolys,totalTriangles);
+    printf("3DS TRUE MESH CAPTURE OK: eight material-rich polygonal biomes, six moving-camera images, four living-world cast frames, %d source pixels changed by modeled people, %d triangles in scene zero, %d cumulative triangles\n",
+           movingPeople,firstPolys,totalTriangles);
     printf("3DS CAPTURE OK: 12 story frames, 15 cast turntable views, 8 biomes, 6 playable POV frames and wall occlusion; %d props across biomes, minimum %d scenic pixel changes, %d playable POV changes; %.3f ms/host scene frame, %.6f/%.6f ms actor without/with depth; %zu B depth+scenery scratch\n",
            visibleProps,minScenicPixels,povPixels,
            ms,flatMs,maskedMs,

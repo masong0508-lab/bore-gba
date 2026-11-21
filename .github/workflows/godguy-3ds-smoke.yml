@@ -73,6 +73,10 @@ jobs:
               -i artifacts/godguy-cinema/mesh_walk_%02d.ppm -c:v libx264 \
               -preset veryfast -crf 19 -pix_fmt yuv420p \
               artifacts/godguy-cinema/3ds_true_polygon_camera.mp4
+            ffmpeg -hide_banner -loglevel error -y -framerate 4 -start_number 0 \
+              -i artifacts/godguy-cinema/mesh_citizens_%02d.ppm -c:v libx264 \
+              -preset veryfast -crf 19 -pix_fmt yuv420p \
+              artifacts/godguy-cinema/3ds_polygonal_living_citizens.mp4
           fi
       - name: Publish native source captures and measured host frame costs
         uses: actions/upload-artifact@v4

@@ -75,6 +75,15 @@ int main(void){
     for(int wx=64*256;wx<=65*256;wx+=64)
         meshRequire(ggMeshGroundAtQ8(wx,64*256+128)>=0,
                     "sloped triangle ground failed point sampling");
+    // Verify live occupant integration, not only manually drawn rigs.
+    nCr=1;sp[0].a=0;arch[0].diet=4;arch[0].shape=1;
+    cr[0]=(Cr){0,66,64,1,0};crId[0]=733;
+    occ[64][66]=1;ggExpMeshEnabled=1;
+    ggExpScenicQuality=2;ggExplore.angle=0;
+    ggExpRenderMode(pixels,0);
+    meshRequire(ggExpNpcsDrawn==1,
+                "playable citizen was not passed to the 3D actor renderer");
+    occ[64][66]=0;nCr=0;
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;
     ggExpRenderMode(pixels,0);
