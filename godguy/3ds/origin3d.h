@@ -346,14 +346,19 @@ static void ggOriginDraw(u8 *out){
             "YOU LEARNED THE FIELDS, THE WEATHER, AND THE ROAD.",
             "WHEN OTHERS CALLED YOU ORDINARY, YOU BELIEVED THEM.",f);
     }else{
-        ggOriginHouse(out,227,172,2);
-        ggOriginTree(out,62,178,f);
+        // Years later, this is still the SAME house, tree and road
+        // from the childhood shot. Age progression must not magically
+        // reverse geography or throw the player into a new background.
+        ggOriginHouse(out,49,169,2);
+        ggOriginTree(out,318,176,f);
         for(int i=0;i<8;i++){
             int x=110+i*13;
             ggExpRect(out,x,155+(i&1)*2,2,19,101,130,63);
             ggExpRect(out,x-2,150+(i&1)*2,6,8,173,157,71);
         }
-        ggOriginPortrait(out,314,180,3,(f/10)&1,0);
+        int walk=ggExpClamp(f/5,0,16);
+        ggOriginPortrait(out,220+walk,180,3,
+                         walk<16?(f/10)&1:0,0);
         ggOriginStrip(out,"YEAR 16 / AN UNREMARKABLE FUTURE",
             "WORK, FRIENDS, AND SMALL AMBITIONS FILLED THE YEARS.",
             "NO ONE KNEW WHAT SLEPT IN YOUR BLOOD. NOT EVEN YOU.",f);

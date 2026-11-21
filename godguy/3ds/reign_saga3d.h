@@ -410,29 +410,112 @@ static const GgSagaBeat *ggSagaCurrentBeat(int n){
     return &ggSagaAfter[ggChron.act][
         (ggSaga.decisions>>ggChron.act)&1][n%GG_SAGA_OUTRO_BEATS];
 }
+// Film-only shot geometry: a shot's bearing/grounded vantage is solved
+// ONCE per beat and reused for every frame. The actor and camera refer to
+// the SAME live settlement, coast or expedition post. No new framebuffers.
+typedef struct {
+    int mode,act,beat,eventX,eventY,anchorX,anchorY;
+    int angle,distance,valid;
+} GgSagaShot;
+static GgSagaShot ggSagaShot;
+
+static int ggSagaEase(int local){
+    // Q8 smoothstep avoids a jarring change of camera velocity at cuts.
+    int t=ggExpClamp(local,0,GG_SAGA_BEAT_TICKS)*256/
+          GG_SAGA_BEAT_TICKS;
+    return (t*t*(768-2*t))/(256*256);
+}
 static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
-    // Moving camera cut from one real expedition landmark to another.
-    // Smooth 3/4-tile dolly is bounded; all camera math is fixed point.
     int anchor=beat%4,tx=ggExplore.px>>8,ty=ggExplore.py>>8;
     if(ggSaga.mode==GG_SAGA_INTERLUDE){
         tx=ggSaga.eventX;ty=ggSaga.eventY;
-    }else if(anchor) {
+    }else if(anchor){
         tx=ggChron.px[anchor-1];
         ty=ggChron.py[anchor-1];
     }
+    tx=ggExpClamp(tx,1,WW-2);ty=ggExpClamp(ty,1,WH-2);
     *anchorX=tx;*anchorY=ty;
-    int a=(beat*51+ggChron.act*23+32)&255;
-    int move=local*192/GG_SAGA_BEAT_TICKS;
-    int distance=(4+(beat&1))*256-move;
-    int side=(local*112/GG_SAGA_BEAT_TICKS)-56;
+    if(!ggSagaShot.valid||ggSagaShot.mode!=ggSaga.mode||
+       ggSagaShot.act!=ggChron.act||ggSagaShot.beat!=beat||
+       ggSagaShot.eventX!=ggSaga.eventX||
+       ggSagaShot.eventY!=ggSaga.eventY||
+       ggSagaShot.anchorX!=tx||ggSagaShot.anchorY!=ty){
+        ggSagaShot.valid=1;
+        ggSagaShot.mode=ggSaga.mode;ggSagaShot.act=ggChron.act;
+        ggSagaShot.beat=beat;ggSagaShot.eventX=ggSaga.eventX;
+        ggSagaShot.eventY=ggSaga.eventY;
+        ggSagaShot.anchorX=tx;ggSagaShot.anchorY=ty;
+        ggSagaShot.angle=(beat*51+ggChron.act*23+32)&255;
+        ggSagaShot.distance=3;
+        // Find an unobstructed outdoor vantage, rather than shooting
+        // from inside a house or through a city wall. Max 3*8 tries
+        // per new shot; never a search on every cinematic frame.
+        int found=0;
+        for(int d=4;d>=2&&!found;d--)
+            for(int turn=0;turn<8&&!found;turn++){
+                int a=(ggSagaShot.angle+turn*32)&255;
+                int cx=tx*256+128-ggExpCos[a]*d*256/4096;
+                int cy=ty*256+128-ggExpSin[a]*d*256/4096;
+                int gx=cx>>8,gy=cy>>8;
+                if(!ggChronLand(gx,gy)||
+                   !ggExpLineClear(gx,gy,tx,ty))continue;
+                ggSagaShot.angle=a;
+                ggSagaShot.distance=d;
+                found=1;
+            }
+    }
+    int a=ggSagaShot.angle;
+    int smooth=ggSagaEase(local);
+    // Short deliberate dolly and tracking motion remain inside the
+    // selected grounded camera cell. No zoom jumps or random orbit.
+    int distance=ggSagaShot.distance*256-smooth*48/256;
+    int side=(smooth*48/256)-24;
     int x=tx*256+128-ggExpCos[a]*distance/4096+
           ggExpSin[a]*side/4096;
     int y=ty*256+128-ggExpSin[a]*distance/4096-
           ggExpCos[a]*side/4096;
+    // If parallax would put the camera inside live architecture, hold
+    // the safe shot position instead of flying through walls.
+    if(!ggChronLand(x>>8,y>>8)){
+        x=tx*256+128-ggExpCos[a]*ggSagaShot.distance*256/4096;
+        y=ty*256+128-ggExpSin[a]*ggSagaShot.distance*256/4096;
+    }
     ggExplore.px=ggExpClamp(x,384,(WW-2)*256);
     ggExplore.py=ggExpClamp(y,384,(WH-2)*256);
     ggExplore.angle=a;
     ggExplore.frame=ggSaga.frame;
+}
+// A character's actual Q8 location is projected from the FILM camera,
+// not from the player's temporarily parked first-person camera.
+static int ggSagaProjectActor(int worldX,int worldY,
+                              int *sx,int *feet,int *scale){
+    int tx=worldX>>8,ty=worldY>>8;
+    if((unsigned)tx>=WW||(unsigned)ty>=WH)return 0;
+    int vx=worldX-ggExplore.px,vy=worldY-ggExplore.py;
+    int a=ggExplore.angle&255;
+    int forward=(vx*ggExpCos[a]+vy*ggExpSin[a])/4096;
+    int side=(-vx*ggExpSin[a]+vy*ggExpCos[a])/4096;
+    if(forward<=80||forward>16*256||
+       abs(side)*4>forward*5||
+       !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,tx,ty))
+        return 0;
+    int d=forward/256+1;
+    *sx=200+side*140/forward;
+    *feet=(58-(ggExpGround(world[ty][tx])-
+           ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]))*6/d)*2;
+    *scale=ggExpClamp(2300/(d+5),6,38);
+    return *sx>-50&&*sx<450&&*feet>=0&&*feet<270;
+}
+static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
+                                int *worldX,int *worldY){
+    // Only approach/exit beats move the performer; spoken lines hold
+    // at the landmark. Movement stays inside its actual unblocked tile.
+    int smooth=ggSagaEase(local);
+    int pace=beat%3==0?-72+smooth*72/256:
+             beat%3==2?smooth*72/256:0;
+    int a=ggSagaShot.angle;
+    *worldX=stageX*256+128+ggExpSin[a]*pace/4096;
+    *worldY=stageY*256+128-ggExpCos[a]*pace/4096;
 }
 static void ggSagaDraw(u8 *out){
     if(!ggSaga.mode)return;
@@ -448,17 +531,21 @@ static void ggSagaDraw(u8 *out){
     ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
     ggReignSceneDraw(out);
     ggChron.frame=chronFrame;
+    // Draw the protagonist BEFORE restoring the gameplay camera.
+    // Previously projection happened after restore, so the person
+    // vanished or stood in the wrong place relative to the shot.
+    if(ggOrigin.complete&&index%3!=2){
+        int x,feet,size,worldX,worldY;
+        ggSagaActorPosition(stageX,stageY,index,local,&worldX,&worldY);
+        if(ggSagaProjectActor(worldX,worldY,&x,&feet,&size)){
+            int walking=index%3!=1&&local>4&&
+                        local<GG_SAGA_BEAT_TICKS-4;
+            ggOriginPortrait(out,x,feet,ggExpClamp(size/12,1,3),
+                             walking?((ggSaga.frame/12)&1):0,0);
+        }
+    }
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
-    // The protagonist is projected from the SAME world-space landmark
-    // used by the camera. Occluding real buildings hide the cel. This
-    // eliminates the previous floating 2D overlay in outdoor shots.
-    if(ggOrigin.complete&&index%3!=2){
-        int x,feet,size;
-        if(ggChronProject(stageX,stageY,&x,&feet,&size))
-            ggOriginPortrait(out,x,feet,ggExpClamp(size/12,1,3),
-                             (ggSaga.frame/17)&1,0);
-    }
     ggExpRect(out,0,0,400,43,13,24,37);
     ggExpRect(out,0,41,400,2,204,156,88);
     ggExpRect(out,0,185,400,55,13,23,36);

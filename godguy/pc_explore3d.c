@@ -759,6 +759,36 @@ int main(void){
           ggSaga.ending<GG_SAGA_ENDINGS&&ggSaga.seen,
           "final campaign choice failed to produce a recorded ending");
     int achieved=ggSaga.ending;
+    // Film character and architecture must use the same camera, with a
+    // stable location, a smooth dolly and exact gameplay camera restore.
+    ggChron.act=0;ggSaga.mode=GG_SAGA_INTERLUDE;
+    ggSaga.eventX=60;ggSaga.eventY=60;ggSaga.frame=0;
+    ggExplore.px=50*256+128;ggExplore.py=50*256+128;
+    ggExplore.angle=190;
+    int beforePX=ggExplore.px,beforePY=ggExplore.py,beforeAngle=ggExplore.angle;
+    int shotX,shotY,ax,ay,projX,projY,projSize;
+    ggSagaCamera(0,0,&shotX,&shotY);
+    check(shotX==60&&shotY==60&&
+          ggChronLand(ggExplore.px>>8,ggExplore.py>>8),
+          "story camera began inside a live world obstacle");
+    ggSagaActorPosition(shotX,shotY,0,0,&ax,&ay);
+    check(ggSagaProjectActor(ax,ay,&projX,&projY,&projSize)&&
+          projX>60&&projX<340&&projSize>0,
+          "protagonist is not grounded and visible through film camera");
+    int filmCameraPX=ggExplore.px,filmAngle=ggExplore.angle;
+    ggSagaCamera(0,GG_SAGA_BEAT_TICKS/2,&shotX,&shotY);
+    check(ggExplore.angle==filmAngle&&ggExplore.px!=filmCameraPX,
+          "shot camera jumps bearings or never eases within a beat");
+    ggExplore.px=beforePX;ggExplore.py=beforePY;
+    ggExplore.angle=beforeAngle;
+    ggSagaDraw(guarded.img);
+    check(ggExplore.px==beforePX&&ggExplore.py==beforePY&&
+          ggExplore.angle==beforeAngle,
+          "cinematic mutated the live first-person camera on return");
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "film camera/protagonist overran the display buffer");
+    ggSaga.mode=GG_SAGA_OUTRO;ggSaga.ending=achieved;
+    ggSaga.frame=0;
     ggSagaDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "branching 3D film overran the 3DS video buffer");
