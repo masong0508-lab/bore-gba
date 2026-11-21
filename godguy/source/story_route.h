@@ -48,6 +48,38 @@ static void filmRouteCapture(int villageExists,int duration){
     }
     r->duration=duration;
 }
+// Choose the route's FINAL landmark to match the next screenplay scene.
+// A return to a hall or forge must finish at the same village, while a
+// river/shore scene must finish at the real coast. This preserves spatial
+// direction across the handoff from aerial movement to actor coverage.
+static void filmRouteEndAt(int wantedKind){
+    FilmRoute *r=&filmRoute;
+    if(r->count<2)return;
+    int target=-1;
+    for(int i=0;i<r->count;i++)if(r->kind[i]==wantedKind)target=i;
+    if(target<0||target==r->count-1)return;
+    if(target==0){
+        for(int a=0,b=r->count-1;a<b;a++,b--){
+            int tmp=r->x[a];r->x[a]=r->x[b];r->x[b]=tmp;
+            tmp=r->y[a];r->y[a]=r->y[b];r->y[b]=tmp;
+            tmp=r->kind[a];r->kind[a]=r->kind[b];r->kind[b]=tmp;
+        }
+    }else if(r->count==3&&target==1){
+        // City -> ridge -> coast; end at water without inventing a road
+        // or replacing a real point with a generic backdrop.
+        int tmp=r->x[1];r->x[1]=r->x[2];r->x[2]=tmp;
+        tmp=r->y[1];r->y[1]=r->y[2];r->y[2]=tmp;
+        tmp=r->kind[1];r->kind[1]=r->kind[2];r->kind[2]=tmp;
+    }
+    r->total=0;
+    for(int i=0;i<r->count-1;i++){
+        int dx=filmRouteAbs(r->x[i+1]-r->x[i]);
+        int dy=filmRouteAbs(r->y[i+1]-r->y[i]);
+        int len=filmRouteMax(dx,dy);
+        r->length[i]=len>0?len:1;
+        r->total+=r->length[i];
+    }
+}
 static void filmRoutePosition(int t,int *x,int *y){
     const FilmRoute *r=&filmRoute;
     if(r->count<2||r->total<=0||r->duration<=0){
