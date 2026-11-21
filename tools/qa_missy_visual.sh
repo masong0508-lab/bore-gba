@@ -32,10 +32,24 @@ fi
 echo "mGBA window: $win"
 xdotool getwindowname "$win" || true
 capture(){
-  local name="$1"
-  xwd -silent -id "$win" -out "screenshots/$name.xwd"
-  magick "screenshots/$name.xwd" -strip "screenshots/$name.png"
-  rm -f "screenshots/$name.xwd"
+  local name="$1" src="screenshots/$name.xwd"
+  xwd -silent -id "$win" -out "$src"
+  # The Qt client window includes its menu row above the 3:2 GBA display.
+  # Crop that chrome away so colour/change checks measure GAME pixels only.
+  local win_w win_h game_h top
+  read -r win_w win_h <<< "$(magick identify -format '%w %h' "$src")"
+  if (( win_w < 240 || win_w % 3 != 0 )); then
+    echo "Unexpected mGBA capture width: ${win_w}" >&2
+    exit 1
+  fi
+  game_h=$((win_w*2/3))
+  top=$((win_h-game_h))
+  if (( top < 0 || game_h < 160 )); then
+    echo "No full 240x160 GBA viewport in ${win_w}x${win_h} window" >&2
+    exit 1
+  fi
+  magick "$src" -crop "${win_w}x${game_h}+0+${top}" +repage -strip "screenshots/$name.png"
+  rm -f "$src"
 }
 capture "${label}-opening"
 # A headless Xvfb server may have no window manager; focus is best-effort.
@@ -65,6 +79,7 @@ for file in "screenshots/${label}-"*.png; do
   read -r width height colors <<< "$dims"
   echo "$file: ${width}x${height}, ${colors} unique colours"
   test "$width" -ge 240 && test "$height" -ge 160
+  test $((width*2)) -eq $((height*3))  # cropped game viewport must be 3:2, not emulator chrome
   test "$colors" -ge 12
 done
 # Capturing twice the same frozen frame is not a valid visual smoke test.
