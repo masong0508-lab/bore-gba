@@ -9,6 +9,7 @@
 #include "film_camera3d.h"
 #include "film_stage3d.h"
 #include "film_framing3d.h"
+#include "film_projection3d.h"
 #include "film_partner3d.h"
 #include "film_type3d.h"
 #ifndef GG_SAGA_SAVE_PATH
@@ -629,12 +630,14 @@ static int ggSagaProjectActor(int worldX,int worldY,
        abs(side)*4>forward*5||
        !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,tx,ty))
         return 0;
-    int d=forward/256+1;
-    *sx=200+side*140/forward;
-    *feet=(58-(ggExpGround(world[ty][tx])-
-           ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]))*6/d)*2;
-    *scale=ggExpClamp(2300/(d+5),6,38);
-    return *sx>-50&&*sx<450&&*feet>=0&&*feet<270;
+    *sx=ggFilmProjectScreenX(side,forward);
+    *feet=ggFilmProjectFootY(forward,
+                            ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]),
+                            ggExpGround(world[ty][tx]));
+    // A take, not an individual sprite or per-frame depth rounding,
+    // owns cast scale. All actors share their actual feet plane.
+    *scale=ggFilmShotScale(ggSagaShot.distance);
+    return ggFilmFootSafe(*sx,*feet,*scale);
 }
 static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
                                 int *worldX,int *worldY){
@@ -910,8 +913,7 @@ static void ggSagaDraw(u8 *out){
                 ggExplore.px=saveX;ggExplore.py=saveY;
                 if(visibleHero&&visibleGuest&&
                    ggFilmPairProjectedContact(hx,hy,
-                       ggExpClamp(hs/12,1,3),gx2,gy2,
-                       ggExpClamp(gs/16,1,3))){
+                       hs,gx2,gy2,gs)){
                     ggSagaShot.pairKind=cue;
                     ggSagaShot.pairSourceHero=!strcmp(a->voice,"YOU");
                 }
@@ -933,7 +935,7 @@ static void ggSagaDraw(u8 *out){
                                pairInset,1,&wx,&wy);
         if(ggSagaProjectActor(wx,wy,&x,&y,&size)){
             actors[actorCount++]=(GgFilmStageItem){
-                GG_STAGE_HERO,x,y,ggExpClamp(size/12,1,3),
+                GG_STAGE_HERO,x,y,size,
                 ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
                                  filmCos,filmSin)
             };
@@ -953,7 +955,7 @@ static void ggSagaDraw(u8 *out){
             if(!ggSagaProjectActor(wx,wy,&x,&y,&size))continue;
             actors[actorCount++]=(GgFilmStageItem){
                 slot?GG_STAGE_GUEST_TWO:GG_STAGE_GUEST_ONE,
-                x,y,ggExpClamp(size/16,1,3),
+                x,y,size,
                 ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
                                  filmCos,filmSin)
             };
@@ -969,7 +971,7 @@ static void ggSagaDraw(u8 *out){
         ggSagaSidePosition(propSide,&wx,&wy);
         if(ggSagaProjectActor(wx,wy,&x,&y,&size))
             actors[actorCount++]=(GgFilmStageItem){
-                GG_STAGE_PROP,x,y,ggExpClamp(size/13,1,3),
+                GG_STAGE_PROP,x,y,size,
                 ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
                                  filmCos,filmSin)
             };
