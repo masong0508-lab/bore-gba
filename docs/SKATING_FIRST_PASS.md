@@ -58,3 +58,11 @@ immediately repeat its current destination unless there is only one object.
 A PARK JAM requires at least three skateable pieces on the current map,
 in addition to the appropriate community skate-park designation.
 Regression testing checks reservoir behavior at and beyond capacity.
+
+### Park Jam feedback and entry guards
+The HUD now tells a Park Jam participant the next medal threshold (bronze
+1000, silver 3000, gold 6000), but normal nearby interactions, trick notes
+and combos still take priority. Medal targets and post-run results share one
+portable scoring helper. The session menu refuses to start while hurt,
+busy in a life action, dead or midair, instead of consuming the clock while
+the player cannot control the board. No new image assets or UI buffers.

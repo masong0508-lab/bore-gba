@@ -5,6 +5,10 @@
 // Zero means no jam yet; a day is unique in a sliding 127-day window.
 #ifndef BORE_SKATEJAMRULES_H
 #define BORE_SKATEJAMRULES_H
+#define SJ_BRONZE 1000
+#define SJ_SILVER 3000
+#define SJ_GOLD   6000
+static inline int sjMedal(int score){ return score>=SJ_GOLD?3:score>=SJ_SILVER?2:score>=SJ_BRONZE?1:0; }
 static inline unsigned sjDayTag(unsigned day){ return 1u+(day%127u); }
 static inline int sjAlreadyToday(unsigned meta,unsigned day){ return (meta&127u)==sjDayTag(day); }
 static inline unsigned sjRecord(unsigned meta,unsigned day,unsigned medal){
