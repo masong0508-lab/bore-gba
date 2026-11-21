@@ -1,0 +1,55 @@
+name: GodGuy New3DS PICA200 GPU prototype
+on:
+  push:
+    paths:
+      - 'godguy/3ds/gpu_world*'
+      - 'godguy/3ds/build_gpu_probe.sh'
+      - 'godguy/3ds/build.sh'
+      - 'godguy/pc_3ds_gpu_batch.c'
+      - '.github/workflows/godguy-pica3ds.yml'
+  pull_request:
+    paths:
+      - 'godguy/3ds/gpu_world*'
+      - 'godguy/3ds/build_gpu_probe.sh'
+      - 'godguy/3ds/build.sh'
+      - 'godguy/pc_3ds_gpu_batch.c'
+      - '.github/workflows/godguy-pica3ds.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: godguy-pica-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  vertex-feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fixed-buffer terrain, buildings and slope grounding
+        working-directory: godguy
+        run: |
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_gpu_batch.c -o /tmp/godguy-pica-batch
+          /tmp/godguy-pica-batch
+          bash -n 3ds/build_gpu_probe.sh
+  pica-sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: mirror.gcr.io/devkitpro/devkitarm:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PICA200 / Citro3D SDK
+        run: |
+          dkp-pacman -S --needed --noconfirm 3ds-dev
+          command -v picasso
+          test -f /opt/devkitpro/libctru/include/citro3d.h
+      - name: Assemble actual vertex shader and cross-link GPU test application
+        working-directory: godguy
+        run: |
+          bash 3ds/build_gpu_probe.sh
+          test -s godguy_new3ds_gpu_probe.3dsx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: godguy-new3ds-pica-world-probe
+          path: godguy/godguy_new3ds_gpu_probe.3dsx
+          if-no-files-found: error
