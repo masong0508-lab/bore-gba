@@ -403,3 +403,45 @@ jobs:
             out/Corporations_3DS_vocal_preview.wav
             out/Duck_and_Cover_3DS_vocal_preview.wav
           if-no-files-found: error
+
+  # Release-candidate artifacts are produced only after BOTH console
+  # builder jobs pass. Source-only regressions cannot greenlight a
+  # mislabelled DSi image or a missing New3DS/GPU homebrew executable.
+  # The ZIPs explicitly distinguish playable candidates from diagnostics.
+  port-candidates:
+    name: Verify ROM headers and package GodGuy port candidates
+    needs: [nds, cinema3ds]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch complete DS/DSi and independent New 3DS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: godguy-nds
+          path: port_images/nds
+      - name: Fetch GPU probe and 3DS source-build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: godguy-3ds-cinema
+          path: port_images/cinema
+      - name: Prove that corrupt and mislabeled ROMs fail release checks
+        run: python3 godguy/tools/test_package_port_candidates.py
+      - name: Validate real headers and emit compact verified candidate ZIPs
+        run: |
+          python3 godguy/tools/package_port_candidates.py \
+            --artifact-dir port_images/nds \
+            --artifact-dir port_images/cinema \
+            --output port_release \
+            --commit "${{ github.sha }}"
+          test -s port_release/PORTS_MANIFEST.json
+          test "$(find port_release -name '*.zip' | wc -l)" -eq 2
+          ls -lh port_release/
+      - name: Upload two clearly labeled, checksummed port candidate ZIPs
+        uses: actions/upload-artifact@v4
+        with:
+          name: godguy-multiport-release-candidates
+          path: port_release/
+          if-no-files-found: error
