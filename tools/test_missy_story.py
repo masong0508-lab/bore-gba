@@ -86,6 +86,9 @@ assert "if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) cs
 assert cut.index("csFtrack=0;") < cut.index("csWardFront();")  # bed rail is an occluder, after patient
 makefile = Path("Makefile").read_text(encoding="utf-8")
 assert "preview-missy: bore-missy-preview.gba" in makefile
+assert "preview-missy-awake: bore-missy-awake.gba" in makefile
+assert "-DCS_PREVIEW=4 -DCS_PREVIEW_BEAT=16" in makefile
+assert "if(id==CS_PREVIEW-1&&CS_PREVIEW_BEAT<sc->n)" in cut
 assert "-DCS_PREVIEW=$(CS_PREVIEW_SCENE)" in makefile
 assert "csShotFind(int t)" in shots and "lastT=-1,nextT=-1" in shots
 assert "while(keyNow()&(K_A|K_B|K_START)) vsync()" in cut

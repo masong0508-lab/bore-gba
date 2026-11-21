@@ -225,3 +225,11 @@ directed bedside two-shots for the doctor's first appearance and return:
 the automated camera previously left Missy's head cropped at the far
 right edge. These are code-drawn polygons and ellipses, not new bitmap
 sprites; no new textures or framebuffer storage.
+
+### Direct playable first-awakening QA
+`make preview-missy-awake` now builds an additional GBA image that enters
+the real hospital scene at beat 16 (Missy's first words) rather than
+requiring dozens of inputs to traverse the entire vigil. Both hospital
+ROMs use the same scene renderer, lighting, poses and camera code as
+the released game. CI boots both in mGBA and uploads two screenshots
+from each; the preview does not replace full five-chapter playtesting.

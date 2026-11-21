@@ -60,6 +60,22 @@ jobs:
         with:
           name: bore-missy-hospital-preview
           path: bore-missy-preview.gba
+      - name: Build Missy's first-awakening cinematic preview
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
+          make preview-missy-awake
+          python3 - <<'PY'
+          from pathlib import Path
+          rom=Path("bore-missy-awake.gba").read_bytes()
+          assert rom[0xA0:0xAA]==b"MISSYAWAKE"
+          print(f"Missy awakening preview ROM: PASS ({len(rom)} bytes)")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bore-missy-awakening-preview
+          path: bore-missy-awake.gba
       - name: Biggest users and ROM headroom
         run: |
           export PATH=/opt/devkitpro/devkitARM/bin:$PATH
@@ -132,6 +148,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: bore-missy-hospital-preview
+      - uses: actions/download-artifact@v4
+        with:
+          name: bore-missy-awakening-preview
       - name: Install mGBA and virtual display
         run: |
           sudo apt-get update
@@ -139,12 +158,12 @@ jobs:
       - name: Boot Missy's real hospital cutscene in mGBA
         run: |
           mkdir -p screenshots
-          xvfb-run -a -s "-screen 0 1024x768x24" bash tools/qa_missy_visual.sh
+          xvfb-run -a -s "-screen 0 1024x768x24" bash -e -c 'bash tools/qa_missy_visual.sh bore-missy-preview.gba hospital && bash tools/qa_missy_visual.sh bore-missy-awake.gba awakening'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: missy-hospital-emulator-screenshots
           path: |
             screenshots/*.png
-            screenshots/emulator.log
+            screenshots/*emulator.log
           if-no-files-found: error

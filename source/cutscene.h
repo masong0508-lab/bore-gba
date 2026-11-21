@@ -839,7 +839,11 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
     u16 prev=keyNow(); int skip=0;
     { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
     static CsBeat csAlternate; // same camera/beat index and soundtrack timing; only continuity-dependent text changes
-    for(int bi=0;bi<sc->n&&!skip;bi++){
+    int firstBeat=0;
+#if defined(CS_PREVIEW) && defined(CS_PREVIEW_BEAT)
+    if(id==CS_PREVIEW-1&&CS_PREVIEW_BEAT<sc->n) firstBeat=CS_PREVIEW_BEAT; // QA-only direct scene jump
+#endif
+    for(int bi=firstBeat;bi<sc->n&&!skip;bi++){
         csCurBi=bi; const CsBeat*b=&sc->b[bi];
         if(id==3&&bi==0){ csAlternate=*b;
             if(csStoryMemory&16){ csAlternate.t[0]="The review granted one more night. Mamesy kept"; csAlternate.t[1]="watch at the bedside, unwilling to go home."; }
