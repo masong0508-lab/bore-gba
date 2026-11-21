@@ -32,7 +32,8 @@ fi
 echo "mGBA window: $win"
 xdotool getwindowname "$win" || true
 capture(){
-  local name="$1" src="screenshots/$name.xwd"
+  local name="$1"
+  local src="screenshots/$name.xwd"
   xwd -silent -id "$win" -out "$src"
   # The Qt client window includes its menu row above the 3:2 GBA display.
   # Crop that chrome away so colour/change checks measure GAME pixels only.
