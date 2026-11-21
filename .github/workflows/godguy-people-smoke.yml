@@ -1,0 +1,49 @@
+name: GodGuy procedural people visual regressions
+on:
+  push:
+    paths:
+      - 'godguy/3ds/procedural_people3d.h'
+      - 'godguy/3ds/mesh_people_billboard3d.h'
+      - 'godguy/3ds/population3d.h'
+      - 'godguy/pc_3ds_procedural_people.c'
+      - '.github/workflows/godguy-people-smoke.yml'
+  pull_request:
+    paths:
+      - 'godguy/3ds/procedural_people3d.h'
+      - 'godguy/3ds/mesh_people_billboard3d.h'
+      - 'godguy/3ds/population3d.h'
+      - 'godguy/pc_3ds_procedural_people.c'
+      - '.github/workflows/godguy-people-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godguy-people-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  sprites:
+    name: Source-generated citizen identity and 8-angle atlas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test deterministic people
+        working-directory: godguy
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -O2 -Wall -Wextra -Werror -pedantic \
+            pc_3ds_procedural_people.c -o /tmp/godguy-people
+          /tmp/godguy-people
+          mkdir -p artifacts/godguy-people
+          /tmp/godguy-people artifacts/godguy-people/people_8_direction_turntable.ppm
+          python3 tools/film_capture_png.py artifacts/godguy-people --single
+      - name: Publish real source sprite turntable
+        uses: actions/upload-artifact@v4
+        with:
+          name: godguy-procedural-people-turntable
+          path: godguy/artifacts/godguy-people/*.png
+          if-no-files-found: error

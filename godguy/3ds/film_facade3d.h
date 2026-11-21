@@ -7,7 +7,10 @@
 #define GG_FILM_FACADE3D_H
 enum { GG_FACADE_WALL,GG_FACADE_COURSE,GG_FACADE_BEAM,
        GG_FACADE_FRAME,GG_FACADE_GLASS,GG_FACADE_DOOR,
-       GG_FACADE_TRIM,GG_FACADE_PORTAL };
+       GG_FACADE_TRIM,GG_FACADE_PORTAL,GG_FACADE_SILL,
+       GG_FACADE_CORNICE,GG_FACADE_BRACE,GG_FACADE_MOSS,
+       GG_FACADE_SCULPT,GG_FACADE_PILASTER,GG_FACADE_RELIEF,
+       GG_FACADE_SHUTTER };
 static inline int ggFilmFacadeHeightAt(int y,int horizon,int eye,
                                         int sample,int ground){
     if(sample<1)sample=1;
@@ -18,8 +21,31 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
     int wood=build==B_HUT||build==B_HOUSE||
              build==B_DOCK||build==B_FARM;
     int stone=build==B_HALL||build==B_TOWER||
-              build==B_LIBRARY||build==B_TEMPLE;
+              build==B_LIBRARY||build==B_TEMPLE||
+              build==B_RUIN||build==B_STATUE;
     if(!wood&&!stone)return GG_FACADE_WALL;
+    // Lesser structures need their own physical material story:
+    // dock pilings, agricultural frames, ruin fragmentation and
+    // the statue pedestal should never be plain blank skyscrapers.
+    if(build==B_FARM)
+        return height<=5&&((u&31)<4||(((u>>4)&1)&&height==3))?
+               GG_FACADE_BRACE:GG_FACADE_WALL;
+    if(build==B_DOCK)
+        return height<=6&&(u<16||u>238||(((u>>6)&1)&&height==5))?
+               GG_FACADE_BRACE:GG_FACADE_WALL;
+    if(build==B_RUIN){
+        if(height>=9&&((u*5+height*7)&31)<13)
+            return GG_FACADE_MOSS;
+        if(height%4==0)return GG_FACADE_COURSE;
+        if(u>=92&&u<=166&&height<=8)
+            return GG_FACADE_PORTAL;
+        return GG_FACADE_WALL;
+    }
+    if(build==B_STATUE){
+        if(height<5)return GG_FACADE_CORNICE;
+        return (u>=72&&u<=184&&height<=21)?
+                  GG_FACADE_SCULPT:GG_FACADE_WALL;
+    }
     // Tall central door is recessed in actual building wall and
     // capped by an arch/lintel; walls still mask it at other heights.
     int nearCenter=u>=105&&u<=151;
@@ -30,6 +56,35 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
     if(stone&&nearCenter&&height>=13&&height<=18)
         return (u>115&&u<141&&height<=15)?
                   GG_FACADE_PORTAL:GG_FACADE_TRIM;
+    // Individual building types have their own architectural identity,
+    // rather than treating temples, libraries, towers and timber homes
+    // as differently tinted copies of the same rectangular hut.
+    if(build==B_TEMPLE){
+        int column=(u>=24&&u<=39)||(u>=217&&u<=232);
+        if(column&&height>=7&&height<=27)return GG_FACADE_PILASTER;
+        if(height==28&&u>19&&u<236)return GG_FACADE_CORNICE;
+        if(u>=91&&u<=165&&height>=23&&height<=26)
+            return GG_FACADE_RELIEF;
+    }else if(build==B_LIBRARY){
+        // An upper storey of narrow reading-room windows.
+        int upper=(u>=50&&u<=77)||(u>=179&&u<=206);
+        if(upper&&height>=27&&height<=31)
+            return height==27||height==31||
+                   u==50||u==77||u==179||u==206?
+                   GG_FACADE_FRAME:GG_FACADE_GLASS;
+    }else if(build==B_TOWER){
+        // Narrow watch slits above the normal civilian windows.
+        int upper=(u>=49&&u<=70)||(u>=184&&u<=205);
+        if(upper&&height>=32&&height<=42)
+            return height<=33||height>=41||u<=50||u>=204||
+                   u==70||u==184?
+                   GG_FACADE_FRAME:GG_FACADE_GLASS;
+    }else if(build==B_HOUSE||build==B_HUT){
+        int shutter=(u>=39&&u<=44)||(u>=83&&u<=89)||
+                    (u>=168&&u<=173)||(u>=212&&u<=218);
+        if(shutter&&height>=8&&height<=13)
+            return GG_FACADE_SHUTTER;
+    }
     // Two symmetric windows. Height changes by architecture type,
     // but stays fixed in WORLD HEIGHT when camera changes.
     // The previous 52-unit wide, 12-height glowing openings turned
@@ -37,6 +92,7 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
     // surrounds keep their correct WORLD position without dominating.
     int window=(u>=45&&u<=82)||(u>=174&&u<=211);
     int low=wood?8:17,high=wood?13:25;
+    if(window&&height==low-2)return GG_FACADE_SILL;
     if(window&&height>=low-1&&height<=high+1){
         int border=height<=low||height>=high||
                    u<=48||u>=208||
@@ -44,7 +100,12 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
                    (u>=64&&u<=66)||(u>=189&&u<=191);
         return border?GG_FACADE_FRAME:GG_FACADE_GLASS;
     }
+    if((stone&&height==29)||(wood&&height==15&&u<30))
+        return GG_FACADE_CORNICE;
     if(wood){
+        if((height==6||height==13)&&
+           ((u>19&&u<44)||(u>211&&u<236)))
+            return GG_FACADE_BRACE;
         if(u<12||u>243||(u>=119&&u<=133))
             return GG_FACADE_BEAM;
         if(height%7==0)return GG_FACADE_COURSE;

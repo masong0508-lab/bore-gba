@@ -145,7 +145,11 @@ jobs:
           dkp-pacman -S --needed --noconfirm 3ds-dev || true
           export DEVKITPRO=/opt/devkitpro
           chmod +x 3ds/build.sh
+          echo "MIXED-PORT New3DS source and compiler provenance"
+          "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          sha256sum source/gmdata.h source/gmvox_hq.h source/story_film_hq_data.h
           ./3ds/build.sh
+          sha256sum godguy.3dsx
           mkdir -p ../out && cp godguy.3dsx ../out/godguy.3dsx
 
       # Exact pixel/VRAM regression for zoomed terrain, partial updates and
@@ -262,19 +266,6 @@ jobs:
             out/*.mp4
             out/*.gif
           if-no-files-found: error
-      - name: Publish as the "GodGuy DS (latest)" release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: godguy-latest
-          name: GodGuy DS (latest) - ${{ github.sha }}
-          body: "New GodGuy DS build from main, commit ${{ github.sha }}. Start with godguy_hw.nds or godguy_dsi.nds (DS-mode). If DraStic fails: godguy_hw_audio_only.nds has music but skips cartridge save initialization (use emulator save states), godguy_hw_save_only.nds has saves but no sound, and godguy_hw_safe.nds has neither. godguy_dsi_mode.nds needs real DSi-mode support (not DraStic). godguy.nds is the experimental libnds/calico build. Green CI verifies builds, NOT emulator startup."
-          target_commitish: ${{ github.sha }}
-          make_latest: false
-          files: |
-            out/*.nds
-            out/*.3dsx
-
   # Runs independently of the DS ARM9 link and lets the 3DS film reveal
   # its own compile/runtime regressions instead of being hidden by the first
   # console's failure. The complete mixed-port release remains gated above.
@@ -339,8 +330,13 @@ jobs:
         working-directory: godguy
         run: |
           chmod +x 3ds/build.sh
-          ./3ds/build.sh
+          echo "CINEMA New3DS source and compiler provenance"
+          "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          sha256sum source/gmdata.h source/gmvox_hq.h source/story_film_hq_data.h
+          GG_BUILD_GPU_PROBE=1 ./3ds/build.sh
+          sha256sum godguy.3dsx
           test -s godguy.3dsx
+          test -s godguy_new3ds_gpu_probe.3dsx
       - name: Verify crisp top/bottom 3DS cinema scaling and UI restore
         working-directory: godguy
         run: |
@@ -397,7 +393,74 @@ jobs:
           name: godguy-3ds-cinema
           path: |
             godguy/godguy.3dsx
+            godguy/godguy_new3ds_gpu_probe.3dsx
             out/godguy_unwritten_reign_endings.mp4
             out/Corporations_3DS_vocal_preview.wav
             out/Duck_and_Cover_3DS_vocal_preview.wav
           if-no-files-found: error
+
+  # Release-candidate artifacts are produced only after BOTH console
+  # builder jobs pass. Source-only regressions cannot greenlight a
+  # mislabelled DSi image or a missing New3DS/GPU homebrew executable.
+  # The ZIPs explicitly distinguish playable candidates from diagnostics.
+  port-candidates:
+    name: Verify ROM headers and package GodGuy port candidates
+    needs: [nds, cinema3ds]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch complete DS/DSi and independent New 3DS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: godguy-nds
+          path: port_images/nds
+      - name: Fetch GPU probe and 3DS source-build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: godguy-3ds-cinema
+          path: port_images/cinema
+      - name: Prove that corrupt and mislabeled ROMs fail release checks
+        run: python3 godguy/tools/test_package_port_candidates.py
+      - name: Validate real headers and emit compact verified candidate ZIPs
+        run: |
+          python3 godguy/tools/package_port_candidates.py \
+            --artifact-dir port_images/nds \
+            --artifact-dir port_images/cinema \
+            --output port_release \
+            --commit "${{ github.sha }}"
+          test -s port_release/PORTS_MANIFEST.json
+          test "$(find port_release -name '*.zip' | wc -l)" -eq 2
+          ls -lh port_release/
+      - name: Upload two clearly labeled, checksummed port candidate ZIPs
+        uses: actions/upload-artifact@v4
+        with:
+          name: godguy-multiport-release-candidates
+          path: port_release/
+          if-no-files-found: error
+      # Publishing now depends on ALL port images and their header/CRC
+      # inspection; a passing DS compile alone is never a release gate.
+      # Manual console/emulator QA still must precede a stable release.
+      - name: Publish CI-qualified GodGuy candidate bundles
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: godguy-ports-ci-candidate
+          name: GodGuy DS/DSi/New3DS — CI candidates ${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          make_latest: false
+          body: |
+            Automatically built candidate images after BOTH DS/DSi and
+            New 3DS SDK jobs passed and ROM headers/CRC, DSi mode flags,
+            SHA-256 hashes and ZIP integrity checks succeeded.
+            These are NOT hardware-tested or a stable release.
+            New 3DS software-rendered game requires New-series hardware.
+            The PICA200 executable is an INDEPENDENT GPU prototype.
+            The unsigned 16 MiB DSi-mode build is experimental.
+            See PORTS_MANIFEST.json and PORT_RELEASE_QA.md for exact
+            source hashes and manual acceptance gates.
+          files: |
+            port_release/*.zip
+            port_release/PORTS_MANIFEST.json

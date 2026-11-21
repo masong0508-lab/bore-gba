@@ -10,7 +10,7 @@ static int ggFilmWalkProgress(int beat,int local,int beatTicks){
     int u=elapsed*256/beatTicks;
     return (u*u*(768-2*u))/(256*256);
 }
-static void ggFilmWalkWorldPosition(int stageX,int stageY,
+static inline void ggFilmWalkWorldPosition(int stageX,int stageY,
                                      int approachX,int approachY,
                                      int cosA,int sinA,int beat,
                                      int local,int beatTicks,

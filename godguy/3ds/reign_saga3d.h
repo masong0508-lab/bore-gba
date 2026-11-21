@@ -493,6 +493,8 @@ static int ggSagaStagingCell(int landmarkX,int landmarkY,
             }
     return 0;
 }
+// The cast resolver is defined later with the script/voice helpers.
+static void ggSagaPairGuests(int beat,int *first,int *second);
 static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
     int shot=beat/2,tx,ty;
     ggSagaLocation(beat,&tx,&ty);
@@ -537,6 +539,14 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 int gx=cx>>8,gy=cy>>8;
                 if(!ggChronLand(gx,gy)||
                    !ggExpLineClear(gx,gy,tx,ty))continue;
+                // Reject a collision-free viewpoint if the hero's boots
+                // already cross the captions or the head clips the matte.
+                GgFilmCameraSubject hero={
+                    tx*256+128,ty*256+128,ggExpGround(world[ty][tx])
+                };
+                if(!ggFilmCameraSubjectFits(cx,cy,fx,fy,
+                         ggExpGround(world[gy][gx]),hero,
+                         ggFilmShotScale(d)))continue;
                 int sx=-fy,sy=fx,dx=0,dy=0;
                 if(abs(sx)>=abs(sy))dx=sx>=0?1:-1;
                 else dy=sy>=0?1:-1;
@@ -589,10 +599,51 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
         ggSagaShot.camera.fromY=ggSagaShot.camera.toY=cy;
         if(found){
             GgSagaCameraContext context={tx,ty};
+            int fx=ggExpCos[cameraAngle],fy=ggExpSin[cameraAngle];
+            int cameraGround=ggExpGround(world[cy>>8][cx>>8]);
             ggFilmCameraPlan(&ggSagaShot.camera,cx,cy,
-                             ggExpCos[cameraAngle],ggExpSin[cameraAngle],
-                             ggExpGround(world[cy>>8][cx>>8]),
+                             fx,fy,cameraGround,
                              ggSagaCameraFloor,&context);
+            // Hold the hero and all staged speaking partners within
+            // the safe 400x240 picture across the full camera dolly.
+            // This bounded check happens only once at shot setup.
+            GgFilmCameraSubject cast[3]={
+                {tx*256+128,ty*256+128,ggExpGround(world[ty][tx])}
+            };
+            int castCount=1,first=-1,second=-1;
+            ggSagaPairGuests(beat,&first,&second);
+            if(first>=0){
+                int sideX=-fy,sideY=fx,dx=0,dy=0;
+                if(abs(sideX)>=abs(sideY))dx=sideX>=0?1:-1;
+                else dy=sideY>=0?1:-1;
+                int stageHeight=cast[0].ground;
+                int plusOK=ggChronLand(tx+dx,ty+dy)&&
+                    ggFilmStageHeightOK(stageHeight,
+                        ggExpGround(world[ty+dy][tx+dx]))&&
+                    ggExpLineClear(cx>>8,cy>>8,tx+dx,ty+dy);
+                int minusOK=ggChronLand(tx-dx,ty-dy)&&
+                    ggFilmStageHeightOK(stageHeight,
+                        ggExpGround(world[ty-dy][tx-dx]))&&
+                    ggExpLineClear(cx>>8,cy>>8,tx-dx,ty-dy);
+                int firstSide=ggFilmStageGuestSide(plusOK,minusOK,0);
+                if(firstSide){
+                    int guestX=tx+firstSide*dx,guestY=ty+firstSide*dy;
+                    cast[castCount++]=(GgFilmCameraSubject){
+                        guestX*256+128,guestY*256+128,
+                        ggExpGround(world[guestY][guestX])
+                    };
+                }
+                if(second>=0&&plusOK&&minusOK){
+                    int guestX=tx-dx,guestY=ty-dy;
+                    cast[castCount++]=(GgFilmCameraSubject){
+                        guestX*256+128,guestY*256+128,
+                        ggExpGround(world[guestY][guestX])
+                    };
+                }
+            }
+            ggFilmCameraKeepCastInFrame(&ggSagaShot.camera,cast,
+                  castCount,fx,fy,cameraGround,
+                  ggFilmShotScale(ggSagaShot.distance));
         }
         // Instead of walking a few pixels in place, enter from a real
         // neighboring tile toward the camera. One lookup per TWO dialogue
@@ -613,8 +664,24 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
             if(ggChronLand(sx,sy)&&
                ggExpGround(world[sy][sx])==ggExpGround(world[ty][tx])&&
                ggExpLineClear(cx>>8,cy>>8,sx,sy)){
-                ggSagaShot.approachX=sx;
-                ggSagaShot.approachY=sy;
+                // On very tight close-ups an actor entering from the
+                // adjoining tile starts nearer than the subtitle-safe
+                // minimum depth. Reject that approach at shot setup,
+                // rather than silently popping the figure into frame
+                // half a second later. Fallback is the short on-tile
+                // entrance, still controlled by the same easing curve.
+                GgFilmCameraSubject entrance={
+                    sx*256+128,sy*256+128,ggExpGround(world[sy][sx])
+                };
+                if(ggFilmCameraSubjectFits(ggSagaShot.camera.fromX,
+                       ggSagaShot.camera.fromY,
+                       ggExpCos[a],ggExpSin[a],
+                       ggExpGround(world[ggSagaShot.camera.fromY>>8]
+                                         [ggSagaShot.camera.fromX>>8]),
+                       entrance,ggFilmShotScale(ggSagaShot.distance))){
+                    ggSagaShot.approachX=sx;
+                    ggSagaShot.approachY=sy;
+                }
             }
         }
     }
@@ -645,9 +712,22 @@ static int ggSagaProjectActor(int worldX,int worldY,
        !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,tx,ty))
         return 0;
     *sx=ggFilmProjectScreenX(side,forward);
-    *feet=ggFilmProjectFootY(forward,
-                            ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]),
-                            ggExpGround(world[ty][tx]));
+    if(ggExpMeshEnabled){
+        // Match the actual new polygon camera's vertical perspective;
+        // the legacy inverse ray-column projection floats above sloped
+        // mesh ground, especially near walls and during camera dollies.
+        int quality=ggExpScenicQuality>=2?1:2;
+        int vertical=quality==1?7:4;
+        int horizon=quality==1?116:58;
+        int viewGround=ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]);
+        int personGround=ggExpGround(world[ty][tx]);
+        *feet=(horizon+(viewGround+13-personGround)*
+               vertical*256/forward)*quality;
+    }else{
+        *feet=ggFilmProjectFootY(forward,
+                                ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]),
+                                ggExpGround(world[ty][tx]));
+    }
     // A take, not an individual sprite or per-frame depth rounding,
     // owns cast scale. All actors share their actual feet plane.
     *scale=ggFilmShotScale(ggSagaShot.distance);
@@ -754,7 +834,10 @@ static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
 static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
     return ggSagaSideTile(tx,ty,1,1,guestX,guestY);
 }
+// Use the same foreground span test for the direct RGB shadow blend.
+#define GG_FILM_SHADOW_MASKED(x,y) ggExpFilmPixelHidden((x),(y))
 #include "film_acting3d.h"
+#undef GG_FILM_SHADOW_MASKED
 static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
                                 int style,int talking){
     static const u8 palette[6][3][3]={
@@ -995,6 +1078,11 @@ static void ggSagaDraw(u8 *out){
                                  filmCos,filmSin)
             };
     }
+    // Apply one world-sampled climate light value to all performers in
+    // this take. It shares the environment's material grade; no new
+    // per-pixel normal map or frame buffer, and never changes identity.
+    int cameraTerrain=world[ggExplore.py>>8][ggExplore.px>>8];
+    ggFilmArtAmbient=ggFilmScenicActorLight(cameraTerrain);
     // Painter's algorithm: distant actors are drawn before near ones.
     // Prevents a character behind the hero from covering the hero's
     // shoulders, or a wagon appearing pasted across someone's legs.
@@ -1008,6 +1096,9 @@ static void ggSagaDraw(u8 *out){
     int heroHandX=0,heroHandY=0,guestHandX=0,guestHandY=0;
     for(int i=0;i<actorCount;i++){
         const GgFilmStageItem *item=&actors[i];
+        // Hardware-style depth rejection only for the foreground actor
+        // primitives, using raycast wall spans already rendered this frame.
+        ggExpFilmDrawDepth=item->depth;
         if(item->kind==GG_STAGE_PROP){
             ggSagaPropDraw(out,item->x,item->feet,item->size,propKind);
         }else if(item->kind==GG_STAGE_HERO){
@@ -1076,7 +1167,9 @@ static void ggSagaDraw(u8 *out){
                                  &performance,style);
         }
     }
+    ggExpFilmDrawDepth=0;
     if(pairVisible){
+        ggExpFilmDrawDepth=(heroItem->depth+partnerItem->depth)/2;
         int touching=ggFilmPairTouch(heroHandX,heroHandY,
                                     guestHandX,guestHandY);
         if(pairKind==GG_FILM_PAIR_COMFORT&&pairInset>=80&&touching){
@@ -1106,15 +1199,29 @@ static void ggSagaDraw(u8 *out){
                     pairKind==GG_FILM_PAIR_BOOK?3:4,skin);
         }
     }
+    ggExpFilmDrawDepth=0;
+    ggFilmArtAmbient=256;
+    // World-anchored foreground foliage, poles and market clutter can
+    // properly cover an actor only when PHYSICALLY nearer than the cast.
+    int closestDepth=0;
+    for(int i=0;i<actorCount;i++)
+        if(actors[i].depth>0&&
+           (!closestDepth||actors[i].depth<closestDepth))
+            closestDepth=actors[i].depth;
+    if(closestDepth)ggExpScenicDraw(out,1,closestDepth);
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
-    // Restrained letterbox treatment, not the old oversized computer
-    // console HUD. 18 more lines of landscape remain visible.
-    ggExpRect(out,0,0,400,23,17,24,34);
-    ggExpRect(out,0,22,400,1,189,146,92);
-    ggExpRect(out,0,188,400,52,16,23,32);
-    ggExpRect(out,0,187,400,1,196,157,99);
+    // A single designed film language: the same restrained brass,
+    // blue-slate values and inset hierarchy as the playable exploration
+    // screen. Keep landscape readable and avoid a bulky retro debug HUD.
+    ggExpRect(out,0,0,400,23,13,24,35);
+    ggExpRect(out,0,22,400,1,174,137,85);
+    ggExpRect(out,0,0,3,23,184,148,91);
+    ggExpRect(out,0,188,400,52,12,22,33);
+    ggExpRect(out,0,187,400,1,174,137,85);
     ggExpRect(out,0,190,3,48,174,124,80);
+    ggExpRect(out,386,191,5,1,119,101,81);
+    ggExpRect(out,386,193,5,1,119,101,81);
     char line[110];
     if(ggSaga.mode==GG_SAGA_CHOICE){
         snprintf(line,sizeof line,"ACT %d - YOUR CHOICE CHANGES THE REALM",
@@ -1151,10 +1258,11 @@ static void ggSagaDraw(u8 *out){
                   ggChron.act+1,ggChronActName[ggChron.act]);
     ggFilmText(out,11,9,line,238,226,190);
     snprintf(line,sizeof line,"%s:",beat->voice);
-    // Clean actor name plate, story text and a subdued secondary line.
-    // The same cutscene font now sits on a consistent cinematic panel.
-    ggExpRect(out,10,193,3,8,188,154,96);
-    ggFilmText(out,19,193,line,243,217,162);
+    // One small actor plate, a primary legible line and a quiet reply.
+    // Semantic structure takes precedence over repeated status banners.
+    ggExpRect(out,10,191,100,14,27,40,50);
+    ggExpRect(out,10,191,3,14,188,154,96);
+    ggFilmText(out,19,195,line,243,217,162);
     ggFilmText(out,12,207,beat->line,235,238,233);
     ggFilmText(out,12,221,beat->sub,168,188,198);
     // Only show help during the take's opening or while paused.

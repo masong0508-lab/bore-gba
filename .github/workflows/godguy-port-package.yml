@@ -1,0 +1,26 @@
+name: GodGuy multiport image format and release packaging
+on:
+  push:
+    paths:
+      - 'godguy/tools/package_port_candidates.py'
+      - 'godguy/tools/test_package_port_candidates.py'
+      - '.github/workflows/godguy-port-package.yml'
+  pull_request:
+    paths:
+      - 'godguy/tools/package_port_candidates.py'
+      - 'godguy/tools/test_package_port_candidates.py'
+      - '.github/workflows/godguy-port-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: godguy-port-package-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  formats-and-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise NDS, DSi and 3DSX image inspection and compact ZIP integrity
+        run: python3 godguy/tools/test_package_port_candidates.py

@@ -23,7 +23,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "world_music3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
-extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
+extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void); extern void plat_new3dsRequired(void);
 static unsigned char topBuf[400*240*3], botBuf[320*240*3];
 static short sndBuf[2800*2];
 static Gg3dsFrameClock frameClock;
@@ -308,6 +308,9 @@ void shimPresent(void){
     gg3dsClockFrame(&frameClock,plat_ms(),&n,&k,&quality);
     shimMusicTicks=k;
     gg3dsGlobeQuality=quality;  // New 3DS detail yields to audio under load
+    // Fixed scenic LOD budgets follow this existing hardware/frame-clock
+    // decision; never steal audio time for decorative foliage.
+    ggExpScenicQuality=gg3dsGlobeQuality?2:1;
     shimMix(sndBuf,n);
     int tc,bc;
     shimFilmFullscreen=sceneClip!=0;
@@ -329,6 +332,7 @@ void shimPresent(void){
         // for subtle clouds/feedback. Static scenes reuse the existing
         // RGB output; there is no second 400x240 framebuffer or hash scan.
         static int lastX,lastY,lastA,lastEdits,lastFx,lastSky;
+        static int lastMeshQuality=-1;
         int sky=ggExplore.frame/8;
         // During authored 3D movie shots we render at a steady, bounded
         // 30fps-like cadence (every 2nd 60Hz tick), rather than paying the
@@ -336,7 +340,10 @@ void shimPresent(void){
         // still interpolates from real-world landmarks each rendered frame.
         // A stale ggChron.dirty flag must NOT force every movie frame.
         int movie=ggChron.active&&ggSaga.mode;
+        // A quality transition requires a fresh real-3D projection,
+        // even when the camera is still and no sky tick is due.
         int dirty=!ggExpRenderValid||
+                  ggExpScenicQuality!=lastMeshQuality||
                   (movie ? (ggSaga.mode==GG_SAGA_CHOICE||ggSaga.paused?
                             0:!(ggSaga.frame&1)) :
                    tc||ggExplore.px!=lastX||ggExplore.py!=lastY||
@@ -363,17 +370,26 @@ void shimPresent(void){
             lastX=ggExplore.px;lastY=ggExplore.py;
             lastA=ggExplore.angle;lastEdits=ggExplore.edits;
             lastFx=ggExplore.feedback;lastSky=sky;
+            lastMeshQuality=ggExpScenicQuality;
             tc=1;
         }
     }
-    // While exploring, the left-eye RGB world is rendered as real live
-    // voxel columns. The 2D globe's unrelated depth map must not warp it.
+    // While exploring, the left-eye RGB image now contains real
+    // perspective polygons with physical depth; the 2D globe's
+    // unrelated disparity map must never warp these world surfaces.
     plat_present(topBuf,botBuf,tc,bc,sndBuf,n,
                  ggExplore.active?0:(shimSwap?0:shimDepth));
 }
 int main(void){
     plat_init();
     int new3ds=plat_isNew3DS();
+#ifdef GG_NEW3DS_ONLY
+    if(!new3ds){
+        plat_new3dsRequired();
+        plat_exit();
+        return 0;
+    }
+#endif
     gg3dsClockInit(&frameClock,new3ds);
     gg3dsGlobeQuality=new3ds;
     gg3dMusicTick=ggWorldMusicTick;

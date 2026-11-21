@@ -12,6 +12,9 @@
 #include "film_architecture3d.h"
 #include "film_facade3d.h"
 #include "film_floor3d.h"
+#include "film_occlusion3d.h"
+#include "film_scenery3d.h"
+#include "mesh_raster3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -215,11 +218,43 @@ static inline void ggExpDotInView(u8 *out,int x,int y,int r,int g,int b){
     p[1]=p[4]=p[1201]=p[1204]=(u8)g;
     p[2]=p[5]=p[1202]=p[1205]=(u8)b;
 }
+// Foreground spans are populated during the existing 400-ray scene pass.
+// Actor overlay depth is zero for the world, HUD, exploration and 2D screens.
+static GgFilmOcclusionColumn ggExpFilmOcclusion[GG_FILM_OCCLUSION_COLS];
+static int ggExpFilmDrawDepth;
+// Real 3D is the default view on 3DS. Keep a safe independent fallback
+// for SDK/hardware profiling and unsupported hardware paths.
+#ifdef GG_EXP_FORCE_VOXEL
+static int ggExpMeshEnabled=0;
+#else
+static int ggExpMeshEnabled=1;
+#endif
+static int ggExpMeshActive;
+// Declared before ggExpRenderMode; populated later by population3d.h.
+// The first-person facade and actor compositors share this depth
+// without an include-order dependency or a second creature search.
+static int ggExpNpcClosestDepth;
+// The real-time POV is rendered in 200x120, expanded 2x. Scenery must
+// align to that pixel grid rather than introducing mismatched 1px props.
+static int ggExpScenicCoarse;
+static inline int ggExpFilmPixelHidden(int x,int y){
+    if(ggExpFilmDrawDepth<=0)return 0;
+    if(ggExpMeshActive)
+        return ggMeshHidden(&ggMeshContext,x,y,ggExpFilmDrawDepth);
+    return ggFilmOcclusionHidden(ggExpFilmOcclusion,x,y,ggExpFilmDrawDepth);
+}
 static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
+    if(ggExpScenicCoarse){
+        int right=x+w,bottom=y+h;
+        x-=x&1;y-=y&1;
+        w=((right+1)&~1)-x;
+        h=((bottom+1)&~1)-y;
+    }
     int x1=ggExpClamp(x,0,400),y1=ggExpClamp(y,0,240);
     int x2=ggExpClamp(x+w,0,400),y2=ggExpClamp(y+h,0,240);
     for(int iy=y1;iy<y2;iy++)
         for(int ix=x1;ix<x2;ix++){
+            if(ggExpFilmPixelHidden(ix,iy))continue;
             u8*p=out+(iy*400+ix)*3;
             p[0]=(u8)r;p[1]=(u8)g;p[2]=(u8)b;
         }
@@ -238,12 +273,347 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 }
 // The story uses full native 400x240 ray columns; real-time exploration
 // retains the original 200x120 fast renderer. Both access the SAME world.
+// Actor-safe film scenery renderer: physical world locations, stable
+// deterministic set dressing, existing RGB drawing and foreground depth.
+// The fixed near-region scan is at most 441 cells, with at most 84 props.
+// No extra per-pixel world search, meshes, textures, heap or framebuffer.
+static int ggExpSceneryEnabled=1;
+static int ggExpScenicQuality=2; // normal highest detail; platform adjusts
+static int ggExpScenicVisible;
+static int ggExpScenicForegroundPass;
+static void ggExpScenicShadow(u8*out,int x,int foot,int half,int depth){
+    if(ggExpScenicCoarse||ggExpScenicForegroundPass||
+       foot<1||foot>=240)return;
+    int y=foot-1;
+    int start=ggExpClamp(x-half,0,400);
+    int end=ggExpClamp(x+half,0,400);
+    for(int px=start;px<end;px++){
+        if(ggFilmOcclusionHidden(ggExpFilmOcclusion,px,y,depth))continue;
+        u8*p=out+(y*400+px)*3;
+        p[0]=(u8)(p[0]*210/256);
+        p[1]=(u8)(p[1]*210/256);
+        p[2]=(u8)(p[2]*210/256);
+    }
+}
+static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
+                            int depth,uint32_t key){
+    if(h<3)return;
+    int widthRatio=kind==GG_SCENE_OAK||kind==GG_SCENE_STALL?7:
+                   kind==GG_SCENE_PINE?5:
+                   kind==GG_SCENE_SHRUB?12:
+                   kind==GG_SCENE_GRASS?6:4;
+    int w=ggExpClamp(h*widthRatio/11,3,52);
+    int trunk=ggExpClamp(h/9,1,5);
+    int y=foot-h;
+    int warmth=(int)((key>>9)&7u);
+    int breeze=ggFilmScenicWind(key,ggExplore.frame);
+    ggExpFilmDrawDepth=ggExpScenicCoarse?0:depth;
+    ggExpScenicShadow(out,x,foot,w/2,depth);
+    // LOD is deliberately minimal, but never turns a market stall
+    // into the same stick as a spruce or lantern. Tiny readable icons
+    // preserve the environment's identity out to the mist horizon.
+    if(h<=8){
+        int cls=ggFilmScenicFarClass(kind);
+        int hh=h>3?h:3;
+        if(cls==1){
+            ggExpRect(out,x,foot-hh/2,1,hh/2,92,76,59);
+            ggExpRect(out,x-3,foot-hh,6,hh/2+1,55,101,72);
+            ggExpRect(out,x-2,foot-hh,3,1,102,140,89);
+        }else if(cls==2){
+            ggExpRect(out,x-2,foot-hh/2,1,hh/2,57,111,73);
+            ggExpRect(out,x,foot-hh,1,hh,72,122,76);
+            ggExpRect(out,x+2,foot-hh/2-1,1,hh/2+1,
+                      kind==GG_SCENE_CROPS?181:92,
+                      kind==GG_SCENE_CROPS?153:129,74);
+        }else if(cls==3){
+            ggExpRect(out,x-2,foot-hh,4,hh,101,106,106);
+            ggExpRect(out,x-2,foot-hh,2,hh/2+1,152,149,134);
+        }else if(cls==4){
+            ggExpRect(out,x,foot-hh+2,1,hh-2,89,81,68);
+            ggExpRect(out,x-1,foot-hh,3,3,239,177,97);
+            ggExpRect(out,x,foot-hh,1,1,255,233,177);
+        }else if(cls==5){
+            ggExpRect(out,x-2,foot-hh,1,hh,122,115,103);
+            ggExpRect(out,x-1,foot-hh,4,3,144,70,88);
+            ggExpRect(out,x,foot-hh+1,1,1,210,172,108);
+        }else if(cls==6){
+            ggExpRect(out,x-3,foot-hh/2,6,hh/2,134,96,62);
+            ggExpRect(out,x-3,foot-hh/2,6,1,184,138,84);
+            ggExpRect(out,x-2,foot-1,1,1,44,46,51);
+            ggExpRect(out,x+2,foot-1,1,1,44,46,51);
+        }else if(cls==7){
+            ggExpRect(out,x-3,foot-hh,1,hh,129,93,62);
+            ggExpRect(out,x+3,foot-hh,1,hh,129,93,62);
+            ggExpRect(out,x-3,foot-hh/2,7,1,175,132,89);
+        }else if(cls==8){
+            ggExpRect(out,x-3,foot-hh+1,7,2,153,81,70);
+            ggExpRect(out,x-3,foot-hh+1,2,1,215,165,111);
+            ggExpRect(out,x-2,foot-hh+3,1,hh-3,106,79,57);
+            ggExpRect(out,x+3,foot-hh+3,1,hh-3,106,79,57);
+        }
+        ggExpFilmDrawDepth=0;
+        return;
+    }
+    if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE){
+        int pine=kind==GG_SCENE_PINE;
+        int foliageR=pine?39:43,foliageG=pine?79:90,
+            foliageB=pine?64:68;
+        ggExpRect(out,x-trunk/2,foot-h/2,trunk,h/2,65,56,48);
+        ggExpRect(out,x,foot-h/2,1,h/3,122,90,65);
+        if(pine){
+            // Three overlapping triangular boughs with individually
+            // lit slopes, not a stack of rectangular green billboards.
+            for(int tier=0;tier<3;tier++){
+                int top=y+tier*h/5;
+                int levelHeight=h*(5-tier)/12;
+                for(int band=0;band<6;band++){
+                    int width=w*(band+2)*(4-tier)/30;
+                    if(width<2)width=2;
+                    int yy=top+band*levelHeight/6;
+                    int next=top+(band+1)*levelHeight/6;
+                    int rowH=next-yy;if(rowH<1)rowH=1;
+                    int offset=(int)((key>>(tier*5+band))&3u)-1;
+                    int crownX=x+breeze+offset;
+                    ggExpRect(out,crownX-width/2,yy,width,rowH,
+                        34+tier*3,71+band*3+tier*3,59+band*2);
+                    ggExpRect(out,crownX-width/3,yy,
+                        ggExpClamp(width/3,1,30),rowH,
+                        59+tier*3,104+band*3,81+band*2);
+                }
+            }
+        }else{
+            // Real broadleaf contour: nine irregular rounded facets,
+            // light striking the upper-left while a dark under-canopy
+            // wraps over the trunk. Deterministic in world-space.
+            int crownY=y+h/10,crownH=h*3/5;
+            for(int band=0;band<9;band++){
+                int half=ggFilmScenicCrownHalf(w/2,band,key);
+                int yy=crownY+band*crownH/9;
+                int next=crownY+(band+1)*crownH/9;
+                int rowH=next-yy;if(rowH<1)rowH=1;
+                int center=x+breeze+((band>5)?1:0);
+                int shadow=band>=6;
+                ggExpRect(out,center-half,yy,half*2,rowH,
+                          shadow?35:54-band/2,
+                          shadow?71:104+band*2,
+                          shadow?57:75+band);
+                if(half>=3){
+                    ggExpRect(out,center-half+1,yy,half-1,rowH,
+                              79-band/2,132-band/2,93-band/2);
+                }
+            }
+            // Two lopsided foliage clusters keep even the near crown
+            // from being a uniform oval. The trunk stays motionless.
+            ggExpRect(out,x+breeze-w/3,y+h/4,
+                      ggExpClamp(w/4,1,16),h/7+1,80,137,92);
+            ggExpRect(out,x+breeze+w/5,y+h/3,
+                      ggExpClamp(w/5,1,13),h/7+1,43,83,66);
+        }
+    }else if(kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
+             kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){
+        int stalks=kind==GG_SCENE_CROPS?5:kind==GG_SCENE_GRASS?3:4;
+        for(int i=0;i<stalks;i++){
+            int xx=x+(i*2-stalks+1)*w/(stalks+1);
+            int ht=h*(3+(int)((key>>(i*3))&3u))/6;
+            int thick=ggExpClamp(w/13,1,3);
+            ggExpRect(out,xx,foot-ht/2,thick,ht/2,
+                      44,91,57);
+            ggExpRect(out,xx+breeze,foot-ht,thick,ht/2+1,
+                      51,101,62);
+            if(kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){
+                ggExpRect(out,xx+1,foot-ht,h/15+1,h/6+1,
+                          kind==GG_SCENE_REEDS?118:154,
+                          kind==GG_SCENE_REEDS?132:157,78);
+            }else{
+                ggExpRect(out,xx-1,foot-ht/2,ggExpClamp(w/4,1,6),
+                          h/5+1,68,112,69);
+            }
+        }
+        if(kind==GG_SCENE_SHRUB){
+            ggExpRect(out,x-w/2,foot-h/2,w,h/3,42,85,59);
+            ggExpRect(out,x+breeze-w*2/5,foot-h*2/3,
+                      w*4/5,h/3,54,105,67);
+            ggExpRect(out,x+breeze-w/3,foot-h*3/4,
+                      w/2,h/5,79,123,80);
+        }else if(kind==GG_SCENE_GRASS&&((key>>5)&7u)<2u){
+            // Occasional tiny flower/wild seed head, world-anchored.
+            ggExpRect(out,x+breeze,foot-h,2,2,184,177,121);
+        }
+    }else if(kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN){
+        int stone=kind==GG_SCENE_COLUMN;
+        int bw=stone?w/2:w;
+        ggExpRect(out,x-bw/2,foot-h,bw,h,
+                  96,102,104);
+        ggExpRect(out,x-bw/2,foot-h,bw/3+1,h,
+                  148,145,130);
+        ggExpRect(out,x-bw/2,foot-h/2,bw,h/9+1,
+                  74,80,88);
+        if(stone){
+            ggExpRect(out,x-w/2,foot-h,w,h/8+1,
+                      153,150,136);
+            ggExpRect(out,x-w/2,foot-h/8,w,h/8+1,
+                      91,92,94);
+            ggExpRect(out,x+w/4,foot-h,w/5,h/5,72,78,83);
+        }else{
+            ggExpRect(out,x-w/3,foot-h,w*2/3,h/5,
+                      129,132,132);
+            ggExpRect(out,x+w/5,foot-h/3,w/6,h/5,65,73,79);
+        }
+    }else if(kind==GG_SCENE_LAMP||kind==GG_SCENE_BRAZIER){
+        int brazier=kind==GG_SCENE_BRAZIER;
+        ggExpRect(out,x-trunk/2,y+(brazier?h/2:0),
+                  trunk,h-(brazier?h/2:0),71,68,61);
+        ggExpRect(out,x-w/4,y,w/2,ggExpClamp(h/5,2,7),
+                  78,72,66);
+        ggExpRect(out,x-w/6,y+h/20,w/3,ggExpClamp(h/7,2,6),
+                  225+warmth,167+warmth,80);
+        ggExpRect(out,x-1,y+h/20,2,ggExpClamp(h/10,1,5),
+                  255,227,145);
+        ggExpRect(out,x-w/3,foot-2,w*2/3,2,87,76,66);
+    }else if(kind==GG_SCENE_BANNER){
+        ggExpRect(out,x,foot-h,2,h,122,117,106);
+        ggExpRect(out,x+2,y+h/12,w,h/2,
+                  121+warmth,64,78);
+        ggExpRect(out,x+w/3,y+h/5,w/3,h/7,
+                  213,174,94);
+        ggExpRect(out,x+2,foot-2,w/2,2,67,69,68);
+    }else if(kind==GG_SCENE_FENCE){
+        int railY=foot-h*2/3;
+        ggExpRect(out,x-w/2,foot-h,2,h,123,87,59);
+        ggExpRect(out,x+w/2-2,foot-h,2,h,100,75,56);
+        ggExpRect(out,x-w/2,railY,w,2,157,116,77);
+        ggExpRect(out,x-w/2,railY+h/4,w,2,105,80,61);
+    }else if(kind==GG_SCENE_CRATES||kind==GG_SCENE_CART){
+        int cart=kind==GG_SCENE_CART;
+        ggExpRect(out,x-w/2,foot-h*2/3,w,h/2,
+                  120,81,54);
+        ggExpRect(out,x-w/2,foot-h*2/3,w,h/9+1,
+                  177,132,88);
+        ggExpRect(out,x-w/4,foot-h*2/3,w/5,h/2,
+                  87,64,47);
+        if(cart){
+            ggExpRect(out,x-w/3,foot-h/5,w/6,h/5,
+                      42,45,50);
+            ggExpRect(out,x+w/5,foot-h/5,w/6,h/5,
+                      42,45,50);
+            ggExpRect(out,x-w/4,foot-h,w/2,h/3,
+                      138,102,68);
+        }else{
+            ggExpRect(out,x+w/6,foot-h,w/3,h/3,
+                      159,111,72);
+        }
+    }else if(kind==GG_SCENE_STALL){
+        ggExpRect(out,x-w/2,foot-h/2,2,h/2,103,76,56);
+        ggExpRect(out,x+w/2-2,foot-h/2,2,h/2,103,76,56);
+        ggExpRect(out,x-w/2,y+h/8,w,h/6+2,137,77,67);
+        ggExpRect(out,x-w/3,y+h/8,w/3,h/6+2,211,160,108);
+        ggExpRect(out,x+w/6,y+h/8,w/4,h/6+2,211,160,108);
+        ggExpRect(out,x-w/3,foot-h/3,w*2/3,h/6,
+                  135,95,62);
+    }
+    ggExpFilmDrawDepth=0;
+}
+// Base layer is rendered after the world (before cast); the optional
+// foreground-only repeat is drawn after the cast to occlude the closest
+// bodies with genuine near-field scenery. The same projected geometry
+// is used in both passes and no scenery object is ever cached.
+static GgFilmScenicItem ggExpScenicItems[GG_SCENE_LIMIT];
+static int ggExpScenicCount;
+static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
+    if(!ggExpSceneryEnabled){
+        if(!foreground){ggExpScenicCount=0;ggExpScenicVisible=0;}
+        return;
+    }
+    if(!foreground){
+        int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
+        int angle=ggExplore.angle&255;
+        int cosine=ggExpCos[angle],sine=ggExpSin[angle];
+        int cameraGround=ggExpGround(world[cy][cx]);
+        int radius=ggFilmScenicRange(ggExpScenicQuality,
+                                      ggExpScenicCoarse);
+        int budget=ggFilmScenicBudget(ggExpScenicQuality,
+                                       ggExpScenicCoarse);
+        ggExpScenicCount=0;
+        for(int ty=cy-radius;ty<=cy+radius;ty++){
+            if((unsigned)ty>=WH)continue;
+            for(int tx=cx-radius;tx<=cx+radius;tx++){
+                if((unsigned)tx>=WW)continue;
+                if(bld[ty][tx]||occ[ty][tx])continue;
+                uint32_t key=ggFilmScenicHash(tx,ty,7);
+                // Fixed world-space thinning preserves bilateral density,
+                // and never depends on where the camera sweep begins.
+                if(((key>>24)&7u)>=5u)continue;
+                int near=0;
+                if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
+                else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
+                else if(ty>0&&bld[ty-1][tx])near=bld[ty-1][tx];
+                else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
+                int kind=ggFilmScenicKind(world[ty][tx],near,key);
+                if(!kind)continue;
+                int wx=tx*256+128+(int)((key>>12)&95u)-48;
+                int wy=ty*256+128+(int)((key>>20)&95u)-48;
+                int dx=wx-ggExplore.px,dy=wy-ggExplore.py;
+                int forward=(dx*cosine+dy*sine)/4096;
+                if(forward<=128||forward>radius*256)continue;
+                int side=(-dx*sine+dy*cosine)/4096;
+                if(side<-forward*6/5||side>forward*6/5)continue;
+                int x=ggFilmProjectScreenX(side,forward);
+                if(x<-60||x>=460)continue;
+                int feet=ggFilmProjectFootY(forward,cameraGround,
+                                            ggExpGround(world[ty][tx]));
+                // Nearby trees and stalls must not vanish because their bases
+                // enter the lower viewport. The HUD clips them naturally.
+                if(feet<70||feet>=238)continue;
+                int height=ggFilmScenicHeight(kind)*12*256/(forward+256);
+                if(height<3)continue;
+                int maxHeight=ggExpScenicCoarse?64:96;
+                if(height>maxHeight)height=maxHeight;
+                ggExpScenicItems[ggExpScenicCount++]=(GgFilmScenicItem){
+                    x,feet,height,forward,kind,key
+                };
+                if(ggExpScenicCount>=budget)goto compiled;
+            }
+        }
+compiled:
+        ggFilmScenicSort(ggExpScenicItems,ggExpScenicCount);
+        ggExpScenicVisible=ggExpScenicCount;
+    }
+    // Painter order is physical depth, not map scanning order.
+    // The short foreground repeat reads this SAME fixed queue; it never
+    // rescans, rehashes or reallocates the live game world.
+    ggExpScenicForegroundPass=foreground;
+    for(int i=0;i<ggExpScenicCount;i++){
+        const GgFilmScenicItem *p=&ggExpScenicItems[i];
+        if(foreground&&
+           (nearestActorDepth<=0||p->depth+96>=nearestActorDepth))
+            continue;
+        ggExpScenicProp(out,p->kind,p->x,p->foot,p->height,
+                        p->depth,p->key);
+    }
+    ggExpScenicForegroundPass=0;
+    ggExpFilmDrawDepth=0;
+}
+#include "mesh_world3d.h"
+#include "mesh_character3d.h"
+#include "mesh_people_billboard3d.h"
+#include "person_motion3d.h"
 static void ggExpRenderMode(u8 *top,int cinematic){
+    ggExpFilmDrawDepth=0;
+    ggExpMeshActive=0;
+    if(ggExpMeshEnabled){
+        // Physical triangle world replaces the column raycaster here.
+        // Story, actor, HUD and gameplay modes all reuse its own depth.
+        ggMeshWorldDraw(top,cinematic);
+        ggExpMeshActive=1;
+        goto mesh_world_ready;
+    }
+    if(cinematic)ggFilmOcclusionClear(ggExpFilmOcclusion);
     int columns=cinematic?400:GG_EXP_W;
     int screenHeight=cinematic?240:GG_EXP_H;
     int a=ggExplore.angle&255;
     int terrain=world[ggExplore.py>>8][ggExplore.px>>8];
     if((unsigned)terrain>=T_N)terrain=T_DIRT;
+    GgFilmScenicAtmosphere mood=ggFilmScenicAtmosphere(terrain);
     int eye=ggExpGround(terrain)+13;
     int walkBob=ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0;
     int horizon=cinematic?116+walkBob*2:58+walkBob;
@@ -260,8 +630,13 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             g=sky?45+y/2:92+y/15;
             b=sky?77+y/2:94+y/20;
         }else{
-            r=sky?28+y/2:67;g=sky?65+y:113;b=sky?112+y:151;
+            // Exploration uses the same restrained cool sky family as
+            // the high-quality film rather than fluorescent cyan.
+            r=sky?32+y/2:67;g=sky?57+y:99;b=sky?89+y:113;
         }
+        r=ggExpClamp(r+mood.skyR,0,255);
+        g=ggExpClamp(g+mood.skyG,0,255);
+        b=ggExpClamp(b+mood.skyB,0,255);
         u8 *line=top+(cinematic?y:y*2)*400*3;
         for(int x=0;x<400;x++){
             line[x*3]=(u8)r;
@@ -270,18 +645,35 @@ static void ggExpRenderMode(u8 *top,int cinematic){
         }
         if(!cinematic)memcpy(line+400*3,line,400*3);
     }
-    // Thin wispy clouds in full-resolution story shots. Cinematic
-    // silhouettes avoid the old 2x chunky 3-pixel cloud bars.
-    for(int k=0;k<7;k++){
-        int x=(k*67+fogTick)%(cinematic?500:260)-30;
-        int y=cinematic?16+(k*23)%56:8+(k*13)%29;
-        int w=cinematic?38+(k*13)%41:18+(k*7)%24;
+    // Three-layer, parallax-stable distant cloud banks. Unlike the
+    // former seven equal-width horizontal bars, these break into
+    // thinner irregular silhouettes anchored to camera yaw/location.
+    // The fast 2x gameplay renderer retains its low-cost cloud pass.
+    for(int k=0;k<(cinematic?12:7);k++){
+        int drift=fogTick+(ggExplore.angle&255)*3+
+                  (ggExplore.px>>7);
+        int x=(k*79+drift)%(cinematic?570:290)-40;
+        int y=cinematic?14+(k*19)%64:8+(k*13)%29;
+        int w=cinematic?27+(k*17)%48:18+(k*7)%24;
         if(cinematic){
-            ggExpRect(top,x,y,w,1,107,129,151);
-            ggExpRect(top,x+w/4,y+1,w/2,1,99,122,146);
+            // Broken cloud banks have mass and overlapping shoulders,
+            // rather than the previous computer-like cyan scan lines.
+            // Eight rects at most per bank, no translucency buffer.
+            int cr=ggExpClamp(109+mood.skyR/2,0,255);
+            int cg=ggExpClamp(127+mood.skyG/2,0,255);
+            int cb=ggExpClamp(149+mood.skyB/2,0,255);
+            ggExpRect(top,x+w/5,y+2,w*3/5,5,cr-31,cg-32,cb-30);
+            ggExpRect(top,x+w/12,y+3,w/3,3,cr-18,cg-17,cb-14);
+            ggExpRect(top,x+w/3,y-1,w/3,5,cr,cg,cb);
+            ggExpRect(top,x+w/4,y+1,w*2/5,2,cr+8,cg+6,cb+4);
+            ggExpRect(top,x+w*2/3,y+2,w/4,3,
+                      cr-14,cg-12,cb-8);
+            ggExpRect(top,x+w/3,y+6,w*2/5,1,cr-41,cg-37,cb-30);
         }else{
             for(int cx=x;cx<x+w;cx++)for(int cy=y;cy<y+3;cy++)
-                ggExpDot(top,cx,cy,122,160,184);
+                ggExpDot(top,cx,cy,
+                         122+mood.skyR/2,160+mood.skyG/2,
+                         184+mood.skyB/2);
         }
     }
     // Film-only perspective floor: the same projected ground that cast
@@ -324,11 +716,12 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     b=(b*3+g)/4;
                 }
                 int grain=ggFilmFloorGrain(wx,wy,ggExplore.frame);
-                r+=grain;g+=grain;b+=grain;
+                int detail=ggFilmScenicFloorDetail(type,wx,wy);
+                r+=grain+detail;g+=grain+detail/2;b+=grain+detail/3;
                 int mist=rowMist[y];
-                r=(r*(256-mist)+76*mist)/256;
-                g=(g*(256-mist)+95*mist)/256;
-                b=(b*(256-mist)+113*mist)/256;
+                r=(r*(256-mist)+mood.hazeR*mist)/256;
+                g=(g*(256-mist)+mood.hazeG*mist)/256;
+                b=(b*(256-mist)+mood.hazeB*mist)/256;
                 u8*p=top+(y*400+x)*3;
                 p[0]=(u8)ggExpClamp(r,0,255);
                 p[1]=(u8)ggExpClamp(g,0,255);
@@ -398,6 +791,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                                                   horizon,d,12);
                 if(bottom<to)to=ggExpClamp(bottom,from,to);
             }
+            if(cinematic&&from<to&&
+               (build||ground>ggExpGround(terrain)))
+                ggFilmOcclusionAdd(ggExpFilmOcclusion,x,from,to,d*256);
             int baseR,baseG,baseB;
             if(build){
                 // Stone, timber, roofs and towers are recognizable solid
@@ -417,10 +813,11 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 baseG=(baseG*3+71)/4;
                 baseB=(baseB*4+91)/5;
             }
-            if(cinematic&&!build&&(type==T_GRASS||type==T_FOREST)){
-                // The old highly saturated grass bands looked like a
-                // flat fluorescent carpet. Ground uses a calmer natural
-                // green, while distant layers gradually blend into air.
+            if(!build&&(type==T_GRASS||type==T_FOREST||
+                         type==T_JUNGLE)){
+                // Shared naturalistic color grading across both render
+                // modes. The playable POV no longer turns this world
+                // into a neon green lawn when leaving a cutscene.
                 baseG=(baseG*4+baseR)/5;
                 baseB=(baseB*3+baseG)/4;
             }
@@ -429,15 +826,14 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             baseR=baseR*shade/256;
             baseG=baseG*shade/256;
             baseB=baseB*shade/256;
-            if(cinematic){
-                // Fog is evaluated ONCE for a ray's visible world cell,
-                // not for every painted pixel. Keep far buildings
-                // recognizable without hard green/gray cutout layers.
-                int mist=ggExpClamp((d-6)*6,0,144);
-                baseR=(baseR*(256-mist)+76*mist)/256;
-                baseG=(baseG*(256-mist)+95*mist)/256;
-                baseB=(baseB*(256-mist)+113*mist)/256;
-            }
+            // Per-visible-cell atmospheric depth, not a pixel pass.
+            // Exploration has a smaller fog budget so long sightlines
+            // stay responsive while film shots get richer distant air.
+            int mist=cinematic?ggExpClamp((d-6)*6,0,144):
+                               ggExpClamp((d-8)*3,0,84);
+            baseR=(baseR*(256-mist)+mood.hazeR*mist)/256;
+            baseG=(baseG*(256-mist)+mood.hazeG*mist)/256;
+            baseB=(baseB*(256-mist)+mood.hazeB*mist)/256;
             int bright=build?13:6;
             // One material coordinate per ray/visible tile rather than
             // calling RNG or scanning any texture map per pixel.
@@ -476,6 +872,39 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     g+=17;r-=6; // canopy over a darker forest wall
                 }else if(!build&&type==T_MOUNT&&((materialY+ty*3)/9)%4==0){
                     r+=8;g+=9;b+=11; // strata follow world coordinates
+                }
+                if(!cinematic&&build&&d<=14&&edge>4){
+                    // The same authored facade height contract at half
+                    // resolution, evaluated ONLY for near buildings.
+                    // This keeps the fast 200-ray POV legible without
+                    // doing 400-ray film materials every gameplay frame.
+                    int wallHeight=ggFilmFacadeHeightAt(y*2,horizon*2,
+                                                        eye,d,ground);
+                    int feature=ggFilmFacadeFeature(build,surfaceU,
+                                                    wallHeight);
+                    if(feature==GG_FACADE_GLASS){
+                        r=122*shade/256;g=106*shade/256;
+                        b=90*shade/256;
+                    }else if(feature==GG_FACADE_DOOR||
+                             feature==GG_FACADE_PORTAL){
+                        r=43*shade/256;g=52*shade/256;
+                        b=59*shade/256;
+                    }else if(feature==GG_FACADE_FRAME||
+                             feature==GG_FACADE_COURSE||
+                             feature==GG_FACADE_BRACE){
+                        r=r*3/5;g=g*3/5;b=b*3/5;
+                    }else if(feature==GG_FACADE_PILASTER||
+                             feature==GG_FACADE_RELIEF){
+                        r=r*7/6;g=g*7/6;b=b*6/5;
+                    }else if(feature==GG_FACADE_SHUTTER){
+                        r=73*shade/256;g=59*shade/256;
+                        b=53*shade/256;
+                    }else if(feature==GG_FACADE_SILL||
+                             feature==GG_FACADE_CORNICE){
+                        r=r*5/4;g=g*5/4;b=b*5/4;
+                    }else if(feature==GG_FACADE_MOSS){
+                        r=52;g=83;b=64;
+                    }
                 }
                 if(cinematic&&build){
                     // Compute a building's vertical detail position from
@@ -528,6 +957,36 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     }else if(feature==GG_FACADE_TRIM){
                         r=113*wallShade/256;g=103*wallShade/256;
                         b=94*wallShade/256;
+                    }else if(feature==GG_FACADE_SILL){
+                        r=163*wallShade/256;g=157*wallShade/256;
+                        b=138*wallShade/256;
+                    }else if(feature==GG_FACADE_CORNICE){
+                        r=130*wallShade/256;g=122*wallShade/256;
+                        b=115*wallShade/256;
+                    }else if(feature==GG_FACADE_BRACE){
+                        r=105*wallShade/256;g=76*wallShade/256;
+                        b=53*wallShade/256;
+                    }else if(feature==GG_FACADE_MOSS){
+                        r=62*wallShade/256;g=94*wallShade/256;
+                        b=76*wallShade/256;
+                    }else if(feature==GG_FACADE_SCULPT){
+                        r=171*wallShade/256;g=159*wallShade/256;
+                        b=140*wallShade/256;
+                    }else if(feature==GG_FACADE_PILASTER){
+                        int edge=(surfaceU&7)<2;
+                        r=(194+edge*14)*wallShade/256;
+                        g=(187+edge*9)*wallShade/256;
+                        b=(172+edge*7)*wallShade/256;
+                    }else if(feature==GG_FACADE_RELIEF){
+                        int frieze=((surfaceU/7+wallHeight/2)&3)==0;
+                        r=(132+frieze*20)*wallShade/256;
+                        g=(121+frieze*15)*wallShade/256;
+                        b=(109+frieze*10)*wallShade/256;
+                    }else if(feature==GG_FACADE_SHUTTER){
+                        int slat=(wallHeight&1)==0;
+                        r=(82+slat*17)*wallShade/256;
+                        g=(58+slat*13)*wallShade/256;
+                        b=(51+slat*10)*wallShade/256;
                     }
                 }else if(cinematic&&!build){
                     // Restrained grass and stone microtexture in genuine
@@ -559,44 +1018,99 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(!highest)break;
         }
     }
+mesh_world_ready:
+    if(!ggExpMeshActive){
+        ggExpScenicCoarse=!cinematic;
+        ggExpScenicDraw(top,0,0);
+        ggExpScenicCoarse=0;
+    }
     // Draw nearby live inhabitants as indexed 2D cels projected onto
     // the same raycast world. A bounded on-map search avoids scanning the
     // whole creature list or allocating skeletal 3D models.
     if(cinematic)return; // no first-person crosshair, build HUD or 2x
                         // creature cels pasted over filmed cast
     ggExpRenderCreatures(top);
-    // Crosshair fixed at camera centre. Changes always affect a cell a
-    // few tiles ahead, never an invisible object behind the player's feet.
-    ggExpRect(top,192,119,16,2,12,21,30);
-    ggExpRect(top,199,112,2,16,12,21,30);
-    ggExpRect(top,195,119,10,1,247,240,206);
-    ggExpRect(top,200,115,1,10,247,240,206);
-    char buf[96];
-    ggExpRect(top,0,0,400,22,13,25,40);
-    if(ggExplore.actorId){
-        snprintf(buf,sizeof buf,"POV %-18.18s  %d,%d",
-                 ggExplore.actorName,ggExplore.px>>8,ggExplore.py>>8);
-    }else{
-        snprintf(buf,sizeof buf,"GODGUY FREE WALK   %d,%d  %s",
-                 ggExplore.px>>8,ggExplore.py>>8,
-                 ggExpMaterialNames[ggExplore.material]);
+    // Nearby foliage can pass in FRONT of actual world-depth citizens.
+    // Reuse the existing POV scenery selection, no second tile scan.
+    if(!ggExpMeshActive&&ggExpNpcClosestDepth){
+        ggExpScenicCoarse=1;
+        ggExpScenicDraw(top,1,ggExpNpcClosestDepth);
+        ggExpScenicCoarse=0;
     }
-    ggExpText(top,10,7,buf,243,225,163);
-    ggExpRect(top,0,202,400,38,12,22,34);
-    ggExpText(top,9,207,ggExplore.actorId?
-              "PAD WALK  L/R LOOK  B RUN  X MATERIAL  A BUILD  Y CLEAR":
-              "PAD MOVE  L/R TURN  B RUN  X BLOCK  A PLACE  Y CLEAR",
-              221,228,221);
-    ggExpText(top,9,221,ggExplore.actorId?
-              "TAP MAP: CHANGE MIND  SELECT SAVE  START: 2D":
-              "TAP MAP WARP   SELECT SAVE   START EXIT",180,202,222);
+    // Smaller brass-bracketed aim marker; it communicates the true
+    // editable world target without a huge retro-computer cross.
+    ggExpRect(top,195,115,4,1,34,41,47);
+    ggExpRect(top,201,115,4,1,34,41,47);
+    ggExpRect(top,195,123,4,1,34,41,47);
+    ggExpRect(top,201,123,4,1,34,41,47);
+    ggExpRect(top,196,116,3,1,240,216,164);
+    ggExpRect(top,201,116,3,1,240,216,164);
+    ggExpRect(top,196,122,3,1,240,216,164);
+    ggExpRect(top,201,122,3,1,240,216,164);
+    ggExpRect(top,199,118,2,3,233,213,161);
+    // One coherent, readable scene UI shared with the film captions:
+    // warm brass keylines, cool slate panels and short grouped controls.
+    ggExpFilmDrawDepth=0;
+    ggExpRect(top,0,0,400,28,13,24,35);
+    ggExpRect(top,0,26,400,2,174,137,85);
+    ggExpRect(top,0,0,3,28,192,148,93);
+    ggExpText(top,9,5,ggExplore.actorId?"CITIZEN'S EYES":
+                                       "GODGUY  /  EXPLORING",
+              242,220,164);
+    char buf[96];
+    snprintf(buf,sizeof buf,"X:%d  Y:%d",
+             ggExplore.px>>8,ggExplore.py>>8);
+    ggExpText(top,293,5,buf,220,225,221);
+    int localTerrain=world[ggExplore.py>>8][ggExplore.px>>8];
+    const char *region=localTerrain==T_FOREST?"WOODLAND":
+                 localTerrain==T_JUNGLE?"JUNGLE":
+                 localTerrain==T_HILL?"HIGHLANDS":
+                 localTerrain==T_MOUNT?"MOUNTAINS":
+                 localTerrain==T_SNOW?"SNOWFIELD":
+                 localTerrain==T_SAND||localTerrain==T_DESERT?"DRYLANDS":
+                 localTerrain==T_SWAMP?"MARSHLAND":
+                 localTerrain<=T_WATER?"COAST":
+                 localTerrain==T_DIRT?"ROADLAND":"GREEN COUNTRY";
+    snprintf(buf,sizeof buf,"REGION: %s",region);
+    ggExpText(top,9,17,buf,181,203,204);
+    if(ggExplore.actorId)
+        snprintf(buf,sizeof buf,"YOU ARE: %.18s",ggExplore.actorName);
+    else snprintf(buf,sizeof buf,"BUILD: %s",
+                  ggExpMaterialNames[ggExplore.material]);
+    ggExpText(top,223,17,buf,225,204,153);
+    ggExpRect(top,376,15,15,9,
+              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][0]*8,0,255),
+              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][1]*8,0,255),
+              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][2]*8,0,255));
+    ggExpRect(top,0,196,400,44,12,22,33);
+    ggExpRect(top,0,195,400,1,178,143,91);
+    ggExpRect(top,0,239,400,1,178,143,91);
+    // Controls are grouped by actual action rather than one long
+    // unexplained NES-style string of letters.
+    ggExpRect(top,8,202,92,14,29,42,53);
+    ggExpRect(top,105,202,92,14,29,42,53);
+    ggExpRect(top,202,202,92,14,29,42,53);
+    ggExpRect(top,299,202,92,14,29,42,53);
+    ggExpText(top,14,206,ggExplore.actorId?"A  INTERACT":"A  PLACE",
+              239,218,163);
+    ggExpText(top,111,206,"Y  CLEAR",239,218,163);
+    ggExpText(top,208,206,"X  MATERIAL",239,218,163);
+    ggExpText(top,305,206,"B  SPRINT",239,218,163);
+    ggExpText(top,9,225,"MOVE PAD   LOOK L/R   TAP MAP TO WARP",
+              202,217,218);
+    ggExpText(top,250,225,"SELECT SAVE  START EXIT",171,197,206);
     if(ggExplore.feedbackT){
-        const char *msg=ggExplore.feedback==2?"WORLD TILE CHANGED":
-                        ggExplore.feedback==3?"PROTECTED OR OUT OF REACH":
+        const char *msg=ggExplore.feedback==2?"TERRAIN CHANGED":
+                        ggExplore.feedback==3?"BLOCKED: PROTECTED/TOO FAR":
                         ggExplore.feedback==4?"WORLD SAVED":
-                        ggExplore.feedback==5?"SAVE FAILED - CHECK 2D NOTICE":
-                        "MATERIAL SELECTED";
-        ggExpText(top,9,191,msg,255,216,117);
+                        ggExplore.feedback==5?"SAVE FAILED: RETURN TO MAP":
+                        "BUILDING MATERIAL SELECTED";
+        int warning=ggExplore.feedback==3||ggExplore.feedback==5;
+        ggExpRect(top,8,179,330,13,warning?69:44,
+                  warning?39:62,warning?38:58);
+        ggExpRect(top,8,179,3,13,warning?219:169,
+                  warning?115:185,warning?103:139);
+        ggExpText(top,16,182,msg,250,224,174);
     }
 }
 static void ggExpRender(u8 *top){
