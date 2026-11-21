@@ -49,6 +49,19 @@ static inline int ggMeshGroundAtQ8(int wx,int wy){
     return (center*(128-n)*2+
             a*(n-u)+b*(n+u)+128)/256;
 }
+// Anchor the foundation to the lowest physical ground under its
+// footprint. A building keeps its intended roof height but the walls
+// extend into a sloped site rather than hovering above the downhill edge.
+// Four corner samples, no new geometry, allocations or persistent state.
+static inline int ggMeshFoundationGround(int x0,int y0,int x1,int y1,
+                                          int nominal){
+    int base=nominal,z;
+    z=ggMeshGroundAtQ8(x0,y0);if(z<base)base=z;
+    z=ggMeshGroundAtQ8(x1,y0);if(z<base)base=z;
+    z=ggMeshGroundAtQ8(x1,y1);if(z<base)base=z;
+    z=ggMeshGroundAtQ8(x0,y1);if(z<base)base=z;
+    return base-1; // bury the final one-unit seam under the terrain
+}
 static void ggMeshBox(GgMeshContext*m,int x0,int y0,int x1,int y1,
                        int bottom,int top,int r,int g,int b){
     if(x1<=x0||y1<=y0||top<=bottom)return;
@@ -389,6 +402,7 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     if(build==B_FARM){y0+=33;y1-=35;}
     if(build==B_DOCK){x0+=28;x1-=28;}
     if(build==B_STATUE){x0+=42;x1-=42;y0+=38;y1-=38;}
+    int baseGround=ggMeshFoundationGround(x0-14,y0-14,x1+14,y1+14,ground);
     int wallTop=ground+ggExpBuilding(build);
     int wood=build==B_HOUSE||build==B_HUT||
              build==B_DOCK||build==B_FARM;
@@ -402,7 +416,7 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         // Stone plinth, tapering waist and an actual angular sculpture
         // create a readable monument instead of an enormous solid cube.
         ggMeshBox(m,x0-14,y0-14,x1+14,y1+14,
-                  ground,ground+6,134,134,127);
+                  baseGround,ground+6,134,134,127);
         ggMeshBox(m,x0+8,y0+8,x1-8,y1-8,
                   ground+6,ground+13,174,166,148);
         int cx=(x0+x1)/2,cy=(y0+y1)/2;
@@ -423,17 +437,17 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     if(build==B_RUIN){
         // Deliberately incomplete, hollow ruin. Walking past the wall
         // reveals true spatial gaps instead of a tinted complete house.
-        ggMeshBox(m,x0,y0,x0+23,y1,ground,wallTop,
+        ggMeshBox(m,x0,y0,x0+23,y1,baseGround,wallTop,
                   130,129,121);
-        ggMeshBox(m,x0,y1-24,x1,y1,ground,wallTop-4,
+        ggMeshBox(m,x0,y1-24,x1,y1,baseGround,wallTop-4,
                   104,108,104);
-        ggMeshBox(m,x1-30,y0,x1,y0+27,ground,wallTop+5,
+        ggMeshBox(m,x1-30,y0,x1,y0+27,baseGround,wallTop+5,
                   148,145,132);
-        ggMeshBox(m,x1-35,y1-29,x1,y1,ground,wallTop-5,
+        ggMeshBox(m,x1-35,y1-29,x1,y1,baseGround,wallTop-5,
                   112,112,108);
         ggMeshBuildingsDrawn++;return;
     }
-    ggMeshBox(m,x0,y0,x1,y1,ground,wallTop,r,g,bl);
+    ggMeshBox(m,x0,y0,x1,y1,baseGround,wallTop,r,g,bl);
     if(build==B_HOUSE||build==B_HUT||build==B_HALL||
        build==B_TEMPLE||build==B_LIBRARY||build==B_FARM)
         ggMeshRoof(m,build,x0,y0,x1,y1,wallTop);
@@ -462,7 +476,7 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         // Ground-contact plinth and roof cornice extend beyond every
         // wall face, showing real parallax, height and shade.
         ggMeshBox(m,x0-5,y0-5,x1+5,y1+5,
-                  ground,ground+2,107,105,98);
+                  baseGround,ground+2,107,105,98);
         ggMeshBox(m,x0-6,y0-6,x1+6,y1+6,
                   wallTop-3,wallTop-1,177,164,137);
         ggMeshWindow(m,x0,x1,y0,1,ground,h);
@@ -476,13 +490,13 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         // Vertical corner quoins or timber beams connect floor to
         // eaves and keep every view from looking like a plain cube.
         int trimR=wood?102:181,trimG=wood?77:170,trimB=wood?58:149;
-        ggMeshBox(m,x0-7,y0-7,x0+10,y0+10,ground,wallTop,
+        ggMeshBox(m,x0-7,y0-7,x0+10,y0+10,baseGround,wallTop,
                   trimR,trimG,trimB);
-        ggMeshBox(m,x1-10,y0-7,x1+7,y0+10,ground,wallTop,
+        ggMeshBox(m,x1-10,y0-7,x1+7,y0+10,baseGround,wallTop,
                   trimR,trimG,trimB);
-        ggMeshBox(m,x0-7,y1-10,x0+10,y1+7,ground,wallTop,
+        ggMeshBox(m,x0-7,y1-10,x0+10,y1+7,baseGround,wallTop,
                   trimR,trimG,trimB);
-        ggMeshBox(m,x1-10,y1-10,x1+7,y1+7,ground,wallTop,
+        ggMeshBox(m,x1-10,y1-10,x1+7,y1+7,baseGround,wallTop,
                   trimR,trimG,trimB);
         if(build==B_TEMPLE){
             // A broad stone stair procession toward the portico.
@@ -582,7 +596,11 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
                        int ground,uint32_t key,int quality){
     int x=tx*256+128+(int)((key>>12)&63u)-32;
     int y=ty*256+128+(int)((key>>20)&63u)-32;
-    int z=ground;
+    // Every prop is placed at its jittered Q8 position, not the flat
+    // center height of the whole tile. This prevents trees, fences and
+    // market furniture floating over a hillside or sinking into it.
+    int z=ggMeshGroundAtQ8(x,y);
+    (void)ground;
     if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
        kind==GG_SCENE_SHRUB||kind==GG_SCENE_STALL||
        kind==GG_SCENE_CART)
@@ -726,7 +744,9 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
     int terrain=ggMeshTerrainAt(cx,cy);
     GgFilmScenicAtmosphere atmosphere=ggFilmScenicAtmosphere(terrain);
-    int eye=ggExpGround(terrain)+13+
+    // Use the exact triangular terrain beneath the camera. Nominal
+    // tile height caused a visible vertical pop at slopes/biome borders.
+    int eye=ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)+13+
             (ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0);
     int angle=ggExplore.angle&255;
     GgMeshContext*m=&ggMeshContext;
