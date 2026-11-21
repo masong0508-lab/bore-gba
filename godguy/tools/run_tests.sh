@@ -71,6 +71,7 @@ gcc -O2 -I3ds/stub -o /tmp/gg_3ds pc_3ds.c 3ds/platform3ds.c -lm && /tmp/gg_3ds 
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_walkin pc_3ds_walkin.c && /tmp/gg_3ds_walkin
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_camera pc_3ds_camera.c && /tmp/gg_3ds_camera
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_acting pc_3ds_acting.c && /tmp/gg_3ds_acting
+gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_type pc_3ds_type.c && /tmp/gg_3ds_type
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_staging pc_3ds_staging.c && /tmp/gg_3ds_staging
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_framing pc_3ds_framing.c && /tmp/gg_3ds_framing
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_partner pc_3ds_partner.c && /tmp/gg_3ds_partner

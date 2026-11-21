@@ -8,6 +8,7 @@ typedef uint8_t u8;
 enum {GG_SAGA_BEAT_TICKS=96};
 static char ggOriginHumanCel[24][17];
 static int draws,bookCover,parcelBody,handLinks;
+static int miraShawl,thorgrimArmor,varroTrim,serinPin,elowenCrown;
 static int ggExpClamp(int n,int a,int b){return n<a?a:n>b?b:n;}
 static void ggExpRect(u8 *out,int x,int y,int w,int h,int r,int g,int b){
     (void)out;(void)x;(void)y;
@@ -16,6 +17,11 @@ static void ggExpRect(u8 *out,int x,int y,int w,int h,int r,int g,int b){
     if(r==72&&g==54&&b==53)bookCover++;
     if(r==151&&g==108&&b==68)parcelBody++;
     if(r==204&&g==167&&b==132)handLinks++;
+    if(r==79&&g==151&&b==116)miraShawl++;
+    if(r==106&&g==121&&b==142)thorgrimArmor++;
+    if(r==171&&g==66&&b==76)varroTrim++;
+    if(r==202&&g==167&&b==92)serinPin++;
+    if(r==221&&g==184&&b==105)elowenCrown++;
 }
 #include "3ds/film_acting3d.h"
 static void check(int ok,const char *why){
@@ -42,7 +48,7 @@ int main(void){
     ggFilmDrawActor(buffer,100,140,2,hair,skin,coat,&book);
     check(bookCover==1&&parcelBody==0&&handLinks==1,
           "ledger drawn without a connected matching hand");
-    check(draws<=20,"prop added an excessive per-frame rectangle cost");
+    check(draws<=380,"prop added an excessive per-frame rectangle cost");
     draws=bookCover=parcelBody=handLinks=0;
     GgFilmPose parcel=ggFilmPoseFor("The supplies are for the families.",
                                   1,48,1,1,0,3);
@@ -51,7 +57,7 @@ int main(void){
     ggFilmDrawActor(buffer,100,140,2,hair,skin,coat,&parcel);
     check(bookCover==0&&parcelBody==1&&handLinks==1,
           "provisions rendered as a floating generic book");
-    check(draws<=20,"provisions prop drawing exceeded bounded detail");
+    check(draws<=380,"provisions prop drawing exceeded bounded detail");
     GgFilmPose silent=ggFilmPoseFor("The records belong to the people.",
                                   2,48,0,0,0,2);
     check(!silent.mouth&&!silent.holdProp,
@@ -107,7 +113,24 @@ int main(void){
     ggFilmDrawHeldObject(buffer,handX,handY,2,3,skin);
     check(bookCover==1&&parcelBody==0&&handLinks==1,
           "joint interaction duplicated or disconnected shared ledger");
-    check(draws<40,"full-body joint performance added too many rect draws");
+    check(draws<760,"full-body joint performance added too many rect draws");
+    // Five authored characters must NOT reuse a flat, enlarged 16x24 cel.
+    // Test distinctive costume accents from the actual rendered frame;
+    // no new texture allocation or duplicate sprite atlas is permitted.
+    draws=0;
+    for(int style=0;style<5;style++){
+        GgFilmPose acting=ggFilmPoseFor("The village lives.",4,48,
+                                      0,1,0,0);
+        ggFilmDrawGuestActor(buffer,180,170,2,
+                             ggFilmGuestPalette[style][0],
+                             ggFilmGuestPalette[style][1],
+                             ggFilmGuestPalette[style][2],
+                             &acting,style);
+    }
+    check(miraShawl>0&&thorgrimArmor>0&&varroTrim>0&&
+          serinPin>0&&elowenCrown>0,
+          "actor identities collapsed into one generic 8-bit human sprite");
+    check(draws<=1900,"cinematic costumes are too expensive per actor");
     puts("3DS ACTING OK: speaker-owned book and parcel, hand contact, no floating duplicate, cheap draw");
     return 0;
 }

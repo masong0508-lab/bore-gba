@@ -233,46 +233,62 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
         }
     }
 }
-static void ggExpRender(u8 *top){
+// The story uses full native 400x240 ray columns; real-time exploration
+// retains the original 200x120 fast renderer. Both access the SAME world.
+static void ggExpRenderMode(u8 *top,int cinematic){
+    int columns=cinematic?400:GG_EXP_W;
+    int screenHeight=cinematic?240:GG_EXP_H;
     int a=ggExplore.angle&255;
     int terrain=world[ggExplore.py>>8][ggExplore.px>>8];
     if((unsigned)terrain>=T_N)terrain=T_DIRT;
     int eye=ggExpGround(terrain)+13;
     int walkBob=ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0;
-    int horizon=58+walkBob;
+    int horizon=cinematic?116+walkBob*2:58+walkBob;
     int dirX=ggExpCos[a],dirY=ggExpSin[a];
     int rightX=-dirY,rightY=dirX;
     int fogTick=ggExplore.frame/8;
-    // Fast RGB background: fill the first 400px screen row directly,
-    // then copy it to the matching 2x row. This eliminates 24,000
-    // function calls and 96,000 individual per-pixel bounds checks.
-    // It writes only into the already allocated 400x240 top RGB buffer.
-    for(int y=0;y<GG_EXP_H;y++){
+    // Native-resolution cinema: more nuanced sky without adding a
+    // second texture/framebuffer. Exploration still copies the fast 2x row.
+    for(int y=0;y<screenHeight;y++){
         int sky=y<horizon;
-        int r=sky?28+y/2:67,g=sky?65+y:113,b=sky?112+y:151;
-        u8 *line=top+(y*2)*400*3;
+        int r,g,b;
+        if(cinematic){
+            r=sky?30+y/3:72+y/18;
+            g=sky?45+y/2:92+y/15;
+            b=sky?77+y/2:94+y/20;
+        }else{
+            r=sky?28+y/2:67;g=sky?65+y:113;b=sky?112+y:151;
+        }
+        u8 *line=top+(cinematic?y:y*2)*400*3;
         for(int x=0;x<400;x++){
             line[x*3]=(u8)r;
             line[x*3+1]=(u8)g;
             line[x*3+2]=(u8)b;
         }
-        memcpy(line+400*3,line,400*3);
+        if(!cinematic)memcpy(line+400*3,line,400*3);
     }
-    // Sparse moving high-altitude clouds preserve horizon readability.
+    // Thin wispy clouds in full-resolution story shots. Cinematic
+    // silhouettes avoid the old 2x chunky 3-pixel cloud bars.
     for(int k=0;k<7;k++){
-        int x=(k*67+fogTick)%260-30,y=8+(k*13)%29;
-        int w=18+(k*7)%24;
-        for(int cx=x;cx<x+w;cx++)for(int cy=y;cy<y+3;cy++)
-            ggExpDot(top,cx,cy,122,160,184);
+        int x=(k*67+fogTick)%(cinematic?500:260)-30;
+        int y=cinematic?16+(k*23)%56:8+(k*13)%29;
+        int w=cinematic?38+(k*13)%41:18+(k*7)%24;
+        if(cinematic){
+            ggExpRect(top,x,y,w,1,107,129,151);
+            ggExpRect(top,x+w/4,y+1,w/2,1,99,122,146);
+        }else{
+            for(int cx=x;cx<x+w;cx++)for(int cy=y;cy<y+3;cy++)
+                ggExpDot(top,cx,cy,122,160,184);
+        }
     }
     // Front-to-back silhouette-buffer voxel ray caster. 200 rays, max
     // 42 terrain samples each, with every cell read directly from the
     // live 3DS game world. No second mesh, z-buffer or GPU allocation.
-    for(int x=0;x<GG_EXP_W;x++){
-        int skew=(x-GG_EXP_W/2);
-        int rayX=dirX+rightX*skew/125;
-        int rayY=dirY+rightY*skew/125;
-        int highest=GG_EXP_H;
+    for(int x=0;x<columns;x++){
+        int skew=(x-columns/2);
+        int rayX=dirX+rightX*skew/(cinematic?250:125);
+        int rayY=dirY+rightY*skew/(cinematic?250:125);
+        int highest=screenHeight;
         int previousX=-1,previousY=-1;
         // Advance fixed-point ray numerators instead of two multiplies
         // at every sample. Division retains the EXACT original rounding
@@ -303,10 +319,10 @@ static void ggExpRender(u8 *top){
             // screen pixels. The former scale (68) pushed nearby ground
             // entirely below the viewport; six gives legible walking
             // terrain and roofs while still exaggerating cliffs.
-            int projected=horizon-(h-eye)*6/(d+1);
+            int projected=horizon-(h-eye)*(cinematic?12:6)/(d+1);
             if(projected>=highest)continue;
-            int from=ggExpClamp(projected,0,GG_EXP_H);
-            int to=ggExpClamp(highest,0,GG_EXP_H);
+            int from=ggExpClamp(projected,0,screenHeight);
+            int to=ggExpClamp(highest,0,screenHeight);
             int baseR,baseG,baseB;
             if(build){
                 // Stone, timber, roofs and towers are recognizable solid
@@ -319,18 +335,29 @@ static void ggExpRender(u8 *top){
                 baseG=terrCol[type][1]*8;
                 baseB=terrCol[type][2]*8;
             }
+            if(cinematic){
+                // Restrained painterly atmosphere: natural colors,
+                // cool distant stone and less neon-green grass.
+                baseR=(baseR*4+72)/5;
+                baseG=(baseG*3+71)/4;
+                baseB=(baseB*4+91)/5;
+            }
             int shade=256-d*3;
             if(shade<110)shade=110;
             baseR=baseR*shade/256;
             baseG=baseG*shade/256;
             baseB=baseB*shade/256;
             int bright=build?13:6;
+            // One material coordinate per ray/visible tile rather than
+            // calling RNG or scanning any texture map per pixel.
+            int surfaceU=(abs(dirX)>abs(dirY)?wy:wx)&255;
             // Terrain strata, pitched roofs, shadowed stone and tree
             // crowns. Keep these material cues stable in world space so
             // moving the camera doesn't cause procedural visual noise.
             for(int y=from;y<to;y++){
                 int edge=y-from;
-                int grain=((tx*17+ty*11+y/6)&3)==0?7:0;
+                int materialY=cinematic?y/2:y;
+                int grain=((tx*17+ty*11+materialY/6)&3)==0?7:0;
                 int r=baseR+(edge<2?bright:0)-grain;
                 int g=baseG+(edge<2?bright:0)-grain;
                 int b=baseB+(edge<2?bright:0)-grain;
@@ -343,15 +370,102 @@ static void ggExpRender(u8 *top){
                     }else if(build==B_TEMPLE){
                         r=194*shade/256;g=174*shade/256;b=137*shade/256;
                     }
-                }else if(build==B_TOWER&&(y-from)%11<2){
+                }else if(build==B_TOWER&&(y-from)%(cinematic?22:11)<(cinematic?3:2)){
                     r+=15;g+=16;b+=19; // bands between stone courses
-                }else if(!build&&type==T_FOREST&&edge<7){
+                }else if(!build&&type==T_FOREST&&edge<(cinematic?14:7)){
                     g+=17;r-=6; // canopy over a darker forest wall
-                }else if(!build&&type==T_MOUNT&&((y+ty*3)/9)%4==0){
+                }else if(!build&&type==T_MOUNT&&((materialY+ty*3)/9)%4==0){
                     r+=8;g+=9;b+=11; // strata follow world coordinates
                 }
-                ggExpDotInView(top,x,y,ggExpClamp(r,0,255),
-                               ggExpClamp(g,0,255),ggExpClamp(b,0,255));
+                if(cinematic&&build){
+                    // Material-specific, world-anchored facades. The
+                    // 3DS no longer paints every hall, house, archive
+                    // and watch tower as a bare gray/orange cube.
+                    int wood=build==B_HUT||build==B_HOUSE||
+                             build==B_DOCK||build==B_FARM;
+                    int stone=build==B_TOWER||build==B_HALL||
+                              build==B_TEMPLE||build==B_LIBRARY;
+                    int mortar=wood?20:16;
+                    if(stone){
+                        r=(151+(build==B_TEMPLE?28:0))*shade/256;
+                        g=(146+(build==B_TEMPLE?24:0))*shade/256;
+                        b=(142+(build==B_TEMPLE?15:0))*shade/256;
+                        if(edge%mortar<2){
+                            r=r*4/5;g=g*4/5;b=b*4/5;
+                        }
+                        if((surfaceU+((edge/mortar)&1)*64)%125<3&&
+                           edge>9){
+                            r=r*3/4;g=g*3/4;b=b*3/4;
+                        }
+                        if(surfaceU<13||surfaceU>243){
+                            r=r*4/5;g=g*4/5;b=b*4/5;
+                        }
+                        if(build==B_LIBRARY&&edge>10&&edge<70&&
+                           surfaceU>105&&surfaceU<150){
+                            r=91*shade/256;g=114*shade/256;
+                            b=127*shade/256;
+                        }
+                    }else if(wood){
+                        r=baseR*241/256;
+                        g=baseG*266/256;
+                        b=baseB*277/256;
+                        if(surfaceU<13||surfaceU>241||
+                           (surfaceU>118&&surfaceU<130)){
+                            r=78*shade/256;
+                            g=61*shade/256;b=49*shade/256;
+                        }else if(edge%22<2&&edge>8){
+                            r=104*shade/256;g=83*shade/256;
+                            b=62*shade/256;
+                        }
+                    }
+                    if(edge<9){
+                        // Gabled roofs and ridge tiles differ from walls.
+                        int trim=build==B_HOUSE||build==B_HUT;
+                        r=(trim?138:stone?87:102)*shade/256;
+                        g=(trim?75:stone?78:72)*shade/256;
+                        b=(trim?59:stone?91:69)*shade/256;
+                        if(edge==8){r+=18;g+=12;b+=8;}
+                    }else if(d<15&&edge>16&&edge<68){
+                        int window=(surfaceU>42&&surfaceU<86)||
+                                   (surfaceU>172&&surfaceU<216);
+                        if(window){
+                            if(edge>=25&&edge<=48){
+                                int frame=edge<28||edge>45||
+                                          (surfaceU%128)<47||
+                                          (surfaceU%128)>81;
+                                r=(frame?58:222)*shade/256;
+                                g=(frame?59:175)*shade/256;
+                                b=(frame?69:102)*shade/256;
+                                if(!frame&&(edge==37||surfaceU%128==64)){
+                                    r=105*shade/256;
+                                    g=79*shade/256;b=68*shade/256;
+                                }
+                            }
+                        }else if(stone&&edge>51&&edge<68&&
+                                 surfaceU>109&&surfaceU<147){
+                            // Architectural arch/entry recess.
+                            r=47*shade/256;g=50*shade/256;
+                            b=61*shade/256;
+                        }
+                    }
+                }else if(cinematic&&!build){
+                    // Restrained grass and stone microtexture in genuine
+                    // world cells: no static sprites or screen-space noise.
+                    int pattern=(tx*19+ty*31+materialY/3)&15;
+                    if(type==T_GRASS||type==T_FOREST){
+                        if(pattern<2){r+=8;g+=9;b+=4;}
+                        else if(pattern>13){r-=7;g-=9;b-=4;}
+                    }else if(type==T_MOUNT||type==T_HILL){
+                        if(pattern<3){r+=11;g+=9;b+=6;}
+                    }
+                }
+                int cr=ggExpClamp(r,0,255),
+                    cg=ggExpClamp(g,0,255),
+                    cb=ggExpClamp(b,0,255);
+                if(cinematic){
+                    u8 *p=top+(y*400+x)*3;
+                    p[0]=(u8)cr;p[1]=(u8)cg;p[2]=(u8)cb;
+                }else ggExpDotInView(top,x,y,cr,cg,cb);
             }
             highest=from;
             if(!highest)break;
@@ -360,6 +474,8 @@ static void ggExpRender(u8 *top){
     // Draw nearby live inhabitants as indexed 2D cels projected onto
     // the same raycast world. A bounded on-map search avoids scanning the
     // whole creature list or allocating skeletal 3D models.
+    if(cinematic)return; // no first-person crosshair, build HUD or 2x
+                        // creature cels pasted over filmed cast
     ggExpRenderCreatures(top);
     // Crosshair fixed at camera centre. Changes always affect a cell a
     // few tiles ahead, never an invisible object behind the player's feet.
@@ -394,5 +510,8 @@ static void ggExpRender(u8 *top){
                         "MATERIAL SELECTED";
         ggExpText(top,9,191,msg,255,216,117);
     }
+}
+static void ggExpRender(u8 *top){
+    ggExpRenderMode(top,0);
 }
 #endif
