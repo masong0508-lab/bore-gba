@@ -151,28 +151,54 @@ static void ggFilmArch(GgFilmCamera cam,int x,int z,int broken){
 }
 static void ggFilmFloor(GgFilmCamera cam,int p,int t){
     int wet=(p==F_FORD||p==F_SHORE||p==F_STORM);
-    u8 base=wet?13:(p==F_HEARTH||p==F_VILLAGE?20:21);
+    int room=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
+              p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
+    u8 base=wet?13:room?21:p==F_VILLAGE?17:20;
     ggFilmQuad(cam,ggV3(-850,0,330),ggV3(850,0,330),
                    ggV3(850,0,1800),ggV3(-850,0,1800),base);
-    // Receding perspective seams: narrow planes in 3D, not screen stripes.
-    for(int i=0;i<5;i++){
-        int z=480+i*165;
-        ggFilmQuad(cam,ggV3(-850,1,z),ggV3(850,1,z),
-                       ggV3(850,1,z+3),ggV3(-850,1,z+3),wet?14:25);
-    }
-    for(int x=-480;x<=480;x+=160){
-        ggFilmQuad(cam,ggV3(x,1,370),ggV3(x+3,1,370),
-                       ggV3(x+3,1,1650),ggV3(x,1,1650),wet?13:24);
+    if(room){
+        // Actual wooden floorboards on a room plane. Narrow, warm seams
+        // replace the old universal dark checker grid from the preview.
+        for(int x=-540;x<=540;x+=180){
+            ggFilmQuad(cam,ggV3(x,1,400),ggV3(x+3,1,400),
+                           ggV3(x+3,1,1700),ggV3(x,1,1700),24);
+        }
+        for(int z=585;z<1630;z+=380)
+            ggFilmQuad(cam,ggV3(-640,1,z),ggV3(640,1,z),
+                           ggV3(640,1,z+2),ggV3(-640,1,z+2),20);
+        return;
     }
     if(wet){
-        // The water moves in plane at a stable height; far ripples have
-        // naturally smaller screen spans than near ones.
-        for(int i=0;i<9;i++){
-            int z=510+i*93, x=((i*193+t/4)%700)-350;
-            ggFilmQuad(cam,ggV3(x,2,z),ggV3(x+45+i%3*12,2,z),
-                           ggV3(x+45+i%3*12,2,z+5),ggV3(x,2,z+5),
-                           i&1?14:13);
+        // Natural banks, not a graph-paper sea. Waves live at y=2 on
+        // the water plane, so distance really changes their size.
+        ggFilmQuad(cam,ggV3(-850,1,400),ggV3(-600,1,400),
+                       ggV3(-455,1,1800),ggV3(-850,1,1800),21);
+        ggFilmQuad(cam,ggV3(615,1,400),ggV3(850,1,400),
+                       ggV3(850,1,1800),ggV3(460,1,1800),20);
+        for(int i=0;i<16;i++){
+            int z=460+(i*113)%1180;
+            int x=((i*257+t/5)%850)-425;
+            int w=21+(i*17)%53;
+            ggFilmQuad(cam,ggV3(x,2,z),ggV3(x+w,2,z),
+                           ggV3(x+w+5,2,z+4),ggV3(x+7,2,z+4),
+                           i&1?14:12);
         }
+        return;
+    }
+    // The village and the ruined gate have uneven natural ground, with
+    // a continuous walkable lane. Scattered triangular soil/grass/stone
+    // facets are genuinely on the ground plane; no uniform grid.
+    if(p==F_VILLAGE)
+        ggFilmQuad(cam,ggV3(-108,1,400),ggV3(108,1,400),
+                       ggV3(70,1,1750),ggV3(-76,1,1750),21);
+    for(int i=0;i<18;i++){
+        int x=((i*293+73)%1450)-725;
+        int z=450+(i*173)%1300;
+        int w=23+(i*13)%71;
+        if(p==F_VILLAGE&&x>-106&&x<106)continue;
+        u8 tone=p==F_VILLAGE?(i%3?16:18):(i&1?24:25);
+        ggFilmQuad(cam,ggV3(x,1,z),ggV3(x+w,1,z+3),
+                       ggV3(x+w-7,1,z+19),ggV3(x+6,1,z+13),tone);
     }
 }
 // A complete timber crossing has raised deck boards, stone abutments,
