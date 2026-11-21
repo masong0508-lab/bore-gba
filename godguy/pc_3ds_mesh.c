@@ -71,6 +71,13 @@ int main(void){
     for(int i=0;i<32;i++)
         verify(image.before[i]==0x5a&&image.after[i]==0x6c,
                "raster output escaped 400x240 RGB framebuffer");
+    ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
+    ggMeshQuad(m,far[0],far[1],far[2],far[3],120,120,120);
+    m->opacity=128;
+    ggMeshQuad(m,near[0],near[1],near[2],near[3],28,28,28);
+    verify(pixel(200,116)[0]>28&&pixel(200,116)[0]<120&&
+           m->blendedFragments>40,
+           "transparent terrain contact shadow is not compositing");
     ggMeshBegin(m,image.rgb,1,0,0,10,4096,0,36,59,89);
     verify(m->w==200&&m->h==120&&m->scale==2,
            "Old 3DS low-resolution geometry mode changed aspect");
