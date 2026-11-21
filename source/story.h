@@ -3,8 +3,8 @@
 //   ROOMMATES      romance: you and a roommate you barely know: become friends, fall in love, go steady, get promoted, a child comes home
 //   NEWLYWEDS      romance and family: you and your love: get promoted, save up, a child comes home, become your kid's friend, save more
 //   SINGLE PARENT  family: you and your kid: get promoted, become your kid's friend, save up, have a neighbor over, get promoted again
-// A finished chapter pays §250 and 25 jenes and the next one starts. The child that comes home looks like both of you (stMixLook).
-// Saved at STORY_OFF (8 bytes): 'S' 'Y', story, chapter (bit 7: a neighbor came over), your partner's uid, your kid's uid, the day the
+// A finished chapter pays its story reward and 25 jenes; the next one starts. The child that comes home looks like both of you (stMixLook).
+// Saved at STORY_OFF (8 bytes): 'S' 'Y', story, chapter (bit 6: an unplayed TV cutscene transition, bit 7: a neighbor came over), your partner's uid, your kid's uid, the
 // promised child comes home, checksum (255 = nobody / no day).
 // The household bank (households.h) keeps it with the household, so every household has its own story.
 // Needs before it: house.h (hhM, hhAdd, relF), sims.h (simMoney, jobLvl, simDay), households.h, lookTrueRandom, the UI kit.
@@ -66,8 +66,8 @@ static const StCh stGreen[]={ {"NO NOTE",SG_TASKS,0},{"THE DISPENSARY",SG_TASKS,
 static const char* const stTvBrief[5][2]={ {"HUNGOVER AND UNSTEADY  PULL YOURSELF","TOGETHER AND JUDGE THE TALENT SHOW"},
     {"TWO MONTHS ON  YOUR FANS HAVE GONE COLD","GO A WEEK WITHOUT DRINKING  I DARE YOU"},
     {"THE PAPARAZZI ARE EVERYWHERE  LOCK","THE GATEWAY  GATES AND CAMERAS"},
-    {"YOU ARE MAMESY NOW  KEEP HOPE ALIVE","AND STOP THE PLUG BEING PULLED"},
-    {"YOUR COMEBACK SHOW IS READY  NOTHING","CAN GO WRONG  RIGHT"} };
+    {"PLAY AS MAMESY  SUPPORT MISSY'S CARE","WIN TIME FOR A MEDICAL REVIEW"},
+    {"ONE MORE LIVE SHOW  ON YOUR TERMS","YOUR SISTER HELPED YOU GET HERE"} };
 // THE TASKS of the first ten stories: per chapter two lines of story and up to three tasks (a SG_KID chapter has the lines and no tasks).
 // A task: QK_AT a place (CT_ kind: SKATE takes a PARK + SKATE lot too), QK_HOME back home, QK_EV a life event (SE_, or a story event QE_; n = the
 // least it counts, a combo's length), QK_FRIEND / LOVE / STEADY / BFF with the story's partner, QK_FRIENDS n friends, QK_MONEY, QK_JOB the career
@@ -222,7 +222,7 @@ static const char* const stBlurb[STY_N][3]={{0,0,0},{"Jad moves into a flatshare
     {"Wes has a desk and a plan. The","lounge, old town deals, and the","corner office."},
     {"Rosa just moved in with Gwen.","See every corner of town and","make it home."},
     {"Leo and Val fell out. The old","crew, the plaza, one last","chance to fix it."},
-    {"A fallen TV judge. Win back her","fans, and shake the urge for","one more martini."},
+    {"A former TV judge facing the","clip that ended her career.","Repair a life, not just ratings."},
     {"The walls are bare and the town","sent 1500 simoleons. Make it","feel like home."},
     {"A board and two ramps were left","in your yard. No note. Ride","them, then ride the town."},
     {"You have been indoors far too","long. Tacos, the gym, the lounge,","and a town to eat."},
@@ -235,20 +235,21 @@ static const char* const stBlurb[STY_N][3]={{0,0,0},{"Jad moves into a flatshare
     {"A package of seeds came in the","mail with no note. Plant them,","sell the crop legally."}};
 static u16 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
-static u8 stTkL;   // which tasks of the chapter are done (bits 0-2; saved in bits 3-5 of the chapter byte)
+#include "missyrules.h"
+static u8 stTkL, stPending;   // tasks: bits 3-5; Missy's unwatched transition scene: spare bit 6 (persisted through an interrupted cutscene)
 static const StB* stBkNow(void){ return (stCh<5&&stId>=1&&stId!=STY_TVSHOW&&stId<STY_N)?&stBk[stId<STY_TVSHOW?stId-1:stId-2][stCh]:0; }   // (TV SHOW & TELL has no task rows: the ten stories after it follow the first ten)
 static int stTkN(const StB*b){ int n=0; if(b) while(n<3&&b->t[n].k) n++; return n; }
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
-static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|((stTkL&7)<<3)|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
-static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0;
+static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|((stTkL&7)<<3)|(stPending?MS_PENDING_SCENE:0)|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
+static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0;
     if(m[0]!='S'||m[1]!='Y'||m[2]>=STY_N||m[7]!=stSum(m)) return;
-    stId=m[2]; stCh=(u8)(m[3]&7); stTkL=(u8)((m[3]>>3)&7); stGuest=(u8)(m[3]>>7); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
+    stId=m[2]; stCh=(u8)(m[3]&7); stTkL=(u8)((m[3]>>3)&7); stPending=(u8)((m[3]&MS_PENDING_SCENE)!=0); stGuest=(u8)(m[3]>>7); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
 static void stUidMap(const u8*nu,int n){   // house.h hhLoad gave the uids out again (you 0, the members 1..): the story's partner and kid move with them, in RAM and in SRAM
     volatile u8*m=SRAM_BASE+STORY_OFF; int ok=m[0]=='S'&&m[1]=='Y'&&m[2]<STY_N&&m[7]==stSum(m);
     if(stPart<n&&nu[stPart]!=255) stPart=nu[stPart]; if(stKid<n&&nu[stKid]!=255) stKid=nu[stKid];
     if(ok){ if(m[4]<n&&nu[m[4]]!=255) m[4]=nu[m[4]]; if(m[5]<n&&nu[m[5]]!=255) m[5]=nu[m[5]]; m[7]=stSum(m); }
 }
-static void stOff(void){ stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0; stSave(); }   // a game without a story
+static void stOff(void){ stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0; stSave(); }   // a game without a story
 static int stMember(int uid){ for(int m=0;m<hhN;m++) if(hhM[m].uid==uid) return m; return -1; }
 static void stMixLook(u8*out,const u8*a,const u8*b,int stg){   // a child of a and b: every pick, slider and colour from one of them, then fitted to the age
     u8 sl[LK_N], ss=stage; for(int i=0;i<LK_N;i++){ sl[i]=look[i]; look[i]=(rnd8()&1)?a[i]:b[i]; }
@@ -291,14 +292,15 @@ enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ
 static u8 plugV=PLUG_START; static u16 plugDay=0xFFFF; static u8 plugSec, plugTen, plugNight;   // plugNight: the ONE MORE NIGHT was used (the next time the pressure hits 100 Missy dies)
 typedef struct { u8 k; u32 n; } StQ;
 static const StQ stqT[5][5]={
-    { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,100000} },                                                   // 1 hungover: have somebody over, a friend, a little cash
+    { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,8000} },                                                   // 1 hungover: have somebody over, a friend, a little cash
     { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_HAPPY,1} },                                                                                               // 2 a week clean (a puff or a faint starts it again)
-    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,150000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
-    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,175000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
-    { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,250000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
+    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,16000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
+    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,8000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
+    { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,18000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
 static const u8 stqN[5]={3,3,5,5,5};
-// STORY MEMORY (continuity pass 3): one SRAM byte in the gap after the stash block remembers what happened on the way, so later chapters remember it too.
-// Bits 0-1: slips in chapter 2 (up to 3), 2-3: slips in chapter 3, 4: chapter 4 needed the ONE MORE NIGHT. Cleared when a new TV SHOW & TELL starts.
+// STORY MEMORY: the existing one-byte record in the household save region.
+// Bits 0-1: chapter 2 slips, 2-3: chapter 3 slips, 4: ONE MORE NIGHT used,
+// bits 5-7: approximate hospital review pressure (no new save offsets). Cleared at a new TV story.
 #define STM_OFF 7471
 static int stmGet(void){ return SRAM_BASE[STM_OFF]; }
 static void stmPut(int v){ SRAM_BASE[STM_OFF]=(u8)v; }
@@ -312,6 +314,7 @@ _Static_assert(LS_OFF+3+4*LS_N*LS_CH<=STB_OFF&&STB_OFF+3<=SLOT_BASE,"story.h STB
 static long long stbGet(void){ volatile u8*m=SRAM_BASE+STB_OFF; return (long long)((u32)m[0]|((u32)m[1]<<8)|((u32)m[2]<<16))*64; }
 static void stbSet(void){ long long c=(long long)simMoneyI(); if(c<0) c=0; u32 v=(u32)((c+63)/64); if(v>0xFFFFFF) v=0xFFFFFF; volatile u8*m=SRAM_BASE+STB_OFF; m[0]=(u8)v; m[1]=(u8)(v>>8); m[2]=(u8)(v>>16); }
 static int stbEarned(void){ long long c=(long long)simMoneyI(), b=stbGet(); if(b>c+64){ stbSet(); b=stbGet(); } long long e=c-b; return e<0?0:e>0x7FFFFFFF?0x7FFFFFFF:(int)e; }
+static void plugRemember(int v){ int old=stmGet(), next=(int)msPressurePack((unsigned)old,(unsigned)v); if(next!=old) stmPut(next); }
 static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) return; int n=(m>>sh)&3; if(n<3) stmPut((m&~(3<<sh))|((n+1)<<sh)); }
 // CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
 // line of the story (who calls, what changes). Same order as stqT.
@@ -319,14 +322,14 @@ static const char* const stqL[5][5]={
     {"HAVE SOMEONE OVER TO SAY SORRY TO","FRIEND WHO STILL PICKS UP","EARNED FOR THE LAWYER"},
     {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","FEEL LIKE HERSELF AGAIN"},
     {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","EARNED FOR THE HOUSE","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
-    {"DAYS AT HER BEDSIDE","FRIENDS WHO VISIT","EARNED FOR THE BILLS","KEEP YOUR CHIN UP",0},
+    {"DAYS AT HER BEDSIDE","FRIENDS IN HER CORNER","EARNED FOR HOSPITAL","KEEP YOUR CHIN UP",0},
     {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","EARNED FOR THE COMEBACK","BE HAPPY. MEAN IT."} };
 static const char* const stqWhy[5]={"THE MORNING AFTER THE CLIP. START SMALL.","THE OFFER: ONE CLEAN WEEK OR NO SHOW.","THE DEAL BOUGHT A HOUSE. NOW THE GATE.","SHE FELL. YOU ARE MAMESY. HOLD ON.","SHE WOKE UP. ONE MORE SHOW, DONE RIGHT."};
 static const char* const stqBeat[5][5]={
     {"Mamesy came by. Coffee, no lecture.","Dex texts: Still here. Call me.","The lawyer is paid. One fire out."},
     {"Seven days. Vance calls it a start.","Two friends who don't want a clip.","She laughed today. A real one."},
     {"A full house. Nobody here alone.","Clean, with a crew camped outside.","The house is hers. Paid, not loaned.","Friends who stayed when it got ugly.","The gate locks. The phones stay out."},
-    {"Five days. Okafor stops saying if.","Visitors bring flowers and bad jokes.","The bills are paid. For now.","You smile at her. Her finger moves.","Okafor backs off. Not tonight."},
+    {"Five days of refusing to go home.","Friends take shifts at the bedside.","Her care is funded another week.","You find the strength to stay.","Okafor grants the review appeal."},
     {"Ten days. The longest she has gone.","Four friends. Front row, all of them.","Loud dinners at home again.","The comeback money is real.","Happy. Not for a camera."} };
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
 static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
@@ -357,7 +360,7 @@ static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long:
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
     if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255&&(ev==SE_FRIEND||ev==SE_BFF||ev==SE_PROMO)){   // step 4: good news eases the hospital
-        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
+        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); plugRemember(plugV); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
     stmSlip(stCh); stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
@@ -433,14 +436,14 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
     if(!stId||stCh>=stLen[stId]||stChs[stId][stCh].goal==SG_END) return;
     const StCh*c=&stChs[stId][stCh];
     if(stId==STY_TVSHOW&&(stCh==0||stCh==2||stCh==3)){   // MONEY WITH A PURPOSE: the lawyer (1), the house (3) and the hospital (4) are paid out of what the chapter earned
-        static const int due[4]={100000,0,150000,175000}; simMoneyAdd(-(money_t)due[stCh]);
+        static const int due[4]={8000,0,16000,8000}; simMoneyAdd(-(money_t)due[stCh]);
         simQPush(stCh==0?"THE LAWYER IS PAID":stCh==2?"THE HOUSE IS PAID FOR":"THE HOSPITAL IS PAID"); }
     simMoneyAdd(stRew(stCh)); dnaAdd(25); persSave(); simsSave();
     stGotN=0; int rwWas=rwTotal(); int slkWas=jbStoryCount(stId); if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
     if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
     for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); stGotAdd(palNm[catItems[NCAT-1][j]]); break; }
     if(c->goal==SG_DAYS||c->goal==SG_MULTI){ stKidDay=255; if(c->goal==SG_MULTI) stGuest=0; }
-    stCh++; stTkL=0; stbSet(); stSave(); stAnnounce(); stShown=(u16)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
+    stCh++; stTkL=0; stPending=(u8)(stId==STY_TVSHOW&&stCh>=1&&stCh<=5); stbSet(); stSave(); stAnnounce(); stShown=(u16)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 // TV SHOW & TELL, chapter 4 (YOU ARE MAMESY NOW): the CAST ARRIVAL and the hand-over of control.
 // Cast arrival = a person the chapter needs moves in as a real Sim of the household (not only a figure in a cutscene). Here: Mamesy, Missy's sister.
@@ -521,18 +524,21 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; plugNight=0; return; }
     if(++plugSec<60) return; plugSec=0;
     static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,12000};
+    if(plugDay==0xFFFF){ // restore a resumed appeal instead of granting a fresh reprieve after reloading
+        plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
+        plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);
+    }
     int old=plugV, v=plugV;
-    if(plugDay==0xFFFF) plugDay=(u16)simDay;
     if((u16)simDay!=plugDay){ plugDay=(u16)simDay;   // a new day: Dr. Okafor calls about the life support
         v+=8; { static const char* const ok3[3]={"Okafor called. Bill's paid.","Bill paid. One more day.","Paid. Okafor sounds calmer."}, * const no3[3]={"You can't cover the bill.","Okafor called. No money.","Overdue bill. Okafor noticed."}; int r=rnd8()%3; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote=ok3[r]; } else { v+=20; lnote=no3[r]; } } lnoteT=120; }
     if(++plugTen>=10){ plugTen=0; v+=3-stqOk(&qF)-stqOk(&qH)-stqOk(&qM); }
     if(v>100) v=100;
-    if(v>=100&&plugNight){ plugV=100; if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
+    if(v>=100&&plugNight){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
     if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over
         v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; stmPut(stmGet()|16); toast("One more night. The days reset."); lnote="There won't be another one."; lnoteT=200; }
     else if(old<90&&v>=90){ static const char* const l90[3]={"Last chance. Save Missy.","She's almost out of time.","Mamesy, hurry. Please."}; lnote=l90[rnd8()%3]; lnoteT=150; }
     else if(old<75&&v>=75){ static const char* const l75[3]={"Okafor's losing patience.","Okafor won't stop hinting.","The hospital wants an answer."}; lnote=l75[rnd8()%3]; lnoteT=150; }
-    plugV=(u8)v;
+    plugV=(u8)v; plugRemember(v);
 }
 static void stTkTick(void);
 static void stTick0(void){   // once per logic step in the life game: is this chapter done?
@@ -635,7 +641,10 @@ static void stqBeatTick(void){   // a goal reached for the first time this chapt
 }
 static void stTick(void){ { static u8 bt; if(++bt>=45){ bt=0; stqBeatTick(); } } papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stFix(void);
-static void stEnter(void){ stLoad(); stFix(); if(stId){ stAnnounce(); if(stShown!=(u16)(stId*16+stCh+1)){ stShown=(u16)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
+static void stEnter(void){ stLoad(); stFix(); if(stId){ stAnnounce();
+        if(stPending&&stId==STY_TVSHOW){ stShown=(u16)(stId*16+stCh+1); stModal=2; }  // a save/reload must not silently skip Missy's ending scenes
+        else if(stShown!=(u16)(stId*16+stCh+1)){ stShown=(u16)(stId*16+stCh+1); stModal=1; }
+    } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
 static void s2pill(int x,int y,int w,const char*s);
@@ -766,7 +775,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
 // CHAPTER 4 LOST: the plug pressure hit 100 with no night left. Missy dies (cutscene 6), a FAILED card says what happens, then play ends and the LAST SAVE FILE comes back:
 // sgDiscard=2 makes sgLeaveSave (savegame.h) reload the file even with AUTO saving. No save file yet (sgPid 0): nothing to go back to, so the chapter starts over where you stand.
 static void stPlugLose(void){
-    csPlay(6); plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=0; plugNight=0;
+    csStoryMemory=(u8)stmGet(); csPlay(6); plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=0; plugNight=0;
     int back=sgPid!=0; u16 prev=keyNow(); u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -791,8 +800,11 @@ static void stRunModal0(void){
     if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ stmPut(0); stbSet(); csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5){   // the scenes that close the chapter just finished and open the next (cutscene.h): the bars (preceded by THE REFILL, followed by THE OFFER), the sweater (then THE GATE), the fall, waking up (then THE DRIVE and the news), here today (after THE WINGS)
         static const u8 seq[6][4]={{255},{12,0,8,255},{1,9,255},{2,255},{3,10,4,255},{11,5,255}};
+        csStoryMemory=(u8)stmGet();
         for(int i=0;i<4&&seq[stCh][i]!=255;i++) csPlay(seq[stCh][i]);
-        if(stCh==5) jbUnlock(UL_HERETODAY); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
+        if(stCh==5) jbUnlock(UL_HERETODAY);
+        if(stPending){ stPending=0; stSave(); } // scenes reached their end or were deliberately skipped
+    }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     stPlaces();   // (every place the chapter sends you to is in the town)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END; const StB*bk=end?0:stBkNow(); int pct; int place=stTkPlace(&pct);
@@ -825,7 +837,7 @@ static void stRunModal0(void){
 static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over of control (chapter 4 starts as Mamesy, chapter 5 as Missy again)
     int kind=stModal; stRunModal0(); if(kind==3) return;   // (3 = chapter 4 lost: lifeModeRun leaves play when sgDiscard is 2)
     if(stId!=STY_TVSHOW) return;
-    if(stCh==3&&(stPart==255||hhPUid!=(int)stPart)&&(kind==2||stKid==255)) stTvWant=1;
+    if(stCh==3&&(stPart==255||hhPUid!=(int)stPart)) stTvWant=1;  // reload mid-handover must still give Mamesy control
     else if(stCh>=4&&stPart!=255&&stKid!=255&&hhPUid==(int)stPart&&(kind==2||stCh==4)) stTvWant=2;
     stTvControl();
 }
@@ -933,7 +945,7 @@ static int stCastSim(const StCast*c){   // one of the story's people moves in (t
 }
 static void bdSave(void);   // board.h
 static void storySetup(int s){   // after the new life is set up and the old household has gone
-    stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0; stbSet();
+    stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0; stbSet();
     int m;
     switch(s){
     case STY_ROOM: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } break;
