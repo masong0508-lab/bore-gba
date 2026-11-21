@@ -7,7 +7,7 @@ enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
     signed char pose,head,lean,armL,armR,legL,legR,bob;
-    signed char gaze,blink,mouth,holdProp,reach,clothSway;
+    signed char gaze,blink,mouth,holdProp,reach,clothSway,turn;
 } GgFilmPose;
 // One 6x3x3 palette, shared by all guest film cels. These identities
 // are stable across chapters, alternate endings and nonlinear films.
@@ -249,11 +249,47 @@ static void ggFilmArtStroke(u8*out,int x0,int y0,int x1,int y1,int thick,
         ggExpRect(out,px-rad,py-rad,thick,thick,r,g,b);
     }
 }
+// Depth-ordered articulated sleeve. A turned character's distant arm
+// belongs BEHIND the torso, while the near arm stays in front. The old
+// renderer stamped both rectangular arms across the coat like stickers.
+static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
+                          const GgFilmPose*p,const u8*coat,
+                          const u8*skin,int far){
+    int lift=dir>0?p->armR:p->armL;
+    int extra=(p->reach*dir>0)?(p->reach*dir):0;
+    int shoulderX=bodyX+dir*6*s;
+    int shoulderY=centerY-17*s;
+    int elbowX=shoulderX+dir*(1+extra/2)*s;
+    int elbowY=centerY-(14+lift/2)*s;
+    int wristX=bodyX+dir*(8+extra)*s;
+    int wristY=centerY-(13+lift)*s;
+    int dim=far?127:206;
+    int r=ggFilmArtShade(coat[0],dim),
+        g=ggFilmArtShade(coat[1],dim),
+        b=ggFilmArtShade(coat[2],dim);
+    ggFilmArtStroke(out,shoulderX,shoulderY,elbowX,elbowY,
+                    3*s,29,33,39);
+    ggFilmArtStroke(out,shoulderX,shoulderY,elbowX,elbowY,
+                    2*s,r,g,b);
+    ggFilmArtStroke(out,elbowX,elbowY,wristX,wristY,
+                    2*s,ggFilmArtShade(r,189),
+                    ggFilmArtShade(g,189),ggFilmArtShade(b,189));
+    ggFilmArtRounded(out,wristX-s,wristY-s,3*s,3*s,s,
+                     ggFilmArtShade(skin[0],far?139:196),
+                     ggFilmArtShade(skin[1],far?139:196),
+                     ggFilmArtShade(skin[2],far?139:196));
+    ggExpRect(out,wristX,wristY-s,s,s,
+              ggFilmArtShade(skin[0],far?169:276),
+              ggFilmArtShade(skin[1],far?169:276),
+              ggFilmArtShade(skin[2],far?169:276));
+}
 static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                              const u8*hair,const u8*skin,const u8*coat,
                              const GgFilmPose *p,int identity){
     int s=ggExpClamp(scale,1,3);
-    int headX=x+p->head*s,bodyX=x+p->lean*s;
+    int turn=p->turn,turnAbs=turn<0?-turn:turn;
+    if(turnAbs>4)turnAbs=4;
+    int headX=x+p->head*s+turn*s/2,bodyX=x+p->lean*s;
     int centerY=feet-p->bob*s;
     int inkR=30,inkG=34,inkB=41;
     int jacketR=ggFilmArtShade(coat[0],205),
@@ -295,11 +331,17 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                          43,43,49);
         ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
     }
-    // Tunic: dark silhouette and shaped shoulder line, not a flat rectangle.
-    ggFilmArtOval(out,bodyX-7*s,centerY-19*s,14*s,12*s,
-                  inkR,inkG,inkB);
-    ggFilmArtOval(out,bodyX-6*s,centerY-18*s,12*s,10*s,
-                  jacketR,jacketG,jacketB);
+    // A far sleeve is occluded by the torso; the near sleeve will be
+    // painted later. Body narrows gradually as the speaker turns into a
+    // three-quarter profile, rather than always facing the camera flat.
+    int farDir=turn>0?-1:1;
+    if(turnAbs)ggFilmArtArm(out,bodyX,centerY,s,farDir,p,
+                            coat,skin,1);
+    int outerW=(14-turnAbs)*s,innerW=(12-turnAbs)*s;
+    ggFilmArtOval(out,bodyX-outerW/2,centerY-19*s,
+                  outerW,12*s,inkR,inkG,inkB);
+    ggFilmArtOval(out,bodyX-innerW/2,centerY-18*s,
+                  innerW,10*s,jacketR,jacketG,jacketB);
     ggExpRect(out,bodyX-5*s,centerY-17*s,3*s,8*s,
               lightR,lightG,lightB);
     ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,
@@ -315,35 +357,21 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     ggExpRect(out,bodyX+3*s,centerY-12*s,2*s,s,189,153,92);
     ggFilmArtRounded(out,bodyX-3*s,centerY-21*s,6*s,5*s,s,
                      faceShadeR,faceShadeG,faceShadeB);
-    // Sleeves and palms: draw jointed angled segments whose wrists remain
-    // physically connected to the cuffs in both idles and handovers.
+    // Near arm is visible in front, far arm behind: coherent volume.
     for(int arm=0;arm<2;arm++){
         int dir=arm?1:-1;
-        int lift=arm?p->armR:p->armL;
-        int extra=(p->reach*dir>0)?(p->reach*dir):0;
-        int shoulderX=bodyX+dir*6*s;
-        int shoulderY=centerY-17*s;
-        int elbowX=shoulderX+dir*(1+extra/2)*s;
-        int elbowY=centerY-(14+lift/2)*s;
-        int wristX=bodyX+dir*(8+extra)*s;
-        int wristY=centerY-(13+lift)*s;
-        ggFilmArtStroke(out,shoulderX,shoulderY,elbowX,elbowY,
-                        3*s,inkR,inkG,inkB);
-        ggFilmArtStroke(out,shoulderX,shoulderY,elbowX,elbowY,
-                        2*s,jacketR,jacketG,jacketB);
-        ggFilmArtStroke(out,elbowX,elbowY,wristX,wristY,
-                        2*s,shadeR,shadeG,shadeB);
-        ggFilmArtRounded(out,wristX-s,wristY-s,3*s,3*s,s,
-                         faceShadeR,faceShadeG,faceShadeB);
-        ggExpRect(out,wristX,wristY-s,s,s,faceR,faceG,faceB);
+        if(turnAbs&&dir==farDir)continue;
+        ggFilmArtArm(out,bodyX,centerY,s,dir,p,coat,skin,0);
     }
     // Neck, cheeks and tapered jaw (6 bands create an organic silhouette).
-    ggFilmArtOval(out,headX-5*s,centerY-30*s,10*s,12*s,
-                  39,39,46);
-    ggFilmArtOval(out,headX-4*s,centerY-29*s,8*s,10*s,
-                  faceShadeR,faceShadeG,faceShadeB);
-    ggFilmArtOval(out,headX-3*s,centerY-28*s,6*s,8*s,
-                  faceR,faceG,faceB);
+    int skullW=(10-turnAbs/2)*s;
+    int faceW=(8-turnAbs/2)*s;
+    ggFilmArtOval(out,headX-skullW/2,centerY-30*s,
+                  skullW,12*s,39,39,46);
+    ggFilmArtOval(out,headX-faceW/2,centerY-29*s,
+                  faceW,10*s,faceShadeR,faceShadeG,faceShadeB);
+    ggFilmArtOval(out,headX-faceW/2+s,centerY-28*s,
+                  faceW-2*s,8*s,faceR,faceG,faceB);
     ggExpRect(out,headX-3*s,centerY-23*s,2*s,3*s,
               faceShadeR,faceShadeG,faceShadeB);
     // Hair has a crown, swept fringe, temporal shading and a highlight;
@@ -363,6 +391,9 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     int gaze=ggExpClamp(p->gaze,-1,1)*s;
     int eyesY=centerY-25*s;
     for(int eye=0;eye<2;eye++){
+        // Far eye rolls naturally behind the profile silhouette.
+        if(turn>=3&&!eye)continue;
+        if(turn<=-3&&eye)continue;
         int ex=headX+(eye?2:-3)*s+gaze;
         int ew=s>1?s:2,iris=s>1?s-1:1;
         ggExpRect(out,ex,eyesY-s,ew+1,1,
@@ -378,8 +409,11 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         }else ggExpRect(out,ex,eyesY,ew,1,
                         faceShadeR,faceShadeG,faceShadeB);
     }
-    ggExpRect(out,headX,centerY-23*s,s,2*s,
-              faceShadeR,faceShadeG,faceShadeB);
+    ggExpRect(out,headX+(turn>=2?2*s:turn<=-2?-2*s:0),
+              centerY-23*s,s,2*s,faceShadeR,faceShadeG,faceShadeB);
+    if(turnAbs>=2)
+        ggExpRect(out,headX+(turn>0?4*s:-5*s),
+                  centerY-22*s,2*s,s,faceR,faceG,faceB);
     if(p->mouth)ggExpRect(out,headX-s,centerY-21*s,
                          p->mouth==2?3*s:2*s,s,119,59,65);
     else ggExpRect(out,headX-s,centerY-21*s,2*s,1,122,84,76);
