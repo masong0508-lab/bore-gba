@@ -120,7 +120,9 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             if(entered>0){
                 paused=1;ggExpRenderValid=0;
                 ggExpMessage("ASHEN CHRONICLES: 3DS CAMPAIGN ENTERED");
-            }else if(entered<0)
+            }else if(entered==-2)
+                ggExpMessage("NO SAFE EXPEDITION ROUTE: CHOOSE A LAND REGION");
+            else if(entered<0)
                 ggExpMessage("NEXT CHRONICLE LOCKED: ADVANCE THE 2D STORY");
             else ggExpMessage("CHRONICLES LOCKED: COMPLETE STORY CHAPTER 3");
         }
