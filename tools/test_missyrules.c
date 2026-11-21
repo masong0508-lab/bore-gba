@@ -33,6 +33,14 @@ int main(void){
             assert(next<=100u);
             if(supports>=3) assert(next<=pressure);
         }
+    assert(msDaysProgress(0,0)==0u&&msDaysProgress(0,1)==0u);
+    assert(msDaysProgress(5,0)==5u);
+    assert(msDaysProgress(5,1)==4u); // the earned fifth day is not lost
+    assert(msDaysProgress(6,1)==5u); // only ONE additional day is required
+    for(unsigned d=0;d<=20;d++){
+        assert(msDaysProgress(d,0)==d);
+        assert(msDaysProgress(d,1)==(d?d-1:0));
+    }
     assert(MS_PENDING_SCENE==64u&&MS_ONE_MORE_NIGHT==16u);
     puts("BORE Missy story memory: PASS");
     return 0;

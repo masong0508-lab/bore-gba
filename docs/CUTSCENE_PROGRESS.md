@@ -233,3 +233,15 @@ requiring dozens of inputs to traverse the entire vigil. Both hospital
 ROMs use the same scene renderer, lighting, poses and camera code as
 the released game. CI boots both in mGBA and uploads two screenshots
 from each; the preview does not replace full five-chapter playtesting.
+
+### Hospital last-night contract and elapsed-time continuity
+The first hospital review crisis no longer resets the entire five-day
+bedside goal. It now charges the existing appeal deposit, reduces
+pressure to 50 and adds **exactly one day** to the original deadline,
+as its dialogue says. The helper `msDaysProgress` subtracts only
+one from earned days while the saved last-night flag is set. Extra
+story memory and replay format are unchanged, and older saves are still
+readable. The rescue branch changes Missy's "How long?" answer to avoid
+falsely claiming a hard-coded nine days, while the normal branch now
+opens with a consistent nine-day post-accident timeline. A portable C
+test covers elapsed 0..20 days, with and without the extension.

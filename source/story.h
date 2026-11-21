@@ -286,8 +286,10 @@ enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ
 // Two real friends, a happy mood, and 8k earned for hospital bills each cancel one point.
 // With all three the pressure falls by one; fewer supports may still hold it steady.
 // Every new day Dr. Okafor calls: the life-support bill is paid from your cash (PLUG_BILL; if you cannot, the pressure jumps). A new friend, a best friend or a promotion eases it.
-// At 75 and 90 you are warned. At 100 the hospital gives you ONE MORE NIGHT: the days-holding-on clock starts over, a deposit is taken and the pressure drops to 50. The chapter also
-// asks for the pressure to be 60 or less at the moment you finish. Nothing is saved: the pressure starts again at PLUG_START when the game starts and the chapter is running.
+// At 75 and 90 you are warned. At 100 there is ONE MORE NIGHT: one extra
+// day is needed, the existing bedside progress stays intact, a deposit is
+// taken and pressure drops to 50. Review use and pressure survive reloads in
+// the original story memory byte; the successful appeal requires pressure <=60.
 #define PLUG_START 20
 #define PLUG_BILL 400
 #define PLUG_OK 60
@@ -331,13 +333,15 @@ static const char* const stqBeat[5][5]={
     {"Mamesy came by. Coffee, no lecture.","Dex texts: Still here. Call me.","The lawyer is paid. One fire out."},
     {"Seven days. Vance calls it a start.","Two friends who don't want a clip.","She laughed today. A real one."},
     {"A full house. Nobody here alone.","Clean, with a crew camped outside.","The house is hers. Paid, not loaned.","Friends who stayed when it got ugly.","The gate locks. The phones stay out."},
-    {"Five days of refusing to go home.","Friends take shifts at the bedside.","Her care is funded another week.","You find the strength to stay.","Okafor grants the review appeal."},
+    {"The days at her bedside finally count.","Friends take shifts at the bedside.","Her care is funded another week.","You find the strength to stay.","Okafor grants the review appeal."},
     {"Ten days. The longest she has gone.","Four friends. Front row, all of them.","Loud dinners at home again.","The comeback money is real.","Happy. Not for a camera."} };
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
 static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
 static int stqVal(const StQ*q){
     switch(q->k){
-    case TQ_CLEAN: case TQ_DAYS: return stqDays();
+    case TQ_CLEAN: return stqDays();
+    case TQ_DAYS: return (int)msDaysProgress((unsigned)stqDays(),
+        stId==STY_TVSHOW&&stCh==3&&msNightUsed((unsigned)stmGet()));
     case TQ_FRIENDS: { int me=hhPUid, ex=stCh==3?(int)stKid:(int)stPart, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&u!=ex&&(relF[me][u]&RF_FRIEND)) n++; return n; }   // (Missy's sister does not count once she is gone, and in chapter 4 Missy is in a coma)
     case TQ_MONEY: return stbEarned();   // (earned this chapter: see stbGet)
     case TQ_HOUSE: { int n=hhN+1; if(stCh==4&&stPart!=255&&stMember(stPart)>=0) n--; return n; }
@@ -569,8 +573,9 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     }
     if(v>100) v=100;
     if(v>=100&&plugNight){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
-    if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over
-        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; stmPut(stmGet()|16); toast("One more night. The days reset."); lnote="There won't be another one."; lnoteT=200; }
+    if(v>=100){   // a final-night extension, no erasing the existing bedside progress
+        v=50; if(simMoney>=1000) simMoney-=1000; plugNight=1; stmPut(stmGet()|16);
+        toast("One more night. One extra day."); lnote="There won't be another one."; lnoteT=200; }
     else if(old<90&&v>=90){ static const char* const l90[3]={"Last chance. Save Missy.","She's almost out of time.","Mamesy, hurry. Please."}; lnote=l90[rnd8()%3]; lnoteT=150; }
     else if(old<75&&v>=75){ static const char* const l75[3]={"Okafor's losing patience.","Okafor won't stop hinting.","The hospital wants an answer."}; lnote=l75[rnd8()%3]; lnoteT=150; }
     plugV=(u8)v; plugRemember(v);

@@ -847,7 +847,11 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
         csCurBi=bi; const CsBeat*b=&sc->b[bi];
         if(id==3&&bi==0){ csAlternate=*b;
             if(csStoryMemory&16){ csAlternate.t[0]="The review granted one more night. Mamesy kept"; csAlternate.t[1]="watch at the bedside, unwilling to go home."; }
-            else { csAlternate.t[0]="Five days since the fall. Mamesy knows every nurse"; csAlternate.t[1]="on the ward and every sound the monitors make."; }
+            else { csAlternate.t[0]="Nine days since the fall. Mamesy knows every nurse"; csAlternate.t[1]="on the ward and every sound the monitors make."; }
+            b=&csAlternate;
+        } else if(id==3&&bi==27&&(csStoryMemory&16)){ csAlternate=*b;
+            csAlternate.t[0]="Long enough. Every hour felt like a week.";
+            csAlternate.t[1]="And yes, I stayed. Where else would I be?";
             b=&csAlternate;
         } else if(id==5&&bi==4&&(csStoryMemory&15)){ csAlternate=*b;
             csAlternate.t[0]="I made promises I broke. More than once. I am sorry.";
