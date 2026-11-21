@@ -24,11 +24,13 @@ static int ggFilmStagePropSide(int plusValid,int minusValid,int guests){
     if(first==-1&&plusValid)return 1;
     return 0;
 }
-// People in the same conversational blocking should not be posed
-// across an unclimbable ledge, even when both cells are technically land.
+// Film actors must share visually level ground, not merely traversable
+// terrain. The gameplay climb limit is 19 world-height units, but allowing
+// that in a close-up puts a guest on top of a tall rock tower with the
+// protagonist standing below. A four-unit step remains subtle on screen.
 static int ggFilmStageHeightOK(int stage,int neighbor){
     int delta=stage-neighbor;
-    return delta>=-19&&delta<=19;
+    return delta>=-4&&delta<=4;
 }
 // A speaker looks toward their actual partner, not an arbitrary constant
 // screen side. Signed 1px eye/head cues avoid adding costly rotated sprites.
