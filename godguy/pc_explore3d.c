@@ -845,6 +845,49 @@ int main(void){
           "wagon and records used identical cinematic props");
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "named cast drew outside the one existing RGB framebuffer");
+    // Film performances must be visibly different while retaining
+    // stable identities, deterministic poses and framebuffer guards.
+    GgFilmPose idle=ggFilmPoseAt("NARRATOR","",1,40,0,0,
+                                GG_FILM_PROP_RECORDS);
+    GgFilmPose speaking=ggFilmPoseAt("MIRA",
+                "The names and records belong to these families.",
+                1,38,0,0,GG_FILM_PROP_RECORDS);
+    GgFilmPose anticip=ggFilmPoseAt("MIRA",
+                "The names and records belong to these families.",
+                1,1,0,0,GG_FILM_PROP_RECORDS);
+    check(idle.pose==GG_FILM_LISTEN&&
+          speaking.pose==GG_FILM_PRESENT&&
+          speaking.armR>anticip.armR&&speaking.holdProp,
+          "cinematic key poses did not anticipate, present and hold");
+    GgFilmPose walkingA=ggFilmPoseAt("YOU","",0,0,1,1,
+                                    GG_FILM_PROP_CART);
+    GgFilmPose walkingB=ggFilmPoseAt("YOU","",0,12,1,1,
+                                    GG_FILM_PROP_CART);
+    check(walkingA.pose==GG_FILM_WALK&&
+          walkingA.legL!=walkingB.legL&&
+          walkingA.legR!=walkingB.legR,
+          "4-phase walk did not alternate the leading leg");
+    GgFilmPose talk=ggFilmPoseAt("MIRA","Save the families",
+                                2,28,0,0,GG_FILM_PROP_CART);
+    check(talk.mouth!=0&&
+          ggFilmPoseAt("MIRA","Save the families",
+                       2,28,0,0,GG_FILM_PROP_CART).mouth==talk.mouth,
+          "mouth timing is not stable for cinematic dialogue");
+    memset(guarded.img,0,sizeof guarded.img);
+    ggFilmDrawActor(guarded.img,190,160,3,
+                    ggFilmGuestPalette[0][0],
+                    ggFilmGuestPalette[0][1],
+                    ggFilmGuestPalette[0][2],&speaking);
+    unsigned long speakingPicture=hash();
+    memset(guarded.img,0,sizeof guarded.img);
+    ggFilmDrawActor(guarded.img,190,160,3,
+                    ggFilmGuestPalette[0][0],
+                    ggFilmGuestPalette[0][1],
+                    ggFilmGuestPalette[0][2],&idle);
+    check(hash()!=speakingPicture,
+          "the keyed cinematic gestures rendered like static mannequins");
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "layered film actor touched memory outside 3DS framebuffer");
     // User can pause lengthy subtitles, advance one beat while paused,
     // then resume without skipping or softlocking the 3D story.
     ggSaga.mode=GG_SAGA_OPEN;ggSaga.paused=0;ggSaga.frame=12;

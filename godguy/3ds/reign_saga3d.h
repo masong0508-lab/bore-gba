@@ -631,6 +631,7 @@ static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
 static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
     return ggSagaSideTile(tx,ty,1,1,guestX,guestY);
 }
+#include "film_acting3d.h"
 static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
                                 int style,int talking){
     static const u8 palette[6][3][3]={
@@ -766,8 +767,16 @@ static void ggSagaDraw(u8 *out){
         if(ggSagaProjectActor(worldX,worldY,&x,&feet,&size)){
             int walking=index%3!=1&&local>4&&
                         local<GG_SAGA_BEAT_TICKS-4;
-            ggOriginPortrait(out,x,feet,ggExpClamp(size/12,1,3),
-                             walking?((ggSaga.frame/12)&1):0,0);
+            const GgSagaBeat *line=ggSaga.mode==GG_SAGA_CHOICE?0:
+                                   ggSagaCurrentBeat(index);
+            GgFilmPose performance=ggFilmPoseAt(line?line->voice:"YOU",
+                               line?line->line:"",index,local,1,walking,
+                               ggSagaPropKind());
+            ggFilmDrawActor(out,x,feet,ggExpClamp(size/12,1,3),
+                            ggOriginHairRGB[ggOrigin.hair],
+                            ggOriginSkinRGB[ggOrigin.skin],
+                            ggOriginClothesRGB[ggOrigin.garment],
+                            &performance);
         }
     }
     // A recurring named speaker now stands on real terrain beside the
@@ -777,9 +786,15 @@ static void ggSagaDraw(u8 *out){
         int style=ggSagaConversationGuest(index);
         int worldX,worldY,x,y,size;
         if(style>=0&&ggSagaGuestTile(stageX,stageY,&worldX,&worldY)&&
-           ggSagaProjectActor(worldX,worldY,&x,&y,&size))
-            ggSagaGuestPortrait(out,x,y,ggExpClamp(size/16,1,3),
-                                style,(ggSaga.frame/12)&1);
+           ggSagaProjectActor(worldX,worldY,&x,&y,&size)){
+            const GgSagaBeat *line=ggSagaCurrentBeat(index);
+            GgFilmPose performance=ggFilmPoseAt(line->voice,line->line,
+                                            index,local,0,0,ggSagaPropKind());
+            ggFilmDrawActor(out,x,y,ggExpClamp(size/16,1,3),
+                            ggFilmGuestPalette[style][0],
+                            ggFilmGuestPalette[style][1],
+                            ggFilmGuestPalette[style][2],&performance);
+        }
     }
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
