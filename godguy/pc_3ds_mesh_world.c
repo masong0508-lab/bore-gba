@@ -19,6 +19,12 @@ int main(void){
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
                 "cinema is still a raycast image, not 3D mesh geometry");
+    meshRequire(ggMeshContext.textureSamples>600,
+                "new mesh still consists of flat-color surfaces");
+    meshRequire(ggMeshGroundMaterial(T_GRASS)==GG_MAT_MEADOW&&
+                ggMeshGroundMaterial(T_SNOW)==GG_MAT_SNOW&&
+                ggMeshGroundMaterial(T_MOUNT)==GG_MAT_ROCK,
+                "material sampler ignores physical terrain biomes");
     meshRequire(ggMeshContext.triangles>100&&
                 ggMeshContext.fragments>1500&&
                 ggMeshTilesDrawn>20&&ggMeshBuildingsDrawn>=2,
@@ -41,8 +47,9 @@ int main(void){
                 "New 3DS high-detail exploration is still a chunky 2x viewport");
     ggExpScenicQuality=1;
     ggExpRenderMode(pixels,0);
-    meshRequire(ggMeshContext.w==200&&ggMeshContext.scale==2,
-                "Old 3DS fallback rendered full-resolution polygon work");
+    meshRequire(ggMeshContext.w==200&&ggMeshContext.scale==2&&
+                ggMeshContext.textureSamples==0,
+                "Old 3DS must keep its inexpensive untextured fallback");
     // Every actor still uses the same physically projected world foot.
     for(int wx=64*256;wx<=65*256;wx+=64)
         meshRequire(ggMeshGroundAtQ8(wx,64*256+128)>=0,
