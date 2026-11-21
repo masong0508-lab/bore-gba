@@ -240,10 +240,10 @@ static u8 stTkL, stPending;   // tasks: bits 3-5; Missy's unwatched transition s
 static const StB* stBkNow(void){ return (stCh<5&&stId>=1&&stId!=STY_TVSHOW&&stId<STY_N)?&stBk[stId<STY_TVSHOW?stId-1:stId-2][stCh]:0; }   // (TV SHOW & TELL has no task rows: the ten stories after it follow the first ten)
 static int stTkN(const StB*b){ int n=0; if(b) while(n<3&&b->t[n].k) n++; return n; }
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
-static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|((stTkL&7)<<3)|(stPending?MS_PENDING_SCENE:0)|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
+static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)msStatusPack(stCh,stTkL,stPending,stGuest); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
 static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0;
     if(m[0]!='S'||m[1]!='Y'||m[2]>=STY_N||m[7]!=stSum(m)) return;
-    stId=m[2]; stCh=(u8)(m[3]&7); stTkL=(u8)((m[3]>>3)&7); stPending=(u8)((m[3]&MS_PENDING_SCENE)!=0); stGuest=(u8)(m[3]>>7); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
+    stId=m[2]; stCh=(u8)msStatusChapter(m[3]); stTkL=(u8)msStatusTasks(m[3]); stPending=(u8)msStatusPending(m[3]); stGuest=(u8)msStatusGuest(m[3]); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
 static void stUidMap(const u8*nu,int n){   // house.h hhLoad gave the uids out again (you 0, the members 1..): the story's partner and kid move with them, in RAM and in SRAM
     volatile u8*m=SRAM_BASE+STORY_OFF; int ok=m[0]=='S'&&m[1]=='Y'&&m[2]<STY_N&&m[7]==stSum(m);
     if(stPart<n&&nu[stPart]!=255) stPart=nu[stPart]; if(stKid<n&&nu[stKid]!=255) stKid=nu[stKid];
