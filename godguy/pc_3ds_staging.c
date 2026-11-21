@@ -32,11 +32,13 @@ int main(void){
           "single-side fallback would overlap actor and prop");
     check(ggFilmStageGuestSide(0,0,0)==0,
           "impassable scene wrongly spawned guests");
-    check(ggFilmStageHeightOK(24,43)&&
-          ggFilmStageHeightOK(24,5)&&
-          !ggFilmStageHeightOK(24,44)&&
-          !ggFilmStageHeightOK(24,4),
-          "high-cliff stage blocks or symmetric climb boundaries broken");
+    check(ggFilmStageHeightOK(24,28)&&
+          ggFilmStageHeightOK(24,20)&&
+          !ggFilmStageHeightOK(24,29)&&
+          !ggFilmStageHeightOK(24,19)&&
+          !ggFilmStageHeightOK(31,48)&&
+          !ggFilmStageHeightOK(16,25),
+          "cliff-top or uphill dialogue guest was staged as level ground");
     check(ggFilmStageGaze(0,1)==1&&
           ggFilmStageGaze(0,-1)==-1&&
           ggFilmStageGaze(1,0)==-1&&
