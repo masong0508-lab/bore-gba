@@ -48,13 +48,20 @@ static void filmVistaSample(FilmVista *v,int cx,int cy,int spacing,
         int x=cx+(i-FILM_VISTA_W/2)*spacing;
         int y=cy+(j-FILM_VISTA_H/2)*spacing;
         int index=j*FILM_VISTA_W+i;
-        if(x<0||x>=width||y<0||y>=height){
-            v->terrain[index]=T_DEEP;
+        if(!v->valid){
+            v->terrain[index]=T_GRASS;
             v->buildings[index]=0;
-        }else{
-            v->terrain[index]=(u8)cell(x,y,0);
-            v->buildings[index]=(u8)cell(x,y,1);
+            continue;
         }
+        // A camera on the playable world's edge must not create a fake
+        // ocean or extra terrain beyond the actual bounded map. Repeat
+        // the outermost real tile (edge-clamped sampling), not T_DEEP.
+        if(x<0)x=0;
+        if(x>=width)x=width-1;
+        if(y<0)y=0;
+        if(y>=height)y=height-1;
+        v->terrain[index]=(u8)cell(x,y,0);
+        v->buildings[index]=(u8)cell(x,y,1);
     }
 }
 // Find a real coastal or mountain landmark near the chosen village and
