@@ -2,20 +2,21 @@
 // Include AFTER the life globals (lfx..lcN) and BEFORE lifeStep(). Units: spd 16 = 1 old lsp unit; angles 256 = 360 deg
 // (angF has 4 extra fraction bits); vz keeps the old 8.8 px/step scale. Every tuning number is in the FEEL block below.
 //
-// FEEL (tune here only)
+// FEEL (tune here only): stronger response with unchanged speed cap and gravity.
+// Host regression test: tools/test_skatefeel.c
 #define F_TOP     400   // top speed (old lsp 25)
-#define F_PUSHDIV 5     // push: spd += (TOP-spd)>>5 + 1  -> ~1.2 s to 90% speed
+#define F_PUSHDIV 4     // push: spd += (TOP-spd)>>5 + 1  -> ~1.2 s to 90% speed
 #define F_COAST   9     // coast: spd -= spd>>9, and 1 every 8th step (a long roll: about half your speed after 2 s)
 #define F_BRAKE   4     // brake: spd -= 5 + spd>>4
-#define F_TURN_LO 56    // turn rate at standstill (1/16 unit/frame, ~300 deg/s)
-#define F_TURN_HI 28    // ...at top speed (~150 deg/s)
-#define F_TURN_ACC 14   // turn rate ramp per frame (steering has weight, no snapping). Was 10: a touch quicker to bite
+#define F_TURN_LO 64    // turn rate at standstill (1/16 unit/frame, ~300 deg/s)
+#define F_TURN_HI 36    // ...at top speed (~150 deg/s)
+#define F_TURN_ACC 20   // turn rate ramp per frame (steering has weight, no snapping). Was 10: a touch quicker to bite
 #define F_DRIFT_SPD 140   // DRIFT: hold DOWN and steer at this speed or more: a hard carve (the turn bites 50% harder), the board slides (looser grip) and you keep your speed instead of braking
 #define F_BOOST_MIN 24  // a drift this many frames long (0.4 s) earns a boost when you let go of DOWN or the turn; ...
 #define F_BOOST_MAX 36  // ...up to this much speed (a 1.5 s drift). Over the top speed it bleeds off by itself
-#define F_GRIP    2     // velocity chases heading by 1/4 per frame (1<<2): slight slide in turns
-#define F_BUF     8     // jump input buffer (frames before landing). Was 6
-#define F_COY     6     // coyote time (frames after leaving a ledge). Was 5
+#define F_GRIP    1     // velocity chases heading by 1/4 per frame (1<<2): slight slide in turns
+#define F_BUF     10     // jump input buffer (frames before landing). Was 6
+#define F_COY     7     // coyote time (frames after leaving a ledge). Was 5
 #define F_OLLIE   0x2C0 // ollie base vz (+spd/2): tap = hop, hold = full
 #define F_CUT     0x240 // releasing B early caps upward speed here (variable jump height)
 #define F_SPIN_MAX 7    // air spin rate (256/360 units per frame). Was 6
@@ -25,8 +26,8 @@
 #define F_RUN     16    // on foot: run speed with B. Was 10
 #define F_WACC    2     // on foot: velocity closes 1/F_WACC of the gap to the target each step (was 3): quick start AND quick stop
 #define F_WKICK   2     // on foot: from standstill the first step already moves at target/F_WKICK (was 1 unit = under a pixel, felt dead)
-#define F_LAND_TOL 40   // land clean within +-40 (~56 deg) of a 180 multiple; +12 while grabbing. Was 36
-#define F_SKETCH   14   // ...and up to this much further out you still land, but SKETCHY: speed drops and the trick is worth half. Only beyond that is it a bail
+#define F_LAND_TOL 42   // land clean within +-40 (~56 deg) of a 180 multiple; +12 while grabbing. Was 36
+#define F_SKETCH   16   // ...and up to this much further out you still land, but SKETCHY: speed drops and the trick is worth half. Only beyond that is it a bail
 #define F_PERFECT  10   // within +-10 (~14 deg): a PERFECT landing, +25% points and the bright landing sound
 static const short sinQ[65]={0,6,13,19,25,31,38,44,50,56,62,68,74,80,86,92,98,104,109,115,121,126,132,137,142,147,152,157,162,167,172,177,181,185,190,194,198,202,206,209,213,216,220,223,226,229,231,234,237,239,241,243,245,247,248,250,251,252,253,254,255,255,256,256,256};
 static inline int fsin(int a){ int s=1; a&=255; if(a>=128){ a-=128; s=-1; } if(a>64) a=128-a; return s*sinQ[a]; }

@@ -20,8 +20,8 @@ static void msPanel(int y,int h){ s2rr(6,y,228,h,RGB(10,20,30)); s2rr(7,y+1,226,
 static void msCareer(void){
     const JobTr*t=jobT(); char b[56], *e; msPanel(35,110);
     if(jobNone&&ojobOn()){   // jobhunt.h: no job yet
-        text(14,40,"UNEMPLOYED",GOLD,2); text(14,66,"NO JOB  NO SHIFTS  NO BILLS",WHITE,1); text(14,80,"THE PAPERBOY BRINGS THE NEWS AT 6",WHITE,1);
-        text(14,92,"READ IT: YOUR ACTIONS  MIND",RGB(17,29,31),1); text(14,104,"OR USE A COMPUTER FOR THE JOB BOARD",RGB(17,29,31),1); text(14,147,"A  SEE THE TRACKS",RGB(12,14,16),1);
+        text(14,40,"UNEMPLOYED",GOLD,2); text(14,66,"NO JOB  SKATING IS A HOBBY",WHITE,1); text(14,80,"PAPER AT 6 AM OR COMPUTER FOR JOBS",WHITE,1);
+        text(14,92,"SKATE TRYOUT  LV1  5 TRICKS  250",RGB(17,29,31),1); text(14,104,"EARN IT  THEN APPLY AT A COMPUTER",RGB(17,29,31),1); text(14,147,"A  JOB TRACKS AND REQUIREMENTS",RGB(12,14,16),1);
         return; }
     if(!ojob()){
         text(14,42,stage<AG_TEEN?"TOO YOUNG FOR A JOB":stage>=AG_ELDER?"RETIRED":"JOBS ARE OFF",GOLD,1);

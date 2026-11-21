@@ -3,6 +3,7 @@
 //   THE NEWSPAPER  the paperboy (or paper girl) drops it every morning at 6:00. YOUR ACTIONS > MIND > READ THE NEWSPAPER (at home): the front page, then
 //                  the CLASSIFIEDS: three jobs, a different three each day.
 //   THE COMPUTER   the catalog COMPUTER (not the desk): R on it opens the JOB BOARD with every job you are old enough for, any time of day.
+// Pro Skater is an optional team tryout, after skating LV1, five tricks, and a 250-point combo.
 // A hire starts you at the bottom of the track (an employed Sim who switches keeps part of the level, see career.h). The phone's CAREER still shows
 // the tracks, but only to look: you have to be hired from the paper or the computer. Needs career.h (jobAllowed, jobStartLvl).
 static const char* const jbNews[12]={
@@ -11,10 +12,11 @@ static const char* const jbNews[12]={
     "NEW CAFE HAS A LONG LINE","HOT WEEK AHEAD SAYS EXPERT","SLOW NEWS DAY  NOTHING HAPPENS","NEIGHBORS COMPLAIN ABOUT NOISE" };
 static char jbLb[JT_N][40] EWRAM_BSS;
 static const char* jbIt[JT_N];
-static void jbLine(char*b,int t){ char*e=simCat(b,jobTr[t].nm); e=simCat(e,": "); e=simCat(e,jobTitleOf(t,0,0)); e=simCat(e,"  \xC2\xA7"); simCatN(e,jobPayOf(t,0,0)); }
+static void jbLine(char*b,int t){ if(t==JT_SKATE){ simCat(b,"PRO SKATER  TEAM TRYOUT"); return; } char*e=simCat(b,jobTr[t].nm); e=simCat(e,": "); e=simCat(e,jobTitleOf(t,0,0)); e=simCat(e,"  \xC2\xA7"); simCatN(e,jobPayOf(t,0,0)); }
 static int jbHire(int t){   // asks first; 1 = hired
     static char q[40] EWRAM_BSS, m[44] EWRAM_BSS; static const char* const yn[2]={"YES  TAKE THE JOB","NO"};
-    char*e=simCat(q,jobNone?"APPLY  ":"SWITCH TO "); simCat(e,jobTr[t].nm);
+    if(!jobAllowed(t)){ toast(t==JT_SKATE?"EARN A SKATE TRYOUT FIRST":"ADULTS ONLY"); return 0; }
+    char*e=t==JT_SKATE?simCat(q,"SKATE TRYOUT  JOIN THE TEAM?"):simCat(q,jobNone?"APPLY  ":"SWITCH TO "); if(t!=JT_SKATE) simCat(e,jobTr[t].nm);
     if(menu(q,yn,2)!=0) return 0;
     int nlv=jobNone?0:jobStartLvl(t); jobNone=0; jobTrack=t; jobLvl=nlv; jobBr=0; jobChosen=0; jobGood=jobBad=0; shiftPts=0; simsSave();
     e=simCat(m,"HIRED  "); simCat(e,jobTitle()); toast(m); return 1;
