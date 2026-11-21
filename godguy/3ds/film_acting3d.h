@@ -145,11 +145,34 @@ static void ggFilmPairActPose(GgFilmPose *p,int dir,int inset){
 static void ggFilmPairHandAt(int x,int feet,int scale,int targetX,
                               const GgFilmPose *p,int *hx,int *hy){
     int s=ggExpClamp(scale,1,3);
-    int dx=targetX-x,reach=dx<0?-dx:dx;
-    reach/=2; // each hand moves toward the same midpoint, not past it
-    if(reach>12*s)reach=12*s;
+    int dx=targetX-x,half=dx<0?-dx:dx;
+    half/=2;
+    // The hand STARTS on its sleeve, then extends as the existing cel
+    // reaches. Previous code teleported it to the midpoint at t=0.
+    int base=half<7*s?half:7*s;
+    int full=half<12*s?half:12*s;
+    int extent=p->reach<0?-p->reach:p->reach;
+    if(extent>4)extent=4;
+    int reach=base+(full-base)*extent/4;
     *hx=x+(dx<0?-reach:reach);
     *hy=feet-(13+((dx<0?p->armL:p->armR)>1?1:0))*s;
+}
+// Rehearse contact using the same sprite-space hands and poses used
+// during actual playback. Called ONCE per paired shot, not every frame.
+// Exclude near-superimposed bodies and impossible off-angle embraces.
+static int ggFilmPairProjectedContact(int ax,int ay,int as,
+                                       int bx,int by,int bs){
+    int gap=ax-bx;if(gap<0)gap=-gap;
+    int aScale=ggExpClamp(as,1,3),bScale=ggExpClamp(bs,1,3);
+    if(gap<(aScale+bScale)*4)return 0;
+    GgFilmPose a={0},b={0};
+    ggFilmPairActPose(&a,bx>ax?1:-1,96);
+    ggFilmPairActPose(&b,ax>bx?1:-1,96);
+    int ahx,ahy,bhx,bhy;
+    ggFilmPairHandAt(ax,ay,aScale,bx,&a,&ahx,&ahy);
+    ggFilmPairHandAt(bx,by,bScale,ax,&b,&bhx,&bhy);
+    int dx=ahx-bhx,dy=ahy-bhy;
+    return dx>=-18&&dx<=18&&dy>=-14&&dy<=14;
 }
 static void ggFilmDrawHeldObject(u8*out,int handX,int handY,
                                   int s,int propCode,const u8*skin){
