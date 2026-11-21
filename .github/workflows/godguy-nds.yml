@@ -323,6 +323,10 @@ jobs:
           /tmp/gg-3ds-projection
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_architecture.c -o /tmp/gg-3ds-architecture
           /tmp/gg-3ds-architecture
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_facade.c -o /tmp/gg-3ds-facade
+          /tmp/gg-3ds-facade
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_life.c -o /tmp/gg-3ds-life
+          /tmp/gg-3ds-life
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_direction.c -o /tmp/gg-3ds-direction
           /tmp/gg-3ds-direction
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_actor_visual.c -o /tmp/gg-3ds-actor-visual
