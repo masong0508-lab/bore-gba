@@ -41,16 +41,68 @@ def plate(name):
             d.line((x-4, y-1, x+4, y-1), fill=ASH)
     elif name == "gate":
         gate(d, 18)
-    elif name in ("forge", "archive", "porch"):
+    elif name in ("forge", "archive"):
         interior(d, 12, forge=name == "forge", library=name == "archive")
         if name == "forge":
             d.polygon(((45, 54), (82, 54), (77, 61), (72, 70), (55, 70),
                        (56, 64), (49, 62)), fill=STONE, outline=INK)
             d.line((47, 55, 80, 55), fill=ASH)
-        elif name == "porch":
-            d.rectangle((0, 1, 127, 12), fill=WOOD)
-            d.line((0, 12, 127, 12), fill=TAN, width=2)
-            d.rectangle((38, 61, 91, 71), fill=CLAY, outline=WOOD)
+    elif name == "porch":
+        # A recognisable home, not the generic hall/forge room reused in
+        # every dialogue shot. This compact 128x72 plate is shared by DS,
+        # DSi, and the wider 3DS version; no additional set allocation.
+        d.rectangle((0, 0, 127, 49), fill=STONE)
+        d.polygon(((0, 47), (127, 48), (127, 71), (0, 71)),
+                  fill=WOOD)
+        d.polygon(((0, 48), (56, 45), (91, 45), (127, 48)),
+                  fill=CLAY)
+        # Rafter beams, brackets and pitched perspective ceiling.
+        d.rectangle((0, 0, 127, 7), fill=WOOD)
+        d.line((0, 7, 127, 7), fill=TAN, width=2)
+        for x in (6, 49, 85, 126):
+            d.line((x, 8, x, 45), fill=WOOD, width=3)
+            d.line((x+2, 9, x+2, 41), fill=TAN)
+        d.line((0, 12, 64, 0), fill=ASH, width=2)
+        d.line((64, 0, 127, 12), fill=ASH, width=2)
+        # Door at left, frame and threshold fixed across cuts.
+        d.rectangle((11, 15, 37, 55), fill=WOOD, outline=INK)
+        d.rectangle((14, 18, 34, 51), fill=SLATE)
+        d.polygon(((15, 19), (30, 20), (29, 50), (15, 50)),
+                  fill=CLAY, outline=WOOD)
+        d.ellipse((27, 36, 29, 38), fill=SUN)
+        d.line((10, 54, 40, 54), fill=TAN, width=2)
+        # Exactly the same window whose rain layer and sill are updated
+        # by filmWorldContinuity at screen x=211..241, y=56..94.
+        d.rectangle((101, 13, 124, 39), fill=WOOD, outline=INK)
+        d.rectangle((105, 16, 121, 35), fill=SEA)
+        d.polygon(((106, 17), (120, 17), (118, 24), (106, 29)),
+                  fill=TEAL)
+        d.line((113, 16, 113, 35), fill=ASH)
+        d.line((105, 26, 121, 26), fill=ASH)
+        d.line((99, 39, 125, 39), fill=TAN, width=3)
+        d.line((101, 14, 101, 38), fill=CLAY, width=2)
+        # A low bench, woven blanket and table with four planted legs.
+        d.polygon(((43, 46), (78, 46), (86, 52), (38, 52)),
+                  fill=CLAY, outline=WOOD)
+        d.rectangle((39, 52, 85, 58), fill=WOOD)
+        d.line((44, 58, 44, 66), fill=STONE, width=3)
+        d.line((79, 58, 79, 66), fill=STONE, width=3)
+        d.polygon(((43, 49), (63, 49), (73, 52), (43, 52)),
+                  fill=PLUM)
+        d.line((48, 51, 65, 51), fill=RUST, width=2)
+        d.polygon(((50, 59), (91, 59), (101, 64), (42, 64)),
+                  fill=TAN, outline=WOOD)
+        for x in (48, 94):
+            d.line((x, 64, x-2, 71), fill=WOOD, width=3)
+        # Floorboard junctions converge toward the door, not a grid.
+        for x in (-18, 23, 81, 137):
+            d.line((61, 47, x, 71), fill=CLAY)
+        d.line((0, 60, 127, 61), fill=CLAY)
+        # One practical lantern mounted to a bracket, no floating lights.
+        d.line((89, 18, 98, 18), fill=WOOD, width=2)
+        d.rectangle((93, 21, 100, 30), fill=WOOD, outline=INK)
+        d.rectangle((95, 23, 98, 27), fill=AMBER)
+        d.point((96, 25), fill=CREAM)
     elif name == "hall":
         hall(d, 1)
     elif name == "throne":
