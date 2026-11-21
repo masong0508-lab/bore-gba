@@ -44,8 +44,10 @@ int main(void){
     meshRequire(ggMeshContext.triangles>beforeActor+45,
                 "humanoid inhabitants remain flat 8x8 bitmap sprites");
     beforeActor=ggMeshContext.triangles;
-    ggMeshActorCharacter(&ggMeshContext,65*256+128,65*256+128,
-                         ggMeshGroundAtQ8(65*256+128,65*256+128),
+    // Test a visible quadruped next to the center ray, not a subject
+    // beyond the camera's side frustum. Count real rasterized faces.
+    ggMeshActorCharacter(&ggMeshContext,65*256+128,64*256+160,
+                         ggMeshGroundAtQ8(65*256+128,64*256+160),
                          0,80,4,0,colors,2);
     meshRequire(ggMeshContext.triangles>beforeActor+20,
                 "four-legged species did not receive actual 3D bodies");
