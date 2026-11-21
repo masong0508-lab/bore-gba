@@ -16,7 +16,7 @@ enum { F_WISP,F_MIRA,F_GRUUL,F_ELOWEN,F_THORGRIM,F_HOLLOW,F_DAVE,
        F_ELDER,F_NESSA,F_SERIN,F_ACTOR_N,F_OFFSCREEN=255 };
 enum { F_CUP,F_GOAT,F_HAMMER,F_SPOON,F_QUILL,F_LAMP,F_CROWN,F_LEAF,
        F_BREAD,F_MASK,F_CRUMB,F_SEED,F_PROP_N,F_NO_PROP=255 };
-typedef struct { int place,camera,lead,other,prop; } FilmBeat;
+typedef struct { int place,camera,lead,other,prop; const char *line; } FilmBeat;
 typedef struct { int leadX,otherX,leadFeet,otherFeet,leadHeight,otherHeight; } FilmBlocking;
 static int filmEase(int elapsed,int total) {
     int u=elapsed>=total?256:(elapsed*256)/total;
