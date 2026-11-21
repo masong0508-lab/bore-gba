@@ -61,6 +61,9 @@ static void gmWorldSet(int gain,int drums,int motif,int patch,
 }
 #endif
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
+// Referenced by gmPlay, so these must be declared before playback init.
+static int gmLyrSlot=2, gmLyrDuck=45, gmEchoSide;
+static int gmLyrEnd[2];
 static int gmLyrT;      // frames the lyric phrase sounding now has left: the melody voices make room for it
 static int gmCrowd, gmCrowdS;   // the size of the battle (0..400, set by the game) and how far the war music has opened up to it
 static int gmInT, gmInN;                       // a song that follows another one fades in: frames left, frames in all
@@ -125,10 +128,8 @@ static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; int fs=gmFadeStart(S
     if(gmInT>0){ int a=256-256*gmInT/gmInN; m=m*(a*a>>8)>>8; }
     return m; }
 static int gmNoClyr;      // (a test switch: CORPORATIONS' own voice is left out)
-static int gmLyrSlot=2, gmLyrDuck=45, gmEchoSide;
-// Protect both long-running vocal channels individually: the foreground
-// lyric cannot be truncated by a hi-hat, decorative chop or echo.
-static int gmLyrEnd[2];      // the cymbal channel the lyric sounds on; how far the melody voices step back for it (percent); which side the next echo copy goes to
+// Both streamed lyric channels are tracked independently; their
+// declarations are above gmPlay, which resets them at song changes.
 static void gmDrum(int part,int id){
     int soft=(id>>7)&1; id&=127; if(!id) return; int vol, pan, idx, slot; if(gmCur==GM_WAR&&part==1&&gmCrowdS<120) return; int wm=gmCur==GM_WAR?(gmCrowdS>300?78:100):100;      // (a small fight keeps to the war drums alone: the cymbals and chops join as the crowd grows)
     int lyr=0, echo=0;
