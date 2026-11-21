@@ -2627,7 +2627,22 @@ static void uiInspectCard(void){
         siprintf(b,"POP %d  HOMES %d",V->pop,V->houses); uiText(142,y,b,U_WHITE,1); y+=10; siprintf(b,"FARMS %d  TOWERS %d",V->farms,V->towers); uiText(142,y,b,U_WHITE,1); y+=10;
         if(V->foe&&vil[V->foe-1].on){ char fn[24]; vilName(V->foe-1,fn); siprintf(b,"AT WAR: %s",fn); uiText(142,y,b,U_RED,1); } }
     else { uiText(142,24,"NOTHING HERE",U_DIM,1); }
-    uiText(142,136,"A: INSPECT AGAIN",U_DIM,1); }
+#ifdef GG_THEATRE
+    // The 3DS can enter a first-person world view through the exact
+    // creature inspected on this card. Never advertise the mode for
+    // animals without sentience, mindless folk or infected zombies.
+    int canPOV=inspKind==1&&inspIdx>=0&&inspIdx<nCr&&
+        cr[inspIdx].alive&&
+        (arch[sp[cr[inspIdx].sp].a].diet==4||
+         (crFl[inspIdx]&FL_SAPIENT))&&
+        !HAS_STATUS(&cr[inspIdx],ST_MINDLESS)&&
+        DISEASE(&cr[inspIdx])!=3;
+    uiText(142,136,canPOV?"SEL+R: 3D POV":"A: INSPECT AGAIN",
+           canPOV?U_GOLD:U_DIM,1);
+#else
+    uiText(142,136,"A: INSPECT AGAIN",U_DIM,1);
+#endif
+}
 #ifdef GG_THEATRE
 // ---- the 3DS "theatre": while the globe is up on the touch screen, the top screen shows the same planet big (a ball 176 pixels across) over a deep starfield, and gives every pixel of it a depth
 // (the ball is a dome, its atmosphere a thin shell, the stars far behind), so with the 3D slider up the planet really is a ball in front of the screen (compat/stereo.h). It turns with the globe.
