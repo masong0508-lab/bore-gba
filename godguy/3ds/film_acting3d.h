@@ -76,10 +76,12 @@ static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
         }else if(p.pose==GG_FILM_PRESENT){
             p.armR=(signed char)(strength*3/256);
             p.armL=(signed char)(strength*2/256);
-            // Records or crates are briefly actually held by the
-            // outstretched performer rather than floating over them.
-            p.holdProp=(signed char)(strength>170&&
-                    (propKind==2||propKind==3));
+            // Hold a real, distinguishable book or ration parcel through
+            // the entire delivered line; never a generic hovering chip.
+            // Values 3 and 4 encode records and crates (prop kinds 2/3).
+            // The prop remains tied to the moving right hand.
+            if(propKind==2||propKind==3)
+                p.holdProp=(signed char)(propKind+1);
         }else if(p.pose==GG_FILM_REFLECT){
             p.head=(signed char)(-strength*2/256);
             p.lean=(signed char)(-strength/160);
@@ -204,11 +206,24 @@ static void ggFilmDrawActor(u8*out,int x,int feet,int scale,
                   p->mouth==2?2*s:s,113,65,68);
     }
     if(p->holdProp){
-        int handX=x+7*s+p->lean*s;
+        int handX=x+(7+p->lean)*s;
         int handY=feet-(15+p->armR)*s;
-        ggExpRect(out,handX,handY,5*s,2*s,220,203,164);
-        ggExpRect(out,handX+s,handY-s,3*s,s,175,130,80);
-        ggExpRect(out,handX+s,handY+s,3*s,s,84,67,55);
+        if(p->holdProp==3){
+            // A bound archive ledger: dark cover, physical page edges,
+            // gold spine, and a thumb crossing the book's front.
+            ggExpRect(out,handX,handY-4*s,6*s,5*s,72,54,53);
+            ggExpRect(out,handX+2*s,handY-4*s,4*s,s,226,209,172);
+            ggExpRect(out,handX+2*s,handY,4*s,s,226,209,172);
+            ggExpRect(out,handX+s,handY-3*s,s,3*s,194,158,91);
+        }else if(p->holdProp==4){
+            // Provisions are a strapped supply packet, not a book.
+            ggExpRect(out,handX,handY-3*s,6*s,5*s,151,108,68);
+            ggExpRect(out,handX+2*s,handY-3*s,2*s,5*s,202,164,109);
+            ggExpRect(out,handX,handY-s,6*s,s,109,79,57);
+        }
+        // Connect the actual outstretched hand TO the object. Both
+        // the limb and the carried object share the same pose offset.
+        ggExpRect(out,handX-s,handY-s,3*s,2*s,skin[0],skin[1],skin[2]);
     }
 }
 #endif
