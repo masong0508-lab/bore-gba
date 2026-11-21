@@ -426,6 +426,11 @@ static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
             if((unsigned)tx>=WW)continue;
             if(bld[ty][tx]||occ[ty][tx])continue;
             uint32_t key=ggFilmScenicHash(tx,ty,7);
+            // Scan-order-independent coverage: select about five eighths
+            // of physical tiles BEFORE the bounded prop cap. The older
+            // version saturated the limit on the camera's left side
+            // because rows were traversed from top to bottom.
+            if(((key>>24)&7u)>=5u)continue;
             int near=0;
             // A short deterministic adjacency priority, no global city
             // lookup and no changes to settlement/simulation state.

@@ -21,6 +21,23 @@ int main(void){
     }
     check(counts[GG_SCENE_OAK]>150&&counts[GG_SCENE_SHRUB]>100,
           "forest density remains sparse or uniform");
+    // Reconstruct the actual 21x21 Q8 camera selection rule to guard
+    // against saturating every visible object on the image's left.
+    int left=0,right=0;
+    for(int ty=55;ty<=75;ty++)for(int tx=54;tx<=74;tx++){
+        uint32_t h=ggFilmScenicHash(tx,ty,7);
+        if(((h>>24)&7u)>=5u)continue;
+        int wx=tx*256+128+(int)((h>>12)&95u)-48;
+        int wy=ty*256+128+(int)((h>>20)&95u)-48;
+        int forward=wx-(64*256+128),side=wy-(65*256+128);
+        if(forward<=128||forward>GG_SCENE_RADIUS*256||
+           side<-forward*6/5||side>forward*6/5)continue;
+        if(side<-100)left++;
+        if(side>100)right++;
+    }
+    int difference=left-right;if(difference<0)difference=-difference;
+    check(left>22&&right>22&&difference<20,
+          "environment placement bias leaves an empty side of the frame");
     int farm=0,temple=0,town=0,ruin=0,coast=0;
     for(int i=0;i<16;i++){
         farm|=1<<ggFilmScenicKind(T_GRASS,B_FARM,(uint32_t)i);
