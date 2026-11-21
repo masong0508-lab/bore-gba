@@ -40,7 +40,7 @@ jobs:
           /tmp/godguy-people
           mkdir -p artifacts/godguy-people
           /tmp/godguy-people artifacts/godguy-people/people_8_direction_turntable.ppm
-          python3 tools/film_capture_png.py artifacts/godguy-people
+          python3 tools/film_capture_png.py artifacts/godguy-people --single
       - name: Publish real source sprite turntable
         uses: actions/upload-artifact@v4
         with:
