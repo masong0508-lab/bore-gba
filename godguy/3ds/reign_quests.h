@@ -94,7 +94,15 @@ static int ggQuestSource(int home){
             if((unsigned)nx>=GG_CHRON_GRID||
                (unsigned)ny>=GG_CHRON_GRID)continue;
             int i=ny*GG_CHRON_GRID+nx;
-            if(reached[i]||!ggChronLand(originX+nx,originY+ny))continue;
+            int wx=originX+nx,wy=originY+ny;
+            int fromX=originX+cx,fromY=originY+cy;
+            if(reached[i]||!ggChronLand(wx,wy))continue;
+            // Courier routes must obey the same step-up limit as the
+            // player's first-person movement. Otherwise a mountain
+            // wall can produce a "reachable" delivery that is actually
+            // impossible to complete on foot.
+            if(ggExpGround(world[wy][wx])-
+               ggExpGround(world[fromY][fromX])>19)continue;
             reached[i]=1;queue[tail++]=(unsigned short)i;
         }
     }

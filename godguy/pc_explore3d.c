@@ -662,6 +662,16 @@ int main(void){
     ggChron.foeN=0;ggChron.briefTime=0;
     ggReign.menu=0;ggReign.noticeT=0;
     ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    // Regress a real progression soft-lock: all four exits are land,
+    // but too steep to climb. Never offer an undeliverable town job.
+    world[60][59]=world[60][61]=T_MOUNT;
+    world[59][60]=world[61][60]=T_MOUNT;
+    check(ggQuestSource(0)<0,
+          "courier assigned a town across an impassable cliff ring");
+    world[60][59]=world[60][61]=T_GRASS;
+    world[59][60]=world[61][60]=T_GRASS;
+    check(ggQuestSource(0)==1,
+          "courier never recovered after removing blocked terrain");
     ggQuestBegin();
     check(ggQuest.stage==GG_QUEST_IDLE&&!ggQuest.talk,
           "travel journal started with a fake completed quest");
