@@ -303,6 +303,11 @@ jobs:
             ../out/godguy_unwritten_reign_endings.mp4
           rm ../out/reign_endings.rgb
           test -s ../out/godguy_unwritten_reign_endings.mp4
+      - name: Verify adaptive 3DS score, themed music and smooth scene switches
+        working-directory: godguy
+        run: |
+          gcc -O2 -std=c11 -w -Icompat -Isource pc_world_music3d.c -lm -o /tmp/gg-world-score
+          /tmp/gg-world-score
       - name: Host-test saved-world coastline and settlement capture
         working-directory: godguy
         run: |

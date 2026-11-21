@@ -2178,6 +2178,13 @@ static void gb_pnoise(int freq,int vol){ if(gnId<0) return; if(vol>127) vol=127;
 static void gb_pnoff(void){ if(gnId>=0) soundSetVolume(gnId,0); }
 // ---- the music director: what is happening in the world picks the track (with a 30 second hold so it never flips about); jingles play once and hand back
 static int musHold, jukeOn, fxCool;
+#ifdef __3DS__
+// A 3DS-only optional world director owns the music while first-person
+// roaming or playing The Unwritten Reign. It never alters normal DS/DSi
+// playback, the original 2D story or the user's jukebox data.
+static int (*gg3dMusicTick)(void);
+static int (*gg3dMusicNext)(int);
+#endif
 static int isJingle(int s){ return s>=0&&gmSongs[s].loopRow==65535; }
 static int famOpen(int k);
 // A distant-crowd soundtrack used to scan every creature twice just to
@@ -2244,6 +2251,9 @@ static void musUpdate(void){
     return;     // diagnostic no-audio build and safe build bypass the mixer
 #endif
     gmNextHook=musNext;
+#ifdef __3DS__
+    if(gg3dMusicNext)gmNextHook=gg3dMusicNext;
+#endif
 #ifdef NDSSHIM
     shimTempoBpm=gmCur>=0?gmSongs[gmCur].bpm:0;
 #endif
@@ -2253,6 +2263,14 @@ static void musUpdate(void){
     gmFrame();
 #endif
     if(fxCool>0) fxCool--; if(fxQ>=0){ if(fxQ!=FX_PAINT||fxCool==0){ fxPlay(fxQ); if(fxQ==FX_PAINT) fxCool=10; } fxQ=-1; }
+#ifdef __3DS__
+    if(gg3dMusicTick&&gg3dMusicTick()){
+        // The dynamic 3D score advances on real music frames, even when
+        // the underlying 2D simulation is paused for first-person play.
+        musQ=-1;
+        return;
+    }
+#endif
     if(musHold>0) musHold--;
     if(musQ>=0){ gmPlay(musQ);
         // Fade the score in across the film's establishing shot rather

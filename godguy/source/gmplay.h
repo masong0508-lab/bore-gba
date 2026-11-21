@@ -21,6 +21,39 @@
 #endif        // the vocal chop kit: drum-B stream ids GM_VOX0 and up play a chop instead of a cymbal
 #include "gmdata.h"
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
+#ifdef __3DS__
+// A small adaptive 3DS-world orchestration layer. It reuses the EXISTING
+// ten wavetable voices, four drum channels and 16-instrument bank, so there
+// is no second synthesizer, heap, mixer pass or sample-bank allocation.
+static int gmWorldMode,gmWorldGain=100,gmWorldGoal=100;
+static int gmWorldStem[9]={100,100,100,100,100,100,100,100,100};
+static int gmWorldStemGoal[9]={100,100,100,100,100,100,100,100,100};
+static int gmWorldDrums=100,gmWorldDrumGoal=100;
+static int gmWorldMotif=-1,gmWorldPatch=13,gmWorldLastBeat=-1;
+static const signed char gmWorldMotifs[5][16]={
+    {0,99,7,4,99,9,7,99,4,99,7,2,99,5,4,99},
+    {0,3,7,99,10,7,5,99,0,5,8,99,7,5,3,99},
+    {0,99,12,7,99,5,7,99,0,99,10,7,99,5,3,99},
+    {0,7,10,7,3,7,12,7,0,7,10,7,5,7,12,7},
+    {0,99,3,99,7,99,10,99,12,99,7,99,5,99,3,99}
+};
+static int gmWorldToward(int x,int y,int step){
+    return x<y?(y-x<step?y:x+step):x>y?(x-y<step?y:x-step):x;
+}
+static void gmWorldOff(void){
+    gmWorldMode=0;gmWorldGain=gmWorldGoal=100;
+    gmWorldDrums=gmWorldDrumGoal=100;gmWorldMotif=-1;
+    gmWorldLastBeat=-1;
+    for(int v=0;v<9;v++)gmWorldStem[v]=gmWorldStemGoal[v]=100;
+}
+static void gmWorldSet(int gain,int drums,int motif,int patch,
+                       const unsigned char *stem){
+    gmWorldMode=1;
+    gmWorldGoal=gain;gmWorldDrumGoal=drums;
+    gmWorldMotif=motif;gmWorldPatch=patch;
+    for(int i=0;i<9;i++)gmWorldStemGoal[i]=stem[i];
+}
+#endif
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
 static int gmLyrT;      // frames the lyric phrase sounding now has left: the melody voices make room for it
 static int gmCrowd, gmCrowdS;   // the size of the battle (0..400, set by the game) and how far the war music has opened up to it
@@ -66,7 +99,14 @@ static void gmStop(void){ for(int v=0;v<GMV;v++) gb_vstop(v); gmCur=-1; }
 static void gmPlay(int s){
     gmTables(); if(s==gmCur) return; if(gmCur>=0) gmStop(); if(s<0||s>=GM_SONGS) return;
     gmInT=0; gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; ggUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
-    for(int v=0;v<GMV;v++){ gb_vstart(v,gmSongs[s].inst[v<9?v:0]); gmAge[v]=0; gmRel[v]=-1; gmAlt[v]=0; }
+    for(int v=0;v<GMV;v++){
+        int wave=gmSongs[s].inst[v<9?v:0];
+#ifdef __3DS__
+        if(gmWorldMode&&v==8&&gmWorldMotif>=0)wave=gmWorldPatch;
+        gmWorldLastBeat=-1;
+#endif
+        gb_vstart(v,wave); gmAge[v]=0; gmRel[v]=-1; gmAlt[v]=0;
+    }
 }
 // THE END OF A SONG. A song plays through once (from row 0 to its last row) and then it is over: it fades out over its last seconds and the next song takes over
 // (gmNextHook), or the music stops. (The old player wrapped to the song's loop row and played the same song for ever.) A long suite brings its own closing fade (S->fade is the
@@ -93,6 +133,10 @@ static void gmDrum(int part,int id){
     if(soft) vol=vol*55/100;
     vol=vol*wm/100*gmMaster/100*(lyr?92:40)/100;
     vol=vol*gmFilmGain/100; vol=vol*gmFadeMul()>>8;
+#ifdef __3DS__
+    if(gmWorldMode)
+        vol=vol*gmWorldGain/100*gmWorldDrums/100;
+#endif
     gb_hit(slot,part,idx,vol,pan);
 }
 static void gmNoteOn(int v,int n){
@@ -119,7 +163,12 @@ static void gmVoiceFrame(int v,const GmSong*S){
     if(v==0) pan+=gmSin[(gmTick>>4)&31]*10>>7; else if(v==4) pan+=gmSin[(gmTick>>5)&31]*8>>7; else if(v==5) pan-=gmSin[(gmTick>>5)&31]*8>>7;
     else if(v==7) pan=gmAlt[v]?26:102; else if(v==8) pan=gmAlt[v]?104:24; else if(v==2) pan=gmAlt[v]?24:104;
     int vol=S->vol[v]*lev/100*gmMaster/100*56/100;
-    vol=vol*gmFilmGain/100; vol=vol*gmFadeMul()>>8; if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-gmLyrDuck*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
+    vol=vol*gmFilmGain/100; vol=vol*gmFadeMul()>>8;
+#ifdef __3DS__
+    if(gmWorldMode)
+        vol=vol*gmWorldGain/100*gmWorldStem[v]/100;
+#endif
+    if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-gmLyrDuck*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
     if(pan<0) pan=0; if(pan>127) pan=127;
     gb_vset(v,rate,vol,pan);
     if(v==0){ ldRate=rate; ldVol=vol; ldPan=pan; }
@@ -144,6 +193,14 @@ static void gmFrame(void){
     if(gmFilmGain<goal) gmFilmGain+=(goal-gmFilmGain<2?goal-gmFilmGain:2);
     else if(gmFilmGain>goal)gmFilmGain-=(gmFilmGain-goal<2?gmFilmGain-goal:2);
     if(gmFilmFxHold>0)gmFilmFxHold--;
+#ifdef __3DS__
+    if(gmWorldMode){
+        gmWorldGain=gmWorldToward(gmWorldGain,gmWorldGoal,2);
+        gmWorldDrums=gmWorldToward(gmWorldDrums,gmWorldDrumGoal,2);
+        for(int v=0;v<9;v++)
+            gmWorldStem[v]=gmWorldToward(gmWorldStem[v],gmWorldStemGoal[v],2);
+    }
+#endif
     if(gmLyrT>0) gmLyrT--;
     if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur];
         gmAcc+=S->bpm*4*65536/3600;
@@ -159,6 +216,29 @@ static void gmFrame(void){
             gmRow++; }
         if(gmCur==GM_WAR){ if(gmCrowdS<gmCrowd) gmCrowdS+=2; else if(gmCrowdS>gmCrowd) gmCrowdS--; } else gmCrowdS=0;
         if(gmInT>0) gmInT--;
+#ifdef __3DS__
+        // Five original context-dependent melodic figures are arranged
+        // against the score's live bass notes, replacing ONLY the
+        // sparkle voice. No extra polyphony or per-sample DSP. Spare the
+        // full vocal mixes of CORPORATIONS and DUCK & COVER.
+        if(gmWorldMode&&gmWorldMotif>=0&&
+           gmCur!=GM_CORPORATIONS&&gmCur!=GM_DUCKCOVER){
+            int beat=gmRow>>2;
+            if(beat!=gmWorldLastBeat){
+                gmWorldLastBeat=beat;
+                int off=gmWorldMotifs[gmWorldMotif][beat&15];
+                if(off==99){
+                    if(gmNote[8]&&gmRel[8]<0)gmRel[8]=0;
+                }else{
+                    int root=gmNote[6];
+                    if(root<36||root>74)root=48;
+                    int n=root+off;
+                    if(n>82)n=82;
+                    gmNoteOn(8,n);
+                }
+            }else if((gmRow&3)==3&&gmRel[8]<0)gmRel[8]=0;
+        }
+#endif
         if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur]; gmVoiceFrame(9,S); for(int v=0;v<9;v++) gmVoiceFrame(v,S); } }
     // the sound effect channel
     if(fxCur>=0){ const GmFx*F=&gmFx[fxCur];
