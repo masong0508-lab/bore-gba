@@ -10,6 +10,7 @@ enum { F_ORBIT,F_SHORE,F_STORM,F_VILLAGE,F_FORD,F_GATE,F_FORGE,
 enum { B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,
        B_DOCK,B_TEMPLE,B_STATUE,B_LIBRARY,B_BORDER,B_N };
 #include "source/story_vistas.h"
+#include "source/story_route.h"
 
 static void require(int ok,const char *message){
     if(!ok){fprintf(stderr,"VISTA FAIL: %s\n",message);exit(1);}
@@ -75,8 +76,48 @@ int main(void){
     require(filmVistaPlace(F_PORCH)==-1&&filmVistaPlace(F_ARCHIVE)==-1&&
             filmVistaPlace(F_HALL)==-1,
             "distant landscape paints over a furnished interior wall");
+    // Genuine camera flight: sample one continuous sequence from the
+    // hall across the real coast to the sampled mountains. Positions
+    // are Q8 game tiles, not unrelated static shot/pan coordinates.
+    filmRouteCapture(1,1080);
+    require(filmRoute.count==3&&filmRoute.total>10&&
+            filmRoute.kind[1]==FILM_VISTA_COAST&&
+            filmRoute.kind[2]==FILM_VISTA_RIDGE,
+            "the geographical route lost its real coast or cliff");
+    FilmRouteCamera start=filmRouteCameraAt(0);
+    FilmRouteCamera mid=filmRouteCameraAt(540);
+    FilmRouteCamera finish=filmRouteCameraAt(1080);
+    require(start.x==town->x*256&&start.y==town->y*256,
+            "journey did not start at the actual player city");
+    require(finish.x==ridge->x*256&&finish.y==ridge->y*256,
+            "journey failed to reach the actual mountain landmark");
+    require(start.x!=mid.x&&mid.x!=finish.x,
+            "continuous flight never changes map coordinates");
+    int smallDiff=0,moving=0;
+    FilmRouteCamera previous=start;
+    for(int t=1;t<=1080;t++){
+        FilmRouteCamera camera=filmRouteCameraAt(t);
+        int delta=filmRouteAbs(camera.x-previous.x)+
+                  filmRouteAbs(camera.y-previous.y);
+        require(delta<300,
+                "flight teleported through the planet between movie frames");
+        if(delta>0&&delta<256)smallDiff++;
+        if(delta>0)moving++;
+        int building=0;
+        int terrain=filmRouteTerrain(&camera,2,0,160,160,
+                                      terrainTown,&building);
+        require(terrain>=T_DEEP&&terrain<T_N&&
+                building>=B_NONE&&building<B_N,
+                "flight sampled outside the actual map bounds");
+        previous=camera;
+    }
+    require(moving>700&&smallDiff>500,
+            "camera lacks genuine sub-tile progress through the world");
     // No coastline exists on the second world; do not invent one.
     filmVistaCapture(128,128,64,64,64,64,plainWorld);
+    filmRouteCapture(1,1080);
+    require(filmRoute.count==0&&filmRoute.duration==0,
+            "an invented beach triggered a cinematic flight");
     require(filmVista[FILM_VISTA_TOWN].valid&&
             !filmVista[FILM_VISTA_COAST].valid&&
             !filmVista[FILM_VISTA_RIDGE].valid,
@@ -89,6 +130,8 @@ int main(void){
     for(int j=0;j<FILM_VISTA_H;j++)for(int i=0;i<FILM_VISTA_W;i++)
         require(filmVistaRead(&filmVista[FILM_VISTA_TOWN],i,j,0)==T_GRASS,
                 "world-edge cinema incorrectly introduces open water");
+    require(sizeof filmVista+sizeof filmRoute<1700,
+            "geographic flight exceeded the 1.7 KiB added RAM budget");
     require(sizeof filmVista<1600,
             "world-based cinematics exceeded the 1.6 KiB scenery budget");
     (void)inventedSceneCells;
