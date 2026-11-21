@@ -67,6 +67,14 @@ int main(void){
     require(populated>=10,"set geometry missing in most locations");
     require(frame(F_PORCH,F_NEAR,0)!=frame(F_COUCH,F_NEAR,0),
             "the first-rain porch is still a generic couch stage");
+    FilmBeat porch={F_PORCH,F_NEAR,F_MIRA,F_WISP,F_CUP};
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&porch,40,128,1,1);
+    unsigned long rainPorch=hashFrame();
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&porch,40,128,14,1);
+    require(hashFrame()!=rainPorch,
+            "porch window never clears after the first-rain chapter");
     // The worksite has visibly exposed rafters before its completed roof.
     FilmBeat village={F_VILLAGE,F_WIDE,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
