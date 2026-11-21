@@ -120,6 +120,12 @@ int main(void){
     meshRequire(ggMeshContext.eye==nominal+13&&
                 ggMeshContext.eye>slope+13,
                 "camera climb did not follow physical terrain continuously");
+    ggExpScenicQuality=1;
+    ggExpRenderMode(pixels,0);
+    meshRequire(ggMeshContext.eye==nominal+13&&
+                ggMeshContext.scale==2&&ggMeshContext.w==200,
+                "Old 3DS quality path lost terrain-following camera height");
+    ggExpScenicQuality=2;
     world[64][64]=T_GRASS;
     ggExplore.px=sx;ggExplore.py=sy;
     // Moving an actual simulation citizen changes its world-space feet
