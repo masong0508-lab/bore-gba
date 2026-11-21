@@ -304,6 +304,11 @@ jobs:
           /usr/bin/python3 tools/make_story_fmv.py
           /usr/bin/python3 tools/make_story_hq.py
           grep -q 'FILM_CEL_N = 6' source/story_fmv_data.h
+      - name: Verify terrain-safe 3DS cinematic walk-ins and dialogue continuity
+        working-directory: godguy
+        run: |
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_walkin.c -o /tmp/gg-3ds-walkin
+          /tmp/gg-3ds-walkin
       - name: Build native 3DS homebrew executable
         working-directory: godguy
         run: |
