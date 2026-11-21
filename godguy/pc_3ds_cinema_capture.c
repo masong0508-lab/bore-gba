@@ -83,7 +83,9 @@ int main(int argc,char **argv){
     bld[65][67]=B_HALL;
     ggExplore.px=65*256+128;ggExplore.py=65*256+128;
     ggExplore.angle=0;ggExplore.frame=0;
-    int wallDepth=0;
+    int wallDepth=0,differentPixels=0;
+    // Host-only screenshot comparison; never linked into a ROM.
+    static u8 unmaskedFrame[400*240*3];
     unsigned long long noMask=0,masked=0;
     for(int occlude=0;occlude<2;occlude++){
         ggExpRenderMode(guarded.img,1);
@@ -91,9 +93,9 @@ int main(int argc,char **argv){
             fputs("CINEMA CAPTURE FAIL: rendered house has no physical mask\n",stderr);
             return 6;
         }
-        wallDepth=ggFilmStageDepth(68*256+128,66*256+128,
+        wallDepth=ggFilmStageDepth(68*256+128,66*256+65,
                     ggExplore.px,ggExplore.py,4096,0);
-        int cx=ggFilmProjectScreenX(256,wallDepth);
+        int cx=ggFilmProjectScreenX(193,wallDepth);
         int feet=ggFilmProjectFootY(wallDepth,ggExpGround(T_GRASS),
                                                ggExpGround(T_GRASS));
         GgFilmPose p=ggFilmPoseFor("The building must hide me.",
@@ -104,13 +106,25 @@ int main(int argc,char **argv){
              ggFilmGuestPalette[3][2],&p,3);
         ggExpFilmDrawDepth=0;
         unsigned long long hash=ggCaptureHash(guarded.img);
-        if(occlude)masked=hash;else noMask=hash;
+        if(occlude){
+            masked=hash;
+            for(int i=0;i<400*240;i++){
+                int k=i*3;
+                if(unmaskedFrame[k]!=guarded.img[k]||
+                   unmaskedFrame[k+1]!=guarded.img[k+1]||
+                   unmaskedFrame[k+2]!=guarded.img[k+2])
+                    differentPixels++;
+            }
+        }else{
+            noMask=hash;
+            memcpy(unmaskedFrame,guarded.img,sizeof unmaskedFrame);
+        }
         if(!ggCaptureSave(argv[1],occlude?
                                 "wall_depth_on.ppm":"wall_depth_off.ppm"))
             return 7;
     }
-    if(masked==noMask){
-        fputs("CINEMA CAPTURE FAIL: wall does not actually occlude cel pixels\n",stderr);
+    if(masked==noMask||differentPixels<40){
+        fprintf(stderr,"CINEMA CAPTURE FAIL: wall cut only %d pixels; not a useful foreground occlusion test\n",differentPixels);
         return 8;
     }
     // Capture the PLAYABLE first-person exploration renderer, including
