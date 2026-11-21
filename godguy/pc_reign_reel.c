@@ -21,14 +21,14 @@ int main(int argc,char **argv){
     ggOrigin.skin=2;ggOrigin.hair=3;ggOrigin.garment=4;
     ggReign.loaded=1;ggReign.menu=0;
     ggSaga.loaded=1;ggSaga.mode=GG_SAGA_OUTRO;
-    // Four frames per beat, spaced across its real-time run. This is a
-    // preview montage of all nine possible IN-GAME ending film branches.
+    // Twenty-four frames per beat, sampled throughout each live camera
+    // movement. Exports a fluid, source-rendered 24fps ending montage.
     for(int e=0;e<GG_SAGA_ENDINGS;e++){
         ggSaga.ending=e;
         for(int beat=0;beat<GG_SAGA_END_BEATS;beat++)
-            for(int n=0;n<4;n++){
+            for(int n=0;n<24;n++){
                 ggSaga.frame=beat*GG_SAGA_BEAT_TICKS+
-                             n*GG_SAGA_BEAT_TICKS/4;
+                             n*GG_SAGA_BEAT_TICKS/24;
                 ggSagaDraw(guarded.img);
                 if(fwrite(guarded.img,1,sizeof guarded.img,f)!=
                    sizeof guarded.img){fclose(f);return 3;}
@@ -36,6 +36,6 @@ int main(int argc,char **argv){
     }
     fclose(f);
     printf("UNWRITTEN REIGN FILM: %d ending branches, %d frames\n",
-           GG_SAGA_ENDINGS,GG_SAGA_ENDINGS*GG_SAGA_END_BEATS*4);
+           GG_SAGA_ENDINGS,GG_SAGA_ENDINGS*GG_SAGA_END_BEATS*24);
     return 0;
 }

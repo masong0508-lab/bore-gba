@@ -297,7 +297,7 @@ jobs:
           mkdir -p ../out
           /tmp/gg-3ds-reign-reel ../out/reign_endings.rgb
           ffmpeg -hide_banner -loglevel error -y -f rawvideo -pixel_format rgb24 \
-            -video_size 400x240 -framerate 6 -i ../out/reign_endings.rgb \
+            -video_size 400x240 -framerate 24 -i ../out/reign_endings.rgb \
             -vf 'scale=800:480:flags=neighbor' -an -c:v libx264 -crf 20 \
             -preset veryfast -pix_fmt yuv420p -movflags +faststart \
             ../out/godguy_unwritten_reign_endings.mp4
