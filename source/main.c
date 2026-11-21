@@ -2528,8 +2528,8 @@ static int surf8(s32 fx,s32 fy){   // the same in 8.8 px, ramps without steps (t
 static inline int wallTall(char c){ return c=='W'||c=='#'||isWinCh(c); }   // full walls and windows: nothing gets over them, however high the jump (low walls and fences can be cleared)
 static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clear: the surface, or no way at all into a full wall from another tile
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(!skInside(tx,ty)) return 0x7fff;  // even a huge ollie cannot leave the array
-    if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
-    if(curFl&&floorMap[ty][tx]==FL_AIR&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // upstairs, open air: no floor to step onto
+    if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 0x7fff;   // (already inside one, somehow: walk out)
+    if(curFl&&floorMap[ty][tx]==FL_AIR&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 0x7fff;   // upstairs, open air: no floor to step onto
     return surfH(fx,fy);
 }
 // THE WALL BETWEEN. wallClear: 1 = nothing solid on the straight line from (ax,ay) to (bx,by) (1/256 tiles). A wall is what drawWall draws: an arm
@@ -3446,7 +3446,7 @@ static void clPlace(void){
 }
 static void clTick(void){
     tgPump(); if(CL_ON&&lscore>=2000) tgDone(8);   // goals (goals.h): SCORE 2000 in a run, and a goal note waiting for the note line
-    if(trnOn&&trnMode==1) return;   // PARK JAM: score judged from skating, not the letters or hidden tape; collect them after the event
+    if((trnOn||trnDone)&&trnMode==1) return;   // PARK JAM: collect after the results, not on the last tick
     if(!CL_ON||ldead||lz>(30<<8)) return;
     for(int i=0;i<CL_N;i++){
         if(clGot>>i&1) continue;
