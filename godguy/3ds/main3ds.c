@@ -32,8 +32,21 @@ static void ggExpRemember(int i){
     ggHybridSelectedIndex=i;
 }
 static int ggExpSelected(void){
-    // Explicit tap selection takes precedence over the regular INSPECT
-    // card. Check the fast slot first; search only after a compaction.
+    // INSPECT and POSSESS are active choices. If the player taps a new
+    // sentient mind on the 2D map, that newer subject must replace the
+    // previously bound hybrid camera instead of silently keeping the old
+    // person. Explicit possession takes priority over an older card.
+    if(ggHybridSelectedId){
+        if(ggHybridEligible(possessed)&&
+           crId[possessed]!=ggHybridSelectedId){
+            ggExpRemember(possessed);return possessed;
+        }
+        if(inspKind==1&&ggHybridEligible(inspIdx)&&
+           crId[inspIdx]!=ggHybridSelectedId){
+            ggExpRemember(inspIdx);return inspIdx;
+        }
+    }
+    // Check the fast slot first; search only after compaction.
     if(ggHybridSelectedId){
         int i=ggHybridSelectedIndex;
         if(i>=0&&i<nCr&&crId[i]==ggHybridSelectedId)
@@ -86,7 +99,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         if(ggExplore.active)ggExpFinish();
         if(ggExpCanEnter()){
             ggHybridPicking=1;
-            ggExpMessage("HYBRID PICK: TAP A SENTIENT CREATURE");
+            ggExpMessage("HYBRID PICK: TAP A SAPIENT; B CANCEL");
         }
         *held=0;*tx=*ty=0;return;
     }
@@ -115,7 +128,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     if(ggHybridPicking&&!ggExplore.active){
         if(pressedTouch&&ggExpCanEnter()){
             int x=(camX+*tx)>>3,y=(camY+*ty)>>3;
-            int i=ggHybridPick(x,y);
+            int i=(*ty>=0&&*ty<TB_Y)?ggHybridPick(x,y):-1;
             if(i>=0){
                 ggExpRemember(i);
                 ggHybridPicking=0;
@@ -138,7 +151,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
         if(ggExplore.actorId&&pressedTouch){
             int x=(camX+*tx)>>3,y=(camY+*ty)>>3;
-            int i=ggHybridPick(x,y);
+            int i=(*ty>=0&&*ty<TB_Y)?ggHybridPick(x,y):-1;
             if(i>=0){
                 int oldPause=ggExplore.wasPaused;
                 ggExpRemember(i);
