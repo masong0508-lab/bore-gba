@@ -15,6 +15,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "reign3d.h"
 #include "origin3d.h"
 #include "reign_scenery.h"
+#include "reign_quests.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
@@ -118,6 +119,14 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 ggExpRenderValid=0; // redraw real terrain after the reel
             *held=0;*tx=*ty=0;return;
         }
+        // Talk and travel orders are contextual: a safe town's A
+        // interaction precedes melee, but enemies always take priority.
+        if(ggQuestStep(raw)){
+            ggChron.lastKeys=raw;
+            ggReign.lastKeys=raw;
+            ggExpRenderValid=0;
+            *held=0;*tx=*ty=0;return;
+        }
         if(ggReignStep(raw)){
             *held=0;*tx=*ty=0;return;
         }
@@ -141,6 +150,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             if(entered>0){
                 paused=1;ggExpRenderValid=0;
                 ggReignBegin();ggReign.lastKeys=raw;
+                ggQuestBegin();ggQuest.lastKeys=raw;
                 ggOriginBegin();ggOrigin.lastKeys=raw;
                 ggExpMessage(ggOrigin.active?
                     "UNWRITTEN REIGN: AN ORDINARY LIFE BEGINS":
@@ -284,6 +294,7 @@ void shimPresent(void){
                     ggReignSceneDraw(topBuf);
                     ggChronDraw(topBuf);
                     ggReignDraw(topBuf);
+                    ggQuestDraw(topBuf);
                 }
             }
             ggExpRenderValid=1;

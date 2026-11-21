@@ -9,7 +9,7 @@
 #define GG_REIGN_SAVE_PATH "sdmc:/godguy_unwritten_reign.dat"
 #endif
 
-enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=4, GG_REIGN_ORDERS=3,
+enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=5, GG_REIGN_ORDERS=3,
        GG_REIGN_SQUAD_MAX=6, GG_REIGN_OFFICES=5 };
 enum { GG_ROLE_WAYFINDER,GG_ROLE_SHADE,GG_ROLE_TRADER,
        GG_ROLE_SOLDIER,GG_ROLE_ENVOY,GG_ROLE_MYSTIC,
@@ -40,7 +40,8 @@ static const char *const ggReignOrders[GG_REIGN_ORDERS]={
     "FOLLOW","HOLD","ASSAULT"
 };
 static const char *const ggReignPages[GG_REIGN_PAGES]={
-    "LOCAL WORK","WAR COUNCIL","CIVIC HALL","DIVINE SPARK"
+    "LOCAL WORK","WAR COUNCIL","CIVIC HALL","DIVINE SPARK",
+    "QUEST JOURNAL"
 };
 static const char *const ggReignCivicActions[3]={
     "CLASS DEED","GAIN ENDORSEMENT","SEEK OFFICE"
@@ -395,7 +396,7 @@ static int ggReignStep(int raw){
             ggReign.choice=(ggReign.choice+1)%GG_REIGN_ROLES;
         else if(ggReign.page==1)
             ggReign.selectedOrder=(ggReign.selectedOrder+1)%GG_REIGN_ORDERS;
-        else ggReign.action=(ggReign.action+1)%3;
+        else if(ggReign.page<4)ggReign.action=(ggReign.action+1)%3;
     }
     if(down&KEY_Y&&ggReign.page==1)ggReignRecruit();
     if(down&KEY_A){
@@ -410,7 +411,8 @@ static int ggReignStep(int raw){
             else if(ggReign.action==1)ggReignPetition();
             else ggReignElection();
             break;
-        default:ggReignDivine(ggReign.action);break;
+        case 3:ggReignDivine(ggReign.action);break;
+        default:break; // journal is read-only, never casts divine spells
         }
     }
     return 1; // 3D world is paused while the command board is open
@@ -456,6 +458,9 @@ static void ggReignSquadTick(void){
         if(!blocked){g->x=(short)nx;g->y=(short)ny;}
     }
 }
+// The journal is supplied by the lightweight quest module included after
+// this header. It shares the existing modal, without adding a screen buffer.
+static void ggQuestJournalDraw(u8 *out);
 static void ggReignDraw(u8 *out){
     if(!ggChron.active)return;
     // Officers and companions use tiny native-game silhouettes with
@@ -512,13 +517,13 @@ static void ggReignDraw(u8 *out){
                      ggReign.endorsements,ggReign.influence,ggReign.legitimacy);
             ggExpText(out,25,98,line,190,214,218);
             ggExpText(out,25,116,"X CHANGE  A EXECUTE AT A REAL SETTLEMENT",190,214,218);
-        }else{
+        }else if(ggReign.page==3){
             snprintf(line,sizeof line,"GODBORN POWER: %s    ENERGY %d/100",
                      ggReignPowers[ggReign.action],ggReign.divine);
             ggExpText(out,25,79,line,225,233,216);
             ggExpText(out,25,98,"BOLT 20  /  MEND 30  /  BATTLE AWE 40",190,214,218);
             ggExpText(out,25,116,"X CHANGE  A CAST  GODHOOD IS INNATE",190,214,218);
-        }
+        }else ggQuestJournalDraw(out);
         ggExpText(out,25,146,"LEFT/RIGHT PAGES   B/SELECT CLOSE  START RETREAT",
                   230,195,130);
     }else{

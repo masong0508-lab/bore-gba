@@ -402,7 +402,7 @@ static void ggChronDraw(u8 *out){
                  p+1,ggChronPostName[p],dir,distance,ggChronEnemiesAt(p));
         ggExpText(out,9,203,line,247,216,155);
     }
-    ggExpText(out,9,221,"A STRIKE  X SECURE  Y RATION  B SPRINT  SELECT COUNCIL  START 2D",
+    ggExpText(out,9,221,"A ACTION  X SECURE  Y RATION  B RUN  SELECT COUNCIL  START 2D",
               201,214,224);
     if(ggChron.briefTime>0){
         ggExpRect(out,22,69,356,65,17,31,44);

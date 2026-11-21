@@ -93,6 +93,8 @@ static int politicalDirty;
 #define GG_ORIGIN_SAVE_PATH "/tmp/godguy_origin_pc_test.dat"
 #include "3ds/origin3d.h"
 #include "3ds/reign_scenery.h"
+#define GG_QUEST_SAVE_PATH "/tmp/godguy_quests_pc_test.dat"
+#include "3ds/reign_quests.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -489,6 +491,56 @@ int main(void){
     ggReignDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "new 3DS civic HUD overflowed its sole allocated frame buffer");
+    // The Skyrim-style foundation must be actual conversations and real
+    // world-linked quests, not cosmetic text or a fabricated second map.
+    remove(GG_QUEST_SAVE_PATH);
+    memset(&ggQuest,0,sizeof ggQuest);
+    vil[0]=(Vil){1,60,60,125};
+    vil[1]=(Vil){1,70,60,125};
+    ggChron.active=1;ggChron.won=0;ggChron.lost=0;
+    ggChron.foeN=0;ggReign.menu=0;ggReign.noticeT=0;
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    ggQuestBegin();
+    check(ggQuest.stage==GG_QUEST_IDLE&&!ggQuest.talk,
+          "travel journal started with a fake completed quest");
+    check(ggQuestStep(KEY_A)&&ggQuest.talk&&ggQuest.talkVillage==0,
+          "A did not speak to the real starting settlement");
+    ggQuestStep(0);ggQuestStep(KEY_A);
+    check(ggQuest.stage==GG_QUEST_FETCH&&ggQuest.home==0&&
+          ggQuest.target==1,
+          "town dialogue failed to assign a reachable real trade route");
+    ggQuestStep(0);ggQuestStep(KEY_B);
+    ggExplore.px=70*256+128;ggExplore.py=60*256+128;
+    int sourceStock=vil[1].stock;
+    ggQuestStep(0);ggQuestStep(KEY_A);ggQuestStep(0);ggQuestStep(KEY_A);
+    check(ggQuest.stage==GG_QUEST_RETURN&&vil[1].stock==sourceStock-12,
+          "collecting supplies did not change the source village stock");
+    ggQuestStep(0);ggQuestStep(KEY_B);
+    ggQuestSave();
+    memset(&ggQuest,0,sizeof ggQuest);
+    ggQuestBegin();
+    check(ggQuest.stage==GG_QUEST_RETURN&&ggQuest.target==1,
+          "quest cargo and destination were not persisted across sessions");
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    int homeStock=vil[0].stock,oldRenown=ggReign.renown;
+    ggQuestStep(0);ggQuestStep(KEY_A);ggQuestStep(0);ggQuestStep(KEY_A);
+    check(ggQuest.stage==GG_QUEST_IDLE&&ggQuest.completed==1&&
+          vil[0].stock==homeStock+12&&ggReign.renown>oldRenown,
+          "delivery did not return cargo and reward the generated town");
+    ggQuestStep(0);ggQuestStep(KEY_B);
+    ggChron.foeN=1;
+    ggChron.foe[0]=(GgChronFoe){61,60,30,0,0};
+    ggQuestStep(0);
+    check(!ggQuestStep(KEY_A)&&!ggQuest.talk,
+          "civilian dialogue stole the attack button in combat");
+    ggChron.foeN=0;
+    ggReign.menu=1;ggReign.page=4;
+    ggReignDraw(guarded.img);
+    ggReign.menu=0;
+    ggQuestDraw(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "quest journal or town conversation overran 3DS RGB memory");
+    remove(GG_QUEST_SAVE_PATH);
     // Repeat on moving viewpoints, not just one flat frame. Host timings
     // are diagnostics; they are not a claim of Old/New 3DS hardware FPS.
     clock_t benchStart=clock();
