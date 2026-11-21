@@ -15,7 +15,7 @@ POSES = (
     ("idle", 0), ("walk", 2), ("walk", 6), ("reach", 0),
     ("talk", 0), ("talk", 4), ("listen", 0), ("react", 0),
     ("lift", 0), ("brace", 0), ("bow", 0), ("work", 0),
-    ("sit", 0), ("sit_talk", 4),
+    ("sit", 0), ("sit_talk", 0),
 )
 MAX_COMPRESSED_BYTES = 80 * 1024
 
