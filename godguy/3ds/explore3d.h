@@ -13,6 +13,7 @@
 #include "film_facade3d.h"
 #include "film_floor3d.h"
 #include "film_occlusion3d.h"
+#include "film_scenery3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -248,6 +249,209 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 }
 // The story uses full native 400x240 ray columns; real-time exploration
 // retains the original 200x120 fast renderer. Both access the SAME world.
+// Actor-safe film scenery renderer: physical world locations, stable
+// deterministic set dressing, existing RGB drawing and foreground depth.
+// The fixed near-region scan is at most 441 cells, with at most 84 props.
+// No extra per-pixel world search, meshes, textures, heap or framebuffer.
+static int ggExpSceneryEnabled=1;
+static int ggExpScenicVisible;
+static void ggExpScenicShadow(u8*out,int x,int foot,int half,int depth){
+    if(foot<1||foot>=240)return;
+    int y=foot-1;
+    int start=ggExpClamp(x-half,0,400);
+    int end=ggExpClamp(x+half,0,400);
+    for(int px=start;px<end;px++){
+        if(ggFilmOcclusionHidden(ggExpFilmOcclusion,px,y,depth))continue;
+        u8*p=out+(y*400+px)*3;
+        p[0]=(u8)(p[0]*210/256);
+        p[1]=(u8)(p[1]*210/256);
+        p[2]=(u8)(p[2]*210/256);
+    }
+}
+static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
+                            int depth,uint32_t key){
+    if(h<3)return;
+    int w=ggExpClamp((h*(kind==GG_SCENE_OAK||kind==GG_SCENE_STALL?
+                         7:kind==GG_SCENE_PINE?5:4))/11,3,52);
+    int trunk=ggExpClamp(h/9,1,5);
+    int y=foot-h;
+    int warmth=(int)((key>>9)&7u);
+    ggExpFilmDrawDepth=depth;
+    ggExpScenicShadow(out,x,foot,w/2,depth);
+    if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE){
+        int pine=kind==GG_SCENE_PINE;
+        int foliageR=pine?39:43,foliageG=pine?79:90,
+            foliageB=pine?64:68;
+        ggExpRect(out,x-trunk/2,foot-h/2,trunk,h/2,65,56,48);
+        ggExpRect(out,x,foot-h/2,1,h/3,122,90,65);
+        if(pine){
+            for(int band=0;band<4;band++){
+                int ww=w*(4-band)/4;
+                int yy=y+band*h/6;
+                ggExpRect(out,x-ww/2,yy,ww,h/5+1,
+                          foliageR+band*3,foliageG+band*4,
+                          foliageB+band*2);
+                ggExpRect(out,x-ww/3,yy,ww/3,h/8+1,
+                          71+band*2,110+band*3,91);
+            }
+        }else{
+            ggExpRect(out,x-w/2,y+h/7,w,h/3,
+                      foliageR,foliageG,foliageB);
+            ggExpRect(out,x-w*2/5,y,w*4/5,h/2,
+                      54,109,76);
+            ggExpRect(out,x-w/3,y+h/12,w/2,h/6,
+                      85,135,91);
+            ggExpRect(out,x-w/2,y+h/3,w/5,h/6,
+                      40,75,62);
+        }
+    }else if(kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
+             kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){
+        int stalks=kind==GG_SCENE_CROPS?5:kind==GG_SCENE_GRASS?3:4;
+        for(int i=0;i<stalks;i++){
+            int xx=x+(i*2-stalks+1)*w/(stalks+1);
+            int ht=h*(3+(int)((key>>(i*3))&3u))/6;
+            ggExpRect(out,xx,foot-ht,ggExpClamp(w/13,1,3),
+                      ht,44,91,57);
+            if(kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){
+                ggExpRect(out,xx+1,foot-ht,h/15+1,h/6+1,
+                          kind==GG_SCENE_REEDS?118:154,
+                          kind==GG_SCENE_REEDS?132:157,78);
+            }else{
+                ggExpRect(out,xx-1,foot-ht/2,ggExpClamp(w/4,1,6),
+                          h/5+1,68,112,69);
+            }
+        }
+        if(kind==GG_SCENE_SHRUB)
+            ggExpRect(out,x-w/2,foot-h/2,w,h/3,43,90,61);
+    }else if(kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN){
+        int stone=kind==GG_SCENE_COLUMN;
+        int bw=stone?w/2:w;
+        ggExpRect(out,x-bw/2,foot-h,bw,h,
+                  96,102,104);
+        ggExpRect(out,x-bw/2,foot-h,bw/3+1,h,
+                  148,145,130);
+        ggExpRect(out,x-bw/2,foot-h/2,bw,h/9+1,
+                  74,80,88);
+        if(stone){
+            ggExpRect(out,x-w/2,foot-h,w,h/8+1,
+                      153,150,136);
+            ggExpRect(out,x-w/2,foot-h/8,w,h/8+1,
+                      91,92,94);
+            ggExpRect(out,x+w/4,foot-h,w/5,h/5,72,78,83);
+        }else{
+            ggExpRect(out,x-w/3,foot-h,w*2/3,h/5,
+                      129,132,132);
+            ggExpRect(out,x+w/5,foot-h/3,w/6,h/5,65,73,79);
+        }
+    }else if(kind==GG_SCENE_LAMP||kind==GG_SCENE_BRAZIER){
+        int brazier=kind==GG_SCENE_BRAZIER;
+        ggExpRect(out,x-trunk/2,y+(brazier?h/2:0),
+                  trunk,h-(brazier?h/2:0),71,68,61);
+        ggExpRect(out,x-w/4,y,w/2,ggExpClamp(h/5,2,7),
+                  78,72,66);
+        ggExpRect(out,x-w/6,y+h/20,w/3,ggExpClamp(h/7,2,6),
+                  225+warmth,167+warmth,80);
+        ggExpRect(out,x-1,y+h/20,2,ggExpClamp(h/10,1,5),
+                  255,227,145);
+        ggExpRect(out,x-w/3,foot-2,w*2/3,2,87,76,66);
+    }else if(kind==GG_SCENE_BANNER){
+        ggExpRect(out,x,foot-h,2,h,122,117,106);
+        ggExpRect(out,x+2,y+h/12,w,h/2,
+                  121+warmth,64,78);
+        ggExpRect(out,x+w/3,y+h/5,w/3,h/7,
+                  213,174,94);
+        ggExpRect(out,x+2,foot-2,w/2,2,67,69,68);
+    }else if(kind==GG_SCENE_FENCE){
+        int railY=foot-h*2/3;
+        ggExpRect(out,x-w/2,foot-h,2,h,123,87,59);
+        ggExpRect(out,x+w/2-2,foot-h,2,h,100,75,56);
+        ggExpRect(out,x-w/2,railY,w,2,157,116,77);
+        ggExpRect(out,x-w/2,railY+h/4,w,2,105,80,61);
+    }else if(kind==GG_SCENE_CRATES||kind==GG_SCENE_CART){
+        int cart=kind==GG_SCENE_CART;
+        ggExpRect(out,x-w/2,foot-h*2/3,w,h/2,
+                  120,81,54);
+        ggExpRect(out,x-w/2,foot-h*2/3,w,h/9+1,
+                  177,132,88);
+        ggExpRect(out,x-w/4,foot-h*2/3,w/5,h/2,
+                  87,64,47);
+        if(cart){
+            ggExpRect(out,x-w/3,foot-h/5,w/6,h/5,
+                      42,45,50);
+            ggExpRect(out,x+w/5,foot-h/5,w/6,h/5,
+                      42,45,50);
+            ggExpRect(out,x-w/4,foot-h,w/2,h/3,
+                      138,102,68);
+        }else{
+            ggExpRect(out,x+w/6,foot-h,w/3,h/3,
+                      159,111,72);
+        }
+    }else if(kind==GG_SCENE_STALL){
+        ggExpRect(out,x-w/2,foot-h/2,2,h/2,103,76,56);
+        ggExpRect(out,x+w/2-2,foot-h/2,2,h/2,103,76,56);
+        ggExpRect(out,x-w/2,y+h/8,w,h/6+2,137,77,67);
+        ggExpRect(out,x-w/3,y+h/8,w/3,h/6+2,211,160,108);
+        ggExpRect(out,x+w/6,y+h/8,w/4,h/6+2,211,160,108);
+        ggExpRect(out,x-w/3,foot-h/3,w*2/3,h/6,
+                  135,95,62);
+    }
+    ggExpFilmDrawDepth=0;
+}
+// Base layer is rendered after the world (before cast); the optional
+// foreground-only repeat is drawn after the cast to occlude the closest
+// bodies with genuine near-field scenery. The same projected geometry
+// is used in both passes and no scenery object is ever cached.
+static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
+    if(!ggExpSceneryEnabled)return;
+    int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
+    int angle=ggExplore.angle&255;
+    int cosine=ggExpCos[angle],sine=ggExpSin[angle];
+    int cameraGround=ggExpGround(world[cy][cx]);
+    if(!foreground)ggExpScenicVisible=0;
+    int accepted=0;
+    for(int ty=cy-GG_SCENE_RADIUS;ty<=cy+GG_SCENE_RADIUS;ty++){
+        if((unsigned)ty>=WH)continue;
+        for(int tx=cx-GG_SCENE_RADIUS;tx<=cx+GG_SCENE_RADIUS;tx++){
+            if((unsigned)tx>=WW)continue;
+            if(bld[ty][tx]||occ[ty][tx])continue;
+            uint32_t key=ggFilmScenicHash(tx,ty,7);
+            int near=0;
+            // A short deterministic adjacency priority, no global city
+            // lookup and no changes to settlement/simulation state.
+            if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
+            else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
+            else if(ty>0&&bld[ty-1][tx])near=bld[ty-1][tx];
+            else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
+            int kind=ggFilmScenicKind(world[ty][tx],near,key);
+            if(!kind)continue;
+            int wx=tx*256+128+(int)((key>>12)&95u)-48;
+            int wy=ty*256+128+(int)((key>>20)&95u)-48;
+            int dx=wx-ggExplore.px,dy=wy-ggExplore.py;
+            int forward=(dx*cosine+dy*sine)/4096;
+            if(forward<=128||forward>GG_SCENE_RADIUS*256)continue;
+            int side=(-dx*sine+dy*cosine)/4096;
+            if(side<-forward*6/5||side>forward*6/5)continue;
+            // Scene scheduling order is identical between both passes.
+            // Never let the second pass cost grow with the world map.
+            if(++accepted>GG_SCENE_LIMIT)goto finished;
+            if(foreground&&
+                (nearestActorDepth<=0||forward+96>=nearestActorDepth))
+                continue;
+            int x=ggFilmProjectScreenX(side,forward);
+            if(x<-60||x>=460)continue;
+            int feet=ggFilmProjectFootY(forward,cameraGround,
+                                        ggExpGround(world[ty][tx]));
+            if(feet<70||feet>=189)continue;
+            int height=ggFilmScenicHeight(kind)*12*256/(forward+256);
+            if(height<3)continue;
+            if(height>82)height=82;
+            ggExpScenicProp(out,kind,x,feet,height,forward,key);
+            if(!foreground)ggExpScenicVisible++;
+        }
+    }
+finished:
+    ggExpFilmDrawDepth=0;
+}
 static void ggExpRenderMode(u8 *top,int cinematic){
     ggExpFilmDrawDepth=0;
     if(cinematic)ggFilmOcclusionClear(ggExpFilmOcclusion);
@@ -336,7 +540,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     b=(b*3+g)/4;
                 }
                 int grain=ggFilmFloorGrain(wx,wy,ggExplore.frame);
-                r+=grain;g+=grain;b+=grain;
+                int detail=ggFilmScenicFloorDetail(type,wx,wy);
+                r+=grain+detail;g+=grain+detail/2;b+=grain+detail/3;
                 int mist=rowMist[y];
                 r=(r*(256-mist)+76*mist)/256;
                 g=(g*(256-mist)+95*mist)/256;
@@ -574,6 +779,7 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(!highest)break;
         }
     }
+    if(cinematic)ggExpScenicDraw(top,0,0);
     // Draw nearby live inhabitants as indexed 2D cels projected onto
     // the same raycast world. A bounded on-map search avoids scanning the
     // whole creature list or allocating skeletal 3D models.

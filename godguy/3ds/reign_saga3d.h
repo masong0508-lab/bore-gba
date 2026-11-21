@@ -1182,6 +1182,14 @@ static void ggSagaDraw(u8 *out){
         }
     }
     ggExpFilmDrawDepth=0;
+    // World-anchored foreground foliage, poles and market clutter can
+    // properly cover an actor only when PHYSICALLY nearer than the cast.
+    int closestDepth=0;
+    for(int i=0;i<actorCount;i++)
+        if(actors[i].depth>0&&
+           (!closestDepth||actors[i].depth<closestDepth))
+            closestDepth=actors[i].depth;
+    if(closestDepth)ggExpScenicDraw(out,1,closestDepth);
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
     // Restrained letterbox treatment, not the old oversized computer
