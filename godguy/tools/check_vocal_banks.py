@@ -29,6 +29,7 @@ assert n==len(off)==len(lengths)==len(rates)
 assert count==56 and duck>=10
 assert all(lengths[p+i]>0 for i in range(count))
 assert all(lengths[d+i]>0 for i in range(duck))
+assert max(lengths)<=0x9800, "DS audio decode scratch buffer overflow"
 assert off==sorted(off)
 for i,(o,size) in enumerate(zip(off,lengths)):
     nxt=off[i+1] if i+1<n else len(low)+len(hi)

@@ -21,6 +21,9 @@ jobs:
       DEVKITARM: /opt/devkitpro/devkitARM
     steps:
       - uses: actions/checkout@v4
+      - name: Validate hardware ROM shell scripts
+        working-directory: godguy
+        run: bash -n build_hw.sh build_dsi.sh build_rom.sh
       - name: Tools (python3, make, ndstool, libnds + calico)
         run: |
           command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
@@ -84,6 +87,7 @@ jobs:
         run: |
           chmod +x build_hw.sh build_rom.sh build_dsi.sh
           ./build_hw.sh
+          /usr/bin/python3 tools/check_nds_vocal_image.py godguy_hw.nds
           mkdir -p ../out && cp godguy_hw.nds ../out/godguy_hw.nds
 
       # 2. the libnds 2 / calico build: SD saving, three save slots, globe. For melonDS and flashcarts.
@@ -100,6 +104,7 @@ jobs:
         working-directory: godguy
         run: |
           ./build_dsi.sh
+          /usr/bin/python3 tools/check_nds_vocal_image.py godguy_dsi.nds
           cp godguy_dsi.nds godguy_dsi_mode.nds ../out/
 
       # 4. Keep the confirmed diagnostic recovery build available even

@@ -5,7 +5,8 @@ set -e; cd "$(dirname "$0")";
 # rebuild on a fresh clone or when the production script is newer.
 if [ ! -s source/gmvox_hi.bin ] || [ tools/gm_vox.py -nt source/gmvox_hi.bin ]; then
     /usr/bin/python3 tools/gm_vox.py
-fi : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$DEVKITPRO/devkitARM; B=$DEVKITARM/bin/arm-none-eabi-; mkdir -p build_hw; cd build_hw
+fi
+: ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$DEVKITPRO/devkitARM; B=$DEVKITARM/bin/arm-none-eabi-; mkdir -p build_hw; cd build_hw
 # The DS ARM9 reserves RAM for cartridge-save staging and a full 32 KiB
 # stack. Optimize for code size to keep the complete 12,000-creature world
 # below the hard linker limit, without lowering the creature cap or dropping

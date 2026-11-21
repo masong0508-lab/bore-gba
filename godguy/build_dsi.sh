@@ -5,7 +5,8 @@ set -e; cd "$(dirname "$0")";
 # rebuild on a fresh clone or when the production script is newer.
 if [ ! -s source/gmvox_hi.bin ] || [ tools/gm_vox.py -nt source/gmvox_hi.bin ]; then
     /usr/bin/python3 tools/gm_vox.py
-fi : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$DEVKITPRO/devkitARM; B=$DEVKITARM/bin/arm-none-eabi-; mkdir -p build_dsi; cd build_dsi
+fi
+: ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$DEVKITPRO/devkitARM; B=$DEVKITARM/bin/arm-none-eabi-; mkdir -p build_dsi; cd build_dsi
 # DS-compatible DSi ROMs have the same tight 4 MiB ARM9 bound as the
 # normal DS. Match the verified size-oriented code generation there while
 # preserving the 38,000-creature cap of the separate DSi 16 MiB build.

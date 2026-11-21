@@ -6,7 +6,8 @@ set -e; cd "$(dirname "$0")";
 # self-contained compact fallback header. Always build from a clean clone.
 if [ ! -s source/gmvox_compact.h ] || [ tools/gm_vox.py -nt source/gmvox_compact.h ]; then
     /usr/bin/python3 tools/gm_vox.py
-fi : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITPRO DEVKITARM=$DEVKITPRO/devkitARM
+fi
+: ${DEVKITPRO:=/opt/devkitpro}; export DEVKITPRO DEVKITARM=$DEVKITPRO/devkitARM
 sed "s#ORIGIN = 0x2000000, LENGTH = 0x380000#ORIGIN = 0x2000800, LENGTH = 0x37f800#" $DEVKITPRO/calico/lib/ds9-legacy.ld > ds9-800.ld
 printf '%%include <sync-none.specs>\n\n*link:\n+ -dT %s/ds9-800.ld --gc-sections --nmagic --no-warn-rwx-segments --use-blx\n\n*startfile:\ncrti%%O%%s crtbegin%%O%%s --require-defined=main\n' "$PWD" > ds9-800.specs
 # Do not filter or ignore make output: preserve the real linker diagnostic and exit status.
