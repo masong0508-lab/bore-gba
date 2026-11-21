@@ -9,7 +9,7 @@
 typedef uint8_t u8; typedef uint16_t u16;
 #define SR 32768
 static struct { int on, wave; double rate, pos; int vol, pan; } tv[10];
-static struct { int on, part, idx; double pos; int vol, pan; } hit[4];
+static struct { int on, part, idx; double pos; int vol, pan; const void*drum; } hit[4];
 static struct { int on; double midi8; int vol, duty; double ph; } ps; static struct { int on; double freq; int vol; double ph; unsigned lfsr; float cur; } pn;
 static void gb_vstart(int v,int wave){ tv[v].on=1; tv[v].wave=wave; tv[v].vol=0; tv[v].pan=64; tv[v].rate=440*64; tv[v].pos=0; }
 static void gb_vstop(int v){ tv[v].on=0; }
@@ -34,7 +34,18 @@ int main(int argc,char**argv){
         double want=SR/60.0+carry; int n=(int)want; carry=want-n;
         for(int i=0;i<n;i++){ float L=0,R=0;
             for(int v=0;v<10;v++) if(tv[v].on&&tv[v].vol>0){ tv[v].pos+=tv[v].rate/SR; float s=gmWaveT[tv[v].wave][((int)tv[v].pos)&63]/127.f*tv[v].vol/127.f; L+=s*(128-tv[v].pan)/128.f; R+=s*tv[v].pan/128.f; }
-            for(int h=0;h<4;h++) if(hit[h].on){ const GmDrum*D=hit[h].part==2?(hit[h].on==1?(hit[h].on=2,gmVoxLoad(hit[h].idx,h)):&gmVoxDr[h&1]):hit[h].part?&gmKitB[hit[h].idx]:&gmKitA[hit[h].idx]; hit[h].pos+=(double)D->rate/SR; int p=(int)hit[h].pos; if(p>=D->n){ hit[h].on=0; continue; }
+            for(int h=0;h<4;h++) if(hit[h].on){ const GmDrum*D;
+                if(hit[h].part==2){
+                    // The 3DS has a permanently decoded bank for every
+                    // vocal phrase. Reusing the DS scratch-buffer index
+                    // accidentally switched subsequent samples to an
+                    // unrelated, honking voice. Retain the actual pointer.
+                    if(hit[h].on==1){
+                        hit[h].drum=gmVoxLoad(hit[h].idx,h);
+                        hit[h].on=2;
+                    }
+                    D=(const GmDrum*)hit[h].drum;
+                }else D=hit[h].part?&gmKitB[hit[h].idx]:&gmKitA[hit[h].idx]; hit[h].pos+=(double)D->rate/SR; int p=(int)hit[h].pos; if(p>=D->n){ hit[h].on=0; continue; }
                 float s=D->d[p]/127.f*hit[h].vol/127.f; L+=s*(128-hit[h].pan)/128.f; R+=s*hit[h].pan/128.f; }
             if(ps.on&&ps.vol>0){ double hz=440.0*pow(2.0,(ps.midi8/8.0-69.0)/12.0); ps.ph+=hz/SR; ps.ph-=floor(ps.ph); float s=(ps.ph<dutyF[ps.duty&3]?1.f:-1.f)*ps.vol/127.f; L+=s*0.5f; R+=s*0.5f; }
             if(pn.on){ pn.ph+=pn.freq/SR; while(pn.ph>=1){ pn.ph-=1; unsigned x=((pn.lfsr^(pn.lfsr>>1))&1); pn.lfsr=(pn.lfsr>>1)|(x<<14); pn.cur=(pn.lfsr&1)?1.f:-1.f; } float s=pn.cur*pn.vol/127.f; L+=s*0.5f; R+=s*0.5f; }

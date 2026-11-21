@@ -325,6 +325,15 @@ jobs:
         run: |
           gcc -O2 -std=c11 -w -Icompat -Isource pc_world_music3d.c -lm -o /tmp/gg-world-score
           /tmp/gg-world-score
+      - name: Render 3DS remastered vocal-mix listening previews
+        working-directory: godguy
+        run: |
+          gcc -O2 -DGG_HQVOX -Icompat -Isource pc_music.c -lm -o /tmp/godguy-vocal-preview
+          mkdir -p ../out
+          /tmp/godguy-vocal-preview 82 ../out/Corporations_3DS_vocal_preview.wav 22
+          /tmp/godguy-vocal-preview 83 ../out/Duck_and_Cover_3DS_vocal_preview.wav 22
+          test -s ../out/Corporations_3DS_vocal_preview.wav
+          test -s ../out/Duck_and_Cover_3DS_vocal_preview.wav
       - name: Host-test saved-world coastline and settlement capture
         working-directory: godguy
         run: |
@@ -344,4 +353,6 @@ jobs:
           path: |
             godguy/godguy.3dsx
             out/godguy_unwritten_reign_endings.mp4
+            out/Corporations_3DS_vocal_preview.wav
+            out/Duck_and_Cover_3DS_vocal_preview.wav
           if-no-files-found: error
