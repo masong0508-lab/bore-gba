@@ -3,11 +3,13 @@
 // searches in the character renderer. Only two actors per film frame.
 #ifndef GG_FILM_ACTING3D_H
 #define GG_FILM_ACTING3D_H
+#include "film_life3d.h"
 enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
     signed char pose,head,lean,armL,armR,legL,legR,bob;
     signed char gaze,blink,mouth,holdProp,reach,clothSway;
+    signed char breath,weightShift,brow;
 } GgFilmPose;
 // One 6x3x3 palette, shared by all guest film cels. These identities
 // are stable across chapters, alternate endings and nonlinear films.
@@ -113,8 +115,15 @@ static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
     // syllables and arm gestures at staggered beats for the two actors.
     p.blink=(signed char)(((t+beat*17+(hero?13:39))%79)<3);
     if(!walking){
-        int phase=(t+beat*13+(hero?5:22))%60;
+        int frame=beat*GG_SAGA_BEAT_TICKS+t;
+        int idPhase=hero?7:31;
+        int phase=(frame+idPhase)%60;
         p.clothSway=(signed char)(phase<17?-1:phase<37?0:1);
+        p.breath=(signed char)ggFilmLifePulse(frame,idPhase);
+        p.weightShift=(signed char)ggFilmLifeWeight(frame,idPhase);
+        p.brow=(signed char)ggFilmLifeBrow(speaking,p.pose,t);
+        if(!speaking)p.head=(signed char)(p.head+
+                                   ggFilmLifeListenCue(t,beat));
         p.bob=0;
     }
     return p;
@@ -253,8 +262,12 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                              const u8*hair,const u8*skin,const u8*coat,
                              const GgFilmPose *p,int identity){
     int s=ggExpClamp(scale,1,3);
-    int headX=x+p->head*s,bodyX=x+p->lean*s;
-    int centerY=feet-p->bob*s;
+    // Camera-relative position never drives body animation. Only the
+    // torso/head breathe or shift by a pixel; boots remain on the
+    // projected terrain's original physical foot coordinate.
+    int centerY=feet-p->bob*s-p->breath;
+    int bodyX=x+p->lean*s+p->weightShift;
+    int headX=bodyX+p->head*s;
     int inkR=30,inkG=34,inkB=41;
     int jacketR=ggFilmArtShade(coat[0],205),
         jacketG=ggFilmArtShade(coat[1],205),
@@ -322,7 +335,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         int lift=arm?p->armR:p->armL;
         int extra=(p->reach*dir>0)?(p->reach*dir):0;
         int shoulderX=bodyX+dir*6*s;
-        int shoulderY=centerY-17*s;
+        int shoulderY=centerY-(17+p->breath)*s;
         int elbowX=shoulderX+dir*(1+extra/2)*s;
         int elbowY=centerY-(14+lift/2)*s;
         int wristX=bodyX+dir*(8+extra)*s;
@@ -365,7 +378,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     for(int eye=0;eye<2;eye++){
         int ex=headX+(eye?2:-3)*s+gaze;
         int ew=s>1?s:2,iris=s>1?s-1:1;
-        ggExpRect(out,ex,eyesY-s,ew+1,1,
+        // Brow tension/release follows whether the line is hopeful,
+        // reflective or emphatic; both sides respond to the actual
+        // dialogue rather than flashing two unchanging face pixels.
+        ggExpRect(out,ex,eyesY-s-p->brow,ew+1,1,
                   ggFilmArtShade(hair[0],115),
                   ggFilmArtShade(hair[1],115),
                   ggFilmArtShade(hair[2],115));
