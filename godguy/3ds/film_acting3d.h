@@ -302,6 +302,31 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
               ggFilmArtShade(skin[1],far?169:276),
               ggFilmArtShade(skin[2],far?169:276));
 }
+// Feather the actual already-rendered terrain beneath each pair of boots.
+// A flat black oval used to look pasted over grass, snow and masonry.
+// Blend directly into the existing RGB film buffer; no additional image,
+// alpha buffer, allocations or world sampling. At 3x it touches at most
+// 72x6 pixels per actor, and never writes below the projected foot row.
+static void ggFilmArtContactShadow(u8*out,int x,int feet,int scale){
+    int s=ggExpClamp(scale,1,3);
+    int rx=12*s,ry=s;
+    int area=rx*rx*ry*ry;
+    int x0=ggExpClamp(x-rx,0,400),x1=ggExpClamp(x+rx,0,400);
+    int y0=ggExpClamp(feet-2*ry,0,240),y1=ggExpClamp(feet,0,240);
+    for(int py=y0;py<y1;py++){
+        int dy=py-(feet-ry),v=dy*dy*rx*rx;
+        for(int px=x0;px<x1;px++){
+            int dx=px-x;
+            int inside=area-v-dx*dx*ry*ry;
+            if(inside<=0)continue;
+            int shade=90*inside/area;
+            u8 *p=out+(py*400+px)*3;
+            p[0]=(u8)(p[0]*(256-shade)/256);
+            p[1]=(u8)(p[1]*(256-shade)/256);
+            p[2]=(u8)(p[2]*(256-shade)/256);
+        }
+    }
+}
 static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                              const u8*hair,const u8*skin,const u8*coat,
                              const GgFilmPose *p,int identity){
@@ -332,9 +357,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     int style=identity<0?6:identity;
     // Projected boots and feathered shadow share the SAME world foot.
     // No floating contact disk attached to the torso or camera horizon.
-    ggFilmArtOval(out,x-12*s,feet-2*s,24*s,2*s,37,43,42);
-    ggFilmArtOval(out,x-8*s,feet-s,16*s,s,26,32,32);
-    ggExpRect(out,x-4*s,feet-s,8*s,s,20,25,27);
+    ggFilmArtContactShadow(out,x,feet,s);
     // Calf, articulated knees and fitted boots. Both feet stay registered
     // to ground, even when dialogue adds head gestures and arm reach.
     for(int leg=0;leg<2;leg++){
