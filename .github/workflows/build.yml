@@ -26,6 +26,8 @@ jobs:
           /tmp/bore-skatefeel
           cc -std=c11 -O2 -Wall -Wextra -Werror tools/test_skatejam.c -o /tmp/bore-skatejam
           /tmp/bore-skatejam
+          cc -std=c11 -O2 -Wall -Wextra -Werror tools/test_npcspots.c -o /tmp/bore-npcspots
+          /tmp/bore-npcspots
       - name: Build
         run: |
           export DEVKITPRO=/opt/devkitpro

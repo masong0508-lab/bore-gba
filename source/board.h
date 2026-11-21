@@ -18,10 +18,11 @@ static int bdHere(void){   // may you ride a board on this lot?
     const NbLot*L=&nbT.lot[nbT.cur]; if(!L->on||L->kind==LKIND_RES) return 1;
     return L->type==CT_PARK||L->type==CT_SKATE||L->type==CT_BOTH||L->type==CT_PLAZA||L->type==CT_OLDTOWN;
 }
-// A competitive jam is available only at a real skate venue with equipment on the map.
+// A competitive jam is available only at a real skate venue with three or more skateable pieces.
+// npcSkSpawn (npc.h) caches pieces once per play start; avoids a new map scan in the MY SIM menu.
 static int trnJamVenue(void){
-    if(!clLive||prIn()||!bdHere()) return 0;
-    if(!nbOk) return 1; // free-play room: any existing skate park layout
+    if(!clLive||prIn()||!bdHere()||npcSpotN<3) return 0; // actual equipment, not an empty flag
+    if(!nbOk) return 1; // free-play room with at least three skateable pieces
     if(nbT.cur>=NB_LOTS) return 0;
     const NbLot*L=&nbT.lot[nbT.cur];
     return L->on&&L->kind==LKIND_COMM&&(L->type==CT_SKATE||L->type==CT_BOTH);
