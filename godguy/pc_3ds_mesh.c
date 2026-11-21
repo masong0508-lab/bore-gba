@@ -16,6 +16,15 @@ int main(void){
     memset(image.after,0x6c,32);
     GgMeshContext *m=&ggMeshContext;
     ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
+    GgMeshVertex groundA=ggMeshV(0,0,0),
+                 groundB=ggMeshV(256,0,0),
+                 groundC=ggMeshV(0,256,0);
+    GgMeshVertex wallB=ggMeshV(256,0,0),
+                 wallC=ggMeshV(256,0,20);
+    int sunlit=ggMeshSunlight(groundA,groundB,groundC,212);
+    int sided=ggMeshSunlight(groundA,wallB,wallC,212);
+    verify(sunlit>sided&&sunlit<=285&&sided>=124,
+           "flat polygon shader has no physically directional sunlight");
     verify(sizeof ggMeshDepthStorage==192000,
            "fixed depth-only image exceeded 187.5 KiB");
     verify(m->w==400&&m->h==240&&m->scale==1,
