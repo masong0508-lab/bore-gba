@@ -9,6 +9,7 @@
 #include "film_camera3d.h"
 #include "film_stage3d.h"
 #include "film_framing3d.h"
+#include "film_direction3d.h"
 #include "film_projection3d.h"
 #include "film_partner3d.h"
 #include "film_type3d.h"
@@ -868,11 +869,9 @@ static void ggSagaDraw(u8 *out){
     int angle=ggExplore.angle,frame=ggExplore.frame;
      int stageX,stageY;
     ggSagaCamera(index,local,&stageX,&stageY);
-    // Cinematic geometry is already drawn from live bld[][] by the
-    // raycaster. Never paint a second, differently projected 2D building
-    // decal pass on top: it produced impossible spiky house cut-ins,
-    // pasted-on windows and objects floating across actors.
-    ggExpRenderMode(out,1);
+    // The camera/actor/world all receive the SAME small, continuous
+    // speaker-follow yaw after staging, so the next character's line
+    // feels intentionally filmed rather than a motionless wide shot.
     // Three moving performers and one optional stage prop, all in the
     // existing scene. An interaction cue is resolved once per two-line
     // take, using the actual script, not random animation selection.
@@ -895,6 +894,13 @@ static void ggSagaDraw(u8 *out){
                                         ggSagaShot.minusValid,1):0;
     int speakerSide=activeStyle==primaryGuest?firstSide:
                     activeStyle==secondGuest?secondSide:0;
+    ggExplore.angle=(ggExplore.angle+
+        ggFilmFocusYaw(local,GG_SAGA_BEAT_TICKS,speakerSide))&255;
+    filmCos=ggExpCos[ggExplore.angle&255];
+    filmSin=ggExpSin[ggExplore.angle&255];
+    // Only the live world raycaster paints cinematic architecture;
+    // no second floating facade decal layer or separate perspective.
+    ggExpRenderMode(out,1);
     if(!ggSagaShot.pairResolved){
         ggSagaShot.pairKind=GG_FILM_PAIR_NONE;
         ggSagaShot.pairSourceHero=0;
@@ -1012,6 +1018,9 @@ static void ggSagaDraw(u8 *out){
                       spoken&&!strcmp(spoken->voice,"YOU"),walking,propKind);
             performance.gaze=(signed char)ggFilmStageGaze(0,
                                   speakerSide?speakerSide:firstSide);
+            performance.turn=(signed char)ggFilmFigureTurn(
+                local,GG_SAGA_BEAT_TICKS,
+                spoken&&!strcmp(spoken->voice,"YOU")?0:performance.gaze);
             if(pairVisible){
                 int toward=ggFilmPairDirection(item->x,partnerItem->x);
                 ggFilmPairActPose(&performance,toward,pairInset);
@@ -1036,6 +1045,8 @@ static void ggSagaDraw(u8 *out){
                         firstSide:secondSide;
             int lookSide=activeStyle==style?0:speakerSide;
             performance.gaze=(signed char)ggFilmStageGaze(ownSide,lookSide);
+            performance.turn=(signed char)ggFilmFigureTurn(
+                local,GG_SAGA_BEAT_TICKS,performance.gaze);
             if(pairVisible&&item->kind==GG_STAGE_GUEST_ONE){
                 int toward=ggFilmPairDirection(item->x,heroItem->x);
                 ggFilmPairActPose(&performance,toward,pairInset);
