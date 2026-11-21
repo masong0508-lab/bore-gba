@@ -14,9 +14,9 @@ int main(void){
     check(ggFilmFrameProject(nearX,hy,4096,0,hx,hy,&x,&depth)&&
           x==200&&depth==512,"protagonist not projected to shot center");
     check(ggFilmFrameProject(nearX,hy,4096,0,plusX,plusY,&x,&depth)&&
-          x==270,"right guest not visible at legible separation");
+          x==325,"right guest not visible at legible separation");
     check(ggFilmFrameProject(nearX,hy,4096,0,minusX,minusY,&x,&depth)&&
-          x==130,"left guest not visible at legible separation");
+          x==75,"left guest not visible at legible separation");
     check(!ggFilmFrameProject(hx+512,hy,4096,0,hx,hy,&x,&depth),
           "character behind the camera incorrectly visible");
     check(!ggFilmFrameProject(nearX,hy,4096,0,hx,hy+2048,&x,&depth),
