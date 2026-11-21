@@ -134,7 +134,17 @@ static void gmDrum(int part,int id){
     else { static const u8 dv[9]={0,72,72,84,72,56,52,112,127}; if(id>8) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;      // (hats, open hats, crash, ride, shaker, soft hats: lifted a little, the top octaves were only 1% of the sound)
         pan=id>=7?64:id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); if(gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }      // (a hat or a crash never takes the channel a lyric is sounding on)
     if(lyr==2&&gmNoClyr) return;
-    if(soft) vol=vol*55/100;
+    if(soft) vol=vol*48/100;
+    if(part==2&&!lyr){
+        // Older tracker arrangements can still call the original 24
+        // novelty IDs. Rebalance them as quiet, musical call-and-response
+        // accents, never horn-blast lead vocals. Keep the singer's lyric
+        // phrases (including all Duck & Cover / Corporations hooks) intact.
+        if(idx<12)vol=vol*66/100;
+        else if(idx<24)vol=vol*72/100;
+        if(pan<40)pan=40;
+        if(pan>87)pan=87;
+    }
     // CORPORATIONS and DUCK & COVER: ease cymbal/vocal-chop backing
     // behind their own foreground lyrics instead of drowning consonants.
     // The original melody notes and lead vocal timing are unchanged.

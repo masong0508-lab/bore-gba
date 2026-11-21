@@ -2,7 +2,7 @@
 # 12 TONAL chops (the sung "serenade" clip, one steady vowel found in it, retuned to each of the twelve notes: a vocal pad you can play in any key) and 12 TEXTURE chops
 # (stretched into clouds, reversed, stuttered, bit-crushed, shuffled, ring-modulated, pitched into squeaks and growls). The music player fires them from the drum-B stream (ids 16 and up).
 import json, numpy as np, wave, os, sys
-from scipy.signal import resample_poly, butter, sosfilt, fftconvolve
+from scipy.signal import resample_poly, butter, sosfilt, fftconvolve, iirnotch, lfilter
 from math import gcd
 HERE = os.path.dirname(os.path.abspath(__file__)); SRC = os.path.join(HERE, '..', '..', 'tools', 'voices_src'); R = 8000
 rng = np.random.RandomState(11)
@@ -12,7 +12,26 @@ def load(name):
     w = wave.open(path); x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0
     if w.getnchannels() == 2: x = x.reshape(-1, 2).mean(1)
     return x
-def norm(x, peak=0.9): m = np.max(np.abs(x)) or 1.0; return x / m * peak
+def norm(x, peak=0.9):
+    # Preserve a predictable level, but don't amplify whispered noise
+    # into a shrill, full-volume fake horn.
+    m = np.max(np.abs(x)) if len(x) else 0.0
+    return x * min(3.0, peak / max(m, 0.025))
+def master_voice(x, sr=R, lead=False):
+    """Offline-only vocal mastering: de-rumble, tame the 850-Hz
+    nasal/honk band and gently de-ess; no DSP is added to the 3DS mixer.
+    The original singer's consonant attacks are preserved."""
+    if len(x) < 16: return x
+    x = np.asarray(x, dtype=np.float64)
+    x = sosfilt(butter(2, 105 if lead else 145, 'highpass', fs=sr, output='sos'), x)
+    # Broad, shallow notch rather than destroying the formants.
+    b, a = iirnotch(860 if lead else 1050, 1.5, fs=sr)
+    x = 0.74*x + 0.26*lfilter(b,a,x)
+    x = sosfilt(butter(2, min(6100 if lead else 3000, sr*0.43),
+                            'lowpass', fs=sr, output='sos'), x)
+    # Mild peak control, not crushing: the consonants still carry rhythm.
+    x = np.tanh(x*1.15) / np.tanh(1.15)
+    return x
 def fade(x, a=0.006, b=0.03):
     n = len(x); fa = int(a * R); fb = int(b * R); x = x.copy()
     if fa: x[:fa] *= np.linspace(0, 1, fa)
@@ -66,8 +85,10 @@ def tune_curve(x, sr, pad=None):      # semitones of correction per hop: the pit
     off = -2.0; cost = 0.0
     tgt = np.array([snap_target(p + off, pcw) for p in sm])
     if top is not None: tgt = np.minimum(tgt, top)      # (nothing sung above the hook's top note)
-    corr = np.clip(tgt - mm, -3.0, 3.0)
-    k = 2; corr = np.convolve(np.pad(corr, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), 'valid')
+    # Avoid wobbling/robot honks from snapping every 10-ms syllable to
+    # a new pitch. Gentle, slow correction retains natural vowel formants.
+    corr = np.clip((tgt - mm)*0.55, -1.35, 1.35)
+    k = 5; corr = np.convolve(np.pad(corr, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), 'valid')
     return corr, float(cost)
 def tune_stretch(x, sr, factor, pad=None, grain=0.04):   # WSOLA stretch (each grain is slid to the place that continues the last one, so voiced sound stays coherent instead of beating) with every grain's pitch pushed onto the key
     corr, _ = tune_curve(x, sr, pad); gl = int(grain * sr); hop_out = gl // 2; hop_in = hop_out / factor; win = np.hanning(gl); S = int(0.012 * sr)
@@ -113,48 +134,63 @@ def tonal_source():
 CHOPS = []   # (name, samples, volume 0..127, pan 0..127)
 CRATE = []   # each chop's own sample rate
 def add(name, x, vol=100, pan=64, maxs=0.9, rate=R):
-    x = norm(fade(x[:int(maxs * rate)]), 0.92); CHOPS.append((name, x, vol, pan)); CRATE.append(rate)
+    x = np.asarray(x[:int(maxs * rate)], dtype=np.float64)
+    # Character chops get warm EQ and softened splices; full sung lyric
+    # phrases instead get their own gentler, intelligibility-first chain.
+    lyric = name.startswith('LYRIC PAD') or name.startswith('CORP LYRIC')
+    x = master_voice(x, rate, lead=lyric)
+    x = norm(fade(x, 0.005 if lyric else 0.013,
+                  0.025 if lyric else 0.055), 0.88 if lyric else 0.78)
+    CHOPS.append((name, x, vol, pan)); CRATE.append(rate)
 seg, f0 = tonal_source()
 NOTES = 'C C# D D# E F F# G G# A A# B'.split()
 for pc in range(12):
     midi = 60 + pc if pc < 7 else 48 + pc; target = 440.0 * 2 ** ((midi - 69) / 12.0)       # C4..F#4 and G3..B3: one octave of range around middle C
-    y = resamp(seg, target / f0); y = stretch(y, 1.5 if len(y) < 0.5 * R else 1.0, 0.05); y = y[:int(0.55 * R)]
-    for _ in range(2):      # measure what came out (the singer wobbles) and nudge it onto the note
-        m = pitch_f0(y[len(y) // 5:len(y) // 2 + 1]); y = resamp(y, target / m) if abs(m - target) / target > 0.004 else y
-    add('VOX ' + NOTES[pc], room(y, 0.09, 0.3), 90, 40 + (pc * 7) % 48, 0.6)
-add('LAUGH CLOUD', room(stretch(load('laughing_2'), 3.0, 0.09, 0.4), 0.14, 0.5), 88, 90)
-add('YAHOO BACKWARDS', reverse(load('yahoo')), 96, 30)
-add('YEHA STUTTER', stutter(load('yeha'), 0.07, 7, 1.15), 100, 70)
-add('SHRIEK CRUSH', crush(load('shriek'), 4, 3), 84, 64)
-add('CRY SHUFFLE', shuffle(load('cry'), 10), 90, 100)
-add('FIGHT CHOP', gate(resamp(load('lets_fight'), 0.84), 10, 0.55), 100, 50)
-add('FLIRT ROBOT', ring(load('flirt'), 95), 90, 80)
-add('NAH SUB', stretch(resamp(load('nah'), 0.5), 2.0, 0.05), 110, 64)
-add('AGREE STAB', resamp(load('agree'), 1.5)[:int(0.32 * R)], 100, 28)
-add('SNEEZE WARP', stretch(resamp(load('sniiize_2'), 0.7), 3.5, 0.08, 0.2), 92, 110)
-add('GHOST CHOIR', room(stretch(load('ghost_scared_female_1'), 3.2, 0.1, 0.3) * 0.7 + stretch(resamp(load('ghost_scared_male_2'), 1.19), 2.6, 0.1, 0.3)[:int(0.9 * R)] * 0.6 if False else stretch(load('ghost_scared_female_1'), 3.2, 0.1, 0.3), 0.15, 0.6), 80, 64)
-add('WIN STAB', np.concatenate([resamp(load('win_the_fight'), 2.0), np.zeros(int(0.03 * R)), resamp(load('win_the_fight'), 2.0)]), 100, 90)
+    # Tuning is bounded to one octave and the source's natural formant
+    # movement is protected from repeated pitch-detection/resampling.
+    y = resamp(seg, target / f0)
+    y = stretch(y, 1.12 if len(y)<0.48*R else 1.0, 0.065)
+    y = y[:int(0.52*R)]
+    add('VOX ' + NOTES[pc], room(y, 0.09, 0.14), 66,
+        48 + (pc * 5) % 32, 0.58)
+# Keep the familiar 12 texture indices but turn novelty honks into
+# actual production textures: breathy swells, double-tracked consonants,
+# short gated replies, and restrained reverse tails.
+add('LAUGH ROOM', room(load('laughing_2'), 0.11, 0.17), 65, 82)
+add('YAHOO REVERSE SWELL', room(reverse(load('yahoo')), 0.09, 0.12), 58, 44)
+add('YEHA BACKBEAT', stutter(load('yeha'), 0.105, 3), 61, 68)
+add('SHRIEK DISTANT AIR', room(load('shriek')*0.6, 0.18, 0.12), 42, 64)
+add('CRY HALFTIME', stretch(load('cry'), 1.25, 0.075), 58, 88)
+add('FIGHT SYNCOPATION', gate(load('lets_fight'), 8, 0.75), 63, 51)
+add('FLIRT WARM DOUBLE', room(load('flirt'), 0.065, 0.22), 62, 77)
+add('NAH LOW RESPONSE', room(resamp(load('nah'), 0.9), 0.1, 0.12), 62, 64)
+add('AGREE PLUCK', load('agree')[:int(0.29*R)], 64, 46)
+add('SNEEZE AIRY FILL', room(load('sniiize_2')*0.65, 0.14, 0.12), 45, 86)
+add('GHOST SOFT CHOIR', room(stretch(load('ghost_scared_female_1'), 1.4, 0.075), 0.12, 0.14), 58, 64)
+add('WIN GENTLE CADENCE', room(load('win_the_fight')[:int(0.34*R)], 0.08, 0.12), 65, 85)
 # ---- the songs' own voices (tools/extract_song_vox.py cut them out of the CORPORATIONS vocal stem and the Duck & Cover Koala project): each piece gets one of ten treatments
 def tapestop(x, end=0.3):
     n = len(x); ratio = np.linspace(1.0, end, n); pos = np.cumsum(ratio); pos = pos[pos < n - 1]; return np.interp(pos, np.arange(n), x)
 def treat(x, k):
+    """Warm club-style vocal cuts: rhythmic, not a novelty SFX reel.
+    No severe formant shifts, 4-bit crusher, ring modulation or squeak."""
     x = x / (np.abs(x).max() or 1)
-    if k == 0: return room(x, 0.1, 0.4)
-    if k == 1: return room(stretch(x, 2.6, 0.07, 0.3), 0.14, 0.5)
-    if k == 2: return room(reverse(x), 0.08, 0.4)
-    if k == 3: return stutter(x, 0.11, 4, 1.18)
-    if k == 4: return crush(resamp(x, 0.67), 5, 2)
-    if k == 5: return gate(resamp(x, 2.0), 14, 0.5)
-    if k == 6: return shuffle(x, 6)
-    if k == 7: return stutter(ring(x, 140), 0.12, 3)
-    if k == 8: return room(reverse(stretch(x, 3.5, 0.09, 0.4)), 0.16, 0.55)
-    return tapestop(x, 0.28)
+    if k == 0: return room(x, 0.065, 0.13)          # dry upfront hook
+    if k == 1: return room(stretch(x, 1.18, 0.065), 0.1, 0.17)
+    if k == 2: return room(reverse(x), 0.075, 0.13)
+    if k == 3: return stutter(x, 0.12, 3)           # coherent triplet
+    if k == 4: return room(resamp(x, 0.93), 0.09, 0.11)
+    if k == 5: return gate(x, 8, 0.8)               # rhythmic but legible
+    if k == 6: return room(x, 0.13, 0.23)           # dub-space reply
+    if k == 7: return stutter(x, 0.13, 2)           # two-beat pickup
+    if k == 8: return room(reverse(x), 0.12, 0.18)
+    return tapestop(x, 0.78)                        # tasteful turnaround
 def song_pieces(folder, tag):
     import glob
     for i, f in enumerate(sorted(glob.glob(os.path.join(folder, '*.wav')))):
         w = wave.open(f); sr = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0
         g = gcd(R, sr); x = resample_poly(x, R // g, sr // g); x = sosfilt(butter(4, 3300, 'lp', fs=R, output='sos'), x)
-        add('%s %02d %s' % (tag, i, ['RAW', 'CLOUD', 'BACKWARDS', 'STUTTER', 'LOW CRUSH', 'SQUEAK GATE', 'SHUFFLE', 'ROBOT', 'GHOST', 'TAPE STOP'][(i + (3 if tag == 'DUCK' else 0)) % 10]), treat(x, (i + (3 if tag == 'DUCK' else 0)) % 10), 96, 20 + (i * 37) % 90, 0.8)
+        add('%s %02d %s' % (tag, i, ['DRY', 'WARM ECHO', 'REVERSE', 'TRIPLET', 'LOW DUB', 'GATED', 'ROOM', 'DOUBLE', 'REVERSED TAIL', 'TAPE TURN'][(i + (3 if tag == 'DUCK' else 0)) % 10]), treat(x, (i + (3 if tag == 'DUCK' else 0)) % 10), 96, 20 + (i * 37) % 90, 0.8)
 song_pieces(os.path.join(HERE, '..', '..', 'tools', 'voices_corp'), 'CORP')
 # ---- DUCK & COVER's lyrics: the ten vocal pads of the Koala project, each stretched (pitch kept) to a whole number of half beats of the new 88 bpm tempo, wrapped in a plate-like tail made of dense
 # echoes, at 5.5 kHz. The song plays each one where the project played it (tools/duckcover/lyric_events.json); a second copy follows on the other side (see gmplay.h: the stereo echo).
@@ -171,9 +207,9 @@ def lyric_chops():
     for f in sorted(glob.glob(os.path.join(HERE, '..', '..', 'tools', 'duckcover', 'lyrics', 'pad_*.wav'))):
         pad = int(os.path.basename(f)[4:6]); w = wave.open(f); sr = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0
         x = sosfilt(butter(4, min(LYR_LP, 0.45 * sr), 'lp', fs=sr, output='sos'), x); dur = len(x) / sr; half = 30.0 / NEWBPM
-        target = dur * 145.0 / NEWBPM; x = tune_stretch(x, sr, target / dur, pad)      # (the project's bars are kept: its 145 bpm becomes 88, so a phrase lasts the same number of beats)
-        g = gcd(LYR_RATE, sr); x = resample_poly(x, LYR_RATE // g, sr // g); x = plate(x, LYR_RATE)
-        LYR_PAD.append(pad); add('LYRIC PAD %d' % pad, x, 112, 64, 99.0, LYR_RATE)
+        target = dur * 145.0 / NEWBPM; x = tune_stretch(x, sr, target / dur, pad, grain=0.055)      # (the project's bars are kept: its 145 bpm becomes 88, so a phrase lasts the same number of beats)
+        g = gcd(LYR_RATE, sr); x = resample_poly(x, LYR_RATE // g, sr // g); x = plate(x, LYR_RATE, 0.42)
+        LYR_PAD.append(pad); add('LYRIC PAD %d' % pad, x, 102, 64, 99.0, LYR_RATE)
 lyric_chops()
 # ---- CORPORATIONS' own voice, accurately: the 56 sung phrases of the song (tools/corporations/lyrics, cut from the isolated vocal stem by tools/extract_corp_lyrics.py) sounded where the song sang them,
 # at the song's own tempo (131 bpm, the MIDI's grid: no stretching), on the song's own pitch (only the whole voice nudged to A = 440 when the stem is a few cents off), with a light plate tail.
@@ -190,8 +226,8 @@ def corp_lyric_chops():
         cell = int(round(e['beat'] * 4)); frac = e['beat'] * 4 - cell      # the sixteenth it is placed on, and how far past it the phrase really starts (cells)
         sh = int(round(abs(frac) * cell_s * sr)); x = np.concatenate([np.zeros(sh), x]) if frac > 0 else x[sh:]
         x = resamp(x, 1.0 / fix)
-        g_ = gcd(CLYR_RATE, sr); x = resample_poly(x, CLYR_RATE // g_, sr // g_); x = plate(x, CLYR_RATE, 0.55)
-        CLYR.append(e); add('CORP LYRIC %02d' % e['i'], x, 100, 46 if e['i'] % 2 == 0 else 82, 99.0, CLYR_RATE)
+        g_ = gcd(CLYR_RATE, sr); x = resample_poly(x, CLYR_RATE // g_, sr // g_); x = plate(x, CLYR_RATE, 0.27)
+        CLYR.append(e); add('CORP LYRIC %02d' % e['i'], x, 105, 54 if e['i'] % 2 == 0 else 74, 99.0, CLYR_RATE)
 corp_lyric_chops()
 LYR0 = next(i for i, c in enumerate(CHOPS) if c[0].startswith('LYRIC PAD')); CLYR0 = next(i for i, c in enumerate(CHOPS) if c[0].startswith('CORP LYRIC'))
 BLOB_MAX = 0x5B000 - 4096          # the DS: room for the packed chops between 0x02382000 and the decode buffers at 0x023DD000 (a little to spare)

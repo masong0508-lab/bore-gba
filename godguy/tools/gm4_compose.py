@@ -9,27 +9,27 @@ def vox(sc, V_DB, cell, idx, soft=False):
     if 0 <= cell < sc.cells: sc.v[V_DB][cell] = (VOX0 + idx + (128 if soft else 0), 1)
 def vox_pass(sc, V_DB, section_starts, rootpc_at, seed):
     """section_starts: [(name, first cell, bars)]; rootpc_at(cell) -> pitch class of the chord there."""
-    r = random.Random(seed); TX = ['LAUGH', 'GHOST', 'CRY', 'FLIRT', 'SNEEZE']; r.shuffle(TX); k = 0
+    r = random.Random(seed); TX = ['GHOST', 'FLIRT', 'AGREE', 'LAUGH']; r.shuffle(TX); k = 0
     for sec, c0, n in section_starts:
         for b in range(n):
             c = c0 + b * 16; pc = rootpc_at(c)
-            if sec == 'intro' and b == n - 1: vox(sc, V_DB, c + 8, VOXT['YAHOO_REV'])
+            if sec == 'intro' and b == n - 1: vox(sc, V_DB, c + 8, pc, soft=True)
             elif sec in ('verse', 'verse2') and b % 4 == 3: vox(sc, V_DB, c + 12, pc, soft=True)
             elif sec == 'pre':
-                if b == n - 1: vox(sc, V_DB, c + 12, VOXT['YEHA'])
+                if b == n - 1: vox(sc, V_DB, c + 12, pc, soft=True)
                 else: vox(sc, V_DB, c + 8, VOXT['FIGHT'])
             elif sec in ('chorus', 'chorus2', 'final'):
                 if b % 2 == 0: vox(sc, V_DB, c, pc); vox(sc, V_DB, c + 8, (pc + 7) % 12, soft=True)
-                if b % 4 == 3: vox(sc, V_DB, c + 14, VOXT['AGREE'] if sec != 'final' else VOXT['WIN'])
-                if sec == 'final' and b == 0: vox(sc, V_DB, c + 4, VOXT['SHRIEK'])
+                if b % 4 == 3: vox(sc, V_DB, c + 14, pc, soft=True)
+                if sec == 'final' and b == 0: vox(sc, V_DB, c + 4, VOXT['AGREE'], soft=True)
             elif sec == 'break':
                 if b == 0: vox(sc, V_DB, c + 4, VOXT[TX[k % len(TX)]]); k += 1
-                if b == n - 1: vox(sc, V_DB, c + 12, VOXT['NAH'])
+                if b == n - 1: vox(sc, V_DB, c + 12, pc, soft=True)
             elif sec == 'bridge':
                 if b % 2 == 0: vox(sc, V_DB, c + 6, VOXT[TX[(k + b) % len(TX)]])
                 if b == n - 1: vox(sc, V_DB, c + 14, pc)
             elif sec == 'outro':
-                if b == 0: vox(sc, V_DB, c + 8, VOXT['SNEEZE'])
+                if b == 0: vox(sc, V_DB, c + 8, pc, soft=True)
                 if b == n - 1: vox(sc, V_DB, c, pc, soft=True)
 # ---------------------------------------------------------------------------------------------------- MIDI -> score
 def key_of(pcs):      # a rough major / minor guess from a pitch class histogram
@@ -107,11 +107,11 @@ def midi_track_build(R, Sc, V, A):
             if cc <= c: best = n
             else: break
         return best % 12 if best else kt
-    r = random.Random(R['id']); TX = ['LAUGH', 'GHOST', 'CRY', 'FLIRT', 'SNEEZE', 'SHRIEK', 'FIGHT']
+    r = random.Random(R['id']); TX = ['GHOST', 'FLIRT', 'AGREE', 'LAUGH']
     nb = sc.cells // 16; own = R.get('ownvox')          # own: (first chop index, count) of the song's OWN voice pieces, then the 24 older chops for colour
     for b in range(nb):
         c = b * 16
-        if b == 0: vox(sc, V['DB'], c + 8, VOXT['YAHOO_REV'])
+        if b == 0: vox(sc, V['DB'], c + 8, rootpc(c), soft=True)
         if own:
             f0, cnt = own
             if b % 4 == 0 and b > 0: vox(sc, V['DB'], c + 6, f0 + (b // 4) % cnt)                        # the song's own voice, a different piece every four bars
@@ -119,8 +119,8 @@ def midi_track_build(R, Sc, V, A):
             if R.get('chatter') and b % 2 == 1: vox(sc, V['DB'], c + 10, f0 + (b * 3) % cnt, soft=True)   # a rhythmic chatter between
         if b % 8 == 0 and b > 0: vox(sc, V['DB'], c, rootpc(c)); vox(sc, V['DB'], c + 8, (rootpc(c) + 7) % 12, soft=True)
         if b % 8 == 4 and not own: vox(sc, V['DB'], c + 6, VOXT[TX[(b // 8) % len(TX)]])
-        if b % 16 == 15: vox(sc, V['DB'], c + 12, VOXT['YEHA'])
-        if b % 32 == 31: vox(sc, V['DB'], c + 14, VOXT['WIN'])
+        if b % 16 == 15: vox(sc, V['DB'], c + 12, rootpc(c), soft=True)
+        if b % 32 == 31: vox(sc, V['DB'], c + 14, VOXT['AGREE'], soft=True)
     if R.get('lyrics'):
         import gm_vox as gv; cell_s = 60.0 / bpm / 4; k0 = gv.LYR0
         durs = [int(math.ceil(len(gv.CHOPS[k0 + j][1]) / gv.CRATE[k0 + j] / cell_s)) + 2 for j in range(len(gv.LYR_PAD))]

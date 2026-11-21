@@ -29,6 +29,19 @@ jobs:
           dkp-pacman -S --needed --noconfirm nds-dev ndstool || true
           ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
 
+      - name: Regenerate professionally mastered vocal chops and 168-track sequences
+        working-directory: godguy
+        run: |
+          /usr/bin/python3 -c 'import numpy,scipy,mido' 2>/dev/null || { apt-get update && apt-get install -y python3-numpy python3-scipy python3-mido; }
+          /usr/bin/python3 tools/gm2_compose.py
+          /usr/bin/python3 tools/gm_vox.py
+          GM_FULL=1 /usr/bin/python3 tools/gm_vox.py
+          GM_HQ=1 /usr/bin/python3 tools/gm_vox.py
+          test -s source/gmdata.h
+          test -s source/gmvox.h
+          test -s source/gmvox_full.h
+          test -s source/gmvox_hq.h
+          test -s source/gmvox_hq.bin
       # Generate the source-backed shared film rather than shipping the
       # previously checked-in 4-key cels. The builder rejects any shared
       # film over the fixed 192 KiB DS asset cap.
@@ -269,6 +282,10 @@ jobs:
           dkp-pacman -S --needed --noconfirm 3ds-dev
           command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
           /usr/bin/python3 -c 'from PIL import Image' 2>/dev/null || { apt-get update && apt-get install -y python3-pil; }
+          /usr/bin/python3 -c 'import numpy,scipy,mido' 2>/dev/null || { apt-get update && apt-get install -y python3-numpy python3-scipy python3-mido; }
+          /usr/bin/python3 tools/gm2_compose.py
+          GM_HQ=1 /usr/bin/python3 tools/gm_vox.py
+          test -s source/gmvox_hq.h
           /usr/bin/python3 tools/check_story_duration.py
           /usr/bin/python3 tools/make_story_fmv.py
           /usr/bin/python3 tools/make_story_hq.py
