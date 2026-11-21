@@ -288,6 +288,48 @@ static void ggChronHit(void){
                  ggChron.score+=20;}
     ggChron.dirty=1;
 }
+
+static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
+    // Bounded 9x9 pursuit flood fill. Runs only after enemy cooldown,
+    // never per render; respects existing terrain and occupants.
+    enum { R=4,W=9,N=81 };
+    unsigned char dist[N],first[N],queue[N];
+    memset(dist,255,sizeof dist);
+    dist[R*W+R]=0;first[R*W+R]=255;
+    int head=0,tail=0,best=R*W+R;
+    int bestCost=ggChronNear(fx,fy,tx,ty)*20;
+    queue[tail++]=(unsigned char)best;
+    static const signed char dx[4]={1,0,-1,0},dy[4]={0,1,0,-1};
+    while(head<tail){
+        int p=queue[head++],lx=p%W,ly=p/W;
+        int x=fx+lx-R,y=fy+ly-R;
+        int cost=ggChronNear(x,y,tx,ty)*20+dist[p];
+        if(dist[p]&&cost<bestCost){bestCost=cost;best=p;}
+        for(int k=0;k<4;k++){
+            int nx=lx+dx[k],ny=ly+dy[k];
+            if((unsigned)nx>=W||(unsigned)ny>=W)continue;
+            int q=ny*W+nx,wx=fx+nx-R,wy=fy+ny-R;
+            if(dist[q]!=255||!ggChronLand(wx,wy)||
+               (wx==tx&&wy==ty))continue;
+            if(ggExpGround(world[wy][wx])-
+               ggExpGround(world[y][x])>19)continue;
+            int occupied=0;
+            for(int i=0;i<ggChron.foeN;i++)if(
+                ggChron.foe[i].hp>0&&
+                (ggChron.foe[i].x!=fx||ggChron.foe[i].y!=fy)&&
+                ggChron.foe[i].x==wx&&ggChron.foe[i].y==wy)
+                occupied=1;
+            if(occupied)continue;
+            dist[q]=dist[p]+1;
+            first[q]=dist[p]?first[p]:(unsigned char)q;
+            queue[tail++]=(unsigned char)q;
+        }
+    }
+    if(best==R*W+R||first[best]==255)return 0;
+    int p=first[best];
+    *outX=fx+p%W-R;*outY=fy+p/W-R;
+    return *outX!=fx||*outY!=fy;
+}
 static void ggChronEnemiesStep(void){
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
     for(int i=0;i<ggChron.foeN;i++){
@@ -311,26 +353,12 @@ static void ggChronEnemiesStep(void){
             f->wait=(signed char)(33+(i&3)*5);
             ggChron.dirty=1;
         }else if(distance<8||toGuard<8){
-            // Pursue the closest visible opponent, with axis fallback.
-            // No all-world A*, no injury to unrelated 2D inhabitants.
-            int tx=px,ty=py;
+            int tx=px,ty=py,nx=f->x,ny=f->y;
             if(toGuard<distance){tx=guardX;ty=guardY;}
-            int dx=tx>f->x?1:tx<f->x?-1:0;
-            int dy=ty>f->y?1:ty<f->y?-1:0;
-            int nx=f->x,ny=f->y;
-            if(abs(tx-f->x)>=abs(ty-f->y)&&ggChronLand(nx+dx,ny))
-                nx+=dx;
-            else if(ggChronLand(nx,ny+dy))ny+=dy;
-            else if(ggChronLand(nx+dx,ny))nx+=dx;
-            if(ggChronNear(nx,ny,tx,ty)>0){
-                int collide=0;
-                for(int j=0;j<ggChron.foeN;j++)if(j!=i&&
-                    ggChron.foe[j].hp>0&&ggChron.foe[j].x==nx&&
-                    ggChron.foe[j].y==ny){collide=1;break;}
-                if(!collide){f->x=(short)nx;f->y=(short)ny;}
+            if(ggChronEnemyRoute(f->x,f->y,tx,ty,&nx,&ny)){
+                f->x=(short)nx;f->y=(short)ny;ggChron.dirty=1;
             }
             f->wait=(signed char)(21+(i&3)*4);
-            ggChron.dirty=1;
         }else f->wait=25;
     }
 }

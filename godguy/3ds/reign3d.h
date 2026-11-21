@@ -531,6 +531,10 @@ static void ggReignSquadTick(void){
         }
         int tx=ggExplore.px>>8,ty=ggExplore.py>>8;
         if(ggReign.order==GG_REIGN_HOLD)continue;
+        // A nearby FOLLOW guard is in formation. Stop orbiting them
+        // around an occupied protagonist tile.
+        if(ggReign.order==GG_REIGN_FOLLOW&&
+           ggChronNear(g->x,g->y,tx,ty)<=2)continue;
         if(ggReign.order==GG_REIGN_ASSAULT&&enemy>=0&&distance<8){
             tx=ggChron.foe[enemy].x;ty=ggChron.foe[enemy].y;
         }

@@ -519,6 +519,25 @@ int main(void){
     check(ggReignRecruit()&&ggReign.squadN==1&&
           ggReign.squad[0].hp>0,
           "fallen squad member permanently occupied a recruit slot");
+    // A nearby follower holds formation rather than orbiting the hero.
+    ggChron.foeN=0;ggReign.order=GG_REIGN_FOLLOW;
+    int hx=ggReign.squad[0].x,hy=ggReign.squad[0].y;
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    ggReign.frame=11;ggReignSquadTick();
+    check(ggReign.squad[0].x==hx&&ggReign.squad[0].y==hy,
+          "FOLLOW formation drifted at close range");
+    // A solid row of structures must not make the foe walk into
+    // the same wall repeatedly: the route points around an open end.
+    for(int yy=59;yy<=62;yy++)bld[yy][61]=B_HALL;
+    ggChron.foeN=1;
+    ggChron.foe[0]=(GgChronFoe){60,60,40,0,0};
+    int rx=0,ry=0;
+    check(ggChronEnemyRoute(60,60,63,60,&rx,&ry)&&
+          ggChronLand(rx,ry)&&ggChronNear(60,60,rx,ry)==1&&
+          !(rx==61&&ry==60),
+          "bounded enemy pursuit cannot route around a built wall");
+    for(int yy=59;yy<=62;yy++)bld[yy][61]=0;
+    ggChron.foeN=0;
     int storyChapter=chapter;
     ggReignStep(KEY_SELECT);
     check(ggReign.menu,"SELECT did not open the independent council");
@@ -595,6 +614,17 @@ int main(void){
     check(ggQuest.stage==GG_QUEST_IDLE&&ggQuest.completed==1&&
           vil[0].stock==homeStock+12&&ggReign.renown>oldRenown,
           "delivery did not return cargo and reward the generated town");
+    ggQuestStep(0);ggQuestStep(KEY_B);
+    ggChron.rations=2;
+    int localFood=vil[0].stock,localTrust=vilL[0];
+    ggQuestStep(0);ggQuestStep(KEY_A);
+    ggQuestStep(0);ggQuestStep(KEY_DOWN);
+    ggQuestStep(0);ggQuestStep(KEY_DOWN);
+    check(ggQuest.choice==2,"town relief option cannot be selected");
+    ggQuestStep(0);ggQuestStep(KEY_A);
+    check(ggChron.rations==1&&vil[0].stock==localFood+8&&
+          vilL[0]==localTrust+3,
+          "town relief dialogue did not alter real resources and trust");
     ggQuestStep(0);ggQuestStep(KEY_B);
     ggChron.foeN=1;
     ggChron.foe[0]=(GgChronFoe){61,60,30,0,0};

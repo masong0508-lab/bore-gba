@@ -162,17 +162,50 @@ static void ggQuestUseTown(void){
         ggQuestSave();ggReignSave();
     }
 }
+static void ggQuestOfferRelief(void){
+    int v=ggQuest.talkVillage;
+    if(v<0){ggQuestResponse("Find a living village to share supplies.");return;}
+    if(ggChron.rations<1){
+        ggQuestResponse("No spare rations. Find supplies on the road.");
+        return;
+    }
+    if(vil[v].stock>=65527){
+        ggQuestResponse("Their granaries are already filled.");return;
+    }
+    // Real, finite item cost and actual native-world effects.
+    // Does not farm coins or endorsements through repeated clicks.
+    ggChron.rations--;
+    ggReignVillageStock(v,8);
+    ggReignVillageLoyalty(v,3);
+    ggChron.morale=ggExpClamp(ggChron.morale+3,0,100);
+    ggChron.dirty=1;
+    ggQuestResponse("Your meal feeds families. Their trust grows.");
+}
 static void ggQuestAboutTown(void){
     int v=ggQuest.talkVillage;
     if(v>=0){
-        if(vil[v].stock<20)
-            ggQuestResponse("Our stores are low. We need provisions.");
+        if(ggQuest.stage==GG_QUEST_FETCH&&v==ggQuest.target)
+            ggQuestResponse("Our caravan has the supplies you requested.");
+        else if(ggQuest.stage==GG_QUEST_RETURN&&v==ggQuest.home)
+            ggQuestResponse("The town awaits its missing shipment.");
+        else if(vil[v].stock<20)
+            ggQuestResponse("Our children need food before new laws.");
         else if(vilL[v]<-15)
-            ggQuestResponse("The people distrust those in power here.");
+            ggQuestResponse("People here do not trust their governors.");
+        else if(ggReign.infamy>ggReign.legitimacy+20)
+            ggQuestResponse("Your old raids make promises hard to trust.");
+        else if(ggReign.role==GG_ROLE_HEALER)
+            ggQuestResponse("Our families remember your care for the ill.");
+        else if(ggReign.role==GG_ROLE_FARMER)
+            ggQuestResponse("Your harvest keeps these households alive.");
         else if(ggReign.office>=2)
-            ggQuestResponse("Your office matters. Our homes matter more.");
+            ggQuestResponse("You hold office, but the people still vote.");
+        else if(ggQuest.completed>0)
+            ggQuestResponse("Your deliveries connected our neighbors.");
         else ggQuestResponse("These farms and families make our world.");
-    }else ggQuestResponse("The roads hold stories; towns offer work.");
+    }else if(ggQuest.talkPerson>=0)
+        ggQuestResponse("I have a home and a life. Keep our roads safe.");
+    else ggQuestResponse("The roads hold stories; towns offer work.");
 }
 static int ggQuestStep(int raw){
     int down=raw&~ggQuest.lastKeys;
@@ -181,11 +214,12 @@ static int ggQuestStep(int raw){
         if(down&(KEY_B|KEY_SELECT|KEY_START)){
             ggQuest.talk=0;return 1;
         }
-        if(down&KEY_UP)ggQuest.choice=(ggQuest.choice+2)%3;
-        if(down&KEY_DOWN)ggQuest.choice=(ggQuest.choice+1)%3;
+        if(down&KEY_UP)ggQuest.choice=(ggQuest.choice+3)%4;
+        if(down&KEY_DOWN)ggQuest.choice=(ggQuest.choice+1)%4;
         if(down&KEY_A){
             if(ggQuest.choice==0)ggQuestUseTown();
             else if(ggQuest.choice==1)ggQuestAboutTown();
+            else if(ggQuest.choice==2)ggQuestOfferRelief();
             else ggQuest.talk=0;
         }
         return 1; // gameplay/enemies freeze while talking
@@ -225,8 +259,8 @@ static void ggQuestDraw(u8 *out){
     if(!ggChron.active||ggOrigin.active||ggReign.menu)return;
     char line[92];
     if(ggQuest.talk){
-        ggExpRect(out,18,58,364,122,15,28,42);
-        ggExpRect(out,18,58,364,3,206,163,94);
+        ggExpRect(out,18,54,364,139,15,28,42);
+        ggExpRect(out,18,54,364,3,206,163,94);
         if(ggQuest.talkPerson>=0){
             char name[48];
             crName(&cr[ggQuest.talkPerson],name);
@@ -235,15 +269,17 @@ static void ggQuestDraw(u8 *out){
             snprintf(line,sizeof line,"SETTLEMENT %d - LOCAL VOICES",
                      ggQuest.talkVillage+1);
         else snprintf(line,sizeof line,"TRAVELER");
-        ggExpText(out,29,68,line,244,218,168);
-        ggExpText(out,29,86,ggQuest.response,214,230,224);
-        ggExpText(out,29,109,ggQuest.choice==0?"> WORK / DELIVERY":"  WORK / DELIVERY",
+        ggExpText(out,29,64,line,244,218,168);
+        ggExpText(out,29,84,ggQuest.response,214,230,224);
+        ggExpText(out,29,107,ggQuest.choice==0?"> WORK / DELIVERY":"  WORK / DELIVERY",
                   ggQuest.choice==0?255:177,ggQuest.choice==0?222:202,168);
-        ggExpText(out,29,125,ggQuest.choice==1?"> ASK ABOUT THIS PLACE":"  ASK ABOUT THIS PLACE",
+        ggExpText(out,29,123,ggQuest.choice==1?"> ASK ABOUT THIS PLACE":"  ASK ABOUT THIS PLACE",
                   ggQuest.choice==1?255:177,ggQuest.choice==1?222:202,168);
-        ggExpText(out,29,141,ggQuest.choice==2?"> GOODBYE":"  GOODBYE",
+        ggExpText(out,29,139,ggQuest.choice==2?"> OFFER ONE RATION":"  OFFER ONE RATION",
                   ggQuest.choice==2?255:177,ggQuest.choice==2?222:202,168);
-        ggExpText(out,29,160,"UP/DOWN CHOOSE   A SPEAK   B EXIT",171,205,231);
+        ggExpText(out,29,155,ggQuest.choice==3?"> GOODBYE":"  GOODBYE",
+                  ggQuest.choice==3?255:177,ggQuest.choice==3?222:202,168);
+        ggExpText(out,29,177,"UP/DOWN CHOOSE   A SPEAK   B EXIT",171,205,231);
         return;
     }
     if(ggReign.noticeT)return; // no overlap with important game notice
