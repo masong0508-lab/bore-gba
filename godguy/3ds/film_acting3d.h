@@ -3,12 +3,14 @@
 // searches in the character renderer. Only two actors per film frame.
 #ifndef GG_FILM_ACTING3D_H
 #define GG_FILM_ACTING3D_H
+#include "film_life3d.h"
 #include "film_walk3d.h"
 enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
     signed char pose,head,lean,armL,armR,legL,legR,bob;
     signed char gaze,blink,mouth,holdProp,reach,clothSway,turn;
+    signed char breath,weightShift,brow;
 } GgFilmPose;
 // Drive the gait from actual Q8 world travel, not a second timer.
 // Exactly two symmetric footfalls over the eased one-tile walk; the
@@ -132,8 +134,15 @@ static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
     // syllables and arm gestures at staggered beats for the two actors.
     p.blink=(signed char)(((t+beat*17+(hero?13:39))%79)<3);
     if(!walking){
-        int phase=(t+beat*13+(hero?5:22))%60;
+        int filmTime=beat*GG_SAGA_BEAT_TICKS+t;
+        int phaseOffset=hero?7:31;
+        int phase=(filmTime+phaseOffset)%60;
         p.clothSway=(signed char)(phase<17?-1:phase<37?0:1);
+        p.breath=(signed char)ggFilmLifePulse(filmTime,phaseOffset);
+        p.weightShift=(signed char)ggFilmLifeWeight(filmTime,phaseOffset);
+        p.brow=(signed char)ggFilmLifeBrow(speaking,p.pose,t);
+        if(!speaking)p.head=(signed char)(p.head+
+                                ggFilmLifeListenCue(t,beat));
         p.bob=0;
     }
     return p;
@@ -165,6 +174,11 @@ static void ggFilmPairActPose(GgFilmPose *p,int dir,int inset){
     p->legL=(signed char)(dir*(inset/48));
     p->legR=(signed char)-p->legL;
     p->bob=0; // planted feet while reaching, not endless idle bobbing
+    // Keep the rendered sleeve coincident with the separately projected
+    // shared prop/other person's hand. Secondary torso movement would
+    // otherwise displace the wrist by one pixel during contact.
+    p->breath=0;
+    p->weightShift=0;
 }
 static void ggFilmPairHandAt(int x,int feet,int scale,int targetX,
                               const GgFilmPose *p,int *hx,int *hy){
@@ -333,8 +347,11 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     int s=ggExpClamp(scale,1,3);
     int turn=p->turn,turnAbs=turn<0?-turn:turn;
     if(turnAbs>4)turnAbs=4;
-    int headX=x+p->head*s+turn*s/2,bodyX=x+p->lean*s;
-    int centerY=feet-p->bob*s;
+    // A living torso and responsive face, but boots stay planted at
+    // the EXACT camera-projected world foot coordinate.
+    int centerY=feet-p->bob*s-p->breath;
+    int bodyX=x+p->lean*s+p->weightShift;
+    int headX=bodyX+p->head*s+turn*s/2;
     int inkR=30,inkG=34,inkB=41;
     int jacketR=ggFilmArtShade(coat[0],205),
         jacketG=ggFilmArtShade(coat[1],205),
@@ -447,7 +464,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         if(turn<=-3&&eye)continue;
         int ex=headX+(eye?2:-3)*s+gaze;
         int ew=s>1?s:2,iris=s>1?s-1:1;
-        ggExpRect(out,ex,eyesY-s,ew+1,1,
+        ggExpRect(out,ex,eyesY-s-p->brow,ew+1,1,
                   ggFilmArtShade(hair[0],115),
                   ggFilmArtShade(hair[1],115),
                   ggFilmArtShade(hair[2],115));

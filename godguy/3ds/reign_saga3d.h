@@ -1083,6 +1083,13 @@ static void ggSagaDraw(u8 *out){
             GgFilmPose performance=ggFilmPoseFor(spoken?spoken->line:"",
                       index,local,1,
                       spoken&&!strcmp(spoken->voice,"YOU"),walking,propKind);
+            if(spoken&&!strcmp(spoken->voice,"NARRATOR")&&!pairVisible){
+                int lift=ggFilmLifeNarratorCue(index,local,1);
+                if(performance.armR<lift)performance.armR=(signed char)lift;
+                performance.head=(signed char)(performance.head+
+                                    ggFilmLifeNarratorNod(index,local,1));
+                // Keep the lips still: the invisible narrator speaks.
+            }
             performance.gaze=(signed char)ggFilmStageGaze(0,
                                   speakerSide?speakerSide:firstSide);
             performance.turn=(signed char)ggFilmFigureTurn(
@@ -1108,6 +1115,13 @@ static void ggSagaDraw(u8 *out){
             GgFilmPose performance=ggFilmPoseFor(spoken->line,index,local,
                                                  0,activeStyle==style,
                                                  0,propKind);
+            if(!strcmp(spoken->voice,"NARRATOR")&&!pairVisible){
+                int slot=item->kind==GG_STAGE_GUEST_ONE?0:1;
+                int lift=ggFilmLifeNarratorCue(index+slot,local,0);
+                if(performance.armL<lift)performance.armL=(signed char)lift;
+                performance.head=(signed char)(performance.head+
+                                  ggFilmLifeNarratorNod(index+slot,local,0));
+            }
             int ownSide=item->kind==GG_STAGE_GUEST_ONE?
                         firstSide:secondSide;
             int lookSide=activeStyle==style?0:speakerSide;

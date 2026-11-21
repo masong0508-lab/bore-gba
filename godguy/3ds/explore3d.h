@@ -10,6 +10,7 @@
 #ifndef GG_EXPLORE3D_H
 #define GG_EXPLORE3D_H
 #include "film_architecture3d.h"
+#include "film_facade3d.h"
 #include "film_floor3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
@@ -477,79 +478,56 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     r+=8;g+=9;b+=11; // strata follow world coordinates
                 }
                 if(cinematic&&build){
-                    // Material-specific, world-anchored facades. The
-                    // 3DS no longer paints every hall, house, archive
-                    // and watch tower as a bare gray/orange cube.
-                    int wood=build==B_HUT||build==B_HOUSE||
-                             build==B_DOCK||build==B_FARM;
+                    // Compute a building's vertical detail position from
+                    // REAL WORLD HEIGHT, not y-from-roof pixels. Doors,
+                    // windows and masonry courses no longer crawl or
+                    // stretch independently when the camera dollies.
+                    int wallHeight=ggFilmFacadeHeightAt(y,horizon,
+                                                        eye,d,ground);
+                    int feature=ggFilmFacadeFeature(build,surfaceU,
+                                                    wallHeight);
                     int stone=build==B_TOWER||build==B_HALL||
                               build==B_TEMPLE||build==B_LIBRARY;
-                    int mortar=wood?20:16;
                     if(stone){
                         r=(151+(build==B_TEMPLE?28:0))*wallShade/256;
                         g=(146+(build==B_TEMPLE?24:0))*wallShade/256;
                         b=(142+(build==B_TEMPLE?15:0))*wallShade/256;
-                        if(edge%mortar<2){
-                            r=r*4/5;g=g*4/5;b=b*4/5;
-                        }
-                        if((surfaceU+((edge/mortar)&1)*64)%125<3&&
-                           edge>9){
-                            r=r*3/4;g=g*3/4;b=b*3/4;
-                        }
-                        if(surfaceU<13||surfaceU>243){
-                            r=r*4/5;g=g*4/5;b=b*4/5;
-                        }
-                        if(build==B_LIBRARY&&edge>10&&edge<70&&
-                           surfaceU>105&&surfaceU<150){
-                            r=91*wallShade/256;g=114*wallShade/256;
-                            b=127*wallShade/256;
-                        }
-                    }else if(wood){
+                    }else{
                         r=baseR*241/256;
                         g=baseG*266/256;
                         b=baseB*277/256;
-                        if(surfaceU<13||surfaceU>241||
-                           (surfaceU>118&&surfaceU<130)){
-                            r=78*wallShade/256;
-                            g=61*wallShade/256;b=49*wallShade/256;
-                        }else if(edge%22<2&&edge>8){
-                            r=104*wallShade/256;g=83*wallShade/256;
-                            b=62*wallShade/256;
-                        }
                     }
                     if(roofBottom>=0&&y<roofBottom){
-                        // Physical roof face: slope thickness changes with
-                        // camera distance, rather than a constant 9px
-                        // screen-space roof glued atop every building.
+                        // Genuine world-space gable geometry added in
+                        // the previous milestone; retain it and its
+                        // face-dependent highlights unmodified.
                         r=roofR;g=roofG;b=roofB;
                         if(y+1==roofBottom){r+=13;g+=10;b+=8;}
-                    }else if(d<15&&edge>16&&edge<68){
-                        int window=(surfaceU>42&&surfaceU<86)||
-                                   (surfaceU>172&&surfaceU<216);
-                        if(window){
-                            if(edge>=25&&edge<=48){
-                                int frame=edge<28||edge>45||
-                                          (surfaceU%128)<47||
-                                          (surfaceU%128)>81;
-                                // Windows have locally offset candle
-                                // flicker in occupied towns; no global
-                                // flashing texture, only a bounded RGB tint.
-                                int glow=((ggExplore.frame/17+tx*5+ty*11)&7)<2?
-                                         13:0;
-                                r=(frame?58:222+glow)*wallShade/256;
-                                g=(frame?59:175+glow/2)*wallShade/256;
-                                b=(frame?69:102+glow/3)*wallShade/256;
-                                if(!frame&&(edge==37||surfaceU%128==64)){
-                                    r=105*wallShade/256;
-                                    g=79*wallShade/256;b=68*wallShade/256;
-                                }
-                            }
-                        }else if(stone&&edge>51&&edge<68&&
-                                 surfaceU>109&&surfaceU<147){
-                            // Architectural arch/entry recess.
-                            r=47*wallShade/256;g=50*wallShade/256;
-                            b=61*wallShade/256;
-                        }
+                    }else if(feature==GG_FACADE_COURSE){
+                        r=r*4/5;g=g*4/5;b=b*4/5;
+                    }else if(feature==GG_FACADE_BEAM){
+                        r=80*wallShade/256;g=62*wallShade/256;
+                        b=54*wallShade/256;
+                    }else if(feature==GG_FACADE_FRAME){
+                        r=74*wallShade/256;g=68*wallShade/256;
+                        b=71*wallShade/256;
+                    }else if(feature==GG_FACADE_GLASS){
+                        // Dim amber glazing set INTO a dark mullion,
+                        // not a flat luminous yellow billboard.
+                        int glow=((ggExplore.frame/17+tx*5+ty*11)&7)<2?
+                                 8:0;
+                        r=(149+glow)*wallShade/256;
+                        g=(126+glow/2)*wallShade/256;
+                        b=(100+glow/3)*wallShade/256;
+                    }else if(feature==GG_FACADE_DOOR){
+                        r=54*wallShade/256;g=52*wallShade/256;
+                        b=58*wallShade/256;
+                    }else if(feature==GG_FACADE_PORTAL){
+                        r=48*wallShade/256;g=61*wallShade/256;
+                        b=77*wallShade/256;
+                    }else if(feature==GG_FACADE_TRIM){
+                        r=113*wallShade/256;g=103*wallShade/256;
+                        b=94*wallShade/256;
                     }
                 }else if(cinematic&&!build){
                     // Restrained grass and stone microtexture in genuine

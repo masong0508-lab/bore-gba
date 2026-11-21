@@ -105,7 +105,12 @@ int main(void){
           "shoulder did not ease through an intermediate gesture");
     GgFilmPose reach=ggFilmPoseFor("We'll help the families.",
                                  2,64,1,0,0,3);
+    // The new breathing/weight-shift system must yield to an exact
+    // shared hand contact, otherwise books and wrists drift apart.
+    reach.breath=1;reach.weightShift=-1;
     ggFilmPairActPose(&reach,1,96);
+    check(reach.breath==0&&reach.weightShift==0,
+          "hand-over pose retained secondary motion and detached the prop");
     check(reach.reach==4&&reach.armR>=2&&reach.legL==2&&
           reach.legR==-2&&reach.bob==0,
           "hero lacks planted legs, weight shift or outstretched arm");
