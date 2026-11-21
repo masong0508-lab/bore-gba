@@ -6,6 +6,14 @@
 enum {GG_FILM_PAIR_NONE,GG_FILM_PAIR_COMFORT,
       GG_FILM_PAIR_BOOK,GG_FILM_PAIR_PARCEL};
 static int ggFilmPairCue(const char *first,const char *second){
+    // Contradictory coercion/seizure language must never be directed as
+    // a friendly handoff or reassuring clasp; story consequences matter.
+    if(strstr(first,"seize")||strstr(second,"seize")||
+       strstr(first,"assault")||strstr(second,"assault")||
+       strstr(first,"betray")||strstr(second,"betray")||
+       strstr(first,"not trust")||strstr(second,"not trust")||
+       strstr(first,"secret pages")||strstr(second,"secret pages"))
+       return GG_FILM_PAIR_NONE;
     // Share a specific physical object only if the story establishes
     // giving/public access or food provision. Seizing or conquering
     // supplies must not accidentally play a friendly handover.
@@ -14,7 +22,7 @@ static int ggFilmPairCue(const char *first,const char *second){
         strstr(first,"rescued")||strstr(second,"rescued")||
         strstr(first,"remain where")||strstr(second,"remain where")||
         strstr(first,"copied")||strstr(second,"copied")||
-        strstr(first,"belong to")||strstr(second,"belong to");
+        strstr(first,"opened for")||strstr(second,"opened for");
     int book=strstr(first,"records")||strstr(second,"records")||
              strstr(first,"names")||strstr(second,"names")||
              strstr(first,"pages")||strstr(second,"pages");
