@@ -40,7 +40,7 @@ static unsigned long hashFrame(void){
 static unsigned long frame(int place,int camera,int t){
     FilmBeat b={place,camera,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&b,t,filmEase(t,420),t/300,1);
+    ggFilmWorldDraw(&b,t,filmEase(t,420),t/300,1,0);
     return hashFrame();
 }
 int main(void){
@@ -69,21 +69,28 @@ int main(void){
             "the first-rain porch is still a generic couch stage");
     FilmBeat porch={F_PORCH,F_NEAR,F_MIRA,F_WISP,F_CUP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&porch,40,128,1,1);
+    ggFilmWorldDraw(&porch,40,128,1,1,0);
     unsigned long rainPorch=hashFrame();
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&porch,40,128,14,1);
+    ggFilmWorldDraw(&porch,40,128,14,1,0);
     require(hashFrame()!=rainPorch,
             "porch window never clears after the first-rain chapter");
     // The worksite has visibly exposed rafters before its completed roof.
     FilmBeat village={F_VILLAGE,F_WIDE,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,0,128,2,0);
+    ggFilmWorldDraw(&village,0,128,2,0,0);
     unsigned long roofOpen=hashFrame();
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,0,128,2,1);
+    ggFilmWorldDraw(&village,0,128,2,1,0);
     require(hashFrame()!=roofOpen,
             "the house roof did not change when construction finished");
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&village,44,128,14,1,1);
+    unsigned long snowVillage=hashFrame();
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&village,44,128,14,1,0);
+    require(snowVillage!=hashFrame(),
+            "bonus winter stories have the same environment as summer");
     require(frame(F_SHORE,F_NEAR,0)!=frame(F_SHORE,F_NEAR,180),
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
