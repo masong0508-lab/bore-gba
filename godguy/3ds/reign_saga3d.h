@@ -409,7 +409,11 @@ static int ggSagaStep(int raw){
         ggSaga.frame=(ggSaga.frame/GG_SAGA_BEAT_TICKS+1)*
                      GG_SAGA_BEAT_TICKS;
     }else ggSaga.frame++;
-    if(ggSaga.frame>=frames)ggSaga.mode=GG_SAGA_IDLE;
+    if(ggSaga.frame>=frames){
+        ggSaga.frame=frames;
+        ggSaga.mode=GG_SAGA_IDLE;
+        ggSaga.paused=0;
+    }
     return 1;
 }
 static const GgSagaBeat *ggSagaCurrentBeat(int n){
@@ -428,6 +432,8 @@ static const GgSagaBeat *ggSagaCurrentBeat(int n){
 typedef struct {
     int mode,act,beat,eventX,eventY,anchorX,anchorY;
     int landmarkX,landmarkY,angle,distance,valid;
+    int sidesResolved,plusValid,minusValid;
+    int plusX,plusY,minusX,minusY;
 } GgSagaShot;
 static GgSagaShot ggSagaShot;
 
@@ -501,6 +507,7 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
         ggSagaShot.landmarkX=landmarkX;
         ggSagaShot.landmarkY=landmarkY;
         ggSagaShot.anchorX=tx;ggSagaShot.anchorY=ty;
+        ggSagaShot.sidesResolved=0;
         ggSagaShot.angle=(shot*51+ggChron.act*23+32)&255;
         ggSagaShot.distance=3;
         // Eight cardinal/diagonal angles at three distances, visited
@@ -570,9 +577,13 @@ static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
                                 int *worldX,int *worldY){
     // Only approach/exit beats move the performer; spoken lines hold
     // at the landmark. Movement stays inside its actual unblocked tile.
-    int smooth=ggSagaEase(local);
-    int pace=beat%3==0?-72+smooth*72/256:
-             beat%3==2?smooth*72/256:0;
+    // A take starts with one deliberate walk-in and settles to a
+    // planted pose before the next line. There is NO backward jump at
+    // the paired-beat boundary, unlike the old beat%3 motion rule.
+    int progress=(beat&1)?GG_SAGA_BEAT_TICKS:
+                  ggExpClamp(local*2,0,GG_SAGA_BEAT_TICKS);
+    int smooth=ggSagaEase(progress);
+    int pace=-64+smooth*64/256;
     int a=ggSagaShot.angle;
     *worldX=stageX*256+128+ggExpSin[a]*pace/4096;
     *worldY=stageY*256+128-ggExpCos[a]*pace/4096;
@@ -592,38 +603,62 @@ static int ggSagaGuestStyle(const char *voice){
 }
 // A single real-world staging rule is shared by guest cels and scene
 // props. The preferred side prevents objects from occupying a speaker.
-static int ggSagaConversationGuest(int beat){
-    int style=ggSagaGuestStyle(ggSagaCurrentBeat(beat)->voice);
-    if(style>=0)return style;
-    // The narrator/player doesn't cause their conversation partner to
-    // blink out of existence. Preserve the paired shot's named actor.
-    int first=beat&~1,count=ggSagaBeatCount();
-    for(int k=first;k<first+2&&k<count;k++){
-        style=ggSagaGuestStyle(ggSagaCurrentBeat(k)->voice);
-        if(style>=0)return style;
+// Lock every two-line conversation to at most two distinct named
+// characters. A narrator or hero line never swaps a guest's costume
+// in place; two named speakers remain present throughout the take.
+static void ggSagaPairGuests(int beat,int *first,int *second){
+    int begin=beat&~1,count=ggSagaBeatCount();
+    *first=*second=-1;
+    for(int k=begin;k<begin+2&&k<count;k++){
+        int style=ggSagaGuestStyle(ggSagaCurrentBeat(k)->voice);
+        if(style<0||style==*first||style==*second)continue;
+        if(*first<0)*first=style;
+        else if(*second<0)*second=style;
     }
-    // If both beats are narration, retain the previous scene's known
-    // actor instead of spawning an anonymous replacement.
-    for(int k=first-1;k>=0&&k>=first-2;k--){
-        style=ggSagaGuestStyle(ggSagaCurrentBeat(k)->voice);
-        if(style>=0)return style;
-    }
-    return -1;
+    // Adjacent narrator-only beats retain a familiar actor rather than
+    // replacing them with a fabricated extra or an empty empty frame.
+    if(*first<0)
+        for(int k=begin-1;k>=0&&k>=begin-2;k--){
+            int style=ggSagaGuestStyle(ggSagaCurrentBeat(k)->voice);
+            if(style>=0){*first=style;break;}
+        }
 }
+static int ggSagaConversationGuest(int beat){
+    int first,second;
+    ggSagaPairGuests(beat,&first,&second);
+    return first;
+}
+// The staging sides are selected once when a take begins. A transient
+// crowd-cell change or a held dialogue frame cannot teleport a guest
+// or a physical prop on screen. Both sides are distinct; no duplicates.
 static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
                           int *worldX,int *worldY){
-    int a=ggSagaShot.angle;
-    int sideX=-ggExpSin[a],sideY=ggExpCos[a];
-    int dx=0,dy=0;
-    if(abs(sideX)>=abs(sideY))dx=sideX>=0?1:-1;
-    else dy=sideY>=0?1:-1;
-    for(int i=0;i<(fallback?2:1);i++){
-        int sign=i?-preferred:preferred;
-        int x=tx+dx*sign,y=ty+dy*sign;
-        if(!ggChronLand(x,y)||
-           !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,x,y))
-            continue;
-        *worldX=x*256+128;*worldY=y*256+128;
+    if(!ggSagaShot.sidesResolved){
+        int a=ggSagaShot.angle;
+        int sx=-ggExpSin[a],sy=ggExpCos[a],dx=0,dy=0;
+        if(abs(sx)>=abs(sy))dx=sx>=0?1:-1;
+        else dy=sy>=0?1:-1;
+        int px=ggExplore.px>>8,py=ggExplore.py>>8;
+        ggSagaShot.plusX=(tx+dx)*256+128;
+        ggSagaShot.plusY=(ty+dy)*256+128;
+        ggSagaShot.minusX=(tx-dx)*256+128;
+        ggSagaShot.minusY=(ty-dy)*256+128;
+        ggSagaShot.plusValid=ggChronLand(tx+dx,ty+dy)&&
+                             ggExpLineClear(px,py,tx+dx,ty+dy);
+        ggSagaShot.minusValid=ggChronLand(tx-dx,ty-dy)&&
+                              ggExpLineClear(px,py,tx-dx,ty-dy);
+        ggSagaShot.sidesResolved=1;
+    }
+    int plus=preferred>=0;
+    if(plus?ggSagaShot.plusValid:ggSagaShot.minusValid){
+        *worldX=plus?ggSagaShot.plusX:ggSagaShot.minusX;
+        *worldY=plus?ggSagaShot.plusY:ggSagaShot.minusY;
+        return 1;
+    }
+    if(fallback&&
+       (plus?ggSagaShot.minusValid:ggSagaShot.plusValid)){
+        *worldX=plus?ggSagaShot.minusX:ggSagaShot.plusX;
+        *worldY=plus?ggSagaShot.minusY:ggSagaShot.plusY;
         return 1;
     }
     return 0;
@@ -754,24 +789,32 @@ static void ggSagaDraw(u8 *out){
     // Stage a context-appropriate physical prop on the OPPOSITE side
     // of the speaker, so a wagon or lectern cannot hover over faces.
     int propX,propY,screenX,screenY,screenSize;
-    if(ggSagaSideTile(stageX,stageY,-1,0,&propX,&propY)&&
+    int primaryGuest,secondGuest;
+    ggSagaPairGuests(index,&primaryGuest,&secondGuest);
+    // In three-person scenes the opposite side belongs to the second
+    // actor, so a wagon cannot appear underneath someone's feet.
+    if(secondGuest<0&&
+       ggSagaSideTile(stageX,stageY,-1,0,&propX,&propY)&&
        ggSagaProjectActor(propX,propY,&screenX,&screenY,&screenSize))
         ggSagaPropDraw(out,screenX,screenY,
                        ggExpClamp(screenSize/13,1,3),ggSagaPropKind());
     // Draw the protagonist BEFORE restoring the gameplay camera.
     // Previously projection happened after restore, so the person
     // vanished or stood in the wrong place relative to the shot.
-    if(ggOrigin.complete&&index%3!=2){
+    // The hero stays in every dialogue beat. The former index%3 rule
+    // erased the protagonist every third line without story justification.
+    if(ggOrigin.complete){
         int x,feet,size,worldX,worldY;
         ggSagaActorPosition(stageX,stageY,index,local,&worldX,&worldY);
         if(ggSagaProjectActor(worldX,worldY,&x,&feet,&size)){
-            int walking=index%3!=1&&local>4&&
-                        local<GG_SAGA_BEAT_TICKS-4;
+            int walking=ggSaga.mode!=GG_SAGA_CHOICE&&
+                        !(index&1)&&local<GG_SAGA_BEAT_TICKS/2;
             const GgSagaBeat *line=ggSaga.mode==GG_SAGA_CHOICE?0:
                                    ggSagaCurrentBeat(index);
-            GgFilmPose performance=ggFilmPoseAt(line?line->voice:"YOU",
-                               line?line->line:"",index,local,1,walking,
-                               ggSagaPropKind());
+            GgFilmPose performance=ggFilmPoseFor(line?line->line:"",
+                               index,local,1,
+                               line&&!strcmp(line->voice,"YOU"),
+                               walking,ggSagaPropKind());
             ggFilmDrawActor(out,x,feet,ggExpClamp(size/12,1,3),
                             ggOriginHairRGB[ggOrigin.hair],
                             ggOriginSkinRGB[ggOrigin.skin],
@@ -783,13 +826,21 @@ static void ggSagaDraw(u8 *out){
     // protagonist, with a tiny hand-gesture cycle during spoken lines.
     // The guest uses the very same film perspective and line-of-sight.
     if(ggSaga.mode!=GG_SAGA_CHOICE){
-        int style=ggSagaConversationGuest(index);
-        int worldX,worldY,x,y,size;
-        if(style>=0&&ggSagaGuestTile(stageX,stageY,&worldX,&worldY)&&
-           ggSagaProjectActor(worldX,worldY,&x,&y,&size)){
-            const GgSagaBeat *line=ggSagaCurrentBeat(index);
-            GgFilmPose performance=ggFilmPoseAt(line->voice,line->line,
-                                            index,local,0,0,ggSagaPropKind());
+        const GgSagaBeat *line=ggSagaCurrentBeat(index);
+        int activeStyle=ggSagaGuestStyle(line->voice);
+        int guestStyles[2]={primaryGuest,secondGuest};
+        for(int slot=0;slot<2;slot++){
+            int style=guestStyles[slot];
+            if(style<0)continue;
+            int worldX,worldY,x,y,size;
+            // The same person holds the same side across both beats.
+            // Two named speakers are both visible, with no cast swapping.
+            if(!ggSagaSideTile(stageX,stageY,slot?-1:1,
+                               secondGuest<0,&worldX,&worldY)||
+               !ggSagaProjectActor(worldX,worldY,&x,&y,&size))
+                continue;
+            GgFilmPose performance=ggFilmPoseFor(line->line,index,local,
+                                0,activeStyle==style,0,ggSagaPropKind());
             ggFilmDrawActor(out,x,y,ggExpClamp(size/16,1,3),
                             ggFilmGuestPalette[style][0],
                             ggFilmGuestPalette[style][1],

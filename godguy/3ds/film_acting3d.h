@@ -42,12 +42,14 @@ static int ggFilmGestureFor(const char*line,int beat){
     return (beat%4==0)?GG_FILM_POINT:
            (beat%4==2)?GG_FILM_REASSURE:GG_FILM_SPEAK;
 }
-static GgFilmPose ggFilmPoseAt(const char*voice,const char*line,
-                              int beat,int local,int hero,int walking,
-                              int propKind){
+// Actor-specific speaking state comes from the directed cast slot,
+// not merely from the line's speaker label. This is essential when two
+// named characters share a conversation: only the actual speaker moves
+// their mouth, while the other visibly listens and reacts.
+static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
+                               int hero,int speaking,int walking,
+                               int propKind){
     GgFilmPose p={0};
-    int speaking=hero?!strcmp(voice,"YOU"):
-        (strcmp(voice,"YOU")&&strcmp(voice,"NARRATOR"));
     int t=ggExpClamp(local,0,GG_SAGA_BEAT_TICKS-1);
     int strength=t<12?t*256/12:
                  t<70?256:
@@ -109,6 +111,16 @@ static GgFilmPose ggFilmPoseAt(const char*voice,const char*line,
     if(!walking&&((t/24+beat+(hero?0:1))&3)==0)
         p.bob=1;
     return p;
+}
+// Preserve the simple authored-pose API used in existing regression
+// scenes; the director uses ggFilmPoseFor for multi-actor blocking.
+static GgFilmPose ggFilmPoseAt(const char*voice,const char*line,
+                              int beat,int local,int hero,int walking,
+                              int propKind){
+    int speaking=hero?!strcmp(voice,"YOU"):
+        (strcmp(voice,"YOU")&&strcmp(voice,"NARRATOR"));
+    return ggFilmPoseFor(line,beat,local,hero,speaking,walking,
+                         propKind);
 }
 // Every pose deforms the SAME original 16x24 cel consistently: head,
 // torso, individual sleeves/hands, legs, eyes and mouth are separate

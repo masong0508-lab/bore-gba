@@ -822,11 +822,30 @@ int main(void){
     check(ggSagaConversationGuest(0)==0&&
           ggSagaConversationGuest(1)==0,
           "Mira vanished while the narrator continued her scene");
+    int guestA,guestB;
+    ggSagaPairGuests(2,&guestA,&guestB);
+    check(guestA==0&&guestB==2,
+          "Mira and Varro were not staged as two distinct actors");
+    int otherA,otherB;
+    ggSagaPairGuests(3,&otherA,&otherB);
+    check(otherA==guestA&&otherB==guestB&&
+          ggSagaConversationGuest(3)==0,
+          "paired dialogue swapped the cast identity halfway through");
     ggSaga.mode=beforeFilmMode;ggChron.act=beforeFilmAct;
     int speakerX,speakerY;
     check(ggSagaGuestTile(shotX,shotY,&speakerX,&speakerY)&&
           ggChronLand(speakerX>>8,speakerY>>8),
           "cinematic supporting actor cannot occupy a grounded tile");
+    // Staging is frozen across a take even if an unrelated simulation
+    // update briefly marks the chosen cell occupied.
+    int cachedGuestX=speakerX,cachedGuestY=speakerY;
+    int occupiedX=speakerX>>8,occupiedY=speakerY>>8;
+    unsigned short oldOcc=occ[occupiedY][occupiedX];
+    occ[occupiedY][occupiedX]=1;
+    check(ggSagaGuestTile(shotX,shotY,&speakerX,&speakerY)&&
+          speakerX==cachedGuestX&&speakerY==cachedGuestY,
+          "a moving crowd cell teleported the film actor mid-shot");
+    occ[occupiedY][occupiedX]=oldOcc;
     memset(guarded.img,0,sizeof guarded.img);
     ggSagaGuestPortrait(guarded.img,200,150,2,0,1);
     unsigned long miraPicture=hash();
@@ -867,6 +886,19 @@ int main(void){
           walkingA.legL!=walkingB.legL&&
           walkingA.legR!=walkingB.legR,
           "4-phase walk did not alternate the leading leg");
+    int endingX,endingY,nextX,nextY;
+    ggSagaActorPosition(60,60,2,GG_SAGA_BEAT_TICKS-1,
+                        &endingX,&endingY);
+    ggSagaActorPosition(60,60,3,0,&nextX,&nextY);
+    check(abs(endingX-nextX)<=2&&abs(endingY-nextY)<=2,
+          "hero snapped backward when the dialogue beat changed");
+    GgFilmPose listener=ggFilmPoseFor("Follow the soldiers",
+                       2,28,0,0,0,GG_FILM_PROP_BANNER);
+    GgFilmPose speaker=ggFilmPoseFor("Follow the soldiers",
+                       2,28,0,1,0,GG_FILM_PROP_BANNER);
+    check(listener.pose==GG_FILM_LISTEN&&listener.mouth==0&&
+          speaker.pose!=GG_FILM_LISTEN&&speaker.mouth>0,
+          "listening character mouths the other actor's speech");
     GgFilmPose talk=ggFilmPoseAt("MIRA","Save the families",
                                 2,28,0,0,GG_FILM_PROP_CART);
     check(talk.mouth!=0&&
