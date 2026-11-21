@@ -281,6 +281,14 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     int x0=tx*256+28,x1=tx*256+228;
     int y0=ty*256+28,y1=ty*256+228;
+    // Building type changes actual footprint/volume, not merely a
+    // pixel tint: small huts, strong towers, open ruins and temples
+    // remain distinguishable even when viewed with flat materials.
+    if(build==B_HUT){x0+=35;x1-=35;y0+=30;y1-=30;}
+    if(build==B_TOWER){x0+=39;x1-=39;y0+=38;y1-=38;}
+    if(build==B_FARM){y0+=33;y1-=35;}
+    if(build==B_DOCK){x0+=28;x1-=28;}
+    if(build==B_STATUE){x0+=42;x1-=42;y0+=38;y1-=38;}
     int wallTop=ground+ggExpBuilding(build);
     int wood=build==B_HOUSE||build==B_HUT||
              build==B_DOCK||build==B_FARM;
@@ -290,10 +298,57 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         bl=wood?78:stone?130:111;
     if(build==B_RUIN){r=107;g=109;bl=108;}
     if(build==B_STATUE){r=156;g=152;bl=140;}
+    if(build==B_STATUE){
+        // Stone plinth, tapering waist and an actual angular sculpture
+        // create a readable monument instead of an enormous solid cube.
+        ggMeshBox(m,x0-14,y0-14,x1+14,y1+14,
+                  ground,ground+6,134,134,127);
+        ggMeshBox(m,x0+8,y0+8,x1-8,y1-8,
+                  ground+6,ground+13,174,166,148);
+        int cx=(x0+x1)/2,cy=(y0+y1)/2;
+        ggMeshTriangle(m,ggMeshV(x0+8,y0+8,ground+13),
+            ggMeshV(x1-8,y0+8,ground+13),
+            ggMeshV(cx,cy,wallTop+3),192,181,159);
+        ggMeshTriangle(m,ggMeshV(x1-8,y0+8,ground+13),
+            ggMeshV(x1-8,y1-8,ground+13),
+            ggMeshV(cx,cy,wallTop+3),143,138,135);
+        ggMeshTriangle(m,ggMeshV(x1-8,y1-8,ground+13),
+            ggMeshV(x0+8,y1-8,ground+13),
+            ggMeshV(cx,cy,wallTop+3),127,126,124);
+        ggMeshTriangle(m,ggMeshV(x0+8,y1-8,ground+13),
+            ggMeshV(x0+8,y0+8,ground+13),
+            ggMeshV(cx,cy,wallTop+3),164,159,145);
+        ggMeshBuildingsDrawn++;return;
+    }
+    if(build==B_RUIN){
+        // Deliberately incomplete, hollow ruin. Walking past the wall
+        // reveals true spatial gaps instead of a tinted complete house.
+        ggMeshBox(m,x0,y0,x0+23,y1,ground,wallTop,
+                  130,129,121);
+        ggMeshBox(m,x0,y1-24,x1,y1,ground,wallTop-4,
+                  104,108,104);
+        ggMeshBox(m,x1-30,y0,x1,y0+27,ground,wallTop+5,
+                  148,145,132);
+        ggMeshBox(m,x1-35,y1-29,x1,y1,ground,wallTop-5,
+                  112,112,108);
+        ggMeshBuildingsDrawn++;return;
+    }
     ggMeshBox(m,x0,y0,x1,y1,ground,wallTop,r,g,bl);
     if(build==B_HOUSE||build==B_HUT||build==B_HALL||
-       build==B_TEMPLE||build==B_LIBRARY)
+       build==B_TEMPLE||build==B_LIBRARY||build==B_FARM)
         ggMeshRoof(m,build,x0,y0,x1,y1,wallTop);
+    if(build==B_DOCK){
+        // Pier planks and offset pilings, still part of a real world
+        // tile, so coast settlements have space rather than a stone
+        // high-rise sitting on the waterline.
+        for(int i=0;i<4;i++){
+            int x=x0+18+i*(x1-x0-36)/3;
+            ggMeshBox(m,x-7,y0-14,x+7,y0+14,
+                      ground-3,ground+4,115,91,64);
+        }
+        ggMeshBox(m,x0-10,y0-28,x1+10,y1+18,
+                  ground+5,ground+7,153,119,81);
+    }
     if(build==B_TOWER){
         // Four real corner parapets, not a one-pixel tower trim stripe.
         int h=wallTop;
@@ -325,6 +380,25 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                   trimR,trimG,trimB);
         ggMeshBox(m,x1-10,y1-10,x1+7,y1+7,ground,wallTop,
                   trimR,trimG,trimB);
+        if(build==B_TEMPLE){
+            // A broad stone stair procession toward the portico.
+            for(int stair=0;stair<3;stair++){
+                ggMeshBox(m,x0+20+stair*5,
+                           y0-58+stair*13,
+                           x1-20-stair*5,y0-45+stair*13,
+                           ground,ground+2+stair,
+                           160+stair*7,157+stair*4,146);
+            }
+        }
+        if(build==B_FARM){
+            // True depth barn braces and stocked crates by the door.
+            ggMeshBox(m,x0+9,y0-20,x0+24,y0-2,
+                      ground,wallTop+2,114,84,58);
+            ggMeshBox(m,x1-24,y0-20,x1-9,y0-2,
+                      ground,wallTop+2,114,84,58);
+            ggMeshBox(m,x0+35,y0-38,x0+75,y0-13,
+                      ground,ground+6,142,100,68);
+        }
         if(build==B_TEMPLE||build==B_HALL){
             // Real colonnade projecting ahead of the wall, with an
             // enclosed upper lintel that receives perspective shading.
