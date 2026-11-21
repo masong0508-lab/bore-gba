@@ -97,3 +97,13 @@ each cancel a point. All three together slowly reduce pressure, and the
 updated host test checks the full 0..100 range, including the zero-floor
 saturation to prevent a negative value wrapping to 255. One-more-night
 remains a last resort and is still consumed permanently once spent.
+
+### Route 9 aftermath
+Chapter five now also keeps Mamesy off the active lot after the road
+accident. She no longer walks around, goes to work or turns up in a
+household interaction despite the film treating her death as a fact.
+Her uid remains in the story and family relationship data for continuity;
+the existing chapter-five household goal explicitly does not count her.
+Entering the scene from a saved game immediately hides her, just as
+chapter four immediately hides unconscious Missy. This avoids altering
+the household's binary save format or silently replacing a dead Sim.

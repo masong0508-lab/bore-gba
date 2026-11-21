@@ -848,7 +848,7 @@ static void hhAmbient(void){   // item module 12: while a Sim has the stereo on,
 #include "panic.h"   // PANIC: Sims run from gunfire, blasts and shot Sims (hhScare)
 // story.h is included later in main.c; hospital patients are not household AI
 // actors until the recovery chapter returns them to the player.
-static int stTvHospitalUid(int uid);
+static int stTvStoryAbsentUid(int uid);
 static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_MULTIFL]||xo[XO_ITEMUSE]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh (item module 2: item use reads it too)
     if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
@@ -862,7 +862,7 @@ static void hhTick(void){   // once per logic step in the life game
     relTick(); hhAmbient(); bcTick();
     int fe=oFoodEvery(), we=oWcEvery();
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m];
-        if(stTvHospitalUid(s->uid)){ // keep Missy off-lot: no normal work, chatting, panic or free-will respawn
+        if(stTvStoryAbsentUid(s->uid)){ // Missy in hospital, or Mamesy after the crash: unavailable to NPC life routines
             s->act=HA_AWAY; s->use=HN_REST; s->item=0; s->pn=s->pi=0;
             s->bubT=0; s->jt=s->jl=0; hhUp[m]=0;
             continue;

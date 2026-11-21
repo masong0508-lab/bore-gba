@@ -454,8 +454,11 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
 // MAMESY'S LOOK: fixed, so the game and the cutscenes (csart.h csface.h) show the same woman: a slim-average build, Missy's skin (they are sisters), long brown hair, a teal long-sleeve top, jeans.
 static const u8 stMamesyLook[LK_N]={[LK_SHAPE]=0,[LK_SKIN]=1,[LK_EYES]=1,[LK_MOUTH]=1,[LK_EARS]=1,[LK_HSTYLE]=2,[LK_HCOL]=1,[LK_TOP]=0,[LK_BOT]=0,[LK_BROW]=1,[LK_NOSE]=1,[LK_CHEEK]=1,[LK_TOPSTY]=1};
 static u8 stTvWant, stTvWarn;
-static int stTvHospitalUid(int uid){ // house.h calls this before any household AI decisions
-    return stId==STY_TVSHOW&&stCh==3&&stKid!=255&&hhPUid!=(int)stKid&&uid==(int)stKid;
+static int stTvStoryAbsentUid(int uid){ // house.h calls this before any household AI decisions
+    if(stId!=STY_TVSHOW) return 0;
+    if(stCh==3&&stKid!=255&&hhPUid!=(int)stKid&&uid==(int)stKid) return 1; // Missy is in hospital
+    if(stCh>=4&&stPart!=255&&hhPUid!=(int)stPart&&uid==(int)stPart) return 1; // Mamesy died on Route 9
+    return 0;
 }
 static void stTvPatientRest(int m){ // the recovery scene is over: Missy may be controlled again
     HhSim*s=&hhM[m]; s->act=HA_IDLE; s->use=HN_FUN; s->item=0;
@@ -663,9 +666,12 @@ static void stqBeatTick(void){   // a goal reached for the first time this chapt
 static void stTick(void){ { static u8 bt; if(++bt>=45){ bt=0; stqBeatTick(); } } papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stFix(void);
 static void stEnter(void){ stLoad(); stFix(); if(stId){
-        if(stCh==3&&stId==STY_TVSHOW&&stKid!=255){ int patient=stMember(stKid);
-            if(patient>=0){ hhM[patient].act=HA_AWAY; hhUp[patient]=0; }
-        } // hide Missy immediately on loading the hospital chapter, before the first rendered frame
+        if(stId==STY_TVSHOW){
+            int unavailable=stCh==3?stKid:stCh>=4?stPart:255;
+            if(unavailable!=255&&hhPUid!=unavailable){ int m=stMember(unavailable);
+                if(m>=0){ hhM[m].act=HA_AWAY; hhUp[m]=0; }
+            }
+        } // hide the absent sister before the first rendered frame
         stAnnounce();
         if(stPending&&stId==STY_TVSHOW){ stShown=(u16)(stId*16+stCh+1); stModal=2; }  // a save/reload must not silently skip Missy's ending scenes
         else if(stShown!=(u16)(stId*16+stCh+1)){ stShown=(u16)(stId*16+stCh+1); stModal=1; }
