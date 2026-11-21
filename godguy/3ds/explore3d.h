@@ -72,6 +72,13 @@ static int ggExpBuilding(int b){
 static int ggExpWalkable(int x,int y,int fromHeight,int climb){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     int t=world[y][x];
+    if(ggExplore.actorId){
+        // The actor can begin inside their own home or water habitat.
+        // Allow fractional travel there; ggHybridMove applies the true
+        // species-specific stepOk() rule at every tile boundary.
+        if(x==(ggExplore.px>>8)&&y==(ggExplore.py>>8))return 1;
+        return !bld[y][x]&&!occ[y][x];
+    }
     if(t<=T_WATER||t==T_LAVA||bld[y][x])return 0;
     return ggExpGround(t)-fromHeight<=(climb?30:19);
 }
