@@ -28,7 +28,7 @@ Saves use the cart's 128 KB of flash (58 slots). A cart without flash falls back
 3. The town map opens. Pick a home lot and buy it (your starting cash is shown against each price).
 4. The first time you play, the game offers a short tutorial that walks you through moving, running, hopping, the board, the fridge and the pause menu. It can be replayed from OPTIONS.
 5. Look after the bars on screen. Press **R** at the fridge when you are hungry, at the toilet, in bed, at the shower. A thought bubble over your head shows what is most urgent.
-6. Start unemployed and find work through the newspaper or computer job board. Skating is a hobby until you earn a skate-team tryout: reach skating level 1, land five tricks, and bank a 250-point combo. Then Pro Skater becomes an optional job opportunity.
+6. Start unemployed and find work through the newspaper or computer job board. Skating is a hobby until you earn a skate-team tryout: reach skating level 1, land five tricks, and bank a 250-point combo. Enter a PARK JAM at an equipped skate park, earn a bronze (or better) medal, and Pro Skater becomes an optional job opportunity. Free practice remains unpaid.
 7. Press **START** to pause, check **MY SIM** to see how you are doing, and **SAVE** before you stop.
 
 ## Controls
@@ -78,7 +78,7 @@ Saves use the cart's 128 KB of flash (58 slots). A cart without flash falls back
 
 **Time.** A game day lasts six real minutes by default (OPTIONS > TIME changes it, or stops the clock).
 
-**Work and money.** Open the phone and choose CAREER. There are nine tracks, from Entertainment and Slacker to Business, Military, Education, Fast Food (the part-time job teens can take) and the optional, **Pro Skater**. A normal job counts the minutes you spend at your work marker during a shift; Pro Skater counts trick points, but only after earning a skate-team tryout. Casual skating itself never pays a wage. A good shift pays and builds towards a promotion, which also wants a skill and, higher up, friends. Bad shifts earn strikes. Bills fall due every midnight, so keep cash in hand. Teens and adults work; children go to school on weekdays; elders retire.
+**Work and money.** Open the phone and choose CAREER. There are nine tracks, from Entertainment and Slacker to Business, Military, Education, Fast Food (the part-time job teens can take) and the optional, **Pro Skater**. A normal job counts the minutes you spend at your work marker during a shift; Pro Skater counts trick points, but only after earning a skate-team tryout. Casual skating never pays wages: a free two-minute practice earns no money, while an optional skate-park jam offers a capped medal prize once per in-game day. A good shift pays and builds towards a promotion, which also wants a skill and, higher up, friends. Bad shifts earn strikes. Bills fall due every midnight, so keep cash in hand. Teens and adults work; children go to school on weekdays; elders retire.
 
 **Skills and rewards.** Cooking, logic, body, charm and creativity grow by doing: cooking at the fridge, practising in YOUR ACTIONS, and so on. Skating has its own skills. Reward points are spent in the REWARD SHOP (MY SIM > STUFF). **Jenes** (DNA) come from living and unlock creator parts and slider packs.
 

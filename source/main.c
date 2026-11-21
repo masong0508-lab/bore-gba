@@ -1720,7 +1720,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lbailT;   // frames of bail flicker left (the skater blinks while getting up)
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
-static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS, trnCombo EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
+static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS, trnCombo EWRAM_BSS, trnMode EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
 // COMBO STRING: the names of the tricks in the running chain, oldest first (hud.h shows the newest ones that fit in the top bar: "KICKFLIP + 360 + GRIND  X3")
 #define LC_NM 6
 static char lcNm[LC_NM][16] EWRAM_BSS; static u8 lcNmN;   // lcNmN: names kept (the oldest drop out when the chain is longer than LC_NM)
@@ -3444,6 +3444,7 @@ static void clPlace(void){
 }
 static void clTick(void){
     tgPump(); if(CL_ON&&lscore>=2000) tgDone(8);   // goals (goals.h): SCORE 2000 in a run, and a goal note waiting for the note line
+    if(trnOn&&trnMode==1) return;   // PARK JAM: score judged from skating, not the letters or hidden tape; collect them after the event
     if(!CL_ON||ldead||lz>(30<<8)) return;
     for(int i=0;i<CL_N;i++){
         if(clGot>>i&1) continue;
@@ -3452,8 +3453,8 @@ static void clTick(void){
         if(dy<0) dy=-dy;
         if(dx>0xB0||dy>0xB0) continue;
         clGot|=(u8)(1<<i);
-        if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
-        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); tgMark(); }
+        if(i<5){ lscore+=100; specAdd(60); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
+        else { lscore+=1000; specAdd(SPEC_MAX/2); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); tgMark(); }
         clTook|=(u8)(1<<i);
         if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; tgDone(4); }   // every letter and the tape of this lot
     }
@@ -4742,7 +4743,7 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
     if(!gMusic||!mPlay) return;
     if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=gmPick(); if(gmCur<0){ gMusic=0; return; } gmPlay(); if(radioSt) radioNote(0); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
 }
-#include "timedrun.h"   // TIMED RUN: a 2:00 score attack with a high score (PAUSE > WANTS)
+#include "timedrun.h"   // FREE PRACTICE and PARK JAM: optional 2:00 skating sessions (MY SIM > MORE)
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
 static void lifeModeRun(int ed); static void introFly(void);   // goals.h
 static void ambTick(void); static void ambOff(void);   // ambience.h

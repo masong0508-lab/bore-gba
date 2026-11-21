@@ -24,6 +24,8 @@ jobs:
           if ! command -v cc >/dev/null 2>&1; then apt-get update && apt-get install -y gcc; fi
           cc -std=c11 -O2 -Wall -Wextra -Wno-unused-function tools/test_skatefeel.c -o /tmp/bore-skatefeel
           /tmp/bore-skatefeel
+          cc -std=c11 -O2 -Wall -Wextra -Werror tools/test_skatejam.c -o /tmp/bore-skatejam
+          /tmp/bore-skatejam
       - name: Build
         run: |
           export DEVKITPRO=/opt/devkitpro

@@ -21,7 +21,7 @@ static void msCareer(void){
     const JobTr*t=jobT(); char b[56], *e; msPanel(35,110);
     if(jobNone&&ojobOn()){   // jobhunt.h: no job yet
         text(14,40,"UNEMPLOYED",GOLD,2); text(14,66,"NO JOB  SKATING IS A HOBBY",WHITE,1); text(14,80,"PAPER AT 6 AM OR COMPUTER FOR JOBS",WHITE,1);
-        text(14,92,"SKATE TRYOUT  LV1  5 TRICKS  250",RGB(17,29,31),1); text(14,104,"EARN IT  THEN APPLY AT A COMPUTER",RGB(17,29,31),1); text(14,147,"A  JOB TRACKS AND REQUIREMENTS",RGB(12,14,16),1);
+        text(14,92,"SKATE TRYOUT: WIN A PARK JAM MEDAL",RGB(17,29,31),1); text(14,104,"PLUS LV1  5 TRICKS  250 COMBO",RGB(17,29,31),1); text(14,147,"A  JOB TRACKS AND REQUIREMENTS",RGB(12,14,16),1);
         return; }
     if(!ojob()){
         text(14,42,stage<AG_TEEN?"TOO YOUNG FOR A JOB":stage>=AG_ELDER?"RETIRED":"JOBS ARE OFF",GOLD,1);
@@ -210,7 +210,7 @@ static void mySimScreen(void){
         else if(tab==3){ msPanel(35,121); msSkills(sel); }
         else if(tab==4){ msPanel(35,121); msPeople(top,ppl); }
         else if(tab==5) msStuff(sel);
-        else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","A 2 MINUTE TRICK SCORE ATTACK","THE BIG MOMENTS OF YOUR LIFE","HOURS PLAYED, LIFETIME SCORE AND MORE","BADGES TO UNLOCK FROM YOUR STATS"};
+        else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","PRACTICE FOR FUN OR ENTER A PARK JAM","THE BIG MOMENTS OF YOUR LIFE","HOURS PLAYED, LIFETIME SCORE AND MORE","BADGES TO UNLOCK FROM YOUR STATS"};
             msPanel(35,121); text(10,40,"MORE ABOUT YOU",GOLD,1);
             for(int i=0;i<MY_MORE;i++){ const char*nm=i==0?"VIEW TRICKS":i==1?"VIEW GOALS":i==2?trnLabel():i==3?"MEMORIES":i==4?"LIFETIME STATS":"ACHIEVEMENTS"; int y=50+i*13, on=i==ms;
                 s2rr(10,y,220,12,on?GOLD:RGB(10,20,30)); s2rr(11,y+1,218,10,on?RGB(6,18,10):RGB(4,9,18)); text(16,y+2,nm,on?WHITE:RGB(20,26,30),1); }

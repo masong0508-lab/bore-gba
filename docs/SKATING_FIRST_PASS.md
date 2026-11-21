@@ -2,7 +2,7 @@
 
 New players start **unemployed**, not with an implied Pro Skater profession.
 The optional skate-team opportunity becomes available on the existing job boards
-only after skating level 1, five landed tricks and a 250-point combo. All other
+only after skating level 1, five trick feats, a 250-point combo and a bronze-or-better medal earned in a real park jam. All other
 jobs remain accessible normally. Existing working skaters are not removed.
 Career IDs, save layouts, SRAM offsets, expansion pack layouts and assets stay
 unchanged.
@@ -23,3 +23,19 @@ margins a little. Gravity and top speed remain unchanged.
 ### Small frame-time optimizations
 - Wallride dismount heading uses eight precomputed exact results instead of a 128-angle trigonometric search. A general fallback remains for unrecognized directions.
 - BORTUA FIGHTER BALLZ MODE shadows reuse the existing half-width cache for typical small projected radii instead of computing a square root for every scanline. Large shadows retain the original fallback. No additional buffers.
+
+## Skating is a hobby, not a salary
+`MY SIM > MORE > SKATE SESSION` now has unpaid free practice and PARK JAM.
+A park jam requires your board and an equipped skate park; the contest ends
+after two minutes and pays 0/120/300/600 for no/bronze/silver/gold medal.
+Only one completed jam per in-game day is counted; practice may be repeated.
+The existing 9-byte timed-run save block now uses its former spare byte
+for a persistent jam-medal unlock (bit 7) and day tag modulo 127 (bits 0–6).
+The checksum still covers the entire block; older saves read a zero spare byte.
+No SRAM address, save chunk, ROM pack slot or texture allocation changed.
+
+Collectibles remain accessible outside competitions, but do not give a
+competitive score during a jam. Taking letters/tapes no longer increments
+the lifetime "tricks landed" tally; they still feed the appropriate wants,
+special meter, sound and goal systems. Existing Pro Skater employees remain
+employed, including legacy saves.
