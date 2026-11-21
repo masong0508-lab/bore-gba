@@ -128,6 +128,7 @@ assert cut.index("csFtrack=0;") < cut.index("csWardFront();")  # bed rail is an 
 qa = Path("tools/qa_missy_visual.sh").read_text(encoding="utf-8")
 assert 'game_h=$((win_w*2/3))' in qa, "emulator screenshots must crop to the actual 3:2 game viewport"
 assert '-crop "${win_w}x${game_h}+0+${top}"' in qa
+assert 'local name="$1"\n  local src="screenshots/$name.xwd"' in qa, "capture path must be assigned after its local label"
 assert 'test $((width*2)) -eq $((height*3))' in qa, "visual smoke must reject emulator chrome outside the game frame"
 makefile = Path("Makefile").read_text(encoding="utf-8")
 assert "preview-missy: bore-missy-preview.gba" in makefile
