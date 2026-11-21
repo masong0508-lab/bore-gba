@@ -17,6 +17,12 @@ int main(void){
     check(ggFilmPairCue("I have orders to seize supplies.",
         "The army will remember.")==GG_FILM_PAIR_NONE,
         "coercive seizure wrongly became a friendly gift");
+    check(ggFilmPairCue("The secret pages belong to you alone now.",
+        "I will hide the books.")==GG_FILM_PAIR_NONE,
+        "private forbidden records were handed out as a public gift");
+    check(ggFilmPairCue("We must seize provisions.",
+        "The families are frightened.")==GG_FILM_PAIR_NONE,
+        "coercive script accidentally played a friendly clasp");
     check(ggFilmPairCue("The wounded need our help.",
         "We will find a way home.")==GG_FILM_PAIR_COMFORT,
         "reassuring scene had no sympathetic physical response");
