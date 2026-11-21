@@ -9,14 +9,16 @@
 #define GG_SAGA_SAVE_PATH "sdmc:/godguy_saga.dat"
 #endif
 enum { GG_SAGA_IDLE,GG_SAGA_OPEN,GG_SAGA_CHOICE,GG_SAGA_OUTRO,
+       GG_SAGA_INTERLUDE,
        GG_SAGA_BEAT_TICKS=96,GG_SAGA_OPEN_BEATS=6,
        GG_SAGA_OUTRO_BEATS=3,GG_SAGA_END_BEATS=6,
-       GG_SAGA_ENDINGS=9 };
+       GG_SAGA_ENDINGS=9,GG_AMBIENT_N=12,GG_AMBIENT_BEATS=3 };
 enum { GG_END_HEARTH,GG_END_REPUBLIC,GG_END_CROWN,
        GG_END_MARSHAL,GG_END_VEIL,GG_END_STARBORN,
        GG_END_WITNESS,GG_END_WANDERER,GG_END_PRESIDENT };
 typedef struct {
     int loaded,mode,frame,choice,ending,lastKeys;
+    int event,eventX,eventY; // anchored real-world nonlinear scene
     u32 decisions,decided,seen;
 } GgReignSaga;
 static GgReignSaga ggSaga;
@@ -304,7 +306,69 @@ static const GgSagaBeat ggSagaEndings[GG_SAGA_ENDINGS][GG_SAGA_END_BEATS]={
         {"ELOWEN","The republic became an argument worth having.","That was the kind of peace the gods had missed."}
     }
 };
+
+static const char *const ggSagaAmbientTitles[GG_AMBIENT_N]={
+    "THE FIRST TOWN","UNDER THE OLD TREES","WHERE THE WATER MEETS THE LAND",
+    "STONES THAT REMEMBER","THE MARKET'S VOICES","THE HANDS THAT FEED",
+    "THE LANTERN CLINIC","THE PUBLIC ARCHIVE","NO SOLDIER ALONE",
+    "AN OATH WITH LIMITS","A WAGON RETURNS","THE QUIET MIRACLE"
+};
+// These scenes can be encountered in any order. All are shot in the
+// physical place where the player actually found their trigger. Choices,
+// careers, village supply and quest results are read from live gameplay.
+static const GgSagaBeat ggSagaAmbientBeats[GG_AMBIENT_N][GG_AMBIENT_BEATS]={
+    {
+        {"MIRA","A town is not a row of houses.","It is every person who trusted someone to build them."},
+        {"CITIZEN","Our bread and our watchmen must both be paid for.","Kings remember the towers. Farmers remember the stores."},
+        {"YOU","My strange blood does not change their worries.","Maybe listening is the first kind of power."}
+    },{
+        {"NARRATOR","The oldest trees predate the border.","The wind moves the same way it did in your childhood."},
+        {"ELOWEN","A forest has no throne and still has its laws.","Those who take everything leave nothing to inherit."},
+        {"YOU","The trees are not asking to be ruled.","For once I am content to keep walking."}
+    },{
+        {"NARRATOR","The coast opens beyond your familiar fields.","Fishing boats trace the horizon of a real world."},
+        {"SAILOR","We can trade with cities we cannot even see yet.","That is how a little village learns to hope."},
+        {"YOU","The horizon asks a better question than a map.","What else is possible beyond the next shore?"}
+    },{
+        {"SERIN","These stones remember empires no one named correctly.","A broken column is still evidence."},
+        {"ELOWEN","The old gods made monuments to their obedience.","People made homes, wells and songs."},
+        {"YOU","I will not mistake the ruin for a destiny.","What matters is what we build beside it."}
+    },{
+        {"TRADER","Every stall belongs to someone who took a risk.","A town survives on promises it can keep."},
+        {"MIRA","CORPORATIONS rise by trading lives for numbers.","Do not forget the faces behind the inventory."},
+        {"YOU","A good bargain should leave both sides standing.","Perhaps profit can have a conscience."}
+    },{
+        {"FARMER","The earth does not grow faster for kings.","We measure good seasons in full cupboards."},
+        {"YOU","I worked these same fields before the wind answered.","My hands remember their ordinary work."},
+        {"MIRA","Some miracles look like a harvest.","Others look like a farmer getting paid fairly."}
+    },{
+        {"HEALER","Our patients come from every banner.","The wound does not ask which side they chose."},
+        {"YOU","I can mend flesh, but not every argument.","I will sit with the injured anyway."},
+        {"MIRA","The clinic's light stays lit after sunset.","This is the kind of courage a kingdom should fund."}
+    },{
+        {"SERIN","The oldest ledgers were written by ordinary hands.","Every name was a life, not a statistic."},
+        {"YOU","My own family is among the unknown entries.","There is no godhood that can replace them."},
+        {"ELOWEN","Let this archive belong to the towns.","Truth is less fragile when everybody may read."}
+    },{
+        {"THORGRIM","A companion swears loyalty, not silence.","Give your soldiers room to disagree."},
+        {"YOU","I asked them to follow me into danger.","I owe them an explanation when we return."},
+        {"SOLDIER","We do not need an immortal commander.","We need one who knows when to listen."}
+    },{
+        {"CITIZEN","The council granted you an office.","Can it take that office away if you fail?"}, 
+        {"YOU","It must be able to.","A divine bloodline is no excuse for refusing a vote."},
+        {"SERIN","Then write those limits into the public charter.","Let your promises outlive your portrait."}
+    },{
+        {"CARTER","The wagon got through the mountain road.","Twelve crates can keep a village alive this winter."},
+        {"MIRA","A journey only matters if someone reaches home.","Look at what changed in the actual stores."},
+        {"YOU","I thought adventure would be grander than this.","Perhaps helping a family eat is grand enough."}
+    },{
+        {"ELOWEN","The light in your palms has grown steadier.","The old gods would have named it a weapon."},
+        {"YOU","I was twenty-two when I first saw it.","I still do not know everything I can become."},
+        {"MIRA","Then do not let the unknown make you cruel.","Come home when you can. Keep choosing."}
+    }
+};
 static int ggSagaBeatCount(void){
+    if(ggSaga.mode==GG_SAGA_INTERLUDE)return GG_AMBIENT_BEATS;
     if(ggSaga.mode==GG_SAGA_OPEN)return GG_SAGA_OPEN_BEATS;
     if(ggSaga.mode==GG_SAGA_OUTRO)return ggSaga.ending>=0?
         GG_SAGA_END_BEATS:GG_SAGA_OUTRO_BEATS;
@@ -314,7 +378,11 @@ static int ggSagaStep(int raw){
     if(!ggSaga.mode)return 0;
     int down=raw&~ggSaga.lastKeys;
     ggSaga.lastKeys=raw;
-    if(down&KEY_START){ggSaga.mode=GG_SAGA_IDLE;return 2;}
+    if(down&KEY_START){
+        int optional=ggSaga.mode==GG_SAGA_INTERLUDE;
+        ggSaga.mode=GG_SAGA_IDLE;
+        return optional?1:2;
+    }
     if(ggSaga.mode==GG_SAGA_CHOICE){
         if(down&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_B))
             ggSaga.choice^=1;
@@ -333,6 +401,8 @@ static int ggSagaStep(int raw){
     return 1;
 }
 static const GgSagaBeat *ggSagaCurrentBeat(int n){
+    if(ggSaga.mode==GG_SAGA_INTERLUDE)
+        return &ggSagaAmbientBeats[ggSaga.event][n%GG_AMBIENT_BEATS];
     if(ggSaga.mode==GG_SAGA_OPEN)
         return &ggSagaOpening[ggChron.act][n%GG_SAGA_OPEN_BEATS];
     if(ggSaga.ending>=0)
@@ -344,7 +414,9 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
     // Moving camera cut from one real expedition landmark to another.
     // Smooth 3/4-tile dolly is bounded; all camera math is fixed point.
     int anchor=beat%4,tx=ggExplore.px>>8,ty=ggExplore.py>>8;
-    if(anchor) {
+    if(ggSaga.mode==GG_SAGA_INTERLUDE){
+        tx=ggSaga.eventX;ty=ggSaga.eventY;
+    }else if(anchor) {
         tx=ggChron.px[anchor-1];
         ty=ggChron.py[anchor-1];
     }
@@ -415,10 +487,16 @@ static void ggSagaDraw(u8 *out){
         return;
     }
     const GgSagaBeat *beat=ggSagaCurrentBeat(index);
-    snprintf(line,sizeof line,"THE UNWRITTEN REIGN / ACT %d: %.32s",
-             ggChron.act+1,ggChronActName[ggChron.act]);
+    if(ggSaga.mode==GG_SAGA_INTERLUDE)
+        snprintf(line,sizeof line,"A LIVING WORLD / %.34s",
+                 ggSagaAmbientTitles[ggSaga.event]);
+    else snprintf(line,sizeof line,"THE UNWRITTEN REIGN / ACT %d: %.32s",
+                  ggChron.act+1,ggChronActName[ggChron.act]);
     ggExpText(out,10,7,line,246,224,175);
-    if(ggSaga.ending>=0){
+    if(ggSaga.mode==GG_SAGA_INTERLUDE){
+        ggExpText(out,10,27,"A STORY YOU FOUND, NOT A CHAPTER YOU WERE ASSIGNED",
+                  185,207,215);
+    }else if(ggSaga.ending>=0){
         snprintf(line,sizeof line,"FINAL ENDING %d/9: %.34s",
                  ggSaga.ending+1,ggSagaEndNames[ggSaga.ending]);
         ggExpText(out,10,27,line,223,190,130);

@@ -97,6 +97,8 @@ static int politicalDirty;
 #include "3ds/reign_quests.h"
 #define GG_SAGA_SAVE_PATH "/tmp/godguy_saga_pc_test.dat"
 #include "3ds/reign_saga3d.h"
+#define GG_AMBIENT_SAVE_PATH "/tmp/godguy_ambient_pc_test.dat"
+#include "3ds/reign_ambient3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -605,6 +607,33 @@ int main(void){
     ggReignDraw(guarded.img);
     ggReign.menu=0;
     remove(GG_SAGA_SAVE_PATH);
+    // Nonlinear 3D world stories happen when a relevant REAL map feature
+    // is first discovered. Skipping is safe, flags persist, and no
+    // second framebuffer is allocated for the additional cinematics.
+    remove(GG_AMBIENT_SAVE_PATH);
+    memset(&ggAmbient,0,sizeof ggAmbient);
+    ggAmbientBegin();
+    ggChron.active=1;ggChron.won=0;ggChron.lost=0;
+    ggChron.briefTime=0;ggChron.foeN=0;ggChron.frame=64;
+    ggReign.role=GG_ROLE_UNBOUND;ggReign.office=0;ggReign.squadN=0;
+    ggSaga.mode=GG_SAGA_IDLE;ggOrigin.active=0;ggQuest.talk=0;
+    ggReign.menu=0;ggQuest.completed=0;
+    vil[0]=(Vil){1,60,60,125};
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    check(ggAmbientTick()&&ggSaga.mode==GG_SAGA_INTERLUDE&&
+          ggSaga.event==GG_AMBIENT_TOWN,
+          "ordinary village discovery did not trigger a location film");
+    ggSagaDraw(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "nonlinear 3D cinematic overran native framebuffer");
+    check(ggSagaStep(KEY_B)==1&&ggSaga.mode==GG_SAGA_IDLE,
+          "optional town film was not skippable to the open world");
+    u32 encountered=ggAmbient.seen;
+    memset(&ggAmbient,0,sizeof ggAmbient);
+    ggAmbientBegin();
+    check((ggAmbient.seen&encountered)==encountered,
+          "visited world scenes did not persist between sessions");
+    remove(GG_AMBIENT_SAVE_PATH);
     // Repeat on moving viewpoints, not just one flat frame. Host timings
     // are diagnostics; they are not a claim of Old/New 3DS hardware FPS.
     clock_t benchStart=clock();

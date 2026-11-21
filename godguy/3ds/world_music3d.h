@@ -71,6 +71,10 @@ static int ggWorldDanger(void){
 static int ggWorldMusicScene(void){
     if(ggOrigin.active)return GG_MUSIC_AWAKEN;
     if(ggSaga.mode){
+        // Optional world cinematics keep the current geography's cue.
+        // Duck the music under the dialogue, don't restart a song.
+        if(ggSaga.mode==GG_SAGA_INTERLUDE)
+            return ggWorldMusic.state>=0?ggWorldMusic.state:GG_MUSIC_FIELDS;
         if(ggSaga.mode==GG_SAGA_CHOICE)return GG_MUSIC_CHOICE;
         return ggSaga.mode==GG_SAGA_OUTRO?GG_MUSIC_END:GG_MUSIC_PREP;
     }

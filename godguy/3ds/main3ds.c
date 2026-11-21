@@ -17,6 +17,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "reign_scenery.h"
 #include "reign_quests.h"
 #include "reign_saga3d.h"
+#include "reign_ambient3d.h"
 #include "world_music3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
@@ -156,6 +157,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             // its very first picture even before directional input.
             if(priorSaga!=ggSaga.mode)ggExpRenderValid=0;
             ggReignSquadTick();
+            if(ggAmbientTick())ggExpRenderValid=0;
             camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
             camY=ggExpClamp((ggExplore.py>>8)*8-96,0,WH*8-192);
         }
@@ -171,6 +173,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 ggReignBegin();ggReign.lastKeys=raw;
                 ggQuestBegin();ggQuest.lastKeys=raw;
                 ggSagaBegin();ggSaga.lastKeys=raw;
+                ggAmbientBegin();
                 ggOriginBegin();ggOrigin.lastKeys=raw;
                 ggExpMessage(ggOrigin.active?
                     "UNWRITTEN REIGN: AN ORDINARY LIFE BEGINS":
