@@ -46,9 +46,14 @@ int main(void){
     ggMeshQuad(m,near[0],near[1],near[2],near[3],167,159,147);
     verify(m->textureSamples>140,
            "world material sampler never reached z-tested mesh pixels");
-    int stoneA=pixel(197,105)[0],stoneB=pixel(204,116)[0];
-    verify(stoneA!=stoneB,
-           "stone facade remains a solid flat RGB billboard");
+    int minStone=255,maxStone=0;
+    for(int py=94;py<138;py+=2)for(int px=172;px<229;px+=2){
+        int value=pixel(px,py)[0];
+        if(value<minStone)minStone=value;
+        if(value>maxStone)maxStone=value;
+    }
+    verify(maxStone-minStone>=6,
+           "textured stone facade has no surface variation across a full wall");
     m->material=GG_MAT_NONE;
     ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
     ggMeshQuad(m,far[0],far[1],far[2],far[3],52,168,83);
