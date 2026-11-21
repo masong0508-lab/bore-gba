@@ -135,7 +135,7 @@ jobs:
       - name: Install mGBA and virtual display
         run: |
           sudo apt-get update
-          sudo apt-get install -y mgba-qt xvfb xdotool imagemagick
+          sudo apt-get install -y mgba-qt xvfb xdotool x11-apps imagemagick
       - name: Boot Missy's real hospital cutscene in mGBA
         run: |
           mkdir -p screenshots
@@ -144,5 +144,7 @@ jobs:
         if: always()
         with:
           name: missy-hospital-emulator-screenshots
-          path: screenshots/*.png
-          if-no-files-found: warn
+          path: |
+            screenshots/*.png
+            screenshots/emulator.log
+          if-no-files-found: error

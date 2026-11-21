@@ -194,3 +194,10 @@ earned-money goal (previously 12,000), so meeting the displayed target
 immediately affects the care-review pressure. The top construction platform
 is aligned with the climbing pose's final foot height instead of floating
 ten pixels above Missy's shoes. Both properties have static checks.
+
+### Emulator capture repair
+The first X11 smoke run compiled and booted mGBA, but Ubuntu's ImageMagick
+`import -window` command failed before any PNG was saved. The capture now
+uses `xwd -id` followed by `magick`, includes X11 diagnostics and preserves
+`emulator.log` on failures. It also checks that screens actually change
+between input sequences rather than accepting a frozen screenshot.
