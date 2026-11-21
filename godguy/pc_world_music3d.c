@@ -18,7 +18,9 @@ enum { GM_MORNING=6,GM_NIGHT=9,GM_JUNGLE=14,GM_OCEAN=13,
        GM_HOMEWORLD=68,GM_STONECIRCLES=72,GM_COUNTINGSTARS=77,
        GM_CORPORATIONS=82,GM_DUCKCOVER=83 };
 static int gmCur=-1,gmWorldMode,gmWorldGain=100,gmInN,gmInT;
-static int musLast,musHold,gmRow,playCalls,stopped;
+static int musLast,musHold,gmRow,playCalls,stopped,musQ=-1;
+static int musDirector(void){return GM_MORNING;}
+static void musReq(int id){musQ=id;}
 static int (*gg3dMusicNext)(int);
 static void gmPlay(int x){gmCur=x;playCalls++;}
 static void gmStop(void){gmCur=-1;stopped++;}
