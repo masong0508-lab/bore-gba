@@ -15,14 +15,35 @@ typedef struct { int x,z; } GgFilmCamera;
 static GgV3 ggV3(int x,int y,int z){
     GgV3 v={(short)x,(short)y,(short)z}; return v;
 }
+// Deterministic physical camera positions, not zooms of a painted plate.
+// Similar dialogue cuts still observe the *same* room and landmarks, but
+// from a distinct real angle. No random-per-frame camera jitter.
+static int ggFilmShotIdentity(const FilmBeat *beat){
+    unsigned id=(unsigned)beat->place*29u+(unsigned)beat->camera*17u+
+                (unsigned)beat->lead*7u+(unsigned)beat->other*11u+
+                (unsigned)beat->prop*3u;
+    if(beat->line)
+        for(int j=0;j<5&&beat->line[j];j++)
+            id=id*33u+(unsigned char)beat->line[j];
+    return (int)(id%63u);
+}
 static GgFilmCamera ggFilmCameraAt(const FilmBeat *beat,int move){
+    int id=ggFilmShotIdentity(beat);
     GgFilmCamera c={0,0};
+    // Distinct stable framing, even on five successive conversation beats
+    // in the same house. Restrained x/Z values keep scene geography stable.
+    c.x=((id%5)-2)*19;
+    c.z=((id/5)%3-1)*31;
     if(beat->camera==F_TRACK){
-        c.x=(move-128)/3;                 // 85 world units, lateral tracking
-        c.z=(move-128)/5;
-    } else if(beat->camera==F_WIDE){
-        c.x=(move-128)/12;
-        c.z=(move-128)/3;                 // physical dolly in depth
+        c.x+=(move-128)/3;  // purposeful world-space tracking
+        c.z+=(move-128)/5;
+    }else if(beat->camera==F_WIDE){
+        c.x+=(move-128)/12;
+        c.z+=(move-128)/3;
+    }else if(beat->camera==F_HAND){
+        c.z+=24;
+    }else if(beat->camera==F_INSERT){
+        c.x+=((id/11)%3-1)*9;
     }
     return c;
 }
@@ -251,27 +272,21 @@ static void ggFilmBridge(GgFilmCamera cam,int damaged,int t){
     ggFilmBox(cam,-99,79,784,12,19,12,20,24,25);
     ggFilmBox(cam,-99,94,784,16,17,16,(t/20)&1?10:9,24,26);
 }
-// People walking or repairing within a location are small 3D figures:
-// heads, tunics, arms and articulated legs all share a world-space base.
+// Background performers use the SAME 40x48 detailed 2D cels as the
+// principal actors; no cheap box heads, floating cylinder limbs or
+// bubble-headed 3D stand-ins. Only their projected size changes with Z.
 static void ggFilmBackgroundWorker(GgFilmCamera cam,int x,int z,int t,int id){
-    int travel=((t/12+id*19)%89)-44;
-    x+=travel;
-    int stride=((t/17+id)&1)?8:-8;
-    int stance=0;
-    ggFilmBeam(cam,x-10,stance,z,13,47+stride/2,13,24);
-    ggFilmBeam(cam,x+11,stance,z,13,47-stride/2,13,24);
-    ggFilmBox(cam,x,47,z,37,57,22,id&1?17:13,20,26);
-    // Polygonal neck/head, set within a darker hood.
-    ggFilmBox(cam,x,104,z-1,26,31,24,26,24,25);
-    ggFilmBox(cam,x,123,z+1,36,13,26,id&1?20:16,24,25);
-    ggFilmBeam(cam,x-28,58,z,12,42+stride/2,10,20);
-    ggFilmBeam(cam,x+28,58,z,12,42-stride/2,10,20);
-    if(id==1){
-        // The engineer's tool moves about a fixed hand, never floats.
-        int lift=((t/23)&1)?9:0;
-        ggFilmBeam(cam,x+32,85+lift,z-8,7,43,7,24);
-        ggFilmBox(cam,x+32,119+lift,z-8,28,11,13,21,24,26);
-    }
+    int phase=(t/9+id*37)%176;
+    int travel=phase<88?phase-44:132-phase;
+    int walking=phase>8&&phase<80;
+    int who=id==1?F_THORGRIM:F_NESSA;
+    int pose=walking?((t/18)&1?1:2):((t/42)&1?11:0);
+    GgS2 foot=ggFilmProject(cam,ggV3(x+travel,0,z));
+    int h=130*260/(z-cam.z);
+    if(h<16)h=16;
+    if(h>46)h=46;
+    // World-anchored feet and a real 2D walk/work pose, never a block mesh.
+    filmDrawActor(who,pose,foot.x,foot.y,h,phase>=88);
 }
 static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
     // Walls, cornice and corridor all converge on the same perspective.
