@@ -5,6 +5,7 @@
 #include <3ds.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "../compat/stereo.h"
 #define SR 32768
 #define NWB 12       // sound buffers queued ahead (one is a frame of 546 samples: about 130 ms in all)
@@ -50,4 +51,24 @@ void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged
     gspWaitForVBlank(); }
 unsigned long long plat_ms(void){ return osGetTime(); }
 int plat_isNew3DS(void){ bool n=false; APT_CheckNew3DS(&n); return n; }
+// Fail safely on an Old-series machine instead of launching an
+// untested 400x240 software mesh/mixer profile and crashing. New 2DS
+// XL reports the same New-series hardware capability as New 3DS.
+void plat_new3dsRequired(void){
+    consoleInit(GFX_BOTTOM,NULL);
+    puts("GODGUY - NEW 3DS EDITION");
+    puts("");
+    puts("This version requires:");
+    puts(" New Nintendo 3DS / 3DS XL");
+    puts(" or New Nintendo 2DS XL");
+    puts("");
+    puts("Original 3DS / 2DS unsupported.");
+    puts("Press START or B to exit.");
+    while(aptMainLoop()){
+        hidScanInput();
+        u32 down=hidKeysDown();
+        if(down&(KEY_START|KEY_B))break;
+        gspWaitForVBlank();
+    }
+}
 void plat_exit(void){ if(audioOk) ndspExit(); gfxExit(); }
