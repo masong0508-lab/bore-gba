@@ -41,12 +41,21 @@ typedef struct {
     int material,materialSeed,textureSamples;
     int ambientLight;
     int opacity,blendedFragments;
+    int fogR,fogG,fogB,fogMax;
     int texBaseU,texBaseV;
 } GgMeshContext;
 static uint16_t ggMeshDepthStorage[GG_MESH_MAX_W*GG_MESH_MAX_H];
 static GgMeshContext ggMeshContext;
 static inline int ggMeshClamp(int v,int a,int b){
     return v<a?a:v>b?b:v;
+}
+// Distance haze is computed per actual polygon using camera-space
+// forward depth, never as a flat tinted rectangle on top of the HUD.
+static inline int ggMeshFogAmount(int forward,int maxHaze){
+    int d=forward-3*256;
+    if(d<=0)return 0;
+    int v=d*maxHaze/(8*256);
+    return v>maxHaze?maxHaze:v;
 }
 static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
                         int quality,int px,int py,int eye,int cosine,int sine,
@@ -62,6 +71,8 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
     m->material=GG_MAT_NONE;m->materialSeed=0;
     m->ambientLight=212;
     m->opacity=256;m->blendedFragments=0;
+    m->fogR=skyR;m->fogG=skyG;m->fogB=skyB;
+    m->fogMax=150;
     m->texBaseU=m->texBaseV=0;
     memset(m->depth,0,(size_t)m->w*m->h*sizeof(uint16_t));
     // At low quality, directly write 2x2 pixels to the sole RGB screen.
@@ -264,6 +275,15 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
         for(int j=0;j<3;j++){
             points[j].u=(us[j]-baseU)/4;
             points[j].v=(vs[j]-baseV)/4;
+        }
+    }
+    if(m->fogMax>0){
+        int avg=(points[0].f+points[1].f+points[2].f)/3;
+        int haze=ggMeshFogAmount(avg,m->fogMax);
+        if(haze){
+            r=(r*(256-haze)+m->fogR*haze)/256;
+            g=(g*(256-haze)+m->fogG*haze)/256;
+            bl=(bl*(256-haze)+m->fogB*haze)/256;
         }
     }
     GgMeshCameraVertex clipped[5];

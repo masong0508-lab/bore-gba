@@ -734,6 +734,13 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                 ggExpCos[angle],ggExpSin[angle],
                 49+atmosphere.skyR,78+atmosphere.skyG,
                 108+atmosphere.skyB);
+    m->fogR=atmosphere.hazeR;
+    m->fogG=atmosphere.hazeG;
+    m->fogB=atmosphere.hazeB;
+    m->fogMax=(terrain==T_SWAMP||terrain==T_SNOW)?174:132;
+    m->ambientLight=(terrain==T_SNOW||terrain==T_SAND||
+                     terrain==T_DESERT)?236:
+                    terrain==T_SWAMP||terrain==T_FOREST?198:218;
     ggMeshTilesDrawn=ggMeshBuildingsDrawn=ggMeshPropsDrawn=0;
     ggMeshCloudBank(m,cx,cy,ggExplore.frame,atmosphere.hazeR,
                     atmosphere.hazeG,atmosphere.hazeB);

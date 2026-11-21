@@ -25,6 +25,11 @@ int main(void){
     int sided=ggMeshSunlight(groundA,wallB,wallC,212);
     verify(sunlit>sided&&sunlit<=285&&sided>=124,
            "flat polygon shader has no physically directional sunlight");
+    verify(ggMeshFogAmount(256,150)==0&&
+           ggMeshFogAmount(2048,150)>
+           ggMeshFogAmount(1024,150)&&
+           ggMeshFogAmount(11000,150)==150,
+           "3D atmospheric perspective has no bounded physical depth");
     verify(sizeof ggMeshDepthStorage==192000,
            "fixed depth-only image exceeded 187.5 KiB");
     verify(m->w==400&&m->h==240&&m->scale==1,
