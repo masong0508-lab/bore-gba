@@ -29,6 +29,7 @@ static void setCell(int x,int y,u8 tile){
     if(x>=0&&y>=0&&x<WW&&y<WH){world[y][x]=tile;editCalls++;}
 }
 #include "source/font5x7.h"
+static void ggExpRenderCreatures(u8 *top);
 #include "3ds/explore3d.h"
 // Minimal host simulation of the *same* creature records, identity
 // compaction, occupancy and possession rules used by the full 3DS port.
@@ -38,7 +39,7 @@ static void setCell(int x,int y,u8 tile){
 #define HAS_STATUS(c,f) (((c)->sick&(f))!=0)
 #define DISEASE(c) ((c)->sick&3)
 typedef struct {int a;} Sp;
-typedef struct {int diet;} Arch;
+typedef struct {int diet,shape;} Arch;
 typedef struct {int sp,x,y,alive,sick;} Cr;
 static Cr cr[8];
 static unsigned crId[8];
@@ -62,6 +63,20 @@ static void moveTo(Cr*c,int i,int nx,int ny){
     occ[ny][nx]=(unsigned short)(i+1);
 }
 #include "3ds/hybrid3d.h"
+#define SHAPE_N 80
+static const u8 famCol[16][3][3]={
+    {{24,18,15},{12,8,7},{29,22,16}}
+};
+static int creatureFamily(const Cr *c){(void)c;return 0;}
+static const char *shpRow(int shape,int frame,int row){
+    static const char *const body[8]={
+        "..bbbb..",".bbbbbb.",".beebbb.","..bbbb..",
+        ".abbba..",".abbba..","..d..d..",".dd..dd."
+    };
+    (void)shape;(void)frame;
+    return body[row];
+}
+#include "3ds/population3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -205,6 +220,29 @@ int main(void){
     check(ggExpWalkable(47,41,10,0),
           "first-person control locked a resident inside their own home");
     bld[41][47]=0;
+    // The new 3D renderer must retain the existing 2D people and pets,
+    // not render an eerily empty block world. An intervening city wall
+    // must hide the billboard instead of drawing people through stone.
+    cr[1]=(Cr){1,47,45,1,0};crId[1]=1002;
+    occ[45][47]=2;
+    ggExplore.angle=64;
+    ggExpRender(guarded.img);
+    unsigned long crowd=hash();
+    check(ggExpNpcsDrawn==1,
+          "3DS gameplay dropped native-detail 2D NPC sprites");
+    occ[45][47]=0;
+    ggExpRender(guarded.img);
+    check(crowd!=hash()&&ggExpNpcsDrawn==0,
+          "visible NPC sprite did not respond to live occupancy");
+    occ[45][47]=2;
+    bld[43][47]=B_HALL;
+    ggExpRender(guarded.img);
+    check(ggExpNpcsDrawn==0,
+          "an NPC sprite appeared through a city hall wall");
+    bld[43][47]=0;
+    occ[45][47]=0;
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "live NPC sprite animation exceeded the 3DS top framebuffer");
     double elapsed=1000.0*(clock()-started)/CLOCKS_PER_SEC;
     printf("EXPLORE3D OK: hybrid minds, stable IDs, selection, 2D/3D "
            "actor movement, protected homes, safe frame buffers; "
