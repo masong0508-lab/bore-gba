@@ -849,6 +849,7 @@ static void hhAmbient(void){   // item module 12: while a Sim has the stereo on,
 // story.h is included later in main.c; hospital patients are not household AI
 // actors until the recovery chapter returns them to the player.
 static int stTvStoryAbsentUid(int uid);
+static const char* stTvStoryAbsentLabel(int uid);
 static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_MULTIFL]||xo[XO_ITEMUSE]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh (item module 2: item use reads it too)
     if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
@@ -1654,6 +1655,7 @@ static void hhSwitch(void){   // SELECT: control the next Sim of the household w
 }
 static void hhSwitchTo(int m){   // pause menu > HOUSEHOLD > SWITCH TO A SIM: control member m (the ones before it go to the back of the line, as SELECT does)
     if(m<0||m>=hhN) return;
+    if(stTvStoryAbsentUid(hhM[m].uid)){ toast(stTvStoryAbsentLabel(hhM[m].uid)); return; }
     if(prSwitchHook(m)) return;   // prison.h: between the cell and home
     if(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m)){ toast("THEY ARE OUT RIGHT NOW"); return; }
     if(custom){ toast("HAND BUILT SIMS CANNOT SWITCH"); return; }
@@ -1827,8 +1829,12 @@ static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
 static void petScreen(void);   // petui.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
-    char nm[HH_MAX][HH_NM+8]; const char* who[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT"); else if(xo[XO_ITEMUSE]&&hhM[m].act==HA_USE&&hhM[m].item) simCat(e,iuTag[hhM[m].item-1]); who[m]=nm[m]; }
+    char nm[HH_MAX][HH_NM+16]; const char* who[HH_MAX]; // allow the full story-specific absence label
+    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name);
+        if(stTvStoryAbsentUid(hhM[m].uid)) simCat(simCat(e,"  "),stTvStoryAbsentLabel(hhM[m].uid));
+        else if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT");
+        else if(xo[XO_ITEMUSE]&&hhM[m].act==HA_USE&&hhM[m].item) simCat(e,iuTag[hhM[m].item-1]);
+        who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;
 }

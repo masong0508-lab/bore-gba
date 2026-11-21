@@ -460,6 +460,9 @@ static int stTvStoryAbsentUid(int uid){ // house.h calls this before any househo
     if(stCh>=4&&stPart!=255&&hhPUid!=(int)stPart&&uid==(int)stPart) return 1; // Mamesy died on Route 9
     return 0;
 }
+static const char* stTvStoryAbsentLabel(int uid){
+    return stCh==3&&uid==(int)stKid?"IN HOSPITAL":"REMEMBERED";
+}
 static void stTvPatientRest(int m){ // the recovery scene is over: Missy may be controlled again
     HhSim*s=&hhM[m]; s->act=HA_IDLE; s->use=HN_FUN; s->item=0;
     s->pn=s->pi=0; s->gok=0; s->think=20; hhUp[m]=0; hhFl[m]=0;

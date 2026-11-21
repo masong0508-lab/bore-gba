@@ -117,3 +117,12 @@ switching engine cannot safely transfer hand-built bodies, and silently
 starting a story that would later deadlock in the hospital is worse than an
 explicit entry guard. If the player customizes the body mid-story, the cast
 handover displays the precise issue rather than retrying invisibly forever.
+
+### Household UI and memorial status
+In the household switch menu, Missy is labelled IN HOSPITAL during her
+coma, and Mamesy is labelled REMEMBERED following Route 9 rather than
+the generic OUT. Attempting to switch directly to the absent story
+character explains why, without putting an unconscious or deceased
+character back into player control. The menu-only name buffers are
+widened modestly so the explicit labels cannot overrun their old
+eight-character suffix allowance.
