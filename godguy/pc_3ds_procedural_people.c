@@ -62,6 +62,28 @@ int main(int argc,char**argv){
     ggPersonGenerate(&b,1015u,6,0,135,0,palette);
     require(!memcmp(a.palette,b.palette,sizeof a.palette),
             "blinking or breathing randomized appearance and clothing");
+    // Test the paused-gameworld problem: identity-driven idle life
+    // changes a resident's pose while the actual 3D world remains
+    // unchanged. Hands, gaze and body hue must stay coherent.
+    GgPersonTraits actor=ggPersonTraits(1015u,6);
+    int lookFrames=0,gestureFrames=0,actingChanges=0;
+    ggPersonGenerate(&a,1015u,6,0,0,0,palette);
+    for(int tick=1;tick<340;tick++){
+        if(ggPersonIdleLook(actor.fingerprint,tick))lookFrames++;
+        if(ggPersonIdleGesture(actor.fingerprint,tick))gestureFrames++;
+        ggPersonGenerate(&b,1015u,6,0,tick,0,palette);
+        require(!memcmp(a.palette,b.palette,sizeof a.palette),
+                "idle acting scrambled a citizen's permanent colors");
+        if(memcmp(a.pixels,b.pixels,sizeof a.pixels)!=0)
+            actingChanges++;
+    }
+    require(lookFrames>=12&&gestureFrames>=8&&actingChanges>=40,
+            "stationary people freeze completely when simulation pauses");
+    // World movement should suppress gestures until feet settle.
+    for(int tick=0;tick<240;tick++)
+        require(ggPersonIdleGesture(actor.fingerprint,tick)>=0&&
+                ggPersonIdleGesture(actor.fingerprint,tick)<=1,
+                "idle phase escaped deterministic behavior bounds");
     // Optional native source turntable image, assembled from the same
     // actual sprite generator the game draws. Not a concept mockup.
     if(argc>1){

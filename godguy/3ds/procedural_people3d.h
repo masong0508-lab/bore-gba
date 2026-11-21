@@ -34,6 +34,21 @@ static inline uint32_t ggPersonMix(uint32_t x){
 static inline int ggPersonClamp(int x,int lo,int hi){
     return x<lo?lo:x>hi?hi:x;
 }
+// Standing characters have low-frequency, identity-staggered acting
+// even when the original 3DS game simulation is paused. No hidden
+// creature movement, arbitrary gait or animation buffers are created.
+static inline int ggPersonIdleLook(uint32_t fingerprint,int tick){
+    int cycle=128+(int)((fingerprint>>8)&31u);
+    int phase=(tick+(int)((fingerprint>>20)&255u))%cycle;
+    if(phase<0)phase+=cycle;
+    return phase>=cycle-24?((fingerprint&1u)?-1:1):0;
+}
+static inline int ggPersonIdleGesture(uint32_t fingerprint,int tick){
+    int cycle=166+(int)(fingerprint&31u);
+    int phase=(tick+(int)((fingerprint>>13)&255u))%cycle;
+    if(phase<0)phase+=cycle;
+    return phase>=cycle-30&&phase<cycle-12;
+}
 static inline GgPersonTraits ggPersonTraits(uint32_t id,int family){
     uint32_t h=ggPersonMix(id^((uint32_t)(family&15)*0x9e3779b9u)^
                            0x6d2b79f5u);
@@ -157,6 +172,8 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
     int breath=((tick+(int)(p.fingerprint&31u))/20)&1;
     int sway=active?((tick/5)&1?2:-2):0;
     int faceY=9+breath;
+    int glance=active?0:ggPersonIdleLook(p.fingerprint,tick);
+    int gesture=active?0:ggPersonIdleGesture(p.fingerprint,tick);
     int center=16+lean;
     int skin=GG_P_SKIN_M;
     // Shoes are BELOW pants; both retain one common grounded sole.
@@ -223,8 +240,11 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
         if(profile&&s==(left?1:-1))continue;
         int armX=center+s*(shoulders-1);
         int elbowX=armX+s*2;
-        int handX=elbowX+(active?-s*sway/2:0);
-        int armEnd=31+((tick+(int)(p.fingerprint>>6))%47<3?-1:0);
+        int raised=gesture&&s==((p.fingerprint&1u)?1:-1);
+        int handX=raised?elbowX-s*5:
+                  elbowX+(active?-s*sway/2:0);
+        int armEnd=raised?18+((tick>>2)&1):
+                   31+((tick+(int)(p.fingerprint>>6))%47<3?-1:0);
         ggPersonStroke(c,armX,23,elbowX,28,GG_P_OUTLINE,5);
         ggPersonStroke(c,armX,23,elbowX,28,GG_P_COAT_M,3);
         ggPersonStroke(c,elbowX,28,handX,armEnd,
@@ -239,7 +259,7 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
     ggPersonRect(c,center-2,18+breath,4,4,skin);
     // Lower face jaw and skull: no misaligned Atari-square heads.
     int jawW=4+(p.face==2?1:0),cranium=6+(p.face==3?1:0);
-    int headX=center+(left?-2:right?2:0);
+    int headX=center+(left?-2:right?2:0)+glance;
     ggPersonOval(c,headX,faceY,cranium+1,8,GG_P_OUTLINE);
     ggPersonOval(c,headX,faceY,cranium,7,GG_P_SKIN_D);
     ggPersonOval(c,headX-1,faceY-1,cranium-1,6,GG_P_SKIN_M);
