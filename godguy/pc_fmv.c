@@ -263,13 +263,13 @@ static void checkCinematicActingAndMix(void){
     FilmBeat archive={F_ARCHIVE,F_NEAR,F_ELOWEN,F_MIRA,F_NO_PROP,
                       7,0,NULL,F_ACT_AUTO};
     memset(uiBuf,0,256*192);
-    filmDSSetAction(&archive,0,7);
+    filmDSLivingSets(&archive,0,7);
     unsigned imageA=2166136261u,imageB=2166136261u;
     for(int y=138;y<155;y++)
         for(int x=105;x<149;x++)
             imageA=(imageA^uiBuf[y*256+x])*16777619u;
     memset(uiBuf,0,256*192);
-    filmDSSetAction(&archive,4*42,7);
+    filmDSLivingSets(&archive,4*42,7);
     for(int y=138;y<155;y++)
         for(int x=105;x<149;x++)
             imageB=(imageB^uiBuf[y*256+x])*16777619u;
