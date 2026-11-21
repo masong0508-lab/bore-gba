@@ -75,6 +75,24 @@ def main():
                 pass
             else:
                 raise AssertionError("malformed ROM was accepted")
+        # Two SDK jobs may build byte-different New3DS 3DSX binaries.
+        # Keep the main-port executable, record the valid alternate and
+        # still reject mismatched DS ROMs.
+        alternate_3ds = dsx()[:-1] + b"\x01"
+        (b / pack.GAME_3DSX).write_bytes(alternate_3ds)
+        alternates = []
+        found = pack.scan([a, b], alternates)
+        assert found[pack.GAME_3DSX] == dsx()
+        assert len(alternates) == 1
+        assert alternates[0]["sha256"] == hashlib.sha256(alternate_3ds).hexdigest()
+        assert pack.main(["--artifact-dir",str(a),
+                          "--artifact-dir",str(b),
+                          "--output",str(out),
+                          "--commit","0123456789abcdef0123456789abcdef01234567"]) == 0
+        with zipfile.ZipFile(playable) as z:
+            manifest = json.loads(z.read("PORTS_MANIFEST.json"))
+            assert len(manifest["alternate_builds"]) == 1
+            assert z.read(pack.GAME_3DSX) == dsx()
         # Incompatible unit codes and mismatched duplicates fail closed.
         try:
             pack.inspect(nds("godguy_hw.nds"),"godguy_dsi_mode.nds")
