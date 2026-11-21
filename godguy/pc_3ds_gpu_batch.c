@@ -45,6 +45,20 @@ int main(void){
             "GPU geometry changes between identical world frames");
     building[24*W+27]=5;
     terrain[24*W+26]=6;
+    // One abrupt grass-to-mountain boundary must still interpolate
+    // the physical surface instead of putting structures in midair.
+    int mountainX=26*256+128,mountainY=24*256+128;
+    int summit=ggGpuGroundAtQ8(terrain,W,W,W,mountainX,mountainY);
+    int edge=ggGpuGroundAtQ8(terrain,W,W,W,mountainX-64,mountainY);
+    require(summit==ggGpuTerrainHeight(6)&&edge<summit,
+            "PICA terrain lost central vertex/hillside interpolation parity");
+    int base=ggGpuFoundation(terrain,W,W,W,
+                              26*256+38,24*256+38,
+                              26*256+218,24*256+218,summit);
+    require(base<summit&&
+            base<=ggGpuGroundAtQ8(terrain,W,W,W,
+                                  26*256+38,24*256+38),
+            "PICA foundation floats over steep physical terrain");
     ggGpuSceneBuild(&batch,terrain,building,W,W,W,
                     24*256+128,24*256+128,3);
     require(batch.buildings==1&&batch.count>49*12&&
