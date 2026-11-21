@@ -313,6 +313,8 @@ jobs:
           /tmp/gg-3ds-camera
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_acting.c -o /tmp/gg-3ds-acting
           /tmp/gg-3ds-acting
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_type.c -o /tmp/gg-3ds-type
+          /tmp/gg-3ds-type
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_staging.c -o /tmp/gg-3ds-staging
           /tmp/gg-3ds-staging
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_framing.c -o /tmp/gg-3ds-framing
