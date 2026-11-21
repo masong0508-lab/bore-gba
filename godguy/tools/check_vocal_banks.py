@@ -28,6 +28,9 @@ d=con('GM_VOX_LYR0');duck=con('GM_VOX_LYRN')
 assert n==len(off)==len(lengths)==len(rates)
 assert count==56 and duck>=10
 assert all(lengths[p+i]>0 for i in range(count))
+assert max(rates[p:p+count])>=5000, "higher-fidelity short DS lyrics missing"
+assert min(rates[p:p+count])>=4400, "long phrase overly downsampled"
+assert all(lengths[p+i]<=0x9800 for i in range(count))
 assert all(lengths[d+i]>0 for i in range(duck))
 assert max(lengths)<=0x9800, "DS audio decode scratch buffer overflow"
 assert off==sorted(off)

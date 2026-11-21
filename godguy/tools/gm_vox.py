@@ -197,8 +197,8 @@ song_pieces(os.path.join(HERE, '..', '..', 'tools', 'voices_corp'), 'CORP')
 FULL = bool(os.environ.get('GM_FULL'))      # GM_FULL=1: source/gmvox_full.h, the DSi-mode set: DS rates, ALL of CORPORATIONS' voice, the packed data an ordinary array in the ARM9 program (16 MB of RAM)
 HQ = bool(os.environ.get('GM_HQ'))      # GM_HQ=1: the 3DS set (source/gmvox_hq.h): the lyrics at 16 kHz instead of 5.5 (the 3DS has the room and a mixer that interpolates)
 LYR_PAD = []; LYR_RATE = 16000 if HQ else 5500; LYR_LP = 6500 if HQ else 2700; PLATE_LP = 5500 if HQ else 2400; NEWBPM = 88.0
-def plate(x, rate, wet=1.0):
-    y = np.concatenate([x, np.zeros(int(0.7 * rate))]); out = y.copy()
+def plate(x, rate, wet=1.0, tail=0.7):
+    y = np.concatenate([x, np.zeros(int(tail * rate))]); out = y.copy()
     for d, a in ((0.019, 0.42), (0.031, 0.36), (0.047, 0.31), (0.071, 0.27), (0.103, 0.22), (0.151, 0.18), (0.233, 0.14), (0.347, 0.1), (0.5, 0.07)):
         n = int(d * rate); out[n:] += y[:len(y) - n] * a * wet
     return sosfilt(butter(2, min(PLATE_LP, 0.45 * rate), 'lp', fs=rate, output='sos'), out)
@@ -214,7 +214,14 @@ lyric_chops()
 # ---- CORPORATIONS' own voice, accurately: the 56 sung phrases of the song (tools/corporations/lyrics, cut from the isolated vocal stem by tools/extract_corp_lyrics.py) sounded where the song sang them,
 # at the song's own tempo (131 bpm, the MIDI's grid: no stretching), on the song's own pitch (only the whole voice nudged to A = 440 when the stem is a few cents off), with a light plate tail.
 # The remix feel comes from the manipulated chops of the same voice (CORP 00..13), the stereo placement and the ducking of the band under the line.
-CLYR_RATE = 12000 if HQ else 4500; CLYR_LP = 5200 if HQ else 1900; CLYR = []
+# Standard DS: adaptive 4.5–5.2 kHz lyric rate improves sibilants,
+# short vowels and consonants without overflowing the 38-KiB streaming
+# decode slot. Better use of memory than a fixed 4.5-kHz voice and a
+# half-second mostly-silent reverb tail on EVERY one of 56 phrases.
+CLYR_RATE = 12000 if HQ else 5200
+CLYR_LP = 5200 if HQ else 2200
+CLYR_TAIL = 0.7 if HQ else 0.33
+CLYR = []
 def corp_lyric_chops():
     import json
     ev = json.load(open(os.path.join(HERE, '..', '..', 'tools', 'corporations', 'lyric_events.json'))); cell_s = 60.0 / ev['bpm'] / 4; srcs = []
@@ -226,8 +233,25 @@ def corp_lyric_chops():
         cell = int(round(e['beat'] * 4)); frac = e['beat'] * 4 - cell      # the sixteenth it is placed on, and how far past it the phrase really starts (cells)
         sh = int(round(abs(frac) * cell_s * sr)); x = np.concatenate([np.zeros(sh), x]) if frac > 0 else x[sh:]
         x = resamp(x, 1.0 / fix)
-        g_ = gcd(CLYR_RATE, sr); x = resample_poly(x, CLYR_RATE // g_, sr // g_); x = plate(x, CLYR_RATE, 0.27)
-        CLYR.append(e); add('CORP LYRIC %02d' % e['i'], x, 105, 54 if e['i'] % 2 == 0 else 74, 99.0, CLYR_RATE)
+        # Long sentences need slightly lower sample rates than short
+        # syllables to fit 0x9800 PCM bytes. The pitch/timing is unchanged:
+        # only each phrase's sample rate and PCM length differ together.
+        rate = CLYR_RATE
+        if not HQ:
+            secs = len(x) / sr
+            rate = min(rate, int((0x9800-256)/(secs+CLYR_TAIL+0.02)))
+            if rate<4400:
+                raise RuntimeError('DS recorded lyric is too long: %s needs %d Hz'
+                                   % (e['i'],rate))
+        g_ = gcd(rate,sr)
+        x = resample_poly(x,rate//g_,sr//g_)
+        x = plate(x,rate,0.27,tail=CLYR_TAIL)
+        if not HQ and len(x)>0x9800:
+            raise RuntimeError('DS lyric decode buffer exceeded: %s has %d samples'
+                               % (e['i'],len(x)))
+        CLYR.append(e)
+        add('CORP LYRIC %02d' % e['i'],x,105,
+            54 if e['i']%2==0 else 74,99.0,rate)
 corp_lyric_chops()
 LYR0 = next(i for i, c in enumerate(CHOPS) if c[0].startswith('LYRIC PAD')); CLYR0 = next(i for i, c in enumerate(CHOPS) if c[0].startswith('CORP LYRIC'))
 # The first bank stays below the ARM7 voice decoding scratch buffers.
