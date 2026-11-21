@@ -46,3 +46,8 @@ walls as permanently solid even at extreme ollie heights. Upper-floor gaps
 are similarly blocked. Falling-ramp tolerance and wallride checks use
 guarded tile probes; the outside of a lot is not a wallride surface.
 Manual testing should include maximum-height ramps by all four boundaries.
+
+### Editor window preview
+Window item previews now sample the 24-row window texture at indices
+1, 3, ... 23 (not 3, 5, ... 25). GCC had diagnosed undefined
+behaviour at the final iteration. No new pixels or assets are allocated.
