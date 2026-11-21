@@ -72,6 +72,47 @@ static int csStepLift(int t,int per,int mx){ int p=((t%per)+per)%per, h=per/2; i
 static void csGlassAt(int x,int y){ csR(x-1,y-6,3,6,RGB(15,21,29)); csR(x-1,y-6,3,1,RGB(31,31,31)); csR(x-1,y-3,3,3,RGB(9,16,26)); csR(x-2,y-1,2,2,RGB(24,16,10)); }   // a glass in a hand at (x,y): the rim, the water, the fingers round it
 static int csFigNowX(int who,int x){ if(who<=0||who>=7) return x; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->x:x; }   // where a figure is right now (on its way to a new spot), for the camera
 static int csFigNowY(int who,int y){ if(who<=0||who>=7) return y; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->y:y; }
+// Missy's ICU patient is a SIDE-ON figure, not the standing sprite turned
+// 90 degrees. Its pillow, hair, face, gown, shoulder, legs and sheet each have
+// a readable outline. All geometry is camera-scaled; zero sprite assets or RAM.
+static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
+    int flat=csBgNow==CB_FLAT, stir=pose==CP_STIR&&!flat;
+    int breath=flat?0:((t/26)&1), hand=stir?(2+((t>>3)&1)):0;
+    u16 ink=RGB(3,7,12), linen=RGB(24,29,29), light=RGB(31,31,30);
+    u16 fold=RGB(14,21,24), gown=RGB(12,21,23);
+    // A real three-quarter hospital mattress, cast shadow and raised pillow.
+    csR(x-50,y-22,32,20,RGB(5,10,15));
+    csR(x-48,y-24,30,18,RGB(17,23,25));
+    csR(x-46,y-23,28,15,light);
+    csR(x-45,y-10,25,2,RGB(20,25,25));
+    // Bedside shoulder, neck and one bent arm. The shoulder rises with breath.
+    csR(x-20,y-17-breath,29,13,ink);
+    csR(x-18,y-16-breath,27,10,gown);
+    csR(x-17,y-16-breath,19,2,csLt(gown,4));
+    csR(x-21,y-14-breath,8,5,sk);
+    csR(x-10,y-11-breath,17,3,csSh(gown,3));
+    // Head in side profile, turned toward the left of the picture, ON the pillow.
+    csD(x-29,y-16,10,ink); csD(x-29,y-16,9,hr);
+    csD(x-31,y-14,8,sk); csR(x-39,y-20,10,4,hr);
+    csR(x-37,y-21,12,2,csLt(hr,4)); csR(x-39,y-15,2,3,csSh(sk,3));
+    csR(x-39,y-12,4,2,sk); // nose / profile: no floating circular head
+    csR(x-34,y-14,4,1,csSh(sk,6)); // resting closed eyelid
+    csR(x-32,y-9,4,1,RGB(17,8,9)); // quiet mouth
+    csR(x-24,y-14,3,3,csSh(sk,3)); csR(x-23,y-14,2,2,sk); // ear
+    // Blanket runs over the torso AND both legs instead of a 17px bar.
+    csR(x-9,y-12-breath,47,14+breath,ink);
+    csR(x-8,y-11-breath,45,12+breath,linen);
+    csR(x+5,y-10-breath,27,3,light);
+    csR(x+31,y-8,7,5,RGB(20,26,26)); // rounded fold over the feet
+    csLn(x+10,y-7,x+16,y-1,fold); csLn(x+19,y-7,x+25,y-2,fold);
+    csLn(x+4,y-1,x+30,y-1,RGB(20,25,26));
+    // A hand rests on top of the blanket; during awakening only fingers stir.
+    csR(x-3,y-8-hand,13,3,ink);
+    csR(x-2,y-8-hand,12,2,sk);
+    csR(x+9,y-9-hand,3,2,sk);
+    if(stir){ csR(x+11,y-10-hand,2,2,sk); csR(x+13,y-9-hand,2,1,sk); }
+    if(flat) csR(x-34,y-14,4,1,csSh(sk,8));
+}
 static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones), then VANCE (the network exec: a charcoal suit, silver slick hair)
     static const u16 SKc[7]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5),RGB(28,21,16)};
@@ -99,6 +140,10 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
         if(csStart>0){ lmd=4; jb=-((csStart+2)/4); } else if(csOth==CP_CRY||csOth==CP_HEAD||csOth==CP_SLUMP||(csFxNow&CF_SHAKE)) lmd=6; else if(csOth==CP_LAUGH||csOth==CP_DANCE) lmd=2; else if(csOth==CP_SHOCK) lmd=4;
         { int ph=(t+who*13)%96; nod=(csTalking&&csSpk&&csSpk!=who&&ph<10&&(ph/3)%2==0); }   // a nod when someone talks to her
         lbl=((t+who*23)%110)<4; csMd=lmd; }
+    if((pose==CP_LIE||pose==CP_STIR)&&(csBgNow==CB_HOSP||csBgNow==CB_FLAT)&&who==CA_MISSY){
+        csPS[who].fn=-100; csWardPatient(x,y,who,pose,t,sk,hr);
+        csFaceBed(x-30,y-15,t,sk,hr,pose==CP_STIR); return;
+    }
     if(pose==CP_LIE||pose==CP_STIR){ int st=pose==CP_STIR, lf=st?(csWv(t,30)+8)/3:0, br=csWv(t,100)>4; csR(x-19,y-1,36,1,RGB(2,1,3)); y+=jb; csR(x-11,y-7,18,7,ol); csR(x-10,y-6,17,6,cl); csR(x-10,y-6,17,1,csLt(cl,5)); if(br) csR(x-8,y-8,13,1,cl); csR(x+7,y-5-lf,10,3,ol); csR(x+7,y-4-lf,9,2,dress?sk:bt); if(st) csR(x+17,y-5-lf+((t>>2)&1),1,2,sk);   // (cutscene redo 10: she breathes; STIR lifts her hand and her fingers move)
         { int hn=nod?1:0; csD(x-14,y-4-hn,5,ol); csD(x-14,y-4-hn,4,sk); csR(x-19,y-9-hn,6,6,hr); csR(x-18,y-10-hn,3,1,csLt(hr,7)); csR(x-15,y-5-hn,1,1,lbl?sk:dk);   // G2: the head nods, the eye blinks
             if(lmd==4) csR(x-13,y-4-hn,2,2,RGB(18,2,3)); else if(lmd==6){ csR(x-13,y-3-hn,2,1,RGB(24,8,8)); csR(x-15,y-6-hn,2,1,hr); } else if(lmd==2){ csR(x-13,y-3-hn,2,1,RGB(24,8,8)); csR(x-14,y-4-hn,1,1,RGB(24,8,8)); } else csR(x-13,y-3-hn,2,1,RGB(24,8,8)); } if(csCz>=384) csFaceBig(x-14,y-6,who,CP_LIE,t,0,SKc[who],HRc[who]); return; }

@@ -36,7 +36,14 @@ static void sgEncDna(SlW*w){ slwPut16(w,pDna); slwPut16(w,pUnl); }
 static void sgEncFamily(SlW*w){ volatile u8*b=SL_HHBLK; int n=hhBlockLen(b,SL_HH_LEN); for(int i=0;i<n;i++) slwPut(w,b[i]); }
 static void sgEncWeed(SlW*w){ wdSave(); volatile u8*m=SRAM_BASE+WD_OFF; for(int i=0;i<WD_LEN;i++) slwPut(w,m[i]); }
 static void sgEncSkills(SlW*w){ for(int i=0;i<SK_N;i++) slwPut(w,skPts[i]); }
-static void sgEncStory(SlW*w){ volatile u8*m=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) slwPut(w,m[i]); }
+// Version 2 story chunk: original eight bytes, followed by TV-show memory and
+// the three-byte earned-money baseline. Old eight-byte player files still load.
+static void sgEncStory(SlW*w){
+    volatile u8*m=SRAM_BASE+STORY_OFF;
+    for(int i=0;i<8;i++) slwPut(w,m[i]);
+    slwPut(w,(u8)(stId==STY_TVSHOW?stmGet():0));
+    for(int i=0;i<3;i++) slwPut(w,SRAM_BASE[STB_OFF+i]);
+}
 static void sgEncStats(SlW*w){ lsEnsure(); for(int i=0;i<LS_N*LS_CH;i++) for(int b=0;b<4;b++) slwPut(w,(u8)(lsFlat[i]>>(8*b))); }
 static void sgEncMems(SlW*w){
     slwPut(w,1);
@@ -127,7 +134,13 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_LIFE){ if(!slDecLife(&c,apply)) return SLE_FMT; }
         else if(tag==SLC_DNA){ if(cl!=4) return SLE_FMT; if(apply){ pDna=(u16)(c.p[0]|(c.p[1]<<8)); if(pDna>9999) pDna=9999; pUnl=(u16)(c.p[2]|(c.p[3]<<8)); persSave(); } }
         else if(tag==SLC_FAMILY){ int n=hhBlockLen(c.p,cl); if(!n||n!=cl) return SLE_FMT; if(apply){ volatile u8*d=SL_HHBLK; for(int i=0;i<n;i++) d[i]=c.p[i]; } }
-        else if(tag==SLC_STORY){ if(cl!=8||c.p[0]!='S'||c.p[1]!='Y') return SLE_FMT; if(apply){ volatile u8*d=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) d[i]=c.p[i]; } }
+        else if(tag==SLC_STORY){ // backward-compatible: 8 legacy bytes or 12 including mission continuity
+            if((cl!=8&&cl!=12)||c.p[0]!='S'||c.p[1]!='Y') return SLE_FMT;
+            if(apply){ volatile u8*d=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) d[i]=c.p[i];
+                if(cl==12){ stmPut(c.p[8]); for(int i=0;i<3;i++) SRAM_BASE[STB_OFF+i]=c.p[9+i]; }
+                else { stmPut(0); stbSet(); } // legacy save: begin a fair earnings baseline, not another player's memory
+            }
+        }
         else if(tag==SLC_GHOST){ if(cl!=12) return SLE_FMT; if(apply){ fxGhostLoad(c.p); fxGhostSave(SIM_SRAM+SIM_BLOCK); } }
         else if(tag==SLC_SKILLS){ if(cl!=SK_N) return SLE_FMT; if(apply){ for(int i=0;i<SK_N;i++) skPts[i]=c.p[i]; skSave(); } }
         else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N*LS_CH) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) lsFlat[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
