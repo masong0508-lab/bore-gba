@@ -73,9 +73,15 @@ int main(void){
                 "New 3DS high-detail exploration is still a chunky 2x viewport");
     ggExpScenicQuality=1;
     ggExpRenderMode(pixels,0);
+#ifdef GG_NEW3DS_ONLY
+    meshRequire(ggMeshContext.w==400&&ggMeshContext.scale==1&&
+                ggMeshContext.textureSamples==0,
+                "New 3DS frame-budget fallback must shed textures, not resolution");
+#else
     meshRequire(ggMeshContext.w==200&&ggMeshContext.scale==2&&
                 ggMeshContext.textureSamples==0,
                 "Old 3DS must keep its inexpensive untextured fallback");
+#endif
     // Every actor still uses the same physically projected world foot.
     for(int wx=64*256;wx<=65*256;wx+=64)
         meshRequire(ggMeshGroundAtQ8(wx,64*256+128)>=0,
@@ -125,9 +131,15 @@ int main(void){
                 "camera climb did not follow physical terrain continuously");
     ggExpScenicQuality=1;
     ggExpRenderMode(pixels,0);
+#ifdef GG_NEW3DS_ONLY
+    meshRequire(ggMeshContext.eye==nominal+13&&
+                ggMeshContext.scale==1&&ggMeshContext.w==400,
+                "New 3DS native quality path lost slope-following camera height");
+#else
     meshRequire(ggMeshContext.eye==nominal+13&&
                 ggMeshContext.scale==2&&ggMeshContext.w==200,
                 "Old 3DS quality path lost terrain-following camera height");
+#endif
     ggExpScenicQuality=2;
     world[64][64]=T_GRASS;
     ggExplore.px=sx;ggExplore.py=sy;
@@ -197,7 +209,8 @@ int main(void){
     ggMeshPersonDraw(&ggMeshContext,512,0,0,512,0,
                      1001,4,128,60,0,colors);
     meshRequire(ggMeshPersonCount==1&&ggMeshPersonPixels>100,
-                "coarse Old 3DS citizen disappears after depth-grid alignment");
+                "citizen disappears after native/low quality mode change");
+#ifndef GG_NEW3DS_ONLY
     for(int y=0;y<240;y+=2)for(int x=0;x<400;x+=2){
         const unsigned char *p=pixels+(y*400+x)*3;
         meshRequire(!memcmp(p,p+3,3)&&
@@ -205,6 +218,7 @@ int main(void){
                     !memcmp(p,p+400*3+3,3),
                     "coarse citizen writes broken 2x2 pixels over 3D geometry");
     }
+#endif
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;
     ggExpRenderMode(pixels,0);
