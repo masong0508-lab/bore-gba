@@ -21,6 +21,12 @@ static inline int ggMeshPersonHeight(const GgMeshContext*m,
     int h=(a.y-b.y)*m->scale;
     return ggPersonClamp(h,0,152);
 }
+// The source cel is 32x48; the old 32/80 billboard aspect ratio
+// squeezed shoulders, faces and legs into conspicuously thin cutouts.
+// Keep true cel proportions in world projection and bound close-up cost.
+static inline int ggMeshPersonWidth(int pixelH){
+    return ggPersonClamp(pixelH*GG_PERSON_W/GG_PERSON_H,4,96);
+}
 static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
                              int ground,int forward,int side,
                              uint32_t identity,int family,int heading,
@@ -29,7 +35,7 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     if(forward<m->near||forward>11*256)return;
     int pixelH=ggMeshPersonHeight(m,forward,ground);
     if(pixelH<7)return;
-    int width=ggPersonClamp(pixelH*32/80,4,64);
+    int width=ggMeshPersonWidth(pixelH);
     GgMeshCameraVertex base={forward,side,ground,0,0};
     GgMeshProjected projected=ggMeshProject(m,base);
     int center=projected.x*m->scale,feet=projected.y*m->scale;
