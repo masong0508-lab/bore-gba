@@ -90,6 +90,8 @@ static int politicalDirty;
 #define GG_REIGN_SAVE_PATH "/tmp/godguy_unwritten_reign_pc_test.dat"
 #include "3ds/chronicles3d.h"
 #include "3ds/reign3d.h"
+#define GG_ORIGIN_SAVE_PATH "/tmp/godguy_origin_pc_test.dat"
+#include "3ds/origin3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -311,6 +313,60 @@ int main(void){
     ggChronDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "campaign banners or HUD overran the shared 3DS framebuffer");
+    // First entry should be an ordinary childhood and the age-22
+    // awakening, not a selection of preordained career classes.
+    remove(GG_REIGN_SAVE_PATH);
+    memset(&ggReign,0,sizeof ggReign);
+    ggReignLoad();
+    check(ggReign.role==GG_ROLE_UNBOUND&&!ggReign.initialChoice,
+          "demigod began with an imposed job before creation");
+    remove(GG_ORIGIN_SAVE_PATH);
+    memset(&ggOrigin,0,sizeof ggOrigin);
+    ggOriginBegin();
+    check(ggOrigin.active&&ggOrigin.phase==GG_ORIGIN_BIRTH,
+          "first entry omitted the ordinary birth opening");
+    ggOriginStep(KEY_A);
+    check(ggOrigin.phase==GG_ORIGIN_CHILD,
+          "the birth story did not reach childhood");
+    ggOriginStep(0);
+    ggOriginStep(KEY_A);
+    check(ggOrigin.phase==GG_ORIGIN_YOUTH,
+          "the youth story jumped straight to divine powers");
+    ggOriginStep(0);
+    ggOriginStep(KEY_START);
+    check(ggOrigin.phase==GG_ORIGIN_CREATE,
+          "the opening cannot reach basic adult creation");
+    ggOriginStep(0);
+    ggOriginStep(KEY_RIGHT);
+    ggOriginStep(0);
+    ggOriginStep(KEY_DOWN);
+    ggOriginStep(0);
+    ggOriginStep(KEY_RIGHT);
+    check(ggOrigin.name==1&&ggOrigin.body==1,
+          "name and appearance choices are not independent");
+    ggOriginDraw(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "character art exceeded the 3DS framebuffer");
+    ggOriginStep(0);
+    ggOriginStep(KEY_A);
+    check(ggOrigin.phase==GG_ORIGIN_AWAKEN,
+          "character creation cannot proceed to age-22 revelation");
+    for(int t=0;t<45;t++)ggOriginStep(0);
+    ggOriginDraw(guarded.img);
+    ggOriginStep(KEY_A);
+    check(ggOrigin.phase==GG_ORIGIN_EPILOGUE,
+          "the first miracle did not lead to the aftermath");
+    ggOriginStep(0);
+    ggOriginStep(KEY_A);
+    check(!ggOrigin.active&&ggOrigin.complete&&ggReign.divine==28,
+          "demigod powers were not discovered at early adulthood");
+    memset(&ggOrigin,0,sizeof ggOrigin);
+    ggOriginBegin();
+    check(!ggOrigin.active&&ggOrigin.complete&&
+          ggOrigin.name==1&&ggOrigin.body==1,
+          "completed opening and adult creator were not persisted");
+    remove(GG_ORIGIN_SAVE_PATH);
+    remove(GG_REIGN_SAVE_PATH);
     // UNWRITTEN REIGN - class, crime, civic, office and divine systems
     // are independent from the native 2D story; all civic actions use
     // actual village stocks/loyalty rather than invented map markers.
@@ -351,6 +407,15 @@ int main(void){
     check(ggReignElection()&&ggReign.office==2,
           "mayoral office was not reachable with local civic consent");
     ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    ggReign.frame=ggReign.nextCivicAt;
+    check(ggReignEnroll(GG_ROLE_FARMER),
+          "local farmer opportunity was not available after creation");
+    stock=vil[0].stock;
+    check(ggReignDeed()&&vil[0].stock==stock+18,
+          "farming did not increase the real village food stock");
+    ggReign.frame=ggReign.nextCivicAt;
+    check(ggReignEnroll(GG_ROLE_SAILOR)&&!ggReignDeed(),
+          "inland towns incorrectly offered sea voyages");
     check(ggReignRecruit()&&ggReign.squadN==1 &&
           vil[0].stock>0,"real settlement could not provision a companion");
     ggChron.foeN=1;
