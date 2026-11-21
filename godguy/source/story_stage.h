@@ -274,6 +274,109 @@ static FilmBlocking filmBlocking(const FilmBeat *beat,int elapsed){
     return b;
 }
 
+// Native DS/DSi environmental choreography. The base film remains
+// 256x192 with six compressed 28x34 actor keys. Each scene uses a handful
+// of world-anchored drawing commands rather than a new sprite sheet,
+// framebuffer, palette, or heap allocation.
+#ifndef __3DS__
+static void filmDSLivingSets(const FilmBeat *beat,int t,int chapter){
+    int p=beat->place;
+    if(p==F_VILLAGE){
+        if(chapter>=2){
+            // Smoke rises from a roof, never from the speaker's position.
+            for(int i=0;i<3;i++){
+                int rise=(t/22+i*13)%29;
+                uiRect(52+i+(rise/9),106-rise,2+(i&1),2,
+                       fmvSlots[i&1?21:22]);
+            }
+        }
+        if(chapter>=5){
+            // A travelling market cart gives the village a genuine
+            // background activity track, with its wheels attached.
+            int x=17+(t/7)%164;
+            uiRect(x,145,27,9,fmvSlots[24]);
+            uiRect(x+2,143,23,3,fmvSlots[25]);
+            uiRect(x+4,154,5,5,fmvSlots[20]);
+            uiRect(x+20,154,5,5,fmvSlots[20]);
+            uiRect(x+9,140,9,5,fmvSlots[21]);
+            uiRect(x+11,139,5,2,fmvSlots[26]);
+        }
+        if(chapter==2&&beat==roofBeats+2){
+            // The hammer disturbs real timber dust at the worksite.
+            for(int i=0;i<3;i++){
+                int y=123-(t/9+i*7)%13;
+                uiRect(94+i*6,y,2,2,fmvSlots[25]);
+            }
+        }
+    }else if(p==F_PORCH){
+        // Curtains are hinged to the same rain window on every take.
+        int sway=((t/36)%5)-2;
+        uiRect(205+sway,57,4,25,fmvSlots[16]);
+        uiRect(241-sway,57,3,25,fmvSlots[16]);
+        if(chapter==1){
+            // The doorway is gradually revealed only after the arrival.
+            int open=t<420?t/52:8;
+            uiRect(30,63,4,43,fmvSlots[24]);
+            uiRect(33,65,2+open,39,fmvSlots[2]);
+        }
+    }else if(p==F_FORGE){
+        // Near the forge mouth: three rising sparks, not screen-wide fog.
+        for(int i=0;i<4;i++){
+            int rise=(t/10+i*9)%24;
+            int x=207+i*5+(rise/12);
+            uiRect(x,139-rise,1+(i&1),2,fmvSlots[i&1?8:9]);
+        }
+    }else if(p==F_ARCHIVE){
+        // Open folio between the two actors; the right leaf lifts as
+        // pages are turned, and the writing remains on the paper.
+        int turn=((t/36)%7)-3;
+        uiRect(112,145,17,10,fmvSlots[23]);
+        uiRect(130,145+turn/2,17,10,fmvSlots[26]);
+        uiRect(129,145,2,11,fmvSlots[24]);
+        for(int i=0;i<3;i++){
+            uiRect(115,148+i*2,10-i,1,fmvSlots[25]);
+            uiRect(134,148+turn/2+i*2,10-i,1,fmvSlots[25]);
+        }
+    }else if(p==F_HEARTH){
+        for(int i=0;i<3;i++){
+            int lift=(t/14+i*5)%8;
+            uiRect(124+i*5,151-lift,2,7-lift/3,
+                   fmvSlots[i&1?9:8]);
+        }
+    }else if(p==F_FORD||p==F_SHORE){
+        for(int i=0;i<6;i++){
+            int x=48+i*27+((t/12+i*3)%11);
+            int y=144+(i*7)%15;
+            uiRect(x,y,8+(i&3),1,fmvSlots[i&1?13:14]);
+        }
+    }else if(p==F_GATE||p==F_RUINS){
+        // Guard fire is fixed to two sconces. Only the flame moves.
+        if(p==F_GATE)
+            for(int i=0;i<2;i++){
+                int x=56+i*139;
+                uiRect(x,109-((t/15+i)%3),2,6,fmvSlots[9]);
+                uiPx(x+1,108-((t/15+i)%3),fmvSlots[10]);
+            }
+    }else if(p==F_HALL||p==F_THRONE){
+        // Two banners respond to wind without sliding off their rods.
+        int flutter=(t/38)%5;
+        uiRect(32,79,3+flutter,24,fmvSlots[5]);
+        uiRect(219-flutter,79,3+flutter,24,fmvSlots[5]);
+    }
+}
+static void filmDSForeground(const FilmBeat *beat){
+    // Small depth cues at the correct contact plane. These objects stay
+    // behind hand gestures and below dialogue; they never follow faces.
+    if(beat->place==F_PORCH){
+        uiRect(105,159,51,3,fmvSlots[24]);
+        uiRect(108,162,3,3,fmvSlots[25]);
+        uiRect(151,162,3,3,fmvSlots[25]);
+    }else if(beat->place==F_ARCHIVE){
+        uiRect(108,158,46,3,fmvSlots[24]);
+    }
+}
+#endif
+
 // All atmosphere has an in-world source. No drifting particles in empty
 // rooms or random streaks crossing a character's face.
 static void filmAtmosphere(const FilmBeat *beat,int t){
@@ -812,6 +915,8 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     filmAtmosphere(beat,elapsed);
     filmStageLight(beat,elapsed);
 #else
+    // DS and DSi get independently moving, stage-anchored details too.
+    filmDSLivingSets(beat,filmSceneryClock,(int)(clip-fmvClips));
     filmAtmosphere(beat,filmSceneryClock);
 #endif
 
@@ -868,6 +973,9 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     // True near-camera geometry is composited last, so the actors and
     // gripped props are partially hidden when they move behind an obstacle.
     ggFilmWorldForeground(beat,move,filmBonusIndex>=0?14:(int)(clip-fmvClips));
+#endif
+#ifndef __3DS__
+    filmDSForeground(beat);
 #endif
     filmCaption(beat,captionOn);
 }
