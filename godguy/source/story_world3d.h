@@ -273,7 +273,7 @@ static void ggFilmBackgroundWorker(GgFilmCamera cam,int x,int z,int t,int id){
         ggFilmBox(cam,x+32,119+lift,z-8,28,11,13,21,24,26);
     }
 }
-static void ggFilmInterior(GgFilmCamera cam,int p,int t){
+static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter){
     // Walls, cornice and corridor all converge on the same perspective.
     ggFilmQuad(cam,ggV3(-700,0,1600),ggV3(700,0,1600),
                    ggV3(700,390,1600),ggV3(-700,390,1600),22);
@@ -296,12 +296,16 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t){
         // mullions; the light never follows the talking actor's face.
         ggFilmQuad(cam,ggV3(200,115,1554),ggV3(450,115,1554),
                        ggV3(450,253,1554),ggV3(200,253,1554),12);
-        for(int i=0;i<9;i++){
-            int x=210+i*24;
-            int y=130+((i*37+t/5)%104);
-            ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+3,y,1551),
-                           ggV3(x+3,y+16,1551),ggV3(x,y+16,1551),13);
-        }
+        // The first-rain chapter has rain beyond the window. Afterward
+        // the very same porch remains dry; weather does not loop forever
+        // just because the story visits the location again.
+        if(chapter==1)
+            for(int i=0;i<9;i++){
+                int x=210+i*24;
+                int y=130+((i*37+t/5)%104);
+                ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+3,y,1551),
+                               ggV3(x+3,y+16,1551),ggV3(x,y+16,1551),13);
+            }
         ggFilmBox(cam,325,114,1536,268,10,12,24,25,26);
         ggFilmBox(cam,325,248,1536,268,10,12,24,25,26);
         ggFilmBox(cam,200,114,1536,10,148,12,24,25,26);
@@ -376,7 +380,7 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
     // outdoor village set (houses and trees), breaking cuts from the room.
     int inside=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
                 p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
-    if(inside){ggFilmInterior(cam,p,elapsed);return;}
+    if(inside){ggFilmInterior(cam,p,elapsed,chapter);return;}
     ggFilmFloor(cam,p,elapsed);
     if(p==F_GATE||p==F_RUINS){
         ggFilmArch(cam,-170,1260,p==F_RUINS);
