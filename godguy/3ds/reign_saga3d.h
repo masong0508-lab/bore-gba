@@ -8,6 +8,7 @@
 #include "film_walk3d.h"
 #include "film_camera3d.h"
 #include "film_stage3d.h"
+#include "film_partner3d.h"
 #ifndef GG_SAGA_SAVE_PATH
 #define GG_SAGA_SAVE_PATH "sdmc:/godguy_saga.dat"
 #endif
@@ -438,6 +439,7 @@ typedef struct {
     int approachX,approachY; // prevalidated entry tile, fixed for two beats
     GgFilmCameraTrack camera; // camera corridor also solved once per shot
     int sidesResolved,plusValid,minusValid;
+    int pairResolved,pairKind,pairSourceHero,pairTransferred;
     int plusX,plusY,minusX,minusY;
 } GgSagaShot;
 static GgSagaShot ggSagaShot;
@@ -513,6 +515,7 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
         ggSagaShot.landmarkY=landmarkY;
         ggSagaShot.anchorX=tx;ggSagaShot.anchorY=ty;
         ggSagaShot.sidesResolved=0;
+        ggSagaShot.pairResolved=0;ggSagaShot.pairTransferred=0;
         ggSagaShot.angle=(shot*51+ggChron.act*23+32)&255;
         ggSagaShot.distance=3;
         // Eight cardinal/diagonal angles at three distances, visited
@@ -825,9 +828,9 @@ static void ggSagaDraw(u8 *out){
     ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
     ggReignSceneDraw(out);
     ggChron.frame=chronFrame;
-    // Collect the protagonist, named guests, and one optional physical
-    // prop in a bounded stack queue. All positions come from the same
-    // film camera and real tiles; no dynamically allocated cels.
+    // Three moving performers and one optional stage prop, all in the
+    // existing scene. An interaction cue is resolved once per two-line
+    // take, using the actual script, not random animation selection.
     GgFilmStageItem actors[4];
     int actorCount=0,primaryGuest,secondGuest;
     ggSagaPairGuests(index,&primaryGuest,&secondGuest);
@@ -838,9 +841,42 @@ static void ggSagaDraw(u8 *out){
     int propKind=ggSagaPropKind();
     int filmCos=ggExpCos[ggExplore.angle&255];
     int filmSin=ggExpSin[ggExplore.angle&255];
+    int guestCount=primaryGuest<0?0:secondGuest<0?1:2;
+    int firstSide=guestCount?
+                  ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                       ggSagaShot.minusValid,0):0;
+    int secondSide=guestCount>1?
+                   ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                        ggSagaShot.minusValid,1):0;
+    int speakerSide=activeStyle==primaryGuest?firstSide:
+                    activeStyle==secondGuest?secondSide:0;
+    if(!ggSagaShot.pairResolved){
+        ggSagaShot.pairKind=GG_FILM_PAIR_NONE;
+        ggSagaShot.pairSourceHero=0;
+        ggSagaShot.pairTransferred=0;
+        if(spoken&&guestCount==1&&firstSide&&ggOrigin.complete){
+            int begin=index&~1,count=ggSagaBeatCount();
+            const GgSagaBeat *a=ggSagaCurrentBeat(begin);
+            const GgSagaBeat *b=begin+1<count?
+                               ggSagaCurrentBeat(begin+1):0;
+            ggSagaShot.pairKind=ggFilmPairCue(a->line,
+                                             b?b->line:"");
+            ggSagaShot.pairSourceHero=!strcmp(a->voice,"YOU");
+        }
+        ggSagaShot.pairResolved=1;
+    }
+    int pairKind=ggSagaShot.pairKind;
+    int pairInset=pairKind?ggFilmPairInset(index,local,
+                                          GG_SAGA_BEAT_TICKS):0;
+    int guestWX=0,guestWY=0,stageWX=stageX*256+128,
+        stageWY=stageY*256+128;
+    if(pairKind)ggSagaSidePosition(firstSide,&guestWX,&guestWY);
     if(ggOrigin.complete){
         int x,y,size,wx,wy;
         ggSagaActorPosition(stageX,stageY,index,local,&wx,&wy);
+        if(pairKind&&pairInset)
+            ggFilmPairPosition(stageWX,stageWY,guestWX,guestWY,
+                               pairInset,1,&wx,&wy);
         if(ggSagaProjectActor(wx,wy,&x,&y,&size)){
             actors[actorCount++]=(GgFilmStageItem){
                 GG_STAGE_HERO,x,y,ggExpClamp(size/12,1,3),
@@ -853,11 +889,13 @@ static void ggSagaDraw(u8 *out){
         int styles[2]={primaryGuest,secondGuest};
         for(int slot=0;slot<2;slot++){
             if(styles[slot]<0)continue;
-            int side=ggFilmStageGuestSide(ggSagaShot.plusValid,
-                                          ggSagaShot.minusValid,slot);
-            if(!side)continue; // a blocked side must not duplicate a guest
+            int side=slot?secondSide:firstSide;
+            if(!side)continue;
             int wx,wy,x,y,size;
             ggSagaSidePosition(side,&wx,&wy);
+            if(pairKind&&slot==0&&pairInset)
+                ggFilmPairPosition(stageWX,stageWY,guestWX,guestWY,
+                                   pairInset,0,&wx,&wy);
             if(!ggSagaProjectActor(wx,wy,&x,&y,&size))continue;
             actors[actorCount++]=(GgFilmStageItem){
                 slot?GG_STAGE_GUEST_TWO:GG_STAGE_GUEST_ONE,
@@ -867,17 +905,11 @@ static void ggSagaDraw(u8 *out){
             };
         }
     }
-    int guestCount=primaryGuest<0?0:secondGuest<0?1:2;
-    int firstSide=guestCount?
-                  ggFilmStageGuestSide(ggSagaShot.plusValid,
-                                       ggSagaShot.minusValid,0):0;
-    int secondSide=guestCount>1?
-                   ggFilmStageGuestSide(ggSagaShot.plusValid,
-                                        ggSagaShot.minusValid,1):0;
-    int speakerSide=activeStyle==primaryGuest?firstSide:
-                    activeStyle==secondGuest?secondSide:0;
-    int propSide=ggFilmStagePropSide(ggSagaShot.plusValid,
-                                      ggSagaShot.minusValid,guestCount);
+    // Handovers supersede a duplicate scenery book or supply pile.
+    int propSide=(pairKind==GG_FILM_PAIR_BOOK||
+                  pairKind==GG_FILM_PAIR_PARCEL)?0:
+                 ggFilmStagePropSide(ggSagaShot.plusValid,
+                                     ggSagaShot.minusValid,guestCount);
     if(propSide){
         int wx,wy,x,y,size;
         ggSagaSidePosition(propSide,&wx,&wy);
@@ -892,6 +924,13 @@ static void ggSagaDraw(u8 *out){
     // Prevents a character behind the hero from covering the hero's
     // shoulders, or a wagon appearing pasted across someone's legs.
     ggFilmStageSort(actors,actorCount);
+    const GgFilmStageItem *heroItem=0,*partnerItem=0;
+    for(int i=0;i<actorCount;i++){
+        if(actors[i].kind==GG_STAGE_HERO)heroItem=&actors[i];
+        if(actors[i].kind==GG_STAGE_GUEST_ONE)partnerItem=&actors[i];
+    }
+    int pairVisible=pairKind&&heroItem&&partnerItem;
+    int heroHandX=0,heroHandY=0,guestHandX=0,guestHandY=0;
     for(int i=0;i<actorCount;i++){
         const GgFilmStageItem *item=&actors[i];
         if(item->kind==GG_STAGE_PROP){
@@ -903,7 +942,16 @@ static void ggSagaDraw(u8 *out){
                       index,local,1,
                       spoken&&!strcmp(spoken->voice,"YOU"),walking,propKind);
             performance.gaze=(signed char)ggFilmStageGaze(0,
-                                  speakerSide? speakerSide:firstSide);
+                                  speakerSide?speakerSide:firstSide);
+            if(pairVisible){
+                int toward=ggFilmPairDirection(item->x,partnerItem->x);
+                ggFilmPairActPose(&performance,toward,pairInset);
+                ggFilmPairHandAt(item->x,item->feet,item->size,
+                                 partnerItem->x,&performance,
+                                 &heroHandX,&heroHandY);
+                // The object is owned by one partner, not both cels.
+                if(pairKind>=GG_FILM_PAIR_BOOK)performance.holdProp=0;
+            }
             ggFilmDrawActor(out,item->x,item->feet,item->size,
                             ggOriginHairRGB[ggOrigin.hair],
                             ggOriginSkinRGB[ggOrigin.skin],
@@ -919,10 +967,51 @@ static void ggSagaDraw(u8 *out){
                         firstSide:secondSide;
             int lookSide=activeStyle==style?0:speakerSide;
             performance.gaze=(signed char)ggFilmStageGaze(ownSide,lookSide);
+            if(pairVisible&&item->kind==GG_STAGE_GUEST_ONE){
+                int toward=ggFilmPairDirection(item->x,heroItem->x);
+                ggFilmPairActPose(&performance,toward,pairInset);
+                ggFilmPairHandAt(item->x,item->feet,item->size,
+                                 heroItem->x,&performance,
+                                 &guestHandX,&guestHandY);
+                if(pairKind>=GG_FILM_PAIR_BOOK)performance.holdProp=0;
+            }
             ggFilmDrawActor(out,item->x,item->feet,item->size,
                             ggFilmGuestPalette[style][0],
                             ggFilmGuestPalette[style][1],
                             ggFilmGuestPalette[style][2],&performance);
+        }
+    }
+    if(pairVisible){
+        int touching=ggFilmPairTouch(heroHandX,heroHandY,
+                                    guestHandX,guestHandY);
+        int elapsed=(index&1)*GG_SAGA_BEAT_TICKS+local;
+        if(pairKind==GG_FILM_PAIR_COMFORT&&pairInset>=80&&touching){
+            // An actual shared contact point, in front of BOTH sleeves.
+            int cx=(heroHandX+guestHandX)/2;
+            int cy=(heroHandY+guestHandY)/2;
+            const u8 *a=ggOriginSkinRGB[ggOrigin.skin];
+            const u8 *b=ggFilmGuestPalette[primaryGuest][1];
+            ggExpRect(out,cx-3,cy-1,3,3,a[0],a[1],a[2]);
+            ggExpRect(out,cx,cy-1,3,3,b[0],b[1],b[2]);
+        }else if(pairKind==GG_FILM_PAIR_BOOK||
+                 pairKind==GG_FILM_PAIR_PARCEL){
+            if(!ggSagaShot.pairTransferred&&
+               elapsed>=GG_SAGA_BEAT_TICKS-8&&
+               elapsed<=GG_SAGA_BEAT_TICKS+32&&touching)
+                ggSagaShot.pairTransferred=1;
+            // Transfer only on verified visible hand contact. Once
+            // transferred, possession persists while both actors
+            // step apart; never draw two copies of the same object.
+            int holderHero=ggSagaShot.pairSourceHero!=
+                           ggSagaShot.pairTransferred;
+            int hx=holderHero?heroHandX:guestHandX;
+            int hy=holderHero?heroHandY:guestHandY;
+            int size=holderHero?heroItem->size:partnerItem->size;
+            const u8 *skin=holderHero?
+                 ggOriginSkinRGB[ggOrigin.skin]:
+                 ggFilmGuestPalette[primaryGuest][1];
+            ggFilmDrawHeldObject(out,hx,hy,size,
+                    pairKind==GG_FILM_PAIR_BOOK?3:4,skin);
         }
     }
     ggExplore.px=px;ggExplore.py=py;
