@@ -6,6 +6,7 @@
 #ifndef GG_REIGN_SAGA3D_H
 #define GG_REIGN_SAGA3D_H
 #include "film_walk3d.h"
+#include "film_camera3d.h"
 #ifndef GG_SAGA_SAVE_PATH
 #define GG_SAGA_SAVE_PATH "sdmc:/godguy_saga.dat"
 #endif
@@ -434,10 +435,17 @@ typedef struct {
     int mode,act,beat,eventX,eventY,anchorX,anchorY;
     int landmarkX,landmarkY,angle,distance,valid;
     int approachX,approachY; // prevalidated entry tile, fixed for two beats
+    GgFilmCameraTrack camera; // camera corridor also solved once per shot
     int sidesResolved,plusValid,minusValid;
     int plusX,plusY,minusX,minusY;
 } GgSagaShot;
 static GgSagaShot ggSagaShot;
+typedef struct {int stageX,stageY;} GgSagaCameraContext;
+static int ggSagaCameraFloor(int x,int y,int elevation,void *user){
+    const GgSagaCameraContext *c=(const GgSagaCameraContext*)user;
+    return ggChronLand(x,y)&&ggExpGround(world[y][x])==elevation&&
+           ggExpLineClear(x,y,c->stageX,c->stageY);
+}
 
 // Paired dialogue lines are one establishing shot, not two unrelated
 // camera teleports. A controlled second shot occurs after the pair.
@@ -521,6 +529,23 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 ggSagaShot.angle=a;ggSagaShot.distance=d;
                 found=1;
             }
+        // Choose one continuous dolly path through *visible*, level,
+        // unoccupied world tiles. This bounded search runs only when
+        // entering a new paired take; the renderer merely interpolates.
+        int cameraAngle=ggSagaShot.angle;
+        int cx=tx*256+128-
+               ggExpCos[cameraAngle]*ggSagaShot.distance*256/4096;
+        int cy=ty*256+128-
+               ggExpSin[cameraAngle]*ggSagaShot.distance*256/4096;
+        ggSagaShot.camera.fromX=ggSagaShot.camera.toX=cx;
+        ggSagaShot.camera.fromY=ggSagaShot.camera.toY=cy;
+        if(found){
+            GgSagaCameraContext context={tx,ty};
+            ggFilmCameraPlan(&ggSagaShot.camera,cx,cy,
+                             ggExpCos[cameraAngle],ggExpSin[cameraAngle],
+                             ggExpGround(world[cy>>8][cx>>8]),
+                             ggSagaCameraFloor,&context);
+        }
         // Instead of walking a few pixels in place, enter from a real
         // neighboring tile toward the camera. One lookup per TWO dialogue
         // beats; no new world or collision checks in the frame renderer.
@@ -549,26 +574,12 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
     // allow crowd movement to make the movie's actors jump locations.
     tx=ggSagaShot.anchorX;ty=ggSagaShot.anchorY;
     *anchorX=tx;*anchorY=ty;
-    int a=ggSagaShot.angle;
-    // Ease over the WHOLE pair: beat boundary never snaps the dolly
-    // backward to its starting point. No floating-point math.
-    int elapsed=(beat&1)*GG_SAGA_BEAT_TICKS+
-                ggExpClamp(local,0,GG_SAGA_BEAT_TICKS);
-    int progress=elapsed*256/(GG_SAGA_BEAT_TICKS*2);
-    int smooth=(progress*progress*(768-2*progress))/(256*256);
-    int distance=ggSagaShot.distance*256-smooth*48/256;
-    int side=smooth*48/256-24;
-    int x=tx*256+128-ggExpCos[a]*distance/4096+
-          ggExpSin[a]*side/4096;
-    int y=ty*256+128-ggExpSin[a]*distance/4096-
-          ggExpCos[a]*side/4096;
-    if(!ggChronLand(x>>8,y>>8)){
-        x=tx*256+128-ggExpCos[a]*ggSagaShot.distance*256/4096;
-        y=ty*256+128-ggExpSin[a]*ggSagaShot.distance*256/4096;
-    }
+    int x,y;
+    ggFilmCameraTrackAt(&ggSagaShot.camera,beat,local,
+                        GG_SAGA_BEAT_TICKS,&x,&y);
     ggExplore.px=ggExpClamp(x,384,(WW-2)*256);
     ggExplore.py=ggExpClamp(y,384,(WH-2)*256);
-    ggExplore.angle=a;
+    ggExplore.angle=ggSagaShot.angle;
     ggExplore.frame=ggSaga.frame;
 }
 // A character's actual Q8 location is projected from the FILM camera,
