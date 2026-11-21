@@ -6,6 +6,15 @@
 #define MS_ONE_MORE_NIGHT 16u
 #define MS_PRESSURE_BITS 224u
 #define MS_PENDING_SCENE 64u
+// Story status SRAM byte: low three bits chapter, next three task flags,
+// bit six pending film, bit seven guest seen. Keep this layout save-compatible.
+static inline unsigned msStatusPack(unsigned chapter,unsigned tasks,unsigned pending,unsigned guest){
+    return (chapter&7u)|((tasks&7u)<<3)|(pending?MS_PENDING_SCENE:0u)|(guest?128u:0u);
+}
+static inline unsigned msStatusChapter(unsigned byte){ return byte&7u; }
+static inline unsigned msStatusTasks(unsigned byte){ return (byte>>3)&7u; }
+static inline unsigned msStatusPending(unsigned byte){ return (byte&MS_PENDING_SCENE)!=0u; }
+static inline unsigned msStatusGuest(unsigned byte){ return (byte>>7)&1u; }
 static inline unsigned msPressureBand(unsigned p){
     if(p>100u) p=100u;
     unsigned band=(p+7u)/14u;
