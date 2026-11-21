@@ -95,6 +95,8 @@ static int politicalDirty;
 #include "3ds/reign_scenery.h"
 #define GG_QUEST_SAVE_PATH "/tmp/godguy_quests_pc_test.dat"
 #include "3ds/reign_quests.h"
+#define GG_SAGA_SAVE_PATH "/tmp/godguy_saga_pc_test.dat"
+#include "3ds/reign_saga3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -328,6 +330,11 @@ int main(void){
         ggChronStep(KEY_X);
         check(ggChron.post==i+1,"guard-cleared outpost failed to capture");
     }
+    check(ggSaga.mode==GG_SAGA_CHOICE&&!ggChron.won,
+          "chapter climax skipped the player's meaningful story decision");
+    ggSagaCommitChoice(0);
+    check(ggSaga.mode==GG_SAGA_OUTRO&&ggSaga.decided&1,
+          "chapter decision was not recorded for future endings");
     check(ggChron.won&&ggChron.cleared==1,
           "campaign victory did not unlock the following act");
     check(ggChronBegin(60,60,0)==-1,
@@ -498,7 +505,8 @@ int main(void){
     vil[0]=(Vil){1,60,60,125};
     vil[1]=(Vil){1,70,60,125};
     ggChron.active=1;ggChron.won=0;ggChron.lost=0;
-    ggChron.foeN=0;ggReign.menu=0;ggReign.noticeT=0;
+    ggChron.foeN=0;ggChron.briefTime=0;
+    ggReign.menu=0;ggReign.noticeT=0;
     ggExplore.px=60*256+128;ggExplore.py=60*256+128;
     ggQuestBegin();
     check(ggQuest.stage==GG_QUEST_IDLE&&!ggQuest.talk,
@@ -541,6 +549,49 @@ int main(void){
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "quest journal or town conversation overran 3DS RGB memory");
     remove(GG_QUEST_SAVE_PATH);
+    // Branching-film regression: all four acts and nine alternate endings
+    // must remain within one 400x240 buffer and persist a witnessed ending.
+    remove(GG_SAGA_SAVE_PATH);
+    ggSaga.loaded=1;ggSaga.decisions=0;ggSaga.decided=0;
+    ggSaga.seen=0;ggSaga.mode=0;ggReign.role=GG_ROLE_WAYFINDER;
+    ggReign.office=0;ggReign.infamy=0;ggReign.credits=100;
+    ggExplore.active=1;ggOrigin.active=0;
+    ggChron.briefTime=0;ggChron.foeN=0;
+    for(int act=0;act<GG_CHRON_ACTS;act++){
+        ggChron.act=act;ggChron.active=1;ggChron.won=0;
+        ggChron.post=GG_CHRON_POSTS;
+        ggSagaStartChoice();
+        check(ggSaga.mode==GG_SAGA_CHOICE,
+              "chapter ended without a decision reel");
+        ggSagaCommitChoice(act==3);
+        check(ggChron.won&&ggSaga.decided&(1u<<act),
+              "chosen act decision did not complete the mission");
+    }
+    check(ggSaga.mode==GG_SAGA_OUTRO&&ggSaga.ending>=0&&
+          ggSaga.ending<GG_SAGA_ENDINGS&&ggSaga.seen,
+          "final campaign choice failed to produce a recorded ending");
+    int achieved=ggSaga.ending;
+    ggSagaDraw(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "branching 3D film overran the 3DS video buffer");
+    ggSagaSave();
+    memset(&ggSaga,0,sizeof ggSaga);
+    ggSagaLoad();
+    check(ggSaga.seen&(1u<<achieved),
+          "ending collection did not survive an independent save reload");
+    for(int e=0;e<GG_SAGA_ENDINGS;e++){
+        ggSaga.mode=GG_SAGA_OUTRO;ggSaga.ending=e;
+        ggSaga.frame=0;ggSagaDraw(guarded.img);
+        ggSaga.frame=GG_SAGA_BEAT_TICKS*3;
+        ggSagaDraw(guarded.img);
+        check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+              "alternative 3D ending overran the framebuffer");
+    }
+    ggSaga.mode=0;
+    ggReign.page=5;ggReign.menu=1;
+    ggReignDraw(guarded.img);
+    ggReign.menu=0;
+    remove(GG_SAGA_SAVE_PATH);
     // Repeat on moving viewpoints, not just one flat frame. Host timings
     // are diagnostics; they are not a claim of Old/New 3DS hardware FPS.
     clock_t benchStart=clock();

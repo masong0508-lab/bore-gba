@@ -33,6 +33,8 @@ static const char *const ggChronPostName[GG_CHRON_POSTS]={
 };
 static const int ggChronRequires[GG_CHRON_ACTS]={3,5,8,14};
 
+// Resolved by the 3DS-only saga director after the player secures a final post.
+static void ggSagaStartChoice(void);
 static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
@@ -289,11 +291,9 @@ static int ggChronStep(int raw){
                 ggChron.briefTime=120;
                 ggChron.dirty=1;
                 if(ggChron.post==GG_CHRON_POSTS){
-                    ggChron.won=1;
-                    if(ggChron.cleared<ggChron.act+1){
-                        ggChron.cleared=ggChron.act+1;
-                        ggChronSave();
-                    }
+                    // A chapter ends with a decision, not an automatic
+                    // victory; saving that decision unlocks the next act.
+                    ggSagaStartChoice();
                 }
             }
         }

@@ -16,6 +16,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "origin3d.h"
 #include "reign_scenery.h"
 #include "reign_quests.h"
+#include "reign_saga3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
@@ -119,6 +120,19 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 ggExpRenderValid=0; // redraw real terrain after the reel
             *held=0;*tx=*ty=0;return;
         }
+        // The act/ending film director has first claim on inputs, so a
+        // meaningful choice never turns into an accidental combat strike.
+        int sagaMode=ggSaga.mode,sagaChoice=ggSaga.choice;
+        int sagaAction=ggSagaStep(raw);
+        if(sagaAction){
+            if(sagaAction==2){
+                ggReignSave();ggChron.active=0;ggExpFinish();
+                ggExpMessage("REIGN SAVED: RETURNED TO THE ORIGINAL STORY");
+            }else if(sagaMode!=ggSaga.mode||sagaChoice!=ggSaga.choice)
+                ggExpRenderValid=0;
+            ggChron.lastKeys=raw;ggReign.lastKeys=raw;ggQuest.lastKeys=raw;
+            *held=0;*tx=*ty=0;return;
+        }
         // Talk and travel orders are contextual: a safe town's A
         // interaction precedes melee, but enemies always take priority.
         if(ggQuestStep(raw)){
@@ -151,6 +165,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 paused=1;ggExpRenderValid=0;
                 ggReignBegin();ggReign.lastKeys=raw;
                 ggQuestBegin();ggQuest.lastKeys=raw;
+                ggSagaBegin();ggSaga.lastKeys=raw;
                 ggOriginBegin();ggOrigin.lastKeys=raw;
                 ggExpMessage(ggOrigin.active?
                     "UNWRITTEN REIGN: AN ORDINARY LIFE BEGINS":
@@ -284,10 +299,14 @@ void shimPresent(void){
                   ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
                   ggExplore.feedback!=lastFx||sky!=lastSky||
                   (ggChron.active&&(ggOrigin.active||ggChron.dirty||ggReign.menu||ggReign.noticeT||
-                                     !(ggChron.frame&3)));
+                                     !(ggChron.frame&3)||
+                                     (ggSaga.mode&&(ggSaga.mode==GG_SAGA_CHOICE||
+                                                    !(ggSaga.frame&1)))));
         if(dirty){
             if(ggChron.active&&ggOrigin.active)
                 ggOriginDraw(topBuf);
+            else if(ggChron.active&&ggSaga.mode)
+                ggSagaDraw(topBuf);
             else{
                 ggExpRender(topBuf);
                 if(ggChron.active){

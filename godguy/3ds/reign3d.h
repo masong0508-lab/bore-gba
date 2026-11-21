@@ -9,7 +9,7 @@
 #define GG_REIGN_SAVE_PATH "sdmc:/godguy_unwritten_reign.dat"
 #endif
 
-enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=5, GG_REIGN_ORDERS=3,
+enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=6, GG_REIGN_ORDERS=3,
        GG_REIGN_SQUAD_MAX=6, GG_REIGN_OFFICES=5 };
 enum { GG_ROLE_WAYFINDER,GG_ROLE_SHADE,GG_ROLE_TRADER,
        GG_ROLE_SOLDIER,GG_ROLE_ENVOY,GG_ROLE_MYSTIC,
@@ -41,7 +41,7 @@ static const char *const ggReignOrders[GG_REIGN_ORDERS]={
 };
 static const char *const ggReignPages[GG_REIGN_PAGES]={
     "LOCAL WORK","WAR COUNCIL","CIVIC HALL","DIVINE SPARK",
-    "QUEST JOURNAL"
+    "QUEST JOURNAL","FATE AND ENDINGS"
 };
 static const char *const ggReignCivicActions[3]={
     "CLASS DEED","GAIN ENDORSEMENT","SEEK OFFICE"
@@ -461,6 +461,7 @@ static void ggReignSquadTick(void){
 // The journal is supplied by the lightweight quest module included after
 // this header. It shares the existing modal, without adding a screen buffer.
 static void ggQuestJournalDraw(u8 *out);
+static void ggSagaFateDraw(u8 *out);
 static void ggReignDraw(u8 *out){
     if(!ggChron.active)return;
     // Officers and companions use tiny native-game silhouettes with
@@ -523,7 +524,8 @@ static void ggReignDraw(u8 *out){
             ggExpText(out,25,79,line,225,233,216);
             ggExpText(out,25,98,"BOLT 20  /  MEND 30  /  BATTLE AWE 40",190,214,218);
             ggExpText(out,25,116,"X CHANGE  A CAST  GODHOOD IS INNATE",190,214,218);
-        }else ggQuestJournalDraw(out);
+        }else if(ggReign.page==4)ggQuestJournalDraw(out);
+        else ggSagaFateDraw(out);
         ggExpText(out,25,146,"LEFT/RIGHT PAGES   B/SELECT CLOSE  START RETREAT",
                   230,195,130);
     }else{
