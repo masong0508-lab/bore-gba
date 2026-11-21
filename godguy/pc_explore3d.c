@@ -557,6 +557,19 @@ int main(void){
     ggReign.office=0;ggReign.infamy=0;ggReign.credits=100;
     ggExplore.active=1;ggOrigin.active=0;
     ggChron.briefTime=0;ggChron.foeN=0;
+    // Parley consumes real provisions or earned influence; the final
+    // captain cannot be removed by a dialogue exploit.
+    ggChron.act=0;ggChron.active=1;ggChron.foeN=2;ggChron.rations=3;
+    ggChron.foe[0]=(GgChronFoe){61,60,25,0,0};
+    ggChron.foe[1]=(GgChronFoe){61,61,25,0,0};
+    check(ggSagaParley(0)&&ggChron.foe[0].hp==0&&
+          ggChron.foe[1].hp==0&&ggChron.rations==2,
+          "caravan rescue cannot resolve using shared emergency rations");
+    ggChron.act=3;ggChron.foe[0].hp=105;
+    ggChron.foe[0].post=2;
+    check(!ggSagaParley(2)&&ggChron.foe[0].hp==105,
+          "final campaign captain was deleted by cheap diplomacy");
+    ggChron.foeN=0;
     for(int act=0;act<GG_CHRON_ACTS;act++){
         ggChron.act=act;ggChron.active=1;ggChron.won=0;
         ggChron.post=GG_CHRON_POSTS;

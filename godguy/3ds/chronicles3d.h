@@ -35,6 +35,7 @@ static const int ggChronRequires[GG_CHRON_ACTS]={3,5,8,14};
 
 // Resolved by the 3DS-only saga director after the player secures a final post.
 static void ggSagaStartChoice(void);
+static int ggSagaParley(int post);
 static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
@@ -123,7 +124,11 @@ static void ggChronSpawn(void){
             GgChronFoe *f=&ggChron.foe[ggChron.foeN++];
             f->x=(short)x;f->y=(short)y;
             f->post=(signed char)post;
-            f->hp=(signed char)(20+ggChron.act*6);
+            // Last-act captains are actual bosses, not identical guards:
+            // heavier health, bounded enemy count and the same combat AI.
+            f->hp=(signed char)(ggChron.act==GG_CHRON_ACTS-1&&
+                 post==GG_CHRON_POSTS-1&&k==0?105:
+                 20+ggChron.act*6+post*3);
             f->wait=(signed char)(9+post*7+k*5);
         }
     }
@@ -282,7 +287,7 @@ static int ggChronStep(int raw){
             int p=ggChron.post;
             if(ggChronNear(ggExplore.px>>8,ggExplore.py>>8,
                            ggChron.px[p],ggChron.py[p])<=2 &&
-               !ggChronEnemiesAt(p)){
+               (!ggChronEnemiesAt(p)||ggSagaParley(p))){
                 ggChron.post++;
                 ggChron.rations=ggExpClamp(ggChron.rations+1,0,9);
                 ggChron.morale=ggExpClamp(ggChron.morale+12,0,100);
@@ -398,8 +403,14 @@ static void ggChronDraw(u8 *out){
         int dy=ggChron.py[p]-(ggExplore.py>>8);
         const char *dir=abs(dx)>abs(dy)?(dx>=0?"EAST":"WEST"):
                                              (dy>=0?"SOUTH":"NORTH");
-        snprintf(line,sizeof line,"OBJECTIVE %d/3: %s  %s %d TILES  GUARDS %d",
-                 p+1,ggChronPostName[p],dir,distance,ggChronEnemiesAt(p));
+        static const char *const tasks[GG_CHRON_ACTS][GG_CHRON_POSTS]={
+            {"RESCUE THE CARAVAN","REOPEN THE FORD","LIGHT THE WATCH FIRE"},
+            {"HEAR THE GUARDS","FIND THE BROKEN ORDER","REBUILD THE OATH"},
+            {"SAVE A WITNESS","SECURE THE ARCHIVE","READ THE NAMES"},
+            {"DEFEND THE HOMES","BREAK THE SIEGE","FACE THE LAST CAPTAIN"}
+        };
+        snprintf(line,sizeof line,"%s  %s %d TILES  HOSTILES %d",
+                 tasks[ggChron.act][p],dir,distance,ggChronEnemiesAt(p));
         ggExpText(out,9,203,line,247,216,155);
     }
     ggExpText(out,9,221,"A ACTION  X SECURE  Y RATION  B RUN  SELECT COUNCIL  START 2D",

@@ -294,14 +294,21 @@ void shimPresent(void){
         // RGB output; there is no second 400x240 framebuffer or hash scan.
         static int lastX,lastY,lastA,lastEdits,lastFx,lastSky;
         int sky=ggExplore.frame/8;
-        int dirty=!ggExpRenderValid||tc||
-                  ggExplore.px!=lastX||ggExplore.py!=lastY||
-                  ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
-                  ggExplore.feedback!=lastFx||sky!=lastSky||
-                  (ggChron.active&&(ggOrigin.active||ggChron.dirty||ggReign.menu||ggReign.noticeT||
-                                     !(ggChron.frame&3)||
-                                     (ggSaga.mode&&(ggSaga.mode==GG_SAGA_CHOICE||
-                                                    !(ggSaga.frame&1)))));
+        // During authored 3D movie shots we render at a steady, bounded
+        // 30fps-like cadence (every 2nd 60Hz tick), rather than paying the
+        // full terrain ray-caster cost each simulation tick. The camera
+        // still interpolates from real-world landmarks each rendered frame.
+        // A stale ggChron.dirty flag must NOT force every movie frame.
+        int movie=ggChron.active&&ggSaga.mode;
+        int dirty=!ggExpRenderValid||
+                  (movie ? (ggSaga.mode==GG_SAGA_CHOICE?
+                            0:!(ggSaga.frame&1)) :
+                   tc||ggExplore.px!=lastX||ggExplore.py!=lastY||
+                   ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
+                   ggExplore.feedback!=lastFx||sky!=lastSky||
+                   (ggChron.active&&(ggOrigin.active||ggChron.dirty||
+                                      ggReign.menu||ggReign.noticeT||
+                                      !(ggChron.frame&3))));
         if(dirty){
             if(ggChron.active&&ggOrigin.active)
                 ggOriginDraw(topBuf);

@@ -63,6 +63,20 @@ static void ggSagaBegin(void){
     ggSagaLoad();
     ggSaga.mode=GG_SAGA_OPEN;ggSaga.frame=0;
     ggSaga.choice=0;ggSaga.ending=-1;
+    // Past moral decisions affect the next mission's available supplies,
+    // camp confidence and living people's trust; no artificial new world.
+    if(ggChron.act>0){
+        int previous=ggChron.act-1;
+        if(ggSaga.decided&(1u<<previous)){
+            if(ggSaga.decisions&(1u<<previous)){
+                ggChron.rations=ggExpClamp(ggChron.rations+1,0,9);
+                ggChron.morale=ggExpClamp(ggChron.morale-9,0,100);
+            }else{
+                ggChron.morale=ggExpClamp(ggChron.morale+12,0,100);
+                ggChron.hp=ggExpClamp(ggChron.hp+5,0,100);
+            }
+        }
+    }
 }
 static int ggSagaChooseEnding(void){
     int last=(ggSaga.decisions>>3)&1;
@@ -87,6 +101,32 @@ static int ggSagaChooseEnding(void){
        ggQuest.completed>0)
         return GG_END_HEARTH;
     return GG_END_WANDERER;
+}
+// Peaceful option available only at story-appropriate positions and if
+// the player has genuinely built civic trust (or offers scarce rations).
+// X first attempts diplomacy; otherwise it retains the normal fight and
+// secure-post action. No extra pathfinder, actor list, or per-frame work.
+static int ggSagaParley(int post){
+    if(ggChron.act==GG_CHRON_ACTS-1&&post==GG_CHRON_POSTS-1)
+        return 0; // the final captain must be confronted
+    int pacify=0;
+    if(ggChron.act==0&&post==0&&ggChron.rations>=2){
+        ggChron.rations--;pacify=1;
+    }else if((ggChron.act==1||ggChron.act==2||ggChron.act==3)&&
+             post<2&&ggReign.influence>=18&&ggReign.legitimacy>=20&&
+             ggReign.infamy<ggReign.legitimacy+20){
+        ggReign.influence-=8;pacify=1;
+    }
+    if(!pacify)return 0;
+    for(int j=0;j<ggChron.foeN;j++)if(ggChron.foe[j].post==post&&
+                                      ggChron.foe[j].hp>0)
+        ggChron.foe[j].hp=0; // guards surrender instead of being killed
+    ggChron.morale=ggExpClamp(ggChron.morale+9,0,100);
+    ggReign.renown=ggExpClamp(ggReign.renown+4,0,9999);
+    ggChron.score+=30;
+    ggChron.dirty=1;
+    ggReignSave();
+    return 1;
 }
 static void ggSagaStartChoice(void){
     ggSagaLoad();
