@@ -722,79 +722,33 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
 }
 
 #ifndef __3DS__
-// DS/DSi: purposeful scenery motion that uses the *existing* indexed film
-// page and existing native-detail character cels. No extra bitmap, RAM,
-// dynamic allocations, or expensive per-pixel transforms.
-//
-// Avoid "cutting everything": environment time is the complete chapter
-// clock; the same window, forge, street or archive remains recognizable.
+// DS companion to filmDSLivingSets(): add *actors* and objects the
+// established environmental pass does not already draw. Duplicate
+// curtain, water, fire or archive animation layers cause visual jitter,
+// not better graphics. Keep each item owned by one animator.
 static void filmDSSetAction(const FilmBeat *beat,int t,int chapter){
-    switch(beat->place){
-    case F_PORCH:
-        if(chapter==1){
-            // The two cloth curtains sway within the established window;
-            // their motion continues when Mira and Wisp exchange lines.
-            int sway=(t/24)%5-2;
-            uiRect(208+sway,63,3,22,fmvSlots[16]);
-            uiRect(243-sway,63,3,22,fmvSlots[16]);
-            uiRect(207+sway,85,6,2,fmvSlots[17]);
-            uiRect(240-sway,85,6,2,fmvSlots[17]);
+    if(beat->place==F_VILLAGE&&chapter>=3){
+        // Reuse a real native 28x34, six-pose actor cel. The worker stays
+        // on the lane and is not duplicated when speaking in the foreground.
+        if(beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM){
+            int phase=(t/15)%90;
+            int travel=phase<45?phase:90-phase;
+            int x=121+travel/2;
+            int pose=(t/15)&1?1:2;
+            filmDrawActor(F_THORGRIM,pose,x,157,24,phase>=45);
         }
-        break;
-    case F_VILLAGE:
-        if(chapter>=3){
-            // A grounded village worker walks past the same persistent
-            // lane, not an animated primitive, ghost or floating prop.
-            // Keep named Thorgrim unique when he is in the foreground.
-            if(beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM){
-                int phase=(t/15)%90;
-                int travel=phase<45?phase:90-phase;
-                int x=121+travel/2;
-                int pose=(t/15)&1?1:2;
-                filmDrawActor(F_THORGRIM,pose,x,157,24,phase>=45);
-            }
-            // A pair of fixed-height windows gently change light as the
-            // village grows rather than twinkling randomly in empty air.
-            int bright=(t/78)&1;
-            uiRect(67,119,4,5,fmvSlots[bright?10:9]);
-            uiRect(177,116,4,5,fmvSlots[bright?10:9]);
-        }
-        break;
-    case F_FORGE: {
-        // The smith's bellows physically compress, then recover beside
-        // a fixed glowing fire. Re-use 2D palette colors and rectangles.
+        // Windows are fixed to their homes and only shift between
+        // two warm tones as the village progresses through the night.
+        int bright=(t/78)&1;
+        uiRect(67,119,4,5,fmvSlots[bright?10:9]);
+        uiRect(177,116,4,5,fmvSlots[bright?10:9]);
+    }else if(beat->place==F_FORGE){
+        // Bellows compress/recover beside the forge sparks owned by
+        // filmDSLivingSets. Exactly one set of fire particles is drawn.
         int compression=(t/20)%7;
         uiRect(196,139,24,5,fmvSlots[24]);
         uiRect(200+compression,132,17-compression,8,fmvSlots[25]);
         uiRect(202+compression,135,11-compression,3,fmvSlots[20]);
-        break;
-    }
-    case F_ARCHIVE: {
-        // On the desk, a bound page moves through a single turn.
-        // Repeated shots revisit this exact desk and remain legible.
-        int page=(t/42)%6;
-        uiRect(110,150,34,3,fmvSlots[24]);
-        uiRect(112,144,17,6,fmvSlots[23]);
-        uiRect(129,144-page,12,6+page,fmvSlots[22]);
-        uiRect(127,142,2,9,fmvSlots[25]);
-        break;
-    }
-    case F_FORD:
-    case F_SHORE:
-        // Local, shallow ripples; stable banks and no scrolling overlay.
-        for(int i=0;i<3;i++){
-            int travel=(t/14+i*3)%8;
-            uiRect(65+i*56+travel,150+i%2*3,8,1,fmvSlots[i&1?12:14]);
-        }
-        break;
-    case F_HEARTH:
-        // The fire flickers inside its fixed hearth aperture, not all
-        // over the picture or independently of the ambient flame.
-        uiRect(187,135+(t/22)%3,6,7-(t/22)%3,fmvSlots[9]);
-        uiRect(190,136,2,4,fmvSlots[10]);
-        break;
-    default:
-        break;
     }
 }
 #endif
