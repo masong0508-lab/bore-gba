@@ -300,6 +300,14 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             int floorRayX=dirX+rightX*skew/GG_FILM_FOCAL;
             int floorRayY=dirY+rightY*skew/GG_FILM_FOCAL;
             for(int y=horizon+1;y<240;y++){
+                // Half-sample the distant ground (already misted),
+                // retain 1:1 native pixels near actors' feet. Saves
+                // thousands of terrain/color lookups each film frame.
+                if((x&1)&&y<170){
+                    u8*p=top+(y*400+x)*3;
+                    p[0]=p[-3];p[1]=p[-2];p[2]=p[-1];
+                    continue;
+                }
                 int d=rowDistance[y];
                 int wx=ggExplore.px+floorRayX*d/4096;
                 int wy=ggExplore.py+floorRayY*d/4096;
