@@ -264,7 +264,11 @@ static void ggExpRender(u8 *top){
             previousX=tx;previousY=ty;
             int type=world[ty][tx],build=bld[ty][tx];
             int h=ggExpGround(type)+ggExpBuilding(build);
-            int projected=horizon-(h-eye)*68/(d+1);
+            // Height is measured in coarse world-cell units, not raw
+            // screen pixels. The former scale (68) pushed nearby ground
+            // entirely below the viewport; six gives legible walking
+            // terrain and roofs while still exaggerating cliffs.
+            int projected=horizon-(h-eye)*6/(d+1);
             if(projected>=highest)continue;
             int from=ggExpClamp(projected,0,GG_EXP_H);
             int to=ggExpClamp(highest,0,GG_EXP_H);
@@ -300,6 +304,10 @@ static void ggExpRender(u8 *top){
             if(!highest)break;
         }
     }
+    // Draw nearby live inhabitants as indexed 2D cels projected onto
+    // the same raycast world. A bounded on-map search avoids scanning the
+    // whole creature list or allocating skeletal 3D models.
+    ggExpRenderCreatures(top);
     // Crosshair fixed at camera centre. Changes always affect a cell a
     // few tiles ahead, never an invisible object behind the player's feet.
     ggExpRect(top,192,119,16,2,12,21,30);
