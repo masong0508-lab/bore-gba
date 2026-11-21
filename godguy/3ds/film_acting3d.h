@@ -139,11 +139,14 @@ static void ggFilmPairActPose(GgFilmPose *p,int dir,int inset){
     p->legR=(signed char)-p->legL;
     p->bob=0; // planted feet while reaching, not endless idle bobbing
 }
-static void ggFilmPairHandAt(int x,int feet,int scale,int dir,
+static void ggFilmPairHandAt(int x,int feet,int scale,int targetX,
                               const GgFilmPose *p,int *hx,int *hy){
     int s=ggExpClamp(scale,1,3);
-    *hx=x+(dir<0?-8+p->reach:8+p->reach)*s;
-    *hy=feet-(15+(dir<0?p->armL:p->armR))*s;
+    int dx=targetX-x,reach=dx<0?-dx:dx;
+    reach/=2; // each hand moves toward the same midpoint, not past it
+    if(reach>12*s)reach=12*s;
+    *hx=x+(dx<0?-reach:reach);
+    *hy=feet-(13+((dx<0?p->armL:p->armR)>1?1:0))*s;
 }
 static void ggFilmDrawHeldObject(u8*out,int handX,int handY,
                                   int s,int propCode,const u8*skin){
