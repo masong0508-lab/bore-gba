@@ -353,7 +353,11 @@ static void ggMeshFoliage(GgMeshContext*m,int x,int y,int ground,
     // Physical octagonal crown: upper and lower triangles converge
     // around real 3D points, viewed from *any* camera heading.
     int levels=pine?3:1;
+    // A tiny world-timed breeze bends upper branch geometry without
+    // moving the physical trunk or creating animated sprite billboards.
+    int sway=ggFilmScenicWind(key,ggExplore.frame)*7;
     for(int tier=0;tier<levels;tier++){
+        int crownX=x+sway*(tier+1)/levels;
         int base=ground+trunkH+tier*(pine?7:0);
         int radius=pine?size-tier*9:size;
         int mid=base+(pine?5:10),top=base+(pine?18:21);
@@ -361,16 +365,16 @@ static void ggMeshFoliage(GgMeshContext*m,int x,int y,int ground,
         int rr=pine?54:63,gg=pine?105:118,bb=pine?76:83;
         for(int n=0;n<sides;n++){
             int aa=n*256/sides,ab=(n+1)*256/sides;
-            int ax=x+ggExpCos[aa]*radius/4096,
+            int ax=crownX+ggExpCos[aa]*radius/4096,
                 ay=y+ggExpSin[aa]*radius/4096;
-            int bx=x+ggExpCos[ab]*radius/4096,
+            int bx=crownX+ggExpCos[ab]*radius/4096,
                 by=y+ggExpSin[ab]*radius/4096;
             int light=(int)((key>>(n%18))&3u);
-            ggMeshTriangle(m,ggMeshV(x,y,top),
+            ggMeshTriangle(m,ggMeshV(crownX+sway/2,y,top),
                 ggMeshV(ax,ay,mid),ggMeshV(bx,by,mid),
                 rr+light*3,gg+light*5,bb+light*4);
             ggMeshTriangle(m,ggMeshV(ax,ay,mid),
-                ggMeshV(x,y,base),ggMeshV(bx,by,mid),
+                ggMeshV(crownX,y,base),ggMeshV(bx,by,mid),
                 rr*3/4,gg*3/4,bb*3/4);
         }
     }
@@ -413,16 +417,24 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     case GG_SCENE_STONE:
         ggMeshBox(m,x-26,y-19,x+24,y+17,z,z+7,117,120,113);
         break;
-    case GG_SCENE_LAMP:case GG_SCENE_BRAZIER:
+    case GG_SCENE_LAMP:case GG_SCENE_BRAZIER:{
+        int flicker=(int)((key+(uint32_t)(ggExplore.frame/9))&3u);
         ggMeshBox(m,x-5,y-5,x+5,y+5,z,z+12,89,86,74);
-        ggMeshBox(m,x-13,y-13,x+13,y+13,z+12,z+15,196,142,72);
+        ggMeshBox(m,x-13,y-13,x+13,y+13,z+12,z+15,
+                  184+flicker*9,128+flicker*9,64);
+        ggMeshTriangle(m,ggMeshV(x-11,y,z+15),
+                       ggMeshV(x+11,y,z+15),
+                       ggMeshV(x,y,z+19+flicker),250,187,83);
         break;
-    case GG_SCENE_BANNER:
+    }
+    case GG_SCENE_BANNER:{
+        int gust=ggFilmScenicWind(key,ggExplore.frame)*11;
         ggMeshBox(m,x-3,y-3,x+3,y+3,z,z+19,109,107,99);
         ggMeshTriangle(m,ggMeshV(x,y,z+17),
-                       ggMeshV(x+64,y,z+16),
-                       ggMeshV(x+6,y,z+9),146,65,80);
+                       ggMeshV(x+64+gust,y+gust,z+16),
+                       ggMeshV(x+6+gust/3,y,z+9),146,65,80);
         break;
+    }
     case GG_SCENE_FENCE:
         ggMeshBox(m,x-60,y-6,x-49,y+6,z,z+9,116,84,58);
         ggMeshBox(m,x+49,y-6,x+60,y+6,z,z+9,116,84,58);
@@ -443,9 +455,12 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     case GG_SCENE_CROPS:case GG_SCENE_GRASS:case GG_SCENE_REEDS:
         for(int i=-1;i<=1;i++){
             int xx=x+i*19;
+            int sway=ggFilmScenicWind(key+(uint32_t)i,
+                                      ggExplore.frame)*7;
             ggMeshTriangle(m,ggMeshV(xx-8,y,z),
                            ggMeshV(xx+8,y,z),
-                           ggMeshV(xx+4,y+3,z+5+(i&1)),70,124,78);
+                           ggMeshV(xx+4+sway,y+3,z+5+(i&1)),
+                           70,124,78);
         }
         break;
     default:break;
@@ -500,6 +515,14 @@ static void ggMeshCloudBank(GgMeshContext*m,int camTileX,int camTileY,
         }
     }
 }
+typedef struct {
+    int tx,ty,kind,ground,forward;
+    uint32_t key;
+} GgMeshVisibleProp;
+// Stable nearest-on-screen selection, rather than taking the first
+// 84 entries of an x/y tile scan. This prevents an empty right-hand
+// camera view despite thousands of trees left behind the camera.
+static GgMeshVisibleProp ggMeshVisibleProps[GG_SCENE_LIMIT];
 static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     int quality=ggExpScenicQuality>=2&&cinematic?2:1;
     int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
@@ -541,22 +564,38 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
             if(build){
                 int detailed=forward<6*256&&forward>-128;
                 ggMeshBuilding(m,tx,ty,build,ggExpGround(t),detailed);
-            }else if(sceneLimit<propCap){
+            }else{
                 uint32_t scenic=ggFilmScenicHash(tx,ty,7);
-                if(((scenic>>24)&7u)>=5u)continue;
+                if(((scenic>>24)&7u)>=5u||forward<192)continue;
                 int near=0;
                 if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
                 else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
                 else if(ty>0&&bld[ty-1][tx])near=bld[ty-1][tx];
                 else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
                 int kind=ggFilmScenicKind(t,near,scenic);
-                if(kind){
-                    ggMeshProp(m,tx,ty,kind,ggExpGround(t),scenic,
-                               ggExpScenicQuality);
-                    sceneLimit++;
+                if(!kind)continue;
+                GgMeshVisibleProp candidate={
+                    tx,ty,kind,ggExpGround(t),forward,scenic
+                };
+                if(sceneLimit<propCap){
+                    ggMeshVisibleProps[sceneLimit++]=candidate;
+                }else if(sceneLimit){
+                    int farthest=0;
+                    for(int i=1;i<sceneLimit;i++)
+                        if(ggMeshVisibleProps[i].forward>
+                           ggMeshVisibleProps[farthest].forward)
+                            farthest=i;
+                    if(candidate.forward<
+                       ggMeshVisibleProps[farthest].forward)
+                        ggMeshVisibleProps[farthest]=candidate;
                 }
             }
         }
+    }
+    for(int i=0;i<sceneLimit;i++){
+        const GgMeshVisibleProp *p=&ggMeshVisibleProps[i];
+        ggMeshProp(m,p->tx,p->ty,p->kind,p->ground,p->key,
+                   ggExpScenicQuality);
     }
 }
 #endif
