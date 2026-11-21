@@ -28,6 +28,12 @@ static inline unsigned msPressureStep(unsigned pressure,unsigned supports){
     int next=(int)pressure+2-(int)(supports>3u?3u:supports);
     return next<0?0u:next>100?100u:(unsigned)next;
 }
+// The hospital has exactly one reprieve. 0=continue, 1=grant final night,
+// 2=irreversible loss. Keep this decision pure for exhaustive host checks.
+static inline unsigned msPressureOutcome(unsigned pressure,unsigned nightUsed){
+    if(pressure<100u) return 0u;
+    return nightUsed?2u:1u;
+}
 // One final night extends the deadline by precisely one day; it must not
 // erase five days of existing bedside progress or silently become five more.
 static inline unsigned msDaysProgress(unsigned days,unsigned extension){
