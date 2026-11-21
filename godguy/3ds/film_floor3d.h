@@ -14,6 +14,14 @@ static inline int ggFilmFloorForward(int y,int horizon,
     if(d>maxForward)d=maxForward;
     return d;
 }
+// Project the foot/bottom edge of a raised terrain volume at a sampled
+// ray depth. The old voxel fill ran every small grass step to y=240,
+// creating enormous dark-green cubes from a two-unit elevation change.
+static inline int ggFilmTerrainSurfaceY(int worldHeight,int cameraEye,
+                                         int horizon,int sample,int scale){
+    if(sample<1)sample=1;
+    return horizon-(worldHeight-cameraEye)*scale/(sample+1);
+}
 static inline int ggFilmFloorMist(int forward){
     int mist=(forward-6*256)/80;
     if(mist<0)mist=0;
