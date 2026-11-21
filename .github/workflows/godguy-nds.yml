@@ -321,6 +321,10 @@ jobs:
           /tmp/gg-3ds-framing
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_projection.c -o /tmp/gg-3ds-projection
           /tmp/gg-3ds-projection
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_architecture.c -o /tmp/gg-3ds-architecture
+          /tmp/gg-3ds-architecture
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_direction.c -o /tmp/gg-3ds-direction
+          /tmp/gg-3ds-direction
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_partner.c -o /tmp/gg-3ds-partner
           /tmp/gg-3ds-partner
       - name: Build native 3DS homebrew executable
