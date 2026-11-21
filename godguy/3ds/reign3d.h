@@ -9,10 +9,13 @@
 #define GG_REIGN_SAVE_PATH "sdmc:/godguy_unwritten_reign.dat"
 #endif
 
-enum { GG_REIGN_ROLES=6, GG_REIGN_PAGES=4, GG_REIGN_ORDERS=3,
+enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=4, GG_REIGN_ORDERS=3,
        GG_REIGN_SQUAD_MAX=6, GG_REIGN_OFFICES=5 };
 enum { GG_ROLE_WAYFINDER,GG_ROLE_SHADE,GG_ROLE_TRADER,
-       GG_ROLE_SOLDIER,GG_ROLE_ENVOY,GG_ROLE_MYSTIC };
+       GG_ROLE_SOLDIER,GG_ROLE_ENVOY,GG_ROLE_MYSTIC,
+       GG_ROLE_FARMER,GG_ROLE_ARTISAN,GG_ROLE_HEALER,
+       GG_ROLE_SCHOLAR,GG_ROLE_SAILOR,GG_ROLE_WATCH,
+       GG_ROLE_UNBOUND };
 enum { GG_REIGN_FOLLOW,GG_REIGN_HOLD,GG_REIGN_ASSAULT };
 typedef struct {short x,y; signed char hp; } GgReignGuard;
 typedef struct {
@@ -26,7 +29,9 @@ typedef struct {
 } GgReign3D;
 static GgReign3D ggReign;
 static const char *const ggReignRoles[GG_REIGN_ROLES]={
-    "WAYFINDER","SHADE","TRADER","SOLDIER","ENVOY","MYSTIC"
+    "WAYFINDER","SHADE","TRADER","SOLDIER","ENVOY","MYSTIC",
+    "FARMER","ARTISAN","HEALER","SCHOLAR","SAILOR","WATCHMAN",
+    "UNAFFILIATED"
 };
 static const char *const ggReignOffices[GG_REIGN_OFFICES]={
     "CITIZEN","COUNCILLOR","MAYOR","GOVERNOR","PRESIDENT"
@@ -35,7 +40,7 @@ static const char *const ggReignOrders[GG_REIGN_ORDERS]={
     "FOLLOW","HOLD","ASSAULT"
 };
 static const char *const ggReignPages[GG_REIGN_PAGES]={
-    "LIFE PATH","WAR COUNCIL","CIVIC HALL","DIVINE SPARK"
+    "LOCAL WORK","WAR COUNCIL","CIVIC HALL","DIVINE SPARK"
 };
 static const char *const ggReignCivicActions[3]={
     "CLASS DEED","GAIN ENDORSEMENT","SEEK OFFICE"
@@ -65,8 +70,10 @@ static void ggReignNotice(const char *m){
 static void ggReignLoad(void){
     if(ggReign.loaded)return;
     ggReign.loaded=1;
-    ggReign.role=GG_ROLE_WAYFINDER;
-    ggReign.choice=GG_ROLE_WAYFINDER;
+    // The new 22-year-old character is an ordinary civilian until
+    // they seek a profession in a real generated settlement.
+    ggReign.role=GG_ROLE_UNBOUND;
+    ggReign.choice=GG_ROLE_UNBOUND;
     ggReign.credits=35;
     ggReign.divine=100;
     ggReign.legitimacy=10;
@@ -129,12 +136,16 @@ static void ggReignVillageLoyalty(int v,int amount){
     KD_DIRTY();
 }
 static int ggReignEnroll(int role){
-    if(role<0||role>=GG_REIGN_ROLES)return 0;
-    if(role==ggReign.role){ggReign.initialChoice=1;
-        ggReignNotice("THIS IS ALREADY YOUR LIFE PATH");return 1;}
+    if(role<0||role>=GG_REIGN_ROLES||role==GG_ROLE_UNBOUND){
+        ggReignNotice("CHOOSE A PROFESSION, OR REMAIN UNAFFILIATED");return 0;
+    }
+    if(ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,12)<0){
+        ggReignNotice("FIND A LIVING TOWN TO SEEK A JOB");return 0;
+    }
+    if(role==ggReign.role){
+        ggReignNotice("YOU ALREADY WORK IN THIS PROFESSION");return 1;
+    }
     if(ggReign.initialChoice){
-        int v=ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,12);
-        if(v<0){ggReignNotice("CHANGE CAREER AT A LIVING SETTLEMENT");return 0;}
         if(ggReign.credits<15){
             ggReignNotice("RETRAINING NEEDS 15 CROWNS");return 0;
         }
@@ -143,7 +154,7 @@ static int ggReignEnroll(int role){
     ggReign.role=role;
     ggReign.initialChoice=1;
     ggReign.renown=ggExpClamp(ggReign.renown+2,0,9999);
-    ggReignNotice("LIFE PATH ADOPTED - ALL GOD POWERS REMAIN");
+    ggReignNotice("NEW JOB CONTRACT - YOUR FUTURE REMAINS OPEN");
     ggReignSave();
     return 1;
 }
@@ -207,12 +218,57 @@ static int ggReignDeed(void){
         ggReign.legitimacy+=6;
         ggReignVillageStock(v,8);ggReignVillageLoyalty(v,4);
         ggReignNotice("NEGOTIATED CIVIC SUPPORT AND RELIEF");break;
-    default:
+    case GG_ROLE_MYSTIC:
         if(ggReign.divine<20){ggReignNotice("DIVINE SPARK TOO WEAK");return 0;}
         ggReign.divine-=20;ggReign.influence+=5;
         ggReign.legitimacy+=6;
         ggReignVillageStock(v,14);ggReignVillageLoyalty(v,3);
         ggReignNotice("A GODBORN BLESSING FED REAL HOUSEHOLDS");break;
+    case GG_ROLE_FARMER:
+        if(world[ggExplore.py>>8][ggExplore.px>>8]!=T_GRASS&&
+           world[ggExplore.py>>8][ggExplore.px>>8]!=T_DIRT&&
+           world[ggExplore.py>>8][ggExplore.px>>8]!=T_FOREST){
+            ggReignNotice("FARMING NEEDS ARABLE LAND");return 0;
+        }
+        ggReign.credits+=7;ggReign.renown+=2;
+        ggReignVillageStock(v,18);ggReignVillageLoyalty(v,2);
+        ggReignNotice("HARVEST SOLD - REAL LOCAL FOOD STOCK ROSE");break;
+    case GG_ROLE_ARTISAN:
+        if(vil[v].stock<6){ggReignNotice("WORKSHOP NEEDS RAW MATERIALS");return 0;}
+        ggReignVillageStock(v,-6);
+        ggReign.credits+=13;ggReign.renown+=3;
+        ggReignNotice("WORKSHOP CRAFTED TOOLS FOR THE MARKET");break;
+    case GG_ROLE_HEALER:
+        if(ggReign.credits<3){ggReignNotice("MEDICINES NEED 3 CROWNS");return 0;}
+        ggReign.credits-=3;ggReign.legitimacy+=5;
+        ggReignVillageLoyalty(v,5);
+        ggReign.renown+=4;ggChron.hp=ggExpClamp(ggChron.hp+16,0,100);
+        ggReignNotice("HEALER'S CLINIC AIDED YOUR COMMUNITY");break;
+    case GG_ROLE_SCHOLAR:
+        if(vil[v].stock<2){ggReignNotice("A SCHOLAR NEEDS TOWN SUPPLIES");return 0;}
+        ggReignVillageStock(v,-2);
+        ggReign.influence+=6;ggReign.renown+=3;
+        ggReignNotice("SCHOLAR DOCUMENTED LOCAL HISTORY AND LAWS");break;
+    case GG_ROLE_SAILOR: {
+        int coast=0;
+        for(int dy=-4;dy<=4;dy++)
+            for(int dx=-4;dx<=4;dx++){
+                int x=(ggExplore.px>>8)+dx,y=(ggExplore.py>>8)+dy;
+                if((unsigned)x<WW&&(unsigned)y<WH&&
+                   world[y][x]<=T_WATER)coast=1;
+            }
+        if(!coast){ggReignNotice("SAILING NEEDS A REAL COAST OR RIVER");return 0;}
+        ggReign.credits+=11;ggReign.renown+=3;
+        ggReignVillageStock(v,7);
+        ggReignNotice("BOAT WORK DELIVERED FOOD TO THE PORT");break;
+    }
+    case GG_ROLE_WATCH:
+        ggReign.credits+=8;ggReign.renown+=4;
+        ggReignVillageLoyalty(v,3);
+        ggReignNotice("WATCH DUTY KEPT THE HOMESTEAD SAFE");break;
+    default:
+        ggReign.credits+=3;
+        ggReignNotice("HONEST ODD JOBS: NO CLASS REQUIRED");break;
     }
     ggReign.nextCivicAt=ggReign.frame+95;
     ggReignSave();
@@ -436,11 +492,11 @@ static void ggReignDraw(u8 *out){
                  ggReignPages[ggReign.page]);
         ggExpText(out,25,56,line,243,220,166);
         if(ggReign.page==0){
-            snprintf(line,sizeof line,"CLASS: %s    OFFICE: %s",
+            snprintf(line,sizeof line,"WORK: %s    OFFICE: %s",
                      ggReignRoles[ggReign.choice],ggReignOffices[ggReign.office]);
             ggExpText(out,25,79,line,225,233,216);
-            ggExpText(out,25,96,"X NEXT CLASS  A ADOPT  CHANGE AT TOWNS",190,214,218);
-            ggExpText(out,25,112,"ROGUE / TRADER / SOLDIER / ENVOY / MYSTIC",190,214,218);
+            ggExpText(out,25,96,"X BROWSE JOB  A APPLY IN TOWN",190,214,218);
+            ggExpText(out,25,112,"FARM / CRAFT / HEAL / TRADE / SERVE / MORE",190,214,218);
         }else if(ggReign.page==1){
             snprintf(line,sizeof line,"SQUAD %d/%d   ORDER: %s",
                      ggReign.squadN,GG_REIGN_SQUAD_MAX,
