@@ -80,54 +80,53 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     int flat=csBgNow==CB_FLAT, awake=csWardAwake()&&!flat;
     int stir=pose==CP_STIR&&!flat, breath=flat?0:((t/38)&1);
     int lift=stir?(t<24?t/12:2+((t>>5)&1)):0;
-    u16 edge=RGB(7,11,19), cloth=RGB(12,19,27);
-    u16 sheet=RGB(12,19,27), hi=RGB(19,27,30), fold=RGB(8,14,23);
-    // The hospital set is a SIDE VIEW. Use the same landmarks at every zoom:
-    // skull x-33, neck x-24, shoulder x-16, waist x+12, feet x+54.
-    // A low pillow supports the head; neither head nor pillow bobs with breath.
-    csR(x-54,y-20,39,17,RGB(8,16,23));
+    u16 edge=RGB(7,11,19), gown=RGB(12,19,27);
+    u16 sheet=RGB(12,19,27), sheetHi=RGB(19,27,30), fold=RGB(8,14,23);
+    // A real supine SIDE SILHOUETTE, not a face-on floating head.
+    // Shared world landmarks: hair x-42, skull x-33, nape x-23,
+    // shoulder x-17, waist x+10, feet x+46. All lie on one mattress.
+    // The whole patient fits the bed's x=115..211 at x=164.
+    csR(x-54,y-20,39,17,RGB(8,16,23));  // pillow under head
     csR(x-52,y-18,37,13,RGB(23,28,30));
     csR(x-50,y-16,33,10,RGB(28,30,30));
-    csLn(x-46,y-6,x-18,y-6,RGB(17,24,28));
-    csR(x-40,y-5,93,3,RGB(8,15,21));  // contact shadow along mattress
+    csLn(x-47,y-6,x-17,y-6,RGB(17,24,28));
+    csR(x-41,y-4,87,3,RGB(8,15,21));    // body meets mattress
 
-    // Human neck is shorter than the head; the shoulders sit level with the
-    // bed, not 20 pixels above it. Only the upper chest rises with breathing.
-    csR(x-25,y-10,12,6,edge);
-    csR(x-24,y-10,11,4,csSh(sk,1));
-    csR(x-23,y-10,10,4,sk);
-    csR(x-16,y-12-breath,32,12+breath,edge);
-    csR(x-16,y-9-breath,4,6+breath,csSh(cloth,2));  // dropped shoulder
-    csR(x-12,y-12-breath,26,10+breath,cloth);
-    csR(x-12,y-12-breath,24,2,csLt(cloth,5));
-    csR(x+7,y-5,9,3,csSh(cloth,2));
-    csR(x-17,y-10,5,3,sk);  // collar and neckline
-    csLn(x-13,y-10,x-8,y-7,RGB(20,29,30));
+    // Nape is a 7px connection, not a long exposed horizontal arm.
+    csR(x-24,y-10,8,5,edge);
+    csR(x-23,y-9,8,3,csSh(sk,2));
+    csR(x-22,y-9,7,3,sk);
+    // Shoulder flows down into a reclining hospital gown.
+    // Only the upper chest, never the pillow and skull, breathes.
+    csR(x-18,y-11-breath,5,10+breath,edge);
+    csR(x-16,y-12-breath,29,12+breath,edge);
+    csR(x-15,y-11-breath,27,10+breath,gown);
+    csR(x-14,y-11-breath,22,2,csLt(gown,5));
+    csR(x-16,y-6-breath,22,3,csSh(gown,2));
+    csR(x-17,y-9,5,2,sk);               // gown's open collar
+    csLn(x-15,y-9,x-10,y-7,RGB(21,28,30));
 
-    // Sheet starts at the WAIST, follows hips and legs, and tucks beneath
-    // the feet. It cannot slice the shoulder or hide the whole person.
-    csR(x+12,y-10,44,11,edge);
-    csR(x+13,y-9,41,8,sheet);
-    csR(x+13,y-10,9,1,hi);
-    csR(x+22,y-11,18,2,sheet);
-    csR(x+40,y-10,12,1,hi);
-    csR(x+13,y-2,42,2,csSh(sheet,2));
-    csLn(x+19,y-5,x+32,y-4,fold);
-    csLn(x+34,y-5,x+44,y-3,fold);
-    csR(x+54,y-7,2,7,csSh(sheet,2));
+    // Drape the legs with a low blanket from waist through foot.
+    // The bed frame must be longer than the patient, not shorter.
+    csR(x+10,y-10,37,11,edge);
+    csR(x+11,y-9,34,9,sheet);
+    csR(x+12,y-9,12,2,sheetHi);
+    csLn(x+13,y-10,x+24,y-11,sheetHi);
+    csLn(x+24,y-11,x+36,y-10,sheetHi);
+    csLn(x+23,y-3,x+36,y-2,fold);
+    csR(x+44,y-7,2,8,csSh(sheet,2));
 
-    // The near arm is FLEXED at the elbow (below the ribs), then folds
-    // across the stomach. It is two linked limbs, not a horizontal plank.
-    csR(x-9,y-5-breath,6,4,csSh(cloth,3));  // short sleeve
-    csR(x-6,y-4,5,3,csSh(sk,2));          // upper arm
-    csR(x-3,y-3,5,2,sk);                 // elbow
-    csR(x,y-6-lift,8,3,csSh(sk,1));      // forearm returns over torso
-    csR(x+1,y-6-lift,7,2,sk);
-    csR(x+8,y-7-lift,5,3,sk);            // hand rests over abdomen
-    if(stir) csR(x+11,y-8-lift,2,2,csLt(sk,2));
+    // Relaxed elbow: upper arm descends to the near ribs and returns
+    // diagonally to the lower abdomen. Most of the arm is in the gown.
+    csR(x-10,y-5-breath,8,4,csSh(gown,3)); // sleeve
+    csR(x-4,y-3,5,2,csSh(sk,2));          // elbow beside the ribs
+    csR(x-1,y-5-lift,6,3,csSh(sk,1));     // short bent forearm
+    csR(x,y-5-lift,5,2,sk);
+    csR(x+5,y-7-lift,5,3,sk);             // hand resting by waist
+    if(stir) csR(x+8,y-8-lift,2,1,csLt(sk,2));
 
-    // One head renderer for WIDE, BEDSIDE and CLOSE-UP shots. A second
-    // independently enlarged head was the source of the bobblehead look.
+    // One consistent profile at every camera distance. No two eyes, no
+    // second full-screen portrait and no bobbing skull in the pillow.
     csFaceBed(x-33,y-12,t,sk,hr,awake);
 }
 

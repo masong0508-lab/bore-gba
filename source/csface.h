@@ -110,35 +110,35 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
 // CAMERA scaled. Hair behind the face, then neck, cheek, eye and mouth:
 // NO second full-sized black head shadow, chin-beard, or pasted-on mask.
 static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
-    // Same WORLD-space head at every zoom. The old csFE quarter-pixel
-    // portrait was a separate enormous circular helmet at high zoom.
-    // This is a restrained three-quarter face resting on the pillow.
+    // Human recline in SIDE PROFILE: one visible eye, nose up, jaw to nape.
+    // Coordinates stay in world pixels at every zoom (not screen-space).
+    // Back of head rests in pillow y~wy+7, below the visible cheek.
     u16 outline=RGB(8,7,9), shadow=csFSh(skin,2), lip=RGB(17,7,9);
-    csR(wx-7,wy-6,15,12,outline);  // hair/neck underside
-    csR(wx-6,wy-7,12,12,hair);
-    csR(wx-8,wy+2,15,6,csFSh(hair,2));  // strands against pillow
-    csD(wx-1,wy,6,shadow);   // small, oval-looking facial silhouette
-    csD(wx-1,wy-1,5,skin);
-    csR(wx-6,wy-7,11,2,hair); // soft fringe
-    csR(wx-7,wy-5,3,6,csFSh(hair,2));
-    // Jaw to nape to collar: no floating disc and no protruding beak.
-    csR(wx+4,wy+2,5,3,csFSh(skin,1));
-    csR(wx+7,wy+3,5,2,skin);
-    csR(wx-1,wy+1,1,1,csFSh(skin,4)); // subtle nose, not a raised spike
+    csR(wx-9,wy-4,12,11,outline);   // lower skull/hair on pillow
+    csR(wx-8,wy-7,10,12,hair);
+    csR(wx-5,wy-9,8,3,hair);       // hairline following forehead
+    csR(wx-7,wy+4,12,3,csFSh(hair,2));
+    // Facets of a low side-on face, not a large circle or a flat front mask.
+    csR(wx-5,wy-7,10,9,shadow);
+    csR(wx-4,wy-8,9,8,skin);
+    csR(wx-3,wy-9,7,2,skin);
+    csR(wx+2,wy-11,3,4,skin);    // small upward-facing nose bridge
+    csR(wx+3,wy-11,2,1,csFLt(skin,2));
+    csR(wx+4,wy-1,4,3,shadow);   // chin
+    csR(wx+4,wy-2,3,2,skin);
+    csR(wx+6,wy+2,6,3,shadow);   // nape joins neck and collar
+    csR(wx+6,wy+2,6,2,skin);
+    csR(wx-5,wy-7,3,7,hair);     // near-side temple
+    // One eye is visible in profile. The far eye is occluded by the head.
     if(awake){
         int blink=((t+37)%180)<5;
-        csR(wx-4,wy-1,2,blink?1:2,RGB(9,7,9));
-        csR(wx,wy-1,2,blink?1:2,RGB(9,7,9));
-        if(!blink&&csCz>=560){
-            csR(wx-4,wy-1,1,1,RGB(30,29,27));
-            csR(wx,wy-1,1,1,RGB(30,29,27));
-        }
-    } else {
-        csR(wx-4,wy-1,2,1,csFSh(skin,5));
-        csR(wx,wy-1,2,1,csFSh(skin,5));
-    }
-    // Mouth is optional at small sizes: facial features never outgrow head.
-    csR(wx-2,wy+3,3,awake&&csTalking&&csSpk==CA_MISSY&&((t/5)&3)?2:1,lip);
+        csR(wx+1,wy-5,3,blink?1:2,csFSh(skin,5));
+        if(!blink){ csR(wx+2,wy-5,1,1,RGB(30,29,27));
+            csR(wx+2,wy-4,1,1,RGB(11,9,9)); }
+    } else csR(wx+1,wy-4,3,1,csFSh(skin,5));
+    csR(wx+3,wy-7,3,1,csFSh(hair,2)); // brow
+    csR(wx+5,wy-1,2,awake&&csTalking&&csSpk==CA_MISSY&&((t/5)&3)?2:1,lip);
 }
+
 
 

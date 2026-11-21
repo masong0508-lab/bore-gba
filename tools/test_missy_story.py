@@ -108,23 +108,25 @@ assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
 assert "int blink=((t+37)%180)<5" in face
-# One head mesh, one scale, one bed plane; do not reintroduce an isolated,
-# oversized screen-space closeup or make the skull bob while breathing.
+# One anatomy at every zoom, with only ONE profile eye, small nose, and
+# a short neck against the gown. No front-facing second eye.
 assert art.count("csFaceBed(")==1
 assert "csFaceBed(x-33,y-12,t,sk,hr,awake)" in art
-assert "csFaceBed(x-33,y-12-breath" not in art
-assert "csD(wx-1,wy-1,5,skin)" in face
-assert "csR(wx-6,wy-7,12,12,hair)" in face
+assert "csR(wx-9,wy-4,12,11,outline)" in face
+assert "csR(wx+1,wy-5,3,blink?1:2" in face
+assert "csR(wx+2,wy-11,3,4,skin)" in face
+assert "csR(wx+6,wy+2,6,3,shadow)" in face
+assert "csR(wx,wy-1,2" not in face, "front-facing far eye must not reappear"
 assert "if(csCz<560) return" not in face[face.index("static void csFaceBed("):]
 assert "csFcx=csCamX(wx)" not in face[face.index("static void csFaceBed("):]
-assert "csR(x-25,y-10,12,6,edge)" in art, "short neck must meet chest"
-assert "csR(x-16,y-12-breath,32,12+breath,edge)" in art
-assert "csR(x-52,y-18,37,13" in art, "head must be supported by pillow"
-assert "csR(x+12,y-10,44,11,edge)" in art, "blanket begins at waist"
-assert "csR(x-3,y-3,5,2,sk)" in art, "arm has an elbow"
-assert "csR(x+8,y-7-lift,5,3,sk)" in art, "forearm ends over abdomen"
+assert "csR(x-24,y-10,8,5,edge)" in art, "short supported nape"
+assert "csR(x-16,y-12-breath,29,12+breath,edge)" in art, "level chest and shoulder"
+assert "csR(x-52,y-18,37,13" in art, "pillow supports back of head"
+assert "csR(x+10,y-10,37,11,edge)" in art, "blanket starts at waist"
+assert "csR(x-4,y-3,5,2,csSh(sk,2))" in art, "elbow beside ribs"
+assert "csR(x+5,y-7-lift,5,3,sk)" in art, "hand by waist, not reaching beyond bed"
 assert "csR(115,90,96,15" in cut, "mattress remains below patient"
-assert "csR(118,107,96,2" in cut, "rail must remain in front"
+assert "csR(118,107,96,2" in cut, "foreground rail below patient"
 assert "{3,16,1,  0,100, 560,-12,90, 700,-12,89}" in shots
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
