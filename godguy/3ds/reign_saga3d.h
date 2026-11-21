@@ -712,9 +712,22 @@ static int ggSagaProjectActor(int worldX,int worldY,
        !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,tx,ty))
         return 0;
     *sx=ggFilmProjectScreenX(side,forward);
-    *feet=ggFilmProjectFootY(forward,
-                            ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]),
-                            ggExpGround(world[ty][tx]));
+    if(ggExpMeshEnabled){
+        // Match the actual new polygon camera's vertical perspective;
+        // the legacy inverse ray-column projection floats above sloped
+        // mesh ground, especially near walls and during camera dollies.
+        int quality=ggExpScenicQuality>=2?1:2;
+        int vertical=quality==1?7:4;
+        int horizon=quality==1?116:58;
+        int viewGround=ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]);
+        int personGround=ggExpGround(world[ty][tx]);
+        *feet=(horizon+(viewGround+13-personGround)*
+               vertical*256/forward)*quality;
+    }else{
+        *feet=ggFilmProjectFootY(forward,
+                                ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]),
+                                ggExpGround(world[ty][tx]));
+    }
     // A take, not an individual sprite or per-frame depth rounding,
     // owns cast scale. All actors share their actual feet plane.
     *scale=ggFilmShotScale(ggSagaShot.distance);
