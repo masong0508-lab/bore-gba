@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for test in walkin camera acting type staging framing projection architecture direction actor_visual floor partner occlusion; do
+          for test in walkin camera acting type staging framing projection architecture direction actor_visual floor partner occlusion anatomy; do
             printf '\n-- 3DS %s --\n' "$test"
             gcc -O2 -std=c11 -Wall -Wextra -Werror "pc_3ds_${test}.c" -o "/tmp/gg-3ds-${test}"
             "/tmp/gg-3ds-${test}"

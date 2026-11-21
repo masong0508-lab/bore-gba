@@ -83,6 +83,24 @@ int main(void){
         check(front[i]==48&&side[i]==48,
               "shoe, silhouette or shadow spills below projected ground");
     }
+    // Rendered silhouette width, measured on native 400x240 pixels:
+    // the guard is wider than the scholar even with costume stripped.
+    static u8 guard[400*240*3],scholar[400*240*3];
+    memset(guard,48,sizeof guard);memset(scholar,48,sizeof scholar);
+    ggFilmDrawGuestActor(guard,200,150,2,
+        ggFilmGuestPalette[1][0],ggFilmGuestPalette[1][1],
+        ggFilmGuestPalette[1][2],&frontPose,1);
+    ggFilmDrawGuestActor(scholar,200,150,2,
+        ggFilmGuestPalette[3][0],ggFilmGuestPalette[3][1],
+        ggFilmGuestPalette[3][2],&frontPose,3);
+    int guardWidth=0,scholarWidth=0;
+    for(int x=160;x<240;x++){
+        int k=(116*400+x)*3;
+        if(guard[k]!=48||guard[k+1]!=48||guard[k+2]!=48)guardWidth++;
+        if(scholar[k]!=48||scholar[k+1]!=48||scholar[k+2]!=48)scholarWidth++;
+    }
+    check(guardWidth>scholarWidth+6,
+          "different cast silhouettes still share generic shoulders");
     GgFilmPose other=ggFilmPoseFor("The village lives.",1,14,0,0,0,0);
     other.turn=-4;
     memset(side,48,sizeof(side));
