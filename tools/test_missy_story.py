@@ -102,7 +102,7 @@ assert "int blink=((t+37)%180)<5" in face
 # 11 pixels above the patient. Passing compilation did not catch the art bug.
 assert art.count("csFaceBed(")==1, "portrait must be rendered only once"
 assert "csD(x-29,y-17-breath,7,edge)" in art, "small head moves with breathing torso"
-assert "csD(x-29,y-17,7,edge)" in art, "wide sprite head must remain modest"
+assert "csD(x-29,y-17,7,edge)" not in art, "wide sprite head must not lag behind breathing torso"
 assert "csR(x-20,y-17-breath,38,15,edge)" in art
 assert "csR(x-51,y-25,34,21" in art
 assert "csR(115,90,96,15" in cut, "ICU mattress must be beneath patient/pillow"
