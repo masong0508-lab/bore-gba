@@ -61,10 +61,13 @@ def main():
         with zipfile.ZipFile(experimental) as z:
             assert "godguy_new3ds_gpu_probe.3dsx" in z.namelist()
             assert "godguy_dsi_mode.nds" in z.namelist()
-        for broken in (nds("godguy_hw.nds", bad_crc=True),nds("godguy_dsi_mode.nds")[:-2],
-                       b"bad" + dsx()):
+        for broken,label in (
+            (nds("godguy_hw.nds", bad_crc=True),"godguy_hw.nds"),
+            (nds("godguy_hw.nds")[:0x6200],"godguy_hw.nds"),
+            (b"bad" + dsx(),"godguy.3dsx"),
+        ):
             try:
-                pack.inspect(broken,"godguy_hw.nds" if broken[:4]!=b"bad" else "godguy.3dsx")
+                pack.inspect(broken,label)
             except ValueError:
                 pass
             else:
