@@ -167,11 +167,11 @@ static void ggFilmArch(GgFilmCamera cam,int x,int z,int broken){
         ggFilmBox(cam,x,h-12,z-25,28,32,7,24,25,26);
     }
 }
-static void ggFilmFloor(GgFilmCamera cam,int p,int t){
+static void ggFilmFloor(GgFilmCamera cam,int p,int t,int winter){
     int wet=(p==F_FORD||p==F_SHORE||p==F_STORM);
     int room=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
               p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
-    u8 base=wet?13:room?21:p==F_VILLAGE?17:20;
+    u8 base=wet?13:room?21:winter?22:p==F_VILLAGE?17:20;
     ggFilmQuad(cam,ggV3(-850,0,330),ggV3(850,0,330),
                    ggV3(850,0,1800),ggV3(-850,0,1800),base);
     if(room){
@@ -190,9 +190,9 @@ static void ggFilmFloor(GgFilmCamera cam,int p,int t){
         // Natural banks, not a graph-paper sea. Waves live at y=2 on
         // the water plane, so distance really changes their size.
         ggFilmQuad(cam,ggV3(-850,1,400),ggV3(-600,1,400),
-                       ggV3(-455,1,1800),ggV3(-850,1,1800),21);
+                       ggV3(-455,1,1800),ggV3(-850,1,1800),winter?22:21);
         ggFilmQuad(cam,ggV3(615,1,400),ggV3(850,1,400),
-                       ggV3(850,1,1800),ggV3(460,1,1800),20);
+                       ggV3(850,1,1800),ggV3(460,1,1800),winter?23:20);
         for(int i=0;i<16;i++){
             int z=460+(i*113)%1180;
             int x=((i*257+t/5)%850)-425;
@@ -208,13 +208,13 @@ static void ggFilmFloor(GgFilmCamera cam,int p,int t){
     // facets are genuinely on the ground plane; no uniform grid.
     if(p==F_VILLAGE)
         ggFilmQuad(cam,ggV3(-108,1,400),ggV3(108,1,400),
-                       ggV3(70,1,1750),ggV3(-76,1,1750),21);
+                       ggV3(70,1,1750),ggV3(-76,1,1750),winter?20:21);
     for(int i=0;i<18;i++){
         int x=((i*293+73)%1450)-725;
         int z=450+(i*173)%1300;
         int w=23+(i*13)%71;
         if(p==F_VILLAGE&&x>-106&&x<106)continue;
-        u8 tone=p==F_VILLAGE?(i%3?16:18):(i&1?24:25);
+        u8 tone=winter?(i&1?23:22):p==F_VILLAGE?(i%3?16:18):(i&1?24:25);
         ggFilmQuad(cam,ggV3(x,1,z),ggV3(x+w,1,z+3),
                        ggV3(x+w-7,1,z+19),ggV3(x+6,1,z+13),tone);
     }
@@ -273,7 +273,7 @@ static void ggFilmBackgroundWorker(GgFilmCamera cam,int x,int z,int t,int id){
         ggFilmBox(cam,x+32,119+lift,z-8,28,11,13,21,24,26);
     }
 }
-static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter){
+static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
     // Walls, cornice and corridor all converge on the same perspective.
     ggFilmQuad(cam,ggV3(-700,0,1600),ggV3(700,0,1600),
                    ggV3(700,390,1600),ggV3(-700,390,1600),22);
@@ -281,7 +281,7 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter){
                    ggV3(-700,390,1600),ggV3(-700,390,350),20);
     ggFilmQuad(cam,ggV3(700,0,1600),ggV3(700,0,350),
                    ggV3(700,390,350),ggV3(700,390,1600),21);
-    ggFilmFloor(cam,p,t);
+    ggFilmFloor(cam,p,t,winter);
     if(p==F_PORCH){
         // A real shelter, not the generic palace corridor that the first
         // rain scene previously inherited. The same window, sill, roof,
@@ -299,12 +299,16 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter){
         // The first-rain chapter has rain beyond the window. Afterward
         // the very same porch remains dry; weather does not loop forever
         // just because the story visits the location again.
-        if(chapter==1)
+        if(chapter==1||winter)
             for(int i=0;i<9;i++){
                 int x=210+i*24;
                 int y=130+((i*37+t/5)%104);
-                ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+3,y,1551),
-                               ggV3(x+3,y+16,1551),ggV3(x,y+16,1551),13);
+                if(winter)
+                    ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+6,y,1551),
+                                   ggV3(x+6,y+7,1551),ggV3(x,y+7,1551),23);
+                else
+                    ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+3,y,1551),
+                                   ggV3(x+3,y+16,1551),ggV3(x,y+16,1551),13);
             }
         ggFilmBox(cam,325,114,1536,268,10,12,24,25,26);
         ggFilmBox(cam,325,248,1536,268,10,12,24,25,26);
@@ -372,7 +376,7 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter){
     }
 }
 static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
-                            int chapter,int roofFinished){
+                            int chapter,int roofFinished,int winter){
     int p=beat->place;
     if(p==F_ORBIT)return; // globe remains the spherical dedicated renderer
     GgFilmCamera cam=ggFilmCameraAt(beat,move);
@@ -380,8 +384,8 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
     // outdoor village set (houses and trees), breaking cuts from the room.
     int inside=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
                 p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
-    if(inside){ggFilmInterior(cam,p,elapsed,chapter);return;}
-    ggFilmFloor(cam,p,elapsed);
+    if(inside){ggFilmInterior(cam,p,elapsed,chapter,winter);return;}
+    ggFilmFloor(cam,p,elapsed,winter);
     if(p==F_GATE||p==F_RUINS){
         ggFilmArch(cam,-170,1260,p==F_RUINS);
         ggFilmArch(cam,225,970,p==F_RUINS);
@@ -413,6 +417,17 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
                               84,9,56,21,20,26);
                 }
             }
+        }
+    }
+    if(winter){
+        // Both unlockable winter reels have snow at scene depth rather than
+        // a flat white overlay. Flakes descend through the camera volume.
+        for(int i=0;i<14;i++){
+            int x=((i*179+t/6)%1100)-550;
+            int z=470+(i*107)%1200;
+            int y=40+((i*61-t/8)%260+260)%260;
+            ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+5,y,z),
+                           ggV3(x+5,y+5,z),ggV3(x,y+5,z),i&1?22:23);
         }
     }
     if(p==F_STORM){
