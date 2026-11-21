@@ -7,7 +7,6 @@
 enum { GG_EXP_MAX_VISIBLE=12, GG_EXP_NEAR_RADIUS=11 };
 typedef struct {int index,forward,side;} GgExpNPC;
 static int ggExpNpcsDrawn;
-static int ggExpNpcClosestDepth;
 // The live 200x120 POV upscaled to 400x240 has the same 250px focal
 // length and Q8 ground contract as the 3DS film, not the obsolete 140px.
 static inline void ggExpNpcProject(int forward,int side,

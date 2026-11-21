@@ -221,6 +221,10 @@ static inline void ggExpDotInView(u8 *out,int x,int y,int r,int g,int b){
 // Actor overlay depth is zero for the world, HUD, exploration and 2D screens.
 static GgFilmOcclusionColumn ggExpFilmOcclusion[GG_FILM_OCCLUSION_COLS];
 static int ggExpFilmDrawDepth;
+// Declared before ggExpRenderMode; populated later by population3d.h.
+// The first-person facade and actor compositors share this depth
+// without an include-order dependency or a second creature search.
+static int ggExpNpcClosestDepth;
 // The real-time POV is rendered in 200x120, expanded 2x. Scenery must
 // align to that pixel grid rather than introducing mismatched 1px props.
 static int ggExpScenicCoarse;
