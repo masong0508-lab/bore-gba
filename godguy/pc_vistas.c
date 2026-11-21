@@ -113,6 +113,23 @@ int main(void){
     }
     require(moving>700&&smallDiff>500,
             "camera lacks genuine sub-tile progress through the world");
+    // Each chapter's continuous route ends at the exact named world
+    // landmark its first exterior scene uses; no cliff-to-castle jump.
+    filmRouteEndAt(FILM_VISTA_TOWN);
+    FilmRouteCamera cityArrival=filmRouteCameraAt(1080);
+    require(filmRoute.kind[filmRoute.count-1]==FILM_VISTA_TOWN&&
+            cityArrival.x==town->x*256&&cityArrival.y==town->y*256,
+            "journey cannot return from the coast to the real city");
+    filmRouteEndAt(FILM_VISTA_COAST);
+    FilmRouteCamera shoreArrival=filmRouteCameraAt(1080);
+    require(filmRoute.kind[filmRoute.count-1]==FILM_VISTA_COAST&&
+            shoreArrival.x==shore->x*256&&shoreArrival.y==shore->y*256,
+            "the camera cuts to the beach without arriving there");
+    filmRouteEndAt(FILM_VISTA_RIDGE);
+    FilmRouteCamera ridgeArrival=filmRouteCameraAt(1080);
+    require(filmRoute.kind[filmRoute.count-1]==FILM_VISTA_RIDGE&&
+            ridgeArrival.x==ridge->x*256&&ridgeArrival.y==ridge->y*256,
+            "the camera cuts to cliffs without reaching their location");
     // No coastline exists on the second world; do not invent one.
     filmVistaCapture(128,128,64,64,64,64,plainWorld);
     filmRouteCapture(1,1080);
