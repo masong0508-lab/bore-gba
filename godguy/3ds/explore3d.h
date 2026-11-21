@@ -22,9 +22,9 @@ typedef struct {
     int active,wasPaused;
     // Persistent selected-creature identity. The population list can
     // compact on save; an array slot is NOT a durable identity.
-    u32 actorId;
+    uint32_t actorId;
     int actorIndex;
-    char actorName[40];
+    char actorName[64]; // crName can generate up to 46 characters
     int px,py;                   // tile coordinates in Q8 (1 tile = 256)
     int angle;                   // 0..255; one revolution is 256
     int material;
