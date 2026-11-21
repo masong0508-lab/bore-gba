@@ -8,19 +8,27 @@ static void check(int ok,const char*why){
     if(!ok){fprintf(stderr,"3DS PROJECTION FAIL: %s\n",why);exit(1);}
 }
 int main(void){
-    check(ggFilmProjectFootY(512,8,8)==155,
+    check(ggFilmProjectFootY(512,8,8)==168,
           "actors at two tiles float above ground / camera eye omitted");
-    check(ggFilmProjectFootY(768,8,8)==147,
+    check(ggFilmProjectFootY(768,8,8)==155,
           "three-tile feet do not follow the raycaster ground plane");
-    check(ggFilmProjectFootY(640,8,8)==150&&
+    check(ggFilmProjectFootY(640,8,8)==160&&
           ggFilmProjectFootY(640,8,8)<ggFilmProjectFootY(512,8,8)&&
           ggFilmProjectFootY(640,8,8)>ggFilmProjectFootY(768,8,8),
           "camera dolly snaps a grounded actor between tile sample bands");
-    check(ggFilmProjectFootY(1024,8,8)==142,
+    check(ggFilmProjectFootY(1024,8,8)==147,
           "four-tile feet are not grounded on the receding grass");
-    check(ggFilmProjectFootY(512,8,12)==143&&
-          ggFilmProjectFootY(512,12,8)==167,
+    check(ggFilmProjectFootY(512,8,12)==152&&
+          ggFilmProjectFootY(512,12,8)==184,
           "cliff height moves boots the wrong direction");
+    // Every discrete raycast ground sample and its corresponding actor
+    // feet must land on the identical 400x240 raster row.
+    for(int d=1;d<=14;d++){
+        int expected=GG_FILM_HORIZON+
+                     GG_FILM_EYE_HEIGHT*GG_FILM_HEIGHT_MULT/(d+1);
+        check(ggFilmProjectFootY(d*256,8,8)==expected,
+              "billboard feet and ground column use different perspective denominators");
+    }
     check(ggFilmProjectScreenX(0,512)==200&&
           ggFilmProjectScreenX(256,512)==325&&
           ggFilmProjectScreenX(-256,512)==75,

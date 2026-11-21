@@ -9,6 +9,8 @@
 // It is a light sandbox foundation, not a claimed Minecraft block engine.
 #ifndef GG_EXPLORE3D_H
 #define GG_EXPLORE3D_H
+#include "film_architecture3d.h"
+#include "film_floor3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -281,6 +283,58 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 ggExpDot(top,cx,cy,122,160,184);
         }
     }
+    // Film-only perspective floor: the same projected ground that cast
+    // boots touch, unlike the old succession of solid green voxel steps.
+    // The row distance is computed only 123 times. Rays share the 400px
+    // top buffer, exactly like the existing renderer: no new framebuffer.
+    if(cinematic){
+        int rowDistance[240],rowMist[240];
+        int cameraGround=ggExpGround(terrain);
+        for(int py=horizon+1;py<240;py++){
+            rowDistance[py]=ggFilmFloorForward(py,horizon,
+                eye-cameraGround,GG_EXP_MAX_DEPTH*256);
+            rowMist[py]=ggFilmFloorMist(rowDistance[py]);
+        }
+        for(int x=0;x<400;x++){
+            int skew=x-200;
+            int floorRayX=dirX+rightX*skew/GG_FILM_FOCAL;
+            int floorRayY=dirY+rightY*skew/GG_FILM_FOCAL;
+            for(int y=horizon+1;y<240;y++){
+                // Half-sample the distant ground (already misted),
+                // retain 1:1 native pixels near actors' feet. Saves
+                // thousands of terrain/color lookups each film frame.
+                if((x&1)&&y<170){
+                    u8*p=top+(y*400+x)*3;
+                    p[0]=p[-3];p[1]=p[-2];p[2]=p[-1];
+                    continue;
+                }
+                int d=rowDistance[y];
+                int wx=ggExplore.px+floorRayX*d/4096;
+                int wy=ggExplore.py+floorRayY*d/4096;
+                int tx=wx>>8,ty=wy>>8;
+                int type=(unsigned)tx<WW&&(unsigned)ty<WH?
+                    world[ty][tx]:T_DIRT;
+                if((unsigned)type>=T_N)type=T_DIRT;
+                int r=(terrCol[type][0]*8*4+72)/5;
+                int g=(terrCol[type][1]*8*3+71)/4;
+                int b=(terrCol[type][2]*8*4+91)/5;
+                if(type==T_GRASS||type==T_FOREST){
+                    g=(g*4+r)/5;
+                    b=(b*3+g)/4;
+                }
+                int grain=ggFilmFloorGrain(wx,wy,ggExplore.frame);
+                r+=grain;g+=grain;b+=grain;
+                int mist=rowMist[y];
+                r=(r*(256-mist)+76*mist)/256;
+                g=(g*(256-mist)+95*mist)/256;
+                b=(b*(256-mist)+113*mist)/256;
+                u8*p=top+(y*400+x)*3;
+                p[0]=(u8)ggExpClamp(r,0,255);
+                p[1]=(u8)ggExpClamp(g,0,255);
+                p[2]=(u8)ggExpClamp(b,0,255);
+            }
+        }
+    }
     // Front-to-back silhouette-buffer voxel ray caster. 200 rays, max
     // 42 terrain samples each, with every cell read directly from the
     // live 3DS game world. No second mesh, z-buffer or GPU allocation.
@@ -305,12 +359,22 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             previousX=tx;previousY=ty;
             int type=world[ty][tx],build=bld[ty][tx];
             if((unsigned)type>=T_N)type=T_DIRT;
-            int h=ggExpGround(type)+ggExpBuilding(build);
-            // Pitch real village roofs across each existing tile instead
-            // of turning every home into a flat-topped Minecraft cube.
-            // The roof is only a few integer operations on a sampled ray.
-            if(build==B_HUT||build==B_HOUSE||
-               build==B_HALL||build==B_TEMPLE){
+            int ground=ggExpGround(type),rise=ggExpBuilding(build);
+            // The ground plane has already drawn level or lower land.
+            // Only actual raised cliffs and building VOLUMES must be
+            // added by the silhouette caster; never redraw a green
+            // vertical wall all the way to the screen's bottom.
+            if(cinematic&&!build&&ground<=ggExpGround(terrain))continue;
+            int h=ground+rise;
+            GgFilmRoofVolume roof={h,h,0,256};
+            if(cinematic&&build){
+                // Each visible ray hits the same world-space gabled roof
+                // that a rotated camera would see; no pyramid cutouts.
+                roof=ggFilmRoofVolume(build,wx,wy,ground,rise);
+                h=roof.roofTop;
+            }else if(build==B_HUT||build==B_HOUSE||
+                     build==B_HALL||build==B_TEMPLE){
+                // Do not change the lower-cost 200x120 exploration path.
                 int ex=abs((wx&255)-128),ey=abs((wy&255)-128);
                 int edge=ex>ey?ex:ey;
                 h-=edge/(build==B_HALL?16:12);
@@ -323,6 +387,16 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(projected>=highest)continue;
             int from=ggExpClamp(projected,0,screenHeight);
             int to=ggExpClamp(highest,0,screenHeight);
+            if(cinematic&&(build||ground>ggExpGround(terrain))){
+                // Building walls end at their physical foundation. Raised
+                // grass/forest/hill faces end at the nearby level ground,
+                // not at the BOTTOM OF THE SCREEN. Two-height steps
+                // become a few-pixel embankment, not 80px solid cubes.
+                int baseHeight=build?ground:ggExpGround(terrain);
+                int bottom=ggFilmTerrainSurfaceY(baseHeight,eye,
+                                                  horizon,d,12);
+                if(bottom<to)to=ggExpClamp(bottom,from,to);
+            }
             int baseR,baseG,baseB;
             if(build){
                 // Stone, timber, roofs and towers are recognizable solid
@@ -367,6 +441,15 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             // One material coordinate per ray/visible tile rather than
             // calling RNG or scanning any texture map per pixel.
             int surfaceU=(abs(dirX)>abs(dirY)?wy:wx)&255;
+            int wallShade=cinematic&&build?
+                shade*ggFilmWallFaceLight(wx,wy)/256:shade;
+            int roofBottom=cinematic&&roof.roofPitch?
+                ggFilmRoofBottomScreen(roof.wallTop,eye,
+                                        horizon,d,12):-1;
+            int roofR=0,roofG=0,roofB=0;
+            if(roofBottom>=0)
+                ggFilmRoofMaterial(build,wx,wy,roof.faceLight,shade,
+                                   &roofR,&roofG,&roofB);
             // Terrain strata, pitched roofs, shadowed stone and tree
             // crowns. Keep these material cues stable in world space so
             // moving the camera doesn't cause procedural visual noise.
@@ -403,9 +486,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                               build==B_TEMPLE||build==B_LIBRARY;
                     int mortar=wood?20:16;
                     if(stone){
-                        r=(151+(build==B_TEMPLE?28:0))*shade/256;
-                        g=(146+(build==B_TEMPLE?24:0))*shade/256;
-                        b=(142+(build==B_TEMPLE?15:0))*shade/256;
+                        r=(151+(build==B_TEMPLE?28:0))*wallShade/256;
+                        g=(146+(build==B_TEMPLE?24:0))*wallShade/256;
+                        b=(142+(build==B_TEMPLE?15:0))*wallShade/256;
                         if(edge%mortar<2){
                             r=r*4/5;g=g*4/5;b=b*4/5;
                         }
@@ -418,8 +501,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                         }
                         if(build==B_LIBRARY&&edge>10&&edge<70&&
                            surfaceU>105&&surfaceU<150){
-                            r=91*shade/256;g=114*shade/256;
-                            b=127*shade/256;
+                            r=91*wallShade/256;g=114*wallShade/256;
+                            b=127*wallShade/256;
                         }
                     }else if(wood){
                         r=baseR*241/256;
@@ -427,20 +510,19 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                         b=baseB*277/256;
                         if(surfaceU<13||surfaceU>241||
                            (surfaceU>118&&surfaceU<130)){
-                            r=78*shade/256;
-                            g=61*shade/256;b=49*shade/256;
+                            r=78*wallShade/256;
+                            g=61*wallShade/256;b=49*wallShade/256;
                         }else if(edge%22<2&&edge>8){
-                            r=104*shade/256;g=83*shade/256;
-                            b=62*shade/256;
+                            r=104*wallShade/256;g=83*wallShade/256;
+                            b=62*wallShade/256;
                         }
                     }
-                    if(edge<9){
-                        // Gabled roofs and ridge tiles differ from walls.
-                        int trim=build==B_HOUSE||build==B_HUT;
-                        r=(trim?138:stone?87:102)*shade/256;
-                        g=(trim?75:stone?78:72)*shade/256;
-                        b=(trim?59:stone?91:69)*shade/256;
-                        if(edge==8){r+=18;g+=12;b+=8;}
+                    if(roofBottom>=0&&y<roofBottom){
+                        // Physical roof face: slope thickness changes with
+                        // camera distance, rather than a constant 9px
+                        // screen-space roof glued atop every building.
+                        r=roofR;g=roofG;b=roofB;
+                        if(y+1==roofBottom){r+=13;g+=10;b+=8;}
                     }else if(d<15&&edge>16&&edge<68){
                         int window=(surfaceU>42&&surfaceU<86)||
                                    (surfaceU>172&&surfaceU<216);
@@ -449,19 +531,24 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                                 int frame=edge<28||edge>45||
                                           (surfaceU%128)<47||
                                           (surfaceU%128)>81;
-                                r=(frame?58:222)*shade/256;
-                                g=(frame?59:175)*shade/256;
-                                b=(frame?69:102)*shade/256;
+                                // Windows have locally offset candle
+                                // flicker in occupied towns; no global
+                                // flashing texture, only a bounded RGB tint.
+                                int glow=((ggExplore.frame/17+tx*5+ty*11)&7)<2?
+                                         13:0;
+                                r=(frame?58:222+glow)*wallShade/256;
+                                g=(frame?59:175+glow/2)*wallShade/256;
+                                b=(frame?69:102+glow/3)*wallShade/256;
                                 if(!frame&&(edge==37||surfaceU%128==64)){
-                                    r=105*shade/256;
-                                    g=79*shade/256;b=68*shade/256;
+                                    r=105*wallShade/256;
+                                    g=79*wallShade/256;b=68*wallShade/256;
                                 }
                             }
                         }else if(stone&&edge>51&&edge<68&&
                                  surfaceU>109&&surfaceU<147){
                             // Architectural arch/entry recess.
-                            r=47*shade/256;g=50*shade/256;
-                            b=61*shade/256;
+                            r=47*wallShade/256;g=50*wallShade/256;
+                            b=61*wallShade/256;
                         }
                     }
                 }else if(cinematic&&!build){
@@ -471,6 +558,13 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     if(type==T_GRASS||type==T_FOREST){
                         if(pattern<2){r+=8;g+=9;b+=4;}
                         else if(pattern>13){r-=7;g-=9;b-=4;}
+                        // A coherent moving breeze across actual terrain
+                        // tiles; feet stay fixed and distant grass fades.
+                        int gust=(ggExplore.frame/7+tx*9+ty*5)&31;
+                        if(edge<16&&gust<8){
+                            g+=5-gust/2;
+                            r+=2;
+                        }
                     }else if(type==T_MOUNT||type==T_HILL){
                         if(pattern<3){r+=11;g+=9;b+=6;}
                     }
