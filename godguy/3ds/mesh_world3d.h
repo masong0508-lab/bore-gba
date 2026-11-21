@@ -598,7 +598,10 @@ typedef struct {
 // camera view despite thousands of trees left behind the camera.
 static GgMeshVisibleProp ggMeshVisibleProps[GG_SCENE_LIMIT];
 static void ggMeshWorldDraw(unsigned char *out,int cinematic){
-    int quality=ggExpScenicQuality>=2&&cinematic?2:1;
+    // New 3DS gets genuine 400x240 geometry even in exploration.
+    // Under frame-clock pressure (or on Old 3DS), the SAME renderer
+    // drops to 200x120 and scales 2x without a new framebuffer.
+    int quality=ggExpScenicQuality>=2?2:1;
     int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
     int terrain=ggMeshTerrainAt(cx,cy);
     GgFilmScenicAtmosphere atmosphere=ggFilmScenicAtmosphere(terrain);

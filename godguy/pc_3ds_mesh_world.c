@@ -35,10 +35,18 @@ int main(void){
     meshRequire(ggMeshContext.w==400&&
                 ggMeshContext.fragments>500,
                 "perspective camera rotation lost all physical mesh faces");
+    ggExpScenicQuality=2;
+    ggExpRenderMode(pixels,0);
+    meshRequire(ggMeshContext.w==400&&ggMeshContext.scale==1,
+                "New 3DS high-detail exploration is still a chunky 2x viewport");
     ggExpScenicQuality=1;
     ggExpRenderMode(pixels,0);
     meshRequire(ggMeshContext.w==200&&ggMeshContext.scale==2,
-                "old console budget rendered full-resolution polygon work");
+                "Old 3DS fallback rendered full-resolution polygon work");
+    // Every actor still uses the same physically projected world foot.
+    for(int wx=64*256;wx<=65*256;wx+=64)
+        meshRequire(ggMeshGroundAtQ8(wx,64*256+128)>=0,
+                    "sloped triangle ground failed point sampling");
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;
     ggExpRenderMode(pixels,0);
