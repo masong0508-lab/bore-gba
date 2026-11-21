@@ -193,38 +193,68 @@ static void ggOriginHouse(u8 *out,int x,int y,int scale){
     ggExpRect(out,x+10,y-h+12,8,9,66,90,109);
     ggExpRect(out,x+14,y-h+12,2,9,142,115,88);
 }
+// The playable demigod is an original hand-authored 16x24 portrait cel
+// (not a cube or block-headed avatar). Player palettes and body proportions
+// change the actual animated character, with no new 3DS image buffers.
+static const char *const ggOriginHumanCel[24]={
+    "......hhhh......",
+    ".....hhhhhh.....",
+    "....hhhhhhhh....",
+    "....hssssssh....",
+    "....hsessesh....",
+    "....hsissish....",
+    "....hssssssh....",
+    ".....ssssss.....",
+    "......ssss......",
+    "....dddccddd....",
+    "...ddccccccdd...",
+    "..ssddccccddss..",
+    "..ssddaaaaddss..",
+    "...sddccccdds...",
+    "....dccccccd....",
+    "....dcmccmcd....",
+    "....ddccccdd....",
+    ".....pppppp.....",
+    ".....pp..pp.....",
+    ".....pp..pp.....",
+    ".....pp..pp.....",
+    ".....pp..pp.....",
+    ".....bb..bb.....",
+    "....bbb..bbb...."
+};
 static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame,int small){
-    const int *dummy=0;(void)dummy;
+    (void)small;
     const u8 *skin=ggOriginSkinRGB[ggOrigin.skin];
     const u8 *hair=ggOriginHairRGB[ggOrigin.hair];
     const u8 *coat=ggOriginClothesRGB[ggOrigin.garment];
-    int b=ggOrigin.body;
-    int w=(small?11:14)+(b==1?3:b==2?-2:0);
-    int h=small?30:50;
-    ggExpRect(out,x-w/2*scale,y-2*scale,w*scale,2*scale,30,38,40);
-    // Grounded feet, alternating stance, coat, hands and neck.
-    ggExpRect(out,x-5*scale,y-12*scale,4*scale,12*scale,
-              48,47,53);
-    ggExpRect(out,x+(frame&1?0:1)*scale,y-12*scale,
-              4*scale,12*scale,48,47,53);
-    ggExpRect(out,x-w*scale/2,y-h*scale/2,w*scale,
-              (h/2-12)*scale,coat[0],coat[1],coat[2]);
-    ggExpRect(out,x-w*scale/2-3*scale,y-(h/2-4)*scale,
-              4*scale,14*scale,skin[0],skin[1],skin[2]);
-    ggExpRect(out,x+w*scale/2-scale,y-(h/2-4)*scale,
-              4*scale,14*scale,skin[0],skin[1],skin[2]);
-    ggExpRect(out,x-7*scale,y-(h/2+14)*scale,14*scale,15*scale,
-              skin[0],skin[1],skin[2]);
-    ggExpRect(out,x-8*scale,y-(h/2+18)*scale,16*scale,6*scale,
-              hair[0],hair[1],hair[2]);
-    ggExpRect(out,x-8*scale,y-(h/2+13)*scale,3*scale,9*scale,
-              hair[0],hair[1],hair[2]);
-    ggExpRect(out,x+5*scale,y-(h/2+13)*scale,3*scale,9*scale,
-              hair[0],hair[1],hair[2]);
-    ggExpRect(out,x-4*scale,y-(h/2+7)*scale,2*scale,2*scale,
-              44,46,53);
-    ggExpRect(out,x+2*scale,y-(h/2+7)*scale,2*scale,2*scale,
-              44,46,53);
+    ggExpRect(out,x-8*scale,y-2,16*scale,3,30,38,40);
+    for(int py=0;py<24;py++){
+        const char *row=ggOriginHumanCel[py];
+        for(int px=0;px<16;px++){
+            int kind=row[px],r=0,g=0,b=0;
+            if(kind=='.')continue;
+            switch(kind){
+            case 'h':r=hair[0];g=hair[1];b=hair[2];break;
+            case 's':r=skin[0];g=skin[1];b=skin[2];break;
+            case 'e':r=238;g=231;b=211;break;
+            case 'i':r=45;g=50;b=53;break;
+            case 'c':r=coat[0];g=coat[1];b=coat[2];break;
+            case 'd':r=coat[0]*3/5;g=coat[1]*3/5;b=coat[2]*3/5;break;
+            case 'a':r=196;g=166;b=95;break;
+            case 'm':r=200;g=191;b=156;break;
+            case 'p':r=57;g=67;b=79;break;
+            default:r=40;g=44;b=51;break;
+            }
+            int ox=px-8;
+            if(ggOrigin.body==1&&py>=9&&py<=16)
+                ox+=(px>=8?1:-1); // wider shoulders
+            else if(ggOrigin.body==2&&py>=9&&py<=16)
+                ox+=(px>=8?-1:1); // slimmer shoulders
+            int wobble=(py>=17&&frame)?((px>=8)?1:-1):0;
+            ggExpRect(out,x+(ox+wobble)*scale,y-(24-py)*scale,
+                      scale,scale,r,g,b);
+        }
+    }
 }
 static void ggOriginStrip(u8 *out,const char *headline,const char *lineA,
                           const char *lineB,int frame){
@@ -242,7 +272,7 @@ static void ggOriginCreator(u8 *out){
     ggOriginSky(out,0,ggOrigin.frame);
     ggOriginTree(out,341,183,ggOrigin.frame);
     ggOriginHouse(out,254,177,2);
-    ggOriginPortrait(out,300,171,2,(ggOrigin.frame/16)&1,0);
+    ggOriginPortrait(out,300,177,4,(ggOrigin.frame/16)&1,0);
     ggExpRect(out,0,0,218,240,18,30,42);
     ggExpRect(out,0,0,218,3,194,147,84);
     ggExpText(out,12,13,"YEAR 22 / YOUR ORDINARY LIFE",241,217,164);
@@ -311,7 +341,7 @@ static void ggOriginDraw(u8 *out){
         ggOriginHouse(out,49,169,2);
         ggOriginTree(out,318,176,f);
         ggExpRect(out,205,157,65,7,119,111,78);
-        ggOriginPortrait(out,242,176,1,(f/12)&1,1);
+        ggOriginPortrait(out,242,176,2,(f/12)&1,1);
         ggOriginStrip(out,"YEAR 8 / SMALL FOOTSTEPS",
             "YOU LEARNED THE FIELDS, THE WEATHER, AND THE ROAD.",
             "WHEN OTHERS CALLED YOU ORDINARY, YOU BELIEVED THEM.",f);
@@ -323,7 +353,7 @@ static void ggOriginDraw(u8 *out){
             ggExpRect(out,x,155+(i&1)*2,2,19,101,130,63);
             ggExpRect(out,x-2,150+(i&1)*2,6,8,173,157,71);
         }
-        ggOriginPortrait(out,314,180,1,(f/10)&1,0);
+        ggOriginPortrait(out,314,180,3,(f/10)&1,0);
         ggOriginStrip(out,"YEAR 16 / AN UNREMARKABLE FUTURE",
             "WORK, FRIENDS, AND SMALL AMBITIONS FILLED THE YEARS.",
             "NO ONE KNEW WHAT SLEPT IN YOUR BLOOD. NOT EVEN YOU.",f);
