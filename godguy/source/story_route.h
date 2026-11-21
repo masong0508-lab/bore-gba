@@ -57,7 +57,13 @@ static void filmRouteEndAt(int wantedKind){
     if(r->count<2)return;
     int target=-1;
     for(int i=0;i<r->count;i++)if(r->kind[i]==wantedKind)target=i;
-    if(target<0||target==r->count-1)return;
+    if(target<0){
+        // No real beach or cliff exists: refuse an unrelated journey
+        // that would visibly land in the wrong geography.
+        r->count=r->total=r->duration=0;
+        return;
+    }
+    if(target==r->count-1)return;
     if(target==0){
         for(int a=0,b=r->count-1;a<b;a++,b--){
             int tmp=r->x[a];r->x[a]=r->x[b];r->x[b]=tmp;
