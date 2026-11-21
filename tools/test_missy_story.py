@@ -44,6 +44,8 @@ for needle in [
     "plugRestore(); int d=ev==SE_BFF?15:10;",
     "plugV=(u8)msPressureEase(plugV,(unsigned)d)",
     "plugRestore(); // restore before any hospital pressure changes",
+    "msPressureOutcome((unsigned)v,(unsigned)plugNight)==2u",
+    "msPressureOutcome((unsigned)v,(unsigned)plugNight)==1u",
     "case TQ_DAYS: return (int)msDaysProgress",
     "toast(\"One more night. One extra day.\")",
     "id==3&&bi==27&&(csStoryMemory&16)",
