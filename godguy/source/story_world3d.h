@@ -296,6 +296,23 @@ static void ggFilmBackgroundWorker(GgFilmCamera cam,int x,int z,int t,int id){
     // World-anchored feet and a real 2D walk/work pose, never a block mesh.
     filmDrawActor(who,pose,foot.x,foot.y,h,phase>=88);
 }
+// Lightweight scenery animation: stable world-space props and purposeful
+// slow changes. No framebuffers, random fly-bys or repetitive particle fog.
+static void ggFilmMarketCart(GgFilmCamera cam,int t){
+    // A background wagon travels through the village in depth, which
+    // produces real foreshortening rather than a single scrolling bitmap.
+    int phase=t%2600;
+    int z=1450-phase*650/2600;
+    int x=248+(phase*19/2600);
+    ggFilmBox(cam,x,22,z,91,30,95,24,20,25);
+    ggFilmBox(cam,x,52,z,99,9,99,25,24,26);
+    for(int side=-1;side<=1;side+=2)
+        for(int end=-1;end<=1;end+=2)
+            ggFilmBox(cam,x+side*47,4,z+end*32,11,29,16,20,24,25);
+    // Cargo is attached to the carriage. It never floats ahead of it.
+    ggFilmBox(cam,x-13,61,z+5,39,17,42,21,24,26);
+    ggFilmBox(cam,x+23,61,z-16,34,13,42,20,24,25);
+}
 static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
     // Walls, cornice and corridor all converge on the same perspective.
     ggFilmQuad(cam,ggV3(-700,0,1600),ggV3(700,0,1600),
@@ -333,6 +350,31 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
                     ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+3,y,1551),
                                    ggV3(x+3,y+16,1551),ggV3(x,y+16,1551),13);
             }
+        // The front door opens during the first-arrival scene and stays
+        // open. Its hinges and threshold occupy the *same* world position
+        // across shots; no unexplained teleporting door or prop.
+        int open=chapter==1?(t<300?t/12:25):0;
+        ggFilmQuad(cam,ggV3(-550,0,1542),ggV3(-438,0,1542),
+                         ggV3(-438,189,1542),ggV3(-550,189,1542),2);
+        ggFilmBox(cam,-550,0,1536,11,195,17,25,24,26);
+        ggFilmBox(cam,-438,0,1536,11,195,17,25,24,26);
+        ggFilmBox(cam,-494,190,1536,126,10,18,24,25,26);
+        ggFilmQuad(cam,ggV3(-543,0,1532),
+                         ggV3(-447-open,0,1532-open*3),
+                         ggV3(-447-open,183,1532-open*3),
+                         ggV3(-543,183,1532),24);
+        ggFilmBox(cam,-473-open,95,1526-open*3,7,4,7,10,24,25);
+        // The hanging curtain responds to the same weather outside,
+        // not to changes in dialogue framing or camera angle.
+        int curtain=((t/36)%7)-3;
+        ggFilmQuad(cam,ggV3(197,236,1523),
+                         ggV3(232,236,1523),
+                         ggV3(230+curtain,134,1523),
+                         ggV3(199+curtain,134,1523),16);
+        ggFilmQuad(cam,ggV3(418,236,1523),
+                         ggV3(453,236,1523),
+                         ggV3(450-curtain,134,1523),
+                         ggV3(421-curtain,134,1523),16);
         ggFilmBox(cam,325,114,1536,268,10,12,24,25,26);
         ggFilmBox(cam,325,248,1536,268,10,12,24,25,26);
         ggFilmBox(cam,200,114,1536,10,148,12,24,25,26);
@@ -346,6 +388,9 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         ggFilmBox(cam,0,0,583,145,36,74,24,20,26);
         ggFilmBox(cam,-52,0,583,12,39,42,20,24,25);
         ggFilmBox(cam,52,0,583,12,39,42,20,24,25);
+        // Small in-place lamp on the window ledge: calm warm variation.
+        ggFilmBox(cam,442,123,1512,12,15,11,24,20,25);
+        ggFilmBox(cam,442,138,1512,8,10,8,(t/37)&1?9:10,24,26);
         return;
     }
     ggFilmBox(cam,0,235,1562,820,13,40,25,24,26);
@@ -354,6 +399,13 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         ggFilmBox(cam,x,238,1186,49,22,42,25,24,26);
     }
     if(p==F_ARCHIVE){
+        // Books are picked up and used. A page changes angle on the desk
+        // over time rather than leaving every library shot frozen.
+        ggFilmBox(cam,12,0,840,170,55,106,24,20,25);
+        int page=((t/44)%11)-5;
+        ggFilmQuad(cam,ggV3(-53,57,780),ggV3(48,57,780),
+                         ggV3(47,64+page,872),ggV3(-53,62,872),23);
+        ggFilmBeam(cam,-58,62,815,5,2,92,25);
         for(int x=-320;x<=320;x+=320){
             ggFilmBox(cam,x,15,1440,195,220,44,20,24,25);
             for(int y=54;y<=204;y+=53){
@@ -375,6 +427,11 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         GgS2 a=ggFilmProject(cam,ggV3(-220,72,797));
         GgS2 b=ggFilmProject(cam,ggV3(-219,93,797));
         ggFilmTri(tip,a,b,25);
+        // Bellows work beside the furnace, attached to a fixed stand.
+        int compression=(t/23)%9;
+        ggFilmBox(cam,370,0,1340,43,44,28,24,20,25);
+        ggFilmBox(cam,370,45,1340,45,19-compression,34,25,24,26);
+        ggFilmBeam(cam,363,58-compression,1303,8,8,45,24);
     }else if(p==F_COUCH||p==F_HEARTH){
         ggFilmBox(cam,175,18,1200,220,46,83,24,20,25);
         ggFilmBox(cam,175,59,1237,220,72,25,21,24,25);
@@ -426,6 +483,13 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         ggFilmTree(cam,515,1180,190,scenic,2);
         if(chapter>=2)ggFilmBackgroundWorker(cam,-175,1070,scenic,1);
         if(chapter>=10)ggFilmBackgroundWorker(cam,140,1280,scenic,0);
+        // Roads become active as the village grows. The moving cart and
+        // its cargo share the same world transform over all dialogue cuts.
+        if(chapter>=5)ggFilmMarketCart(cam,scenic);
+        // Permanent street lanterns, not arbitrary flickering screen dots.
+        ggFilmBeam(cam,-115,0,913,8,128,8,24);
+        ggFilmBox(cam,-115,127,913,23,27,24,20,24,25);
+        ggFilmBox(cam,-115,139,913,15,15,16,(scenic/37)&1?9:10,24,26);
     }else if(p==F_FORD||p==F_SHORE||p==F_STORM){
         ggFilmTree(cam,-385,1220,144,scenic,0);
         ggFilmTree(cam,425,1160,151,scenic,1);
