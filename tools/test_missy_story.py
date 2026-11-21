@@ -53,6 +53,15 @@ for needle in [
     "stPending=(u8)(stId==STY_TVSHOW",
     "stModal=2;", "if(stPending){ stPending=0; stSave(); }",
     "plugNight=(u8)msNightUsed", "plugRemember(v)",
+    "if(stId==STY_TVSHOW&&stCh==3) stmPut(msPressurePack((unsigned)stmGet(),PLUG_START))",
+    "static void plugRestore(void)",
+    "plugRestore(); int d=ev==SE_BFF?15:10;",
+    "plugV=(u8)msPressureEase(plugV,(unsigned)d)",
+    "plugRestore(); // restore before any hospital pressure changes",
+    "case TQ_PLUG: if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255) plugRestore(); return plugV<=PLUG_OK;",
+    "if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255){ plugDay=0xFFFF; plugSec=plugTen=0; plugRestore(); }",
+    "msPressureOutcome((unsigned)v,(unsigned)plugNight)==2u",
+    "msPressureOutcome((unsigned)v,(unsigned)plugNight)==1u",
     "case TQ_DAYS: return (int)msDaysProgress",
     "toast(\"One more night. One extra day.\")",
     "id==3&&bi==27&&(csStoryMemory&16)",
@@ -81,16 +90,29 @@ assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")
 face = Path("source/csface.h").read_text(encoding="utf-8")
 assert "static void csFaceBed(" in face
-assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" in art
+assert "csFaceBed(x-31,y-16-breath,t,sk,hr,awake)" in art
 assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
 assert "int talking=awake&&csTalking&&csSpk==who" in art
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
-assert "Anatomical neck and shoulder connect the head" in art
-assert "Neck and collar FIRST:" in face
-assert "the jaw is warm skin, not a dark beard" in face
+assert "One NARROW neck joins the jaw to a broad gown/shoulder." in art
+assert "The nape joins the shoulder under the gown collar" in face
+assert "NO second full-sized black head shadow" in face
 assert "int blink=((t+37)%180)<5" in face
-assert "short arced quilting folds" in art
+# Bed, pillow and one unified anatomical head are a regression contract.
+# Previously the stand-in head was painted twice and the mattress was
+# 11 pixels above the patient. Passing compilation did not catch the art bug.
+assert art.count("csFaceBed(")==1, "portrait must be rendered only once"
+assert "csD(x-29,y-17-breath,7,edge)" in art, "small head moves with breathing torso"
+assert "csD(x-29,y-17,7,edge)" not in art, "wide sprite head must not lag behind breathing torso"
+assert "csR(x-20,y-17-breath,38,15,edge)" in art
+assert "csR(x-51,y-25,34,21" in art
+assert "csR(115,90,96,15" in cut, "ICU mattress must be beneath patient/pillow"
+assert "csR(118,107,96,2" in cut, "near rail should not cross the patient's face"
+assert "{3,16,1,  0,100, 560,-12,90, 700,-12,89}" in shots
+assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" not in art
+assert "csFE(0,13,10,3,sh)" not in face
+assert "long diagonal folds suggest bent legs" in art
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut
@@ -103,6 +125,11 @@ assert "backstage doorway" in cut
 assert "warm twin footlights" in cut
 assert "if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) csWardFront()" in cut
 assert cut.index("csFtrack=0;") < cut.index("csWardFront();")  # bed rail is an occluder, after patient
+qa = Path("tools/qa_missy_visual.sh").read_text(encoding="utf-8")
+assert 'game_h=$((win_w*2/3))' in qa, "emulator screenshots must crop to the actual 3:2 game viewport"
+assert '-crop "${win_w}x${game_h}+0+${top}"' in qa
+assert 'local name="$1"\n  local src="screenshots/$name.xwd"' in qa, "capture path must be assigned after its local label"
+assert 'test $((width*2)) -eq $((height*3))' in qa, "visual smoke must reject emulator chrome outside the game frame"
 makefile = Path("Makefile").read_text(encoding="utf-8")
 assert "preview-missy: bore-missy-preview.gba" in makefile
 assert "preview-missy-awake: bore-missy-awake.gba" in makefile
