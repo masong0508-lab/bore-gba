@@ -19,6 +19,8 @@ int main(void){
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
                 "cinema is still a raycast image, not 3D mesh geometry");
+    meshRequire(ggMeshContext.blendedFragments>50,
+                "buildings, people and vegetation have no actual world shadows");
     meshRequire(ggMeshContext.textureSamples>600,
                 "new mesh still consists of flat-color surfaces");
     meshRequire(ggMeshGroundMaterial(T_GRASS)==GG_MAT_MEADOW&&

@@ -348,6 +348,35 @@ static void ggMeshBuildingLanding(GgMeshContext*m,int x0,int y0,
     }
     (void)ground;
 }
+// Real 3D world-contact penumbra, not a painted 2D oval billboard.
+// Two small translucent polygons are projected onto the exact live
+// sloping terrain. The depth buffer hides them when architecture covers
+// the same footprint. No shadow-map framebuffer or texture allocation.
+static void ggMeshContactShadow(GgMeshContext*m,int cx,int cy,
+                                 int radius,int height){
+    if(m->scale>1||radius<10)return;
+    int keepMat=m->material,keepOpacity=m->opacity;
+    m->material=GG_MAT_NONE;
+    for(int ring=0;ring<2;ring++){
+        int wide=radius+(ring?0:28);
+        int centerX=cx-height*2;
+        int centerY=cy+height;
+        int centerZ=ggMeshGroundAtQ8(centerX,centerY)+2;
+        m->opacity=ring?75:28;
+        for(int n=0;n<8;n++){
+            int a=n*32,b=(n+1)*32;
+            int ax=centerX+ggExpCos[a]*wide/4096,
+                ay=centerY+ggExpSin[a]*(wide*2/3)/4096;
+            int bx=centerX+ggExpCos[b]*wide/4096,
+                by=centerY+ggExpSin[b]*(wide*2/3)/4096;
+            ggMeshTriangle(m,ggMeshV(centerX,centerY,centerZ),
+                ggMeshV(ax,ay,ggMeshGroundAtQ8(ax,ay)+2),
+                ggMeshV(bx,by,ggMeshGroundAtQ8(bx,by)+2),
+                25,32,36);
+        }
+    }
+    m->opacity=keepOpacity;m->material=keepMat;
+}
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     int x0=tx*256+28,x1=tx*256+228;
@@ -554,6 +583,13 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     int x=tx*256+128+(int)((key>>12)&63u)-32;
     int y=ty*256+128+(int)((key>>20)&63u)-32;
     int z=ground;
+    if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
+       kind==GG_SCENE_SHRUB||kind==GG_SCENE_STALL||
+       kind==GG_SCENE_CART)
+        ggMeshContactShadow(m,x,y,
+                             kind==GG_SCENE_SHRUB?30:
+                             kind==GG_SCENE_STALL?55:70,
+                             kind==GG_SCENE_PINE?19:13);
     int previous=m->material,previousSeed=m->materialSeed;
     m->materialSeed=(int)key;
     m->material=(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
@@ -730,6 +766,10 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                              build==B_DOCK||build==B_FARM)?
                              GG_MAT_WOOD:GG_MAT_STONE;
                 m->materialSeed=(int)key;
+                if(detailed&&forward>128)
+                    ggMeshContactShadow(m,tx*256+128,
+                                         ty*256+128,105,
+                                         ggExpBuilding(build));
                 ggMeshBuilding(m,tx,ty,build,ggExpGround(t),detailed);
                 m->material=oldMaterial;m->materialSeed=oldSeed;
             }else{

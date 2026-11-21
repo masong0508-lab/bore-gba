@@ -304,7 +304,7 @@ int main(int argc,char **argv){
        (int)sizeof meshPath)return 22;
     meshMetrics=fopen(meshPath,"wb");
     if(!meshMetrics)return 23;
-    fprintf(meshMetrics,"scenario,triangles,visible_fragments,textured_fragments,buildings,props,cpu_ms,viewport\n");
+    fprintf(meshMetrics,"scenario,triangles,visible_fragments,textured_fragments,shadow_fragments,buildings,props,cpu_ms,viewport\n");
     ggExpMeshEnabled=1;ggExpScenicQuality=2;
     int totalTriangles=0,firstPolys=0;
     for(int scene=0;scene<8;scene++){
@@ -338,9 +338,9 @@ int main(int argc,char **argv){
         char imageName[40];
         snprintf(imageName,sizeof imageName,"mesh_env_%02d.ppm",scene);
         if(!ggCaptureSave(argv[1],imageName))return 25;
-        fprintf(meshMetrics,"cinematic_biome_%d,%d,%d,%d,%d,%d,%.3f,400x240\n",
+        fprintf(meshMetrics,"cinematic_biome_%d,%d,%d,%d,%d,%d,%d,%.3f,400x240\n",
                 scene,ggMeshContext.triangles,ggMeshContext.fragments,
-                ggMeshContext.textureSamples,
+                ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
                 ggMeshBuildingsDrawn,ggMeshPropsDrawn,meshMs);
         if(ggMeshContext.textureSamples<400){
             fprintf(stderr,"MESH CAPTURE FAIL: material missing in biome %d\n",scene);
@@ -379,15 +379,15 @@ int main(int argc,char **argv){
     if(ggMeshContext.w!=200||ggMeshContext.h!=120||
        !ggCaptureSave(argv[1],"mesh_old3ds_playable.ppm"))
         return 28;
-    fprintf(meshMetrics,"old3ds_playable,%d,%d,%d,%d,%d,,200x120-upscaled\n",
+    fprintf(meshMetrics,"old3ds_playable,%d,%d,%d,%d,%d,%d,,200x120-upscaled\n",
             ggMeshContext.triangles,ggMeshContext.fragments,
-            ggMeshContext.textureSamples,
+            ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
             ggMeshBuildingsDrawn,ggMeshPropsDrawn);
     ggExpScenicQuality=2;
     ggExpRenderMode(guarded.img,1);
-    fprintf(meshMetrics,"high_detail_check,%d,%d,%d,%d,%d,,400x240\n",
+    fprintf(meshMetrics,"high_detail_check,%d,%d,%d,%d,%d,%d,,400x240\n",
             ggMeshContext.triangles,ggMeshContext.fragments,
-            ggMeshContext.textureSamples,
+            ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
             ggMeshBuildingsDrawn,ggMeshPropsDrawn);
     fclose(meshMetrics);
     printf("3DS TRUE MESH CAPTURE OK: eight polygonal biomes, six moving-camera images, %d triangles in scene zero, %d cumulative triangles, real inverse-depth ground and buildings\n",
