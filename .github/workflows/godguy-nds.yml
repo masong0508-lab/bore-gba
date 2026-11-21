@@ -262,19 +262,6 @@ jobs:
             out/*.mp4
             out/*.gif
           if-no-files-found: error
-      - name: Publish as the "GodGuy DS (latest)" release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: godguy-latest
-          name: GodGuy DS (latest) - ${{ github.sha }}
-          body: "New GodGuy DS build from main, commit ${{ github.sha }}. Start with godguy_hw.nds or godguy_dsi.nds (DS-mode). If DraStic fails: godguy_hw_audio_only.nds has music but skips cartridge save initialization (use emulator save states), godguy_hw_save_only.nds has saves but no sound, and godguy_hw_safe.nds has neither. godguy_dsi_mode.nds needs real DSi-mode support (not DraStic). godguy.nds is the experimental libnds/calico build. Green CI verifies builds, NOT emulator startup."
-          target_commitish: ${{ github.sha }}
-          make_latest: false
-          files: |
-            out/*.nds
-            out/*.3dsx
-
   # Runs independently of the DS ARM9 link and lets the 3DS film reveal
   # its own compile/runtime regressions instead of being hidden by the first
   # console's failure. The complete mixed-port release remains gated above.
@@ -414,7 +401,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Fetch complete DS/DSi and independent New 3DS artifacts
@@ -445,3 +432,27 @@ jobs:
           name: godguy-multiport-release-candidates
           path: port_release/
           if-no-files-found: error
+      # Publishing now depends on ALL port images and their header/CRC
+      # inspection; a passing DS compile alone is never a release gate.
+      # Manual console/emulator QA still must precede a stable release.
+      - name: Publish CI-qualified GodGuy candidate bundles
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: godguy-ports-ci-candidate
+          name: GodGuy DS/DSi/New3DS — CI candidates ${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          make_latest: false
+          body: |
+            Automatically built candidate images after BOTH DS/DSi and
+            New 3DS SDK jobs passed and ROM headers/CRC, DSi mode flags,
+            SHA-256 hashes and ZIP integrity checks succeeded.
+            These are NOT hardware-tested or a stable release.
+            New 3DS software-rendered game requires New-series hardware.
+            The PICA200 executable is an INDEPENDENT GPU prototype.
+            The unsigned 16 MiB DSi-mode build is experimental.
+            See PORTS_MANIFEST.json and PORT_RELEASE_QA.md for exact
+            source hashes and manual acceptance gates.
+          files: |
+            port_release/*.zip
+            port_release/PORTS_MANIFEST.json
