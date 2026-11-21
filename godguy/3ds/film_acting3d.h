@@ -7,7 +7,7 @@ enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
     signed char pose,head,lean,armL,armR,legL,legR,bob;
-    signed char gaze,blink,mouth,holdProp;
+    signed char gaze,blink,mouth,holdProp,reach;
 } GgFilmPose;
 // One 6x3x3 palette, shared by all guest film cels. These identities
 // are stable across chapters, alternate endings and nonlinear films.
@@ -124,6 +124,43 @@ static GgFilmPose ggFilmPoseAt(const char*voice,const char*line,
     return ggFilmPoseFor(line,beat,local,hero,speaking,walking,
                          propKind);
 }
+// Coordinated upper-body reach, counterbalancing steps and weight transfer.
+// All deformations stay on the existing 16x24 cel; no added draw passes.
+static void ggFilmPairActPose(GgFilmPose *p,int dir,int inset){
+    if(!dir||inset<=0)return;
+    int extent=(inset+23)/24;
+    if(extent>4)extent=4;
+    p->reach=(signed char)(dir*extent);
+    if(dir<0){if(p->armL<2)p->armL=2;}
+    else if(p->armR<2)p->armR=2;
+    p->lean=(signed char)(p->lean+dir*(inset/64));
+    p->head=(signed char)(p->head+(inset>=64?1:0));
+    p->legL=(signed char)(dir*(inset/48));
+    p->legR=(signed char)-p->legL;
+    p->bob=0; // planted feet while reaching, not endless idle bobbing
+}
+static void ggFilmPairHandAt(int x,int feet,int scale,int dir,
+                              const GgFilmPose *p,int *hx,int *hy){
+    int s=ggExpClamp(scale,1,3);
+    *hx=x+(dir<0?-8+p->reach:8+p->reach)*s;
+    *hy=feet-(15+(dir<0?p->armL:p->armR))*s;
+}
+static void ggFilmDrawHeldObject(u8*out,int handX,int handY,
+                                  int s,int propCode,const u8*skin){
+    if(propCode==3){
+        // Distinct leather-bound public ledger, with visible page edges.
+        ggExpRect(out,handX,handY-4*s,6*s,5*s,72,54,53);
+        ggExpRect(out,handX+2*s,handY-4*s,4*s,s,226,209,172);
+        ggExpRect(out,handX+2*s,handY,4*s,s,226,209,172);
+        ggExpRect(out,handX+s,handY-3*s,s,3*s,194,158,91);
+    }else if(propCode==4){
+        // Bound provisions packet, reused during continuous handoff.
+        ggExpRect(out,handX,handY-3*s,6*s,5*s,151,108,68);
+        ggExpRect(out,handX+2*s,handY-3*s,2*s,5*s,202,164,109);
+        ggExpRect(out,handX,handY-s,6*s,s,109,79,57);
+    }else return;
+    ggExpRect(out,handX-s,handY-s,3*s,2*s,skin[0],skin[1],skin[2]);
+}
 // Every pose deforms the SAME original 16x24 cel consistently: head,
 // torso, individual sleeves/hands, legs, eyes and mouth are separate
 // movement layers. Runs of identical pixels are drawn as one rectangle
@@ -147,10 +184,12 @@ static void ggFilmDrawActor(u8*out,int x,int feet,int scale,
                 if(py<=4)xoff+=p->gaze;
                 yoff=p->head<0?1:0;
             }else if(left){
-                xoff=p->lean-(p->armL>1?1:0);
+                xoff=p->lean-(p->armL>1?1:0)+
+                     (p->reach<0?p->reach:0);
                 yoff=-p->armL;
             }else if(right){
-                xoff=p->lean+(p->armR>1?1:0);
+                xoff=p->lean+(p->armR>1?1:0)+
+                     (p->reach>0?p->reach:0);
                 yoff=-p->armR;
             }else if(leg){
                 xoff=px<8?p->legL:p->legR;
@@ -172,8 +211,10 @@ static void ggFilmDrawActor(u8*out,int x,int feet,int scale,
                 int legs=py>=17&&py<=23;
                 if(h){xo=p->head+(py<=4?p->gaze:0);
                       yo=p->head<0?1:0;}
-                else if(l){xo=p->lean-(p->armL>1?1:0);yo=-p->armL;}
-                else if(r){xo=p->lean+(p->armR>1?1:0);yo=-p->armR;}
+                else if(l){xo=p->lean-(p->armL>1?1:0)+
+                               (p->reach<0?p->reach:0);yo=-p->armL;}
+                else if(r){xo=p->lean+(p->armR>1?1:0)+
+                               (p->reach>0?p->reach:0);yo=-p->armR;}
                 else if(legs){xo=end<8?p->legL:p->legR;yo=-p->bob;}
                 else {xo=p->lean;yo=-p->bob;}
                 if(p->blink&&(k=='e'||k=='i'))k='s';
@@ -208,22 +249,7 @@ static void ggFilmDrawActor(u8*out,int x,int feet,int scale,
     if(p->holdProp){
         int handX=x+(7+p->lean)*s;
         int handY=feet-(15+p->armR)*s;
-        if(p->holdProp==3){
-            // A bound archive ledger: dark cover, physical page edges,
-            // gold spine, and a thumb crossing the book's front.
-            ggExpRect(out,handX,handY-4*s,6*s,5*s,72,54,53);
-            ggExpRect(out,handX+2*s,handY-4*s,4*s,s,226,209,172);
-            ggExpRect(out,handX+2*s,handY,4*s,s,226,209,172);
-            ggExpRect(out,handX+s,handY-3*s,s,3*s,194,158,91);
-        }else if(p->holdProp==4){
-            // Provisions are a strapped supply packet, not a book.
-            ggExpRect(out,handX,handY-3*s,6*s,5*s,151,108,68);
-            ggExpRect(out,handX+2*s,handY-3*s,2*s,5*s,202,164,109);
-            ggExpRect(out,handX,handY-s,6*s,s,109,79,57);
-        }
-        // Connect the actual outstretched hand TO the object. Both
-        // the limb and the carried object share the same pose offset.
-        ggExpRect(out,handX-s,handY-s,3*s,2*s,skin[0],skin[1],skin[2]);
+        ggFilmDrawHeldObject(out,handX,handY,s,p->holdProp,skin);
     }
 }
 #endif
