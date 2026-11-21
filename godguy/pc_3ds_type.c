@@ -16,8 +16,10 @@ static void check(int good,const char*message){
     if(!good){fprintf(stderr,"3DS TYPE FAIL: %s\n",message);exit(1);}
 }
 int main(void){
-    static u8 out[400*240*3];
-    memset(out,18,sizeof(out));
+    static u8 storage[400*240*3+16];
+    memset(storage,0xbc,sizeof(storage));
+    u8 *out=storage+8;
+    memset(out,18,400*240*3);
     check(ggFilmTypeGlyph('a')==ggFilmTypeGlyph('A'),
           "case folding fails for story dialogue");
     check(ggFilmTypeMeasure("III")<ggFilmTypeMeasure("WWW"),
@@ -38,7 +40,9 @@ int main(void){
     ggFilmText(out,10,260,"A",240,220,200);
     // Underlying RGB bytes at the edges remain valid; no secondary
     // framebuffer is allocated or needed for cinematic text smoothing.
-    check(out[0]<=255&&out[sizeof(out)-1]<=255,
+    check(storage[0]==0xbc&&storage[7]==0xbc&&
+          storage[400*240*3+8]==0xbc&&
+          storage[400*240*3+15]==0xbc,
           "type renderer escaped the top-screen buffer");
     puts("3DS TYPE OK: proportionally spaced cinematic lettering, soft edges, safe clipping");
     return 0;
