@@ -133,3 +133,16 @@ just the saved story id. Replaying TV SHOW & TELL in an existing household
 attempts to reuse the original sister by exact name and kinship before
 adding a new cast member, preventing duplicate Mamesys and a potentially
 unfinishable cast switch when the household is already full.
+
+### ICU graphics director's cut
+Missy now has a dedicated, frame-buffer-only three-quarter patient drawing
+with anatomical side-on profile, hair silhouette, closed eyes, neckline,
+gown, shoulder, blanket folds, legs and a visible hand that raises its
+fingers when she wakes. The former 36-pixel reclining stick/bar shape
+remains only as a fallback for non-hospital poses. At high zoom the camera
+scales the actual reclining figure rather than drawing an upright face
+on its side. The hospital is rebuilt with a layered mattress/pillow,
+angled headboard, equipment shelf, ECG monitor with consistent heartbeat,
+window/rain, IV stand and near rail that properly overlays the blanket.
+The overlay uses existing clipping so it respects zoom and part redraws.
+No external sprites/assets, heap memory or additional framebuffer.

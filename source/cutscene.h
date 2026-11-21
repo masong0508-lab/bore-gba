@@ -123,15 +123,42 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(196,40,44,76,RGB(6,5,4)); for(int i=0;i<9;i++) csR(198+i*5,36+(i&1)*3,3,80,RGB(9,7,4));                                                     // the fence
         for(int i=0;i<4;i++) if((((t>>2)+i*5)&7)<2){ int fx2=206+((i*13)&24), fy=50+((i*11)&31); csR(fx2,fy,2,2,RGB(31,31,31)); csR(fx2-1,fy,4,1,RGB(31,31,26)); }   // flashbulbs
         break;
-    case CB_HOSP: case CB_FLAT:
-        csGrad(12,104,22,27,24,17,23,20); csR(0,110,SW,6,RGB(13,15,14));
-        csR(110,80,100,10,RGB(29,29,30)); csR(110,90,100,6,RGB(14,18,22)); csR(106,70,4,40,RGB(20,22,22)); csR(210,76,4,34,RGB(20,22,22));             // the bed
-        csR(14,30,34,30,RGB(2,3,4)); { int py=45; for(int x=0;x<32;x++){ int ph=(x+t/2)%32; int y=py; if(bg!=CB_FLAT){ if(ph==14) y=py-9; else if(ph==15) y=py+6; } csR(15+x,y,1,1,bg==CB_FLAT?RGB(31,8,6):RGB(8,31,12)); } }   // the monitor
-        csR(28,60,4,50,RGB(16,18,18)); csR(20,106,20,4,RGB(16,18,18)); csR(226,24,2,40,RGB(20,22,22)); csR(222,24,10,12,RGB(24,29,31));
-        csR(60,20,42,44,RGB(10,12,14)); csR(62,22,38,40,csLite?RGB(27,28,31):RGB(4,7,15)); csR(58,64,46,3,RGB(14,16,17));   // the window (cutscene redo 12): rain on the glass, a lightning flash
-        if(!csLite) for(int i=0;i<14;i++){ int ry=22+((t*3+i*17)%36); csR(63+((i*11)%36)-(ry-22)/10,ry,1,3,RGB(14,20,29)); }
-        csR(80,22,2,40,RGB(10,12,14)); csR(62,41,38,2,RGB(10,12,14));
-        break;
+    case CB_HOSP: case CB_FLAT: {
+        // ICU REDESIGN: physical depth, pillow and mattress, headboard, equipment.
+        // The patient goes ON the mattress in csWardPatient; the near rail is
+        // drawn after the actors in csWardFront so it can occlude them properly.
+        csGrad(12,104,15,22,27,9,15,21);
+        csR(0,103,SW,13,RGB(11,16,18)); csR(0,103,SW,2,RGB(21,26,26));
+        csR(0,40,SW,2,RGB(11,17,21)); // wall dado
+        csR(105,56,115,4,RGB(7,12,16)); csR(108,59,109,3,RGB(20,28,29)); // equipment shelf
+        csR(111,77,106,28,RGB(5,10,14)); // bed's undercarriage silhouette
+        csR(114,80,99,19,RGB(12,18,23)); // mattress shadow
+        csR(115,79,96,14,RGB(25,30,30)); // mattress
+        csR(115,80,95,2,RGB(31,31,30)); // top edge
+        csR(107,67,8,36,RGB(10,18,22)); csR(109,69,4,30,RGB(24,29,29)); // tilted headboard
+        csR(212,75,6,28,RGB(10,18,22)); csR(214,78,2,24,RGB(24,28,29)); // footboard
+        csR(121,99,3,16,RGB(7,10,14)); csR(204,99,3,16,RGB(7,10,14)); // bed legs
+        csR(12,22,41,42,RGB(5,10,14)); csR(14,24,37,32,RGB(2,5,8)); // monitor case / glass
+        csR(18,52,29,2,RGB(15,20,22)); csR(28,64,5,37,RGB(16,21,24));
+        csR(18,99,24,3,RGB(10,15,19)); // monitor stand
+        // Proper ECG trace with a travelling impulse, not randomly spaced pixels.
+        for(int i=0;i<31;i++){ int ph=(i+(t>>1))%31, my=40;
+            if(bg!=CB_FLAT){ if(ph==13) my=28; else if(ph==14) my=48; else if(ph==15) my=37; }
+            csR(17+i,my,1,2,bg==CB_FLAT?RGB(30,8,8):RGB(9,30,17)); }
+        csR(17,27,30,1,RGB(5,13,13)); csR(17,50,30,1,RGB(5,13,13));
+        csR(21,58,5,2,bg==CB_FLAT?RGB(27,7,6):RGB(8,25,13));
+        // Window: a cool night source behind the patient, with shadowed rain.
+        csR(56,18,46,52,RGB(4,9,14)); csR(59,21,40,45,csLite?RGB(25,29,31):RGB(4,10,20));
+        csR(78,21,3,45,RGB(11,18,22)); csR(59,43,40,2,RGB(11,18,22));
+        if(!csLite) for(int i=0;i<9;i++){ int ry=23+((t+i*17)%37); csR(61+((i*13)%37),ry,1,4,RGB(13,21,30)); }
+        // IV pole and bag. A visible tube connects the care context to the bed.
+        csR(226,19,2,84,RGB(12,19,23)); csR(218,20,15,2,RGB(24,30,30));
+        csR(218,22,11,14,RGB(13,21,25)); csR(219,23,9,12,RGB(26,31,31));
+        csR(222,26,3,6,RGB(14,23,28)); csLn(223,36,223,69,RGB(20,24,24));
+        csLn(223,69,207,79,RGB(17,23,25));
+        csR(221,102,13,2,RGB(12,18,22));
+        break; }
+
     case CB_RATE: {   // the approval board: her line climbs for years, then falls off a cliff (drawn a bit more every frame)
         csR(0,12,SW,104,RGB(2,3,6)); csR(14,18,212,92,RGB(1,2,4));
         for(int gy=30;gy<=90;gy+=15) csR(20,gy,200,1,RGB(4,6,9));
@@ -185,6 +212,14 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         break; }
     default: csR(0,12,SW,104,0); break;
     }
+}
+static void csWardFront(void){ // near-side metal rail/bed frame overlays the patient
+    csR(116,101,99,3,RGB(5,10,15));
+    csR(120,100,90,2,RGB(25,29,29));
+    csR(118,89,3,13,RGB(12,19,23)); csR(211,89,3,13,RGB(12,19,23));
+    csR(118,88,96,2,RGB(26,30,30));
+    csR(153,90,2,10,RGB(17,23,25)); csR(178,90,2,10,RGB(17,23,25));
+    csR(123,104,89,3,RGB(7,11,15)); csR(136,107,62,2,RGB(12,18,22));
 }
 static void csDash(int t){   // CB_CAR, after the figure: the dashboard hides her lap; the wheel, the radio's glow
     csR(0,88,SW,28,RGB(4,4,6)); csR(0,88,SW,2,RGB(11,11,15)); csD(112,114,25,RGB(9,9,13)); csD(112,114,21,RGB(4,4,6)); csR(100,104,24,4,RGB(9,9,13));
@@ -346,6 +381,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
       csPbx[1][0]=csPbx[0][0]; csPbx[1][1]=csPbx[0][1]; csPbx[1][2]=csPbx[0][2]; csPbx[1][3]=csPbx[0][3]; csPbx[0][0]=x0; csPbx[0][1]=y0; csPbx[0][2]=x1; csPbx[0][3]=y1;
       if(!csPart){ csPbx[1][0]=x0; csPbx[1][1]=y0; csPbx[1][2]=x1; csPbx[1][3]=y1; } }
     if(b->bg==CB_STUDIO) csTable(b);
+    if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) csWardFront();
     if(b->bg==CB_CAR) csDash(t);
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);

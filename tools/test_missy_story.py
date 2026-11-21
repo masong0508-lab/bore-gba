@@ -7,6 +7,7 @@ cut = Path("source/cutscene.h").read_text(encoding="utf-8")
 shots = Path("source/csshot.h").read_text(encoding="utf-8")
 story = Path("source/story.h").read_text(encoding="utf-8")
 house = Path("source/house.h").read_text(encoding="utf-8")
+art = Path("source/csart.h").read_text(encoding="utf-8")
 save = Path("source/savegame.h").read_text(encoding="utf-8")
 scenes = {}
 for match in re.finditer(r"static const CsBeat csS(\d+)\[\]=\{([\s\S]*?)^\};", cut, re.M):
@@ -62,6 +63,11 @@ for needle in [
 assert cut.count("CF_AUTO,250") == 1, "the original tracker song must start once"
 assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")
+assert "static void csWardPatient(" in art
+assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
+assert "static void csWardFront(void)" in cut
+assert "if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) csWardFront()" in cut
+assert cut.index("csFtrack=0;") < cut.index("csWardFront();")  # bed rail is an occluder, after patient
 assert "csShotFind(int t)" in shots and "lastT=-1,nextT=-1" in shots
 assert "while(keyNow()&(K_A|K_B|K_START)) vsync()" in cut
 print(f"BORE Missy cutscene timing/shot integrity: PASS ({len(scenes)} scenes, {count} camera shots)")
