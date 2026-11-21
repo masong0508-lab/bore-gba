@@ -209,6 +209,23 @@ int main(int argc,char **argv){
         }
     }
     fclose(scenicStats);
+    // Same world/camera in reduced Old-3DS-detail mode. Capture both
+    // instead of claiming the adaptive path helps based on arithmetic.
+    ggExpScenicQuality=2;
+    ggExpRenderMode(guarded.img,1);
+    int fullQualityProps=ggExpScenicVisible;
+    ggExpScenicQuality=1;
+    ggExpRenderMode(guarded.img,1);
+    int budgetQualityProps=ggExpScenicVisible;
+    if(!ggCaptureSave(argv[1],"scenery_old3ds_quality.ppm"))
+        return 20;
+    if(budgetQualityProps>fullQualityProps){
+        fprintf(stderr,
+                "SCENERY LOD FAIL: fallback drew %d instead of %d props\n",
+                budgetQualityProps,fullQualityProps);
+        return 21;
+    }
+    ggExpScenicQuality=2;
     // Playable POV demonstration of the enhanced low-cost 2x grid.
     ggExplore.active=1;ggExplore.px=64*256+128;
     ggExplore.py=65*256+128;ggExplore.angle=0;ggExplore.frame=15;

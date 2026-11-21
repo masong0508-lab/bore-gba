@@ -60,6 +60,20 @@ int main(void){
               ggFilmScenicHeight(i)<=23,"invalid prop height");
     check(GG_SCENE_RADIUS<=10&&GG_SCENE_LIMIT<=84,
           "unbounded per-frame neighborhood or draw budget");
+    check(ggFilmScenicBudget(2,0)==GG_SCENE_LIMIT&&
+          ggFilmScenicBudget(2,1)==34&&
+          ggFilmScenicBudget(1,0)==56&&
+          ggFilmScenicBudget(0,1)==18,
+          "platform frame-clock quality is not controlling scenery cost");
+    for(int quality=0;quality<3;quality++){
+        check(ggFilmScenicRange(quality,0)<=GG_SCENE_RADIUS&&
+              ggFilmScenicRange(quality,1)<=7&&
+              ggFilmScenicBudget(quality,0)<=GG_SCENE_LIMIT,
+              "adaptive scenery exceeded hardware bounded draw budget");
+    }
+    check(ggFilmScenicBudget(0,0)<ggFilmScenicBudget(1,0)&&
+          ggFilmScenicBudget(1,0)<ggFilmScenicBudget(2,0),
+          "quality fallback is not monotone under pressure");
     check(ggFilmScenicFarClass(GG_SCENE_OAK)!=
           ggFilmScenicFarClass(GG_SCENE_LAMP)&&
           ggFilmScenicFarClass(GG_SCENE_BANNER)!=

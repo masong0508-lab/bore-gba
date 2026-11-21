@@ -267,6 +267,7 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 // The fixed near-region scan is at most 441 cells, with at most 84 props.
 // No extra per-pixel world search, meshes, textures, heap or framebuffer.
 static int ggExpSceneryEnabled=1;
+static int ggExpScenicQuality=2; // normal highest detail; platform adjusts
 static int ggExpScenicVisible;
 static int ggExpScenicForegroundPass;
 static void ggExpScenicShadow(u8*out,int x,int foot,int half,int depth){
@@ -517,8 +518,10 @@ static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
         int angle=ggExplore.angle&255;
         int cosine=ggExpCos[angle],sine=ggExpSin[angle];
         int cameraGround=ggExpGround(world[cy][cx]);
-        int radius=ggExpScenicCoarse?7:GG_SCENE_RADIUS;
-        int budget=ggExpScenicCoarse?34:GG_SCENE_LIMIT;
+        int radius=ggFilmScenicRange(ggExpScenicQuality,
+                                      ggExpScenicCoarse);
+        int budget=ggFilmScenicBudget(ggExpScenicQuality,
+                                       ggExpScenicCoarse);
         ggExpScenicCount=0;
         for(int ty=cy-radius;ty<=cy+radius;ty++){
             if((unsigned)ty>=WH)continue;

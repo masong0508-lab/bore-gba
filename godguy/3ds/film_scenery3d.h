@@ -12,6 +12,22 @@ enum {
     GG_SCENE_COLUMN,GG_SCENE_REEDS,GG_SCENE_CART,GG_SCENE_STALL
 };
 enum {GG_SCENE_RADIUS=10,GG_SCENE_LIMIT=84};
+// Deterministic scene LOD responds to the 3DS port's existing
+// frame-clock quality decision. The world, gameplay and cinematic
+// projection do not change; only small decorative scenery is omitted.
+// New 3DS/host preview retains full 84 props; Old 3DS has a bounded
+// 56-prop film budget and lower draw distances. Emergency mode still
+// preserves silhouettes without increasing RAM or allocations.
+static inline int ggFilmScenicBudget(int quality,int coarse){
+    if(quality<=0)return coarse?18:36;
+    if(quality==1)return coarse?26:56;
+    return coarse?34:GG_SCENE_LIMIT;
+}
+static inline int ggFilmScenicRange(int quality,int coarse){
+    if(quality<=0)return coarse?5:7;
+    if(quality==1)return coarse?6:9;
+    return coarse?7:GG_SCENE_RADIUS;
+}
 // 24 bytes x 84 = 2,016 bytes, reused within this rendered film frame.
 // No dynamic allocation, additional framebuffer or repeated map scan.
 typedef struct {

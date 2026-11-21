@@ -308,6 +308,9 @@ void shimPresent(void){
     gg3dsClockFrame(&frameClock,plat_ms(),&n,&k,&quality);
     shimMusicTicks=k;
     gg3dsGlobeQuality=quality;  // New 3DS detail yields to audio under load
+    // Fixed scenic LOD budgets follow this existing hardware/frame-clock
+    // decision; never steal audio time for decorative foliage.
+    ggExpScenicQuality=gg3dsGlobeQuality?2:1;
     shimMix(sndBuf,n);
     int tc,bc;
     shimFilmFullscreen=sceneClip!=0;
