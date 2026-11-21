@@ -13,6 +13,9 @@ def nds(name, bad_crc=False):
     data = bytearray(0x8000)
     data[0x0C:0x10] = b"GGDE"
     data[0x12] = 3 if name == "godguy_dsi_mode.nds" else 0
+    if data[0x12] == 3:
+        struct.pack_into("<I", data, 0x1B0, 0xFFFFFFFF)
+        struct.pack_into("<I", data, 0x210, len(data))
     struct.pack_into("<4I", data, 0x20, 0x4000, 0x02000800,
                      0x02000000, 0x1000)
     struct.pack_into("<4I", data, 0x30, 0x6000, 0x02380000,
