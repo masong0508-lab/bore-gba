@@ -27,10 +27,10 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
     // dock pilings, agricultural frames, ruin fragmentation and
     // the statue pedestal should never be plain blank skyscrapers.
     if(build==B_FARM)
-        return height<=5&&((u&31)<4||((u>>4)&1)&&height==3)?
+        return height<=5&&((u&31)<4||(((u>>4)&1)&&height==3))?
                GG_FACADE_BRACE:GG_FACADE_WALL;
     if(build==B_DOCK)
-        return height<=6&&(u<16||u>238||((u>>6)&1)&&height==5)?
+        return height<=6&&(u<16||u>238||(((u>>6)&1)&&height==5))?
                GG_FACADE_BRACE:GG_FACADE_WALL;
     if(build==B_RUIN){
         if(height>=9&&((u*5+height*7)&31)<13)
