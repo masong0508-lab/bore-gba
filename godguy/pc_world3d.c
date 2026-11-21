@@ -26,6 +26,17 @@ static int filmActorLeftOf(int a,int b){return a<b;}
 static struct { u8 before[32],page[256*192],after[32]; } picture;
 #define uiBuf picture.page
 static u8 fmvSlots[32];
+// Real firmware uses the decompressed 40x48 actor cels. Standalone geometry
+// testing uses a minimal projected rectangle so it can verify the camera,
+// animation timeline and memory bounds without depending on art generator.
+static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
+    (void)pose;(void)flip;
+    if(h<0||h>100)return;
+    for(int y=feet-h;y<feet;y++)
+        for(int px=x-h/5;px<x+h/5;px++)
+            if(y>=FILM_TOP&&y<FILM_BOTTOM&&px>=0&&px<256)
+                uiBuf[y*256+px]=(u8)(who+34);
+}
 #include "source/story_world3d.h"
 
 static void require(int condition,const char *why){
