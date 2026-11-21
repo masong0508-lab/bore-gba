@@ -31,6 +31,26 @@ int main(void){
             assert(msNightUsed(stored)==msNightUsed(saved));
         }
     }
+    // Boundary matrix: before 100 is safe; at 100, the first crisis grants
+    // exactly one final night and any subsequent crisis is terminal.
+    for(unsigned night=0;night<=1;night++) for(unsigned pressure=0;pressure<=101;pressure++){
+        unsigned outcome=msPressureOutcome(pressure,night);
+        assert(outcome==(pressure<100u?0u:(night?2u:1u)));
+    }
+    assert(msPressureOutcome(99,0)==0u);
+    assert(msPressureOutcome(100,0)==1u);
+    assert(msPressureOutcome(100,1)==2u);
+    // The final night is persisted independently of the pressure band.
+    for(unsigned mem=0;mem<256;mem++){
+        unsigned used=msNightUsed(mem);
+        unsigned crisis=msPressureOutcome(100u,used);
+        assert(crisis==(used?2u:1u));
+        if(!used){
+            unsigned extended=msPressurePack(mem|MS_ONE_MORE_NIGHT,50u);
+            assert(msNightUsed(extended));
+            assert(msPressureOutcome(100u,msNightUsed(extended))==2u);
+        }
+    }
     assert(msPressureEase(0,15)==0u);
     assert(msPressureEase(20,15)==5u);
     assert(msPressureEase(90,10)==80u);
