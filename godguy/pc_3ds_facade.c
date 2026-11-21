@@ -18,6 +18,20 @@ int main(void){
     check(ggFilmFacadeFeature(B_HALL,55,22)==GG_FACADE_GLASS&&
           ggFilmFacadeFeature(B_HALL,55,10)!=GG_FACADE_GLASS,
           "stone halls lost their distinct taller window placements");
+    int hallGlassWidth=0,houseGlassWidth=0,hallGlassHeight=0;
+    for(int u=0;u<256;u++){
+        if(ggFilmFacadeFeature(B_HALL,u,22)==GG_FACADE_GLASS)
+            hallGlassWidth++;
+        if(ggFilmFacadeFeature(B_HOUSE,u,10)==GG_FACADE_GLASS)
+            houseGlassWidth++;
+    }
+    for(int v=0;v<=40;v++)
+        if(ggFilmFacadeFeature(B_HALL,55,v)==GG_FACADE_GLASS)
+            hallGlassHeight++;
+    check(hallGlassWidth>15&&hallGlassWidth<=68&&
+          houseGlassWidth>15&&houseGlassWidth<=68&&
+          hallGlassHeight>=3&&hallGlassHeight<=7,
+          "glowing window panel grew into an implausibly large billboard");
     check(ggFilmFacadeFeature(B_HOUSE,125,6)==GG_FACADE_DOOR&&
           ggFilmFacadeFeature(B_HOUSE,125,11)==GG_FACADE_FRAME,
           "central wood doorway and lintel not physically separated");
