@@ -11,6 +11,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "explore3d.h"
 #include "hybrid3d.h"
 #include "population3d.h"
+#include "chronicles3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
@@ -26,6 +27,7 @@ static int ggHybridPicking;
 static u32 ggHybridSelectedId;
 static int ggHybridSelectedIndex=-1;
 static int ggExpRenderValid;
+static int ggChronHintShown;
 static void ggExpRemember(int i){
     if(!ggHybridEligible(i))return;
     ggHybridSelectedId=crId[i];
@@ -94,7 +96,41 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                     ((previousRaw&(KEY_SELECT|KEY_R))!=(KEY_SELECT|KEY_R));
     int pressedPick=((raw&(KEY_SELECT|KEY_X))==(KEY_SELECT|KEY_X))&&
                     ((previousRaw&(KEY_SELECT|KEY_X))!=(KEY_SELECT|KEY_X));
+    int pressedChron=((raw&(KEY_SELECT|KEY_Y))==(KEY_SELECT|KEY_Y))&&
+                     ((previousRaw&(KEY_SELECT|KEY_Y))!=(KEY_SELECT|KEY_Y));
     previousRaw=raw;
+    // A wholly separate, unlockable 3DS story. The main story stays on
+    // the original 2D tile UI and neither story's save format is changed.
+    if(ggChron.active){
+        if(ggChronStep(raw)){
+            ggChron.active=0;
+            ggExpFinish();
+            ggExpMessage("CHRONICLES RETREAT: 2D STORY RESTORED");
+        }else{
+            camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
+            camY=ggExpClamp((ggExplore.py>>8)*8-96,0,WH*8-192);
+        }
+        *held=0;*tx=*ty=0;return;
+    }
+    if(pressedChron&&!ggExplore.active&&!ggHybridPicking){
+        if(ggExpCanEnter()){
+            int cx=ggExpClamp((camX+128)>>3,1,WW-2);
+            int cy=ggExpClamp((camY+96)>>3,1,WH-2);
+            int entered=ggChronBegin(cx,cy,paused);
+            if(entered>0){
+                paused=1;ggExpRenderValid=0;
+                ggExpMessage("ASHEN CHRONICLES: 3DS CAMPAIGN ENTERED");
+            }else if(entered<0)
+                ggExpMessage("NEXT CHRONICLE LOCKED: ADVANCE THE 2D STORY");
+            else ggExpMessage("CHRONICLES LOCKED: COMPLETE STORY CHAPTER 3");
+        }
+        *held=0;*tx=*ty=0;return;
+    }
+    if(!ggChronHintShown&&ggChronReady()&&!ggExplore.active&&
+       ggExpCanEnter()&&!toastT){
+        ggChronHintShown=1;
+        ggExpMessage("3DS CHRONICLES UNLOCKED: SELECT+Y TO ENTER");
+    }
     if(pressedPick){
         if(ggExplore.active)ggExpFinish();
         if(ggExpCanEnter()){
@@ -206,9 +242,11 @@ void shimPresent(void){
         int dirty=!ggExpRenderValid||tc||
                   ggExplore.px!=lastX||ggExplore.py!=lastY||
                   ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
-                  ggExplore.feedback!=lastFx||sky!=lastSky;
+                  ggExplore.feedback!=lastFx||sky!=lastSky||
+                  (ggChron.active&&(ggChron.dirty||!(ggChron.frame&3)));
         if(dirty){
             ggExpRender(topBuf);
+            if(ggChron.active)ggChronDraw(topBuf);
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;
             lastA=ggExplore.angle;lastEdits=ggExplore.edits;
