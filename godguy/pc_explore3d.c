@@ -817,6 +817,12 @@ int main(void){
           ggSagaGuestStyle("VARRO")==2&&
           ggSagaGuestStyle("NARRATOR")==-1,
           "film director lost stable recurring speaker identities");
+    int beforeFilmMode=ggSaga.mode,beforeFilmAct=ggChron.act;
+    ggSaga.mode=GG_SAGA_OPEN;ggChron.act=0;
+    check(ggSagaConversationGuest(0)==0&&
+          ggSagaConversationGuest(1)==0,
+          "Mira vanished while the narrator continued her scene");
+    ggSaga.mode=beforeFilmMode;ggChron.act=beforeFilmAct;
     int speakerX,speakerY;
     check(ggSagaGuestTile(shotX,shotY,&speakerX,&speakerY)&&
           ggChronLand(speakerX>>8,speakerY>>8),

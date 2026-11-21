@@ -427,7 +427,7 @@ static const GgSagaBeat *ggSagaCurrentBeat(int n){
 // the SAME live settlement, coast or expedition post. No new framebuffers.
 typedef struct {
     int mode,act,beat,eventX,eventY,anchorX,anchorY;
-    int angle,distance,valid;
+    int landmarkX,landmarkY,angle,distance,valid;
 } GgSagaShot;
 static GgSagaShot ggSagaShot;
 
@@ -479,22 +479,27 @@ static int ggSagaStagingCell(int landmarkX,int landmarkY,
 static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
     int shot=beat/2,tx,ty;
     ggSagaLocation(beat,&tx,&ty);
-    // When a landmark is a house, choose the nearest walkable foreground
-    // cell; keep the real house in the filmed vista behind the actors.
-    if(!ggSagaStagingCell(tx,ty,&tx,&ty)){
-        int px=ggExplore.px>>8,py=ggExplore.py>>8;
-        if(ggChronLand(px,py)){tx=px;ty=py;}
-    }
-    *anchorX=tx;*anchorY=ty;
-    if(!ggSagaShot.valid||ggSagaShot.mode!=ggSaga.mode||
+    int changed=!ggSagaShot.valid||ggSagaShot.mode!=ggSaga.mode||
        ggSagaShot.act!=ggChron.act||ggSagaShot.beat!=shot||
        ggSagaShot.eventX!=ggSaga.eventX||
        ggSagaShot.eventY!=ggSaga.eventY||
-       ggSagaShot.anchorX!=tx||ggSagaShot.anchorY!=ty){
+       ggSagaShot.landmarkX!=tx||ggSagaShot.landmarkY!=ty;
+    if(changed){
+        int landmarkX=tx,landmarkY=ty;
+        // Scene staging is determined ONCE PER SHOT, not per frame.
+        // This preserves the same actor position for both dialogue
+        // lines and avoids repeated settlement searches in the render
+        // loop on original 3DS hardware.
+        if(!ggSagaStagingCell(tx,ty,&tx,&ty)){
+            int px=ggExplore.px>>8,py=ggExplore.py>>8;
+            if(ggChronLand(px,py)){tx=px;ty=py;}
+        }
         ggSagaShot.valid=1;ggSagaShot.mode=ggSaga.mode;
         ggSagaShot.act=ggChron.act;ggSagaShot.beat=shot;
         ggSagaShot.eventX=ggSaga.eventX;
         ggSagaShot.eventY=ggSaga.eventY;
+        ggSagaShot.landmarkX=landmarkX;
+        ggSagaShot.landmarkY=landmarkY;
         ggSagaShot.anchorX=tx;ggSagaShot.anchorY=ty;
         ggSagaShot.angle=(shot*51+ggChron.act*23+32)&255;
         ggSagaShot.distance=3;
@@ -514,6 +519,10 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 found=1;
             }
     }
+    // Never recompute a shot's stage after its first frame. That would
+    // allow crowd movement to make the movie's actors jump locations.
+    tx=ggSagaShot.anchorX;ty=ggSagaShot.anchorY;
+    *anchorX=tx;*anchorY=ty;
     int a=ggSagaShot.angle;
     // Ease over the WHOLE pair: beat boundary never snaps the dolly
     // backward to its starting point. No floating-point math.
@@ -583,6 +592,24 @@ static int ggSagaGuestStyle(const char *voice){
 }
 // A single real-world staging rule is shared by guest cels and scene
 // props. The preferred side prevents objects from occupying a speaker.
+static int ggSagaConversationGuest(int beat){
+    int style=ggSagaGuestStyle(ggSagaCurrentBeat(beat)->voice);
+    if(style>=0)return style;
+    // The narrator/player doesn't cause their conversation partner to
+    // blink out of existence. Preserve the paired shot's named actor.
+    int first=beat&~1,count=ggSagaBeatCount();
+    for(int k=first;k<first+2&&k<count;k++){
+        style=ggSagaGuestStyle(ggSagaCurrentBeat(k)->voice);
+        if(style>=0)return style;
+    }
+    // If both beats are narration, retain the previous scene's known
+    // actor instead of spawning an anonymous replacement.
+    for(int k=first-1;k>=0&&k>=first-2;k--){
+        style=ggSagaGuestStyle(ggSagaCurrentBeat(k)->voice);
+        if(style>=0)return style;
+    }
+    return -1;
+}
 static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
                           int *worldX,int *worldY){
     int a=ggSagaShot.angle;
@@ -747,8 +774,7 @@ static void ggSagaDraw(u8 *out){
     // protagonist, with a tiny hand-gesture cycle during spoken lines.
     // The guest uses the very same film perspective and line-of-sight.
     if(ggSaga.mode!=GG_SAGA_CHOICE){
-        const GgSagaBeat *spoken=ggSagaCurrentBeat(index);
-        int style=ggSagaGuestStyle(spoken->voice);
+        int style=ggSagaConversationGuest(index);
         int worldX,worldY,x,y,size;
         if(style>=0&&ggSagaGuestTile(stageX,stageY,&worldX,&worldY)&&
            ggSagaProjectActor(worldX,worldY,&x,&y,&size))
