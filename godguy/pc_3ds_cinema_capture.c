@@ -162,7 +162,7 @@ int main(int argc,char **argv){
     scenicStats=fopen(sceneryMetrics,"wb");
     if(!scenicStats)return 13;
     fprintf(scenicStats,
-            "biome,visible_props,changed_pixels,host_cpu_ms_per_frame,resolution\n");
+            "biome,visible_props,changed_pixels,foreground_pixels_y155plus,host_cpu_ms_per_frame,resolution\n");
     for(int scene=0;scene<8;scene++){
         for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
             world[y][x]=(u8)biome[scene];
@@ -189,17 +189,21 @@ int main(int argc,char **argv){
         double scenicMs=(double)(clock()-scenicStart)*1000.0/
                         CLOCKS_PER_SEC;
         if(!ggCaptureSave(argv[1],onName))return 15;
-        int difference=0;
+        int difference=0,foregroundPixels=0;
         for(int i=0;i<400*240*3;i+=3)
-            if(memcmp(unmaskedFrame+i,guarded.img+i,3))difference++;
+            if(memcmp(unmaskedFrame+i,guarded.img+i,3)){
+                difference++;
+                if((i/3)/400>=155)foregroundPixels++;
+            }
         if(difference<minScenicPixels)minScenicPixels=difference;
         visibleProps+=ggExpScenicVisible;
-        fprintf(scenicStats,"%d,%d,%d,%.4f,400x240\n",
-                scene,ggExpScenicVisible,difference,scenicMs);
-        if(difference<110||ggExpScenicVisible<4){
+        fprintf(scenicStats,"%d,%d,%d,%d,%.4f,400x240\n",
+                scene,ggExpScenicVisible,difference,foregroundPixels,scenicMs);
+        if(difference<110||ggExpScenicVisible<4||
+           ((scene==0||scene==5||scene==7)&&foregroundPixels<250)){
             fprintf(stderr,
-                "SCENERY CAPTURE FAIL: empty biome %d (%d scenic pixels, %d projected objects)\n",
-                scene,difference,ggExpScenicVisible);
+                "SCENERY CAPTURE FAIL: sparse biome %d (%d scenic pixels, %d projected objects, %d foreground pixels)\n",
+                scene,difference,ggExpScenicVisible,foregroundPixels);
             fclose(scenicStats);
             return 16;
         }

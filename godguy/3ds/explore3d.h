@@ -268,8 +268,10 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 // No extra per-pixel world search, meshes, textures, heap or framebuffer.
 static int ggExpSceneryEnabled=1;
 static int ggExpScenicVisible;
+static int ggExpScenicForegroundPass;
 static void ggExpScenicShadow(u8*out,int x,int foot,int half,int depth){
-    if(ggExpScenicCoarse||foot<1||foot>=240)return;
+    if(ggExpScenicCoarse||ggExpScenicForegroundPass||
+       foot<1||foot>=240)return;
     int y=foot-1;
     int start=ggExpClamp(x-half,0,400);
     int end=ggExpClamp(x+half,0,400);
@@ -308,14 +310,18 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
                           71+band*2,110+band*3,91);
             }
         }else{
-            ggExpRect(out,x-w/2,y+h/7,w,h/3,
-                      foliageR,foliageG,foliageB);
-            ggExpRect(out,x-w*2/5,y,w*4/5,h/2,
+            // Layered canopy lobes: a bright upper crown and darker rim,
+            // with staggered edges rather than three floating boxes.
+            ggExpRect(out,x-w*2/5,y+h/9,w*4/5,h/3,
                       54,109,76);
-            ggExpRect(out,x-w/3,y+h/12,w/2,h/6,
-                      85,135,91);
-            ggExpRect(out,x-w/2,y+h/3,w/5,h/6,
-                      40,75,62);
+            ggExpRect(out,x-w/2,y+h/4,w,h/4,
+                      foliageR,foliageG,foliageB);
+            ggExpRect(out,x-w*2/5,y+h*2/5,w*4/5,h/6,
+                      39,81,63);
+            ggExpRect(out,x-w/3,y+h/12,w/2,h/7,
+                      88,139,96);
+            ggExpRect(out,x-w*3/7,y+h/3,w/5,h/9,
+                      46,91,70);
         }
     }else if(kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
              kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){
@@ -456,10 +462,13 @@ static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
                 if(x<-60||x>=460)continue;
                 int feet=ggFilmProjectFootY(forward,cameraGround,
                                             ggExpGround(world[ty][tx]));
-                if(feet<70||feet>=189)continue;
+                // Nearby trees and stalls must not vanish because their bases
+                // enter the lower viewport. The HUD clips them naturally.
+                if(feet<70||feet>=238)continue;
                 int height=ggFilmScenicHeight(kind)*12*256/(forward+256);
                 if(height<3)continue;
-                if(height>82)height=82;
+                int maxHeight=ggExpScenicCoarse?64:96;
+                if(height>maxHeight)height=maxHeight;
                 ggExpScenicItems[ggExpScenicCount++]=(GgFilmScenicItem){
                     x,feet,height,forward,kind,key
                 };
@@ -473,6 +482,7 @@ compiled:
     // Painter order is physical depth, not map scanning order.
     // The short foreground repeat reads this SAME fixed queue; it never
     // rescans, rehashes or reallocates the live game world.
+    ggExpScenicForegroundPass=foreground;
     for(int i=0;i<ggExpScenicCount;i++){
         const GgFilmScenicItem *p=&ggExpScenicItems[i];
         if(foreground&&
@@ -481,6 +491,7 @@ compiled:
         ggExpScenicProp(out,p->kind,p->x,p->foot,p->height,
                         p->depth,p->key);
     }
+    ggExpScenicForegroundPass=0;
     ggExpFilmDrawDepth=0;
 }
 static void ggExpRenderMode(u8 *top,int cinematic){
