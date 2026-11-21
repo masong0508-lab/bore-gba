@@ -19,6 +19,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "reign_saga3d.h"
 #include "reign_ambient3d.h"
 #include "reign_map3d.h"
+#include "mode_input3d.h"
 #include "world_music3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
@@ -36,6 +37,8 @@ static u32 ggHybridSelectedId;
 static int ggHybridSelectedIndex=-1;
 static int ggExpRenderValid;
 static int ggChronHintShown;
+static GgModeInputGuard gg3dModeInput;
+static int gg3dPhysicalKeys;
 static void ggExpRemember(int i){
     if(!ggHybridEligible(i))return;
     ggHybridSelectedId=crId[i];
@@ -78,6 +81,9 @@ static int ggExpCanEnter(void){
            !sceneClip&&!view3d&&!zBmp&&dlgPend<0;
 }
 static void ggExpFinish(void){
+    // The exit button must NOT trigger another action when control
+    // resumes in the 2D game (e.g. START opening its pause menu).
+    ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
     if(ggExplore.actorId){
         int i=ggHybridResolve();
         if(i>=0){ggHybridAfterSave();ggExpRemember(i);}
@@ -97,7 +103,8 @@ static void ggExpMessage(const char *m){
 void shimInput(int frame,int*held,int*tx,int*ty){
     (void)frame;
     plat_setCinema(sceneClip!=0);
-    int raw=plat_keys(tx,ty);
+    gg3dPhysicalKeys=plat_keys(tx,ty);
+    int raw=ggModeInputFilter(&gg3dModeInput,gg3dPhysicalKeys);
     static int previousRaw;
     int pressedTouch=(raw&KEY_TOUCH)&&!(previousRaw&KEY_TOUCH);
     int pressedView=((raw&(KEY_SELECT|KEY_R))==(KEY_SELECT|KEY_R))&&
@@ -170,6 +177,9 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             int cy=ggExpClamp((camY+96)>>3,1,WH-2);
             int entered=ggChronBegin(cx,cy,paused);
             if(entered>0){
+                // Suppress the launch SELECT+Y until each key is
+                // released: it cannot issue a command to the new mode.
+                ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
                 paused=1;ggExpRenderValid=0;
                 ggReignBegin();ggReign.lastKeys=raw;
                 ggQuestBegin();ggQuest.lastKeys=raw;
@@ -209,6 +219,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             if(i>=0){
                 ggExpRemember(i);
                 if(ggHybridBegin(i,paused)){
+                    ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
                     paused=1;
                     ggHybridPicking=0;
                     ggExpRenderValid=0;

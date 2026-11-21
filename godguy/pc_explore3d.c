@@ -100,6 +100,7 @@ static int politicalDirty;
 #define GG_AMBIENT_SAVE_PATH "/tmp/godguy_ambient_pc_test.dat"
 #include "3ds/reign_ambient3d.h"
 #include "3ds/reign_map3d.h"
+#include "3ds/mode_input3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -110,7 +111,30 @@ static unsigned long hash(void){
     return h;
 }
 int main(void){
-    for(int y=0;y<WH;y++)for(int x=0;x<WW;x++)world[y][x]=T_GRASS;
+    // An entry combo must not become a save or council command on the
+    // following frame, and START must not pause the 2D game on exit.
+    GgModeInputGuard guard={0};
+    int enter=KEY_SELECT|KEY_R;
+    check(ggModeInputFilter(&guard,enter)==enter,
+          "unblocked mode-entry keys should be readable");
+    ggModeInputTransition(&guard,enter);
+    check(ggModeInputFilter(&guard,enter)==0,
+          "held 3D entry combo leaked into the gameplay input");
+    check(ggModeInputFilter(&guard,KEY_R)==0,
+          "partial combo release prematurely retriggered a shoulder");
+    check(ggModeInputFilter(&guard,KEY_R|KEY_A)==KEY_A,
+          "new attack key was blocked by held transition button");
+    check(ggModeInputFilter(&guard,0)==0,
+          "release did not clear transition suppression");
+    check(ggModeInputFilter(&guard,KEY_R)==KEY_R,
+          "a genuinely fresh press remained blocked");
+    ggModeInputTransition(&guard,KEY_START);
+    check(ggModeInputFilter(&guard,KEY_START)==0,
+          "3D exit START leaked to the original 2D pause menu");
+    check(ggModeInputFilter(&guard,0)==0&&
+          ggModeInputFilter(&guard,KEY_START)==KEY_START,
+          "released START did not become usable again");
+    for(int y=0;y<WH;y>for(int x=0;x<WW;x++)world[y][x]=T_GRASS;
     memset(guarded.first,0x5a,sizeof guarded.first);
     memset(guarded.last,0xc3,sizeof guarded.last);
     ggExpBegin(64,64,0);
