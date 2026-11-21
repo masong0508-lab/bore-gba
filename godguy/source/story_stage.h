@@ -58,6 +58,10 @@ static void filmScoreTurn(const FilmBeat *beat){
 // film archive. This affects playback only, never world save data.
 static int filmBonusIndex=-1;
 #endif
+// One continuous clock across all staged shots in a chapter. An actor's
+// gestures use local beat time; smoke, rain, wind and flames must not
+// visibly jump backward after every edit. No new allocation.
+static int filmSceneryClock;
 static int filmReelTicks(const FilmReel *reel){
     int ticks=0;
     for(int i=0;i<reel->count;i++) ticks+=reel->beats[i].seconds*FILM_SECOND;
@@ -180,6 +184,22 @@ static int filmEase(int elapsed,int total){
     int u=elapsed>=total?256:(elapsed*256)/total;
     return (u*u*(768-2*u))>>16;
 }
+#ifndef __3DS__
+static int filmDSSpeechEnd(const FilmBeat *beat){
+    static const FilmBeat *last;
+    static int end;
+    if(beat!=last){
+        last=beat;
+        int n=0;
+        if(beat->line)
+            while(beat->line[n]&&n<41)n++;
+        end=140+n*5;
+        int limit=beat->seconds*FILM_SECOND-55;
+        if(end>limit)end=limit;
+    }
+    return end;
+}
+#endif
 static int filmPulse(int phase,int range){
     int at=phase%(2*range);
     return at<range?at:2*range-at;
@@ -779,7 +799,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #elif defined(__3DS__)
     if(filmBonusIndex<0)filmWorldContinuity(clip,beat,elapsed);
 #else
-    filmWorldContinuity(clip,beat,elapsed);
+    filmWorldContinuity(clip,beat,filmSceneryClock);
 #endif
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // Environment, weather, tree sway and background people continue
@@ -792,7 +812,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     filmAtmosphere(beat,elapsed);
     filmStageLight(beat,elapsed);
 #else
-    filmAtmosphere(beat,elapsed);
+    filmAtmosphere(beat,filmSceneryClock);
 #endif
 
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
@@ -806,7 +826,26 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         if(elapsed>30&&elapsed<310)leadPose=3;
         if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
            elapsed>55&&elapsed<310)otherPose=3;
-    }else if(beat->line&&elapsed>=130&&elapsed<220)leadPose=3;
+    }else if(beat->line&&elapsed>=108&&elapsed<
+#ifdef __3DS__
+              220
+#else
+              filmDSSpeechEnd(beat)
+#endif
+             ){
+#ifdef __3DS__
+        leadPose=3;
+#else
+        // Two native 28x34 speech keys alternate; no fake reaching while
+        // a character speaks. A listener may blink/react after the line.
+        leadPose=(elapsed/12)&1?4:0;
+#endif
+    }
+#ifndef __3DS__
+    if(paired&&beat->line&&elapsed>=filmDSSpeechEnd(beat)+12&&
+       elapsed<filmDSSpeechEnd(beat)+65)
+        otherPose=5;
+#endif
 #ifdef __3DS__
     leadPose=filmActingPose(beat,elapsed,1,action);
     otherPose=filmActingPose(beat,elapsed,0,action);
@@ -843,6 +882,7 @@ static int fmvRenderAt(const FmvClip *clip,int elapsed){
         return 1;
     }
     elapsed-=baked;
+    filmSceneryClock=elapsed;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     ggFilmWorldClock=elapsed;
 #endif
