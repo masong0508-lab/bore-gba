@@ -601,9 +601,10 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     // market furniture floating over a hillside or sinking into it.
     int z=ggMeshGroundAtQ8(x,y);
     (void)ground;
-    if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
-       kind==GG_SCENE_SHRUB||kind==GG_SCENE_STALL||
-       kind==GG_SCENE_CART)
+    if(quality>=2&&
+       (kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
+        kind==GG_SCENE_SHRUB||kind==GG_SCENE_STALL||
+        kind==GG_SCENE_CART))
         ggMeshContactShadow(m,x,y,
                              kind==GG_SCENE_SHRUB?30:
                              kind==GG_SCENE_STALL?55:70,
@@ -736,6 +737,25 @@ typedef struct {
 // 84 entries of an x/y tile scan. This prevents an empty right-hand
 // camera view despite thousands of trees left behind the camera.
 static GgMeshVisibleProp ggMeshVisibleProps[GG_SCENE_LIMIT];
+// Test the ACTUAL jittered center of a prop, not the tile center.
+// Apparent half-width allows crowns, awnings and carts to cross a screen
+// edge without popping. Offscreen scenery never consumes the fixed queue.
+// Entirely integer math; no extra allocations or per-frame world scans.
+static inline int ggMeshSceneryVisible(const GgMeshContext*m,
+                                       int wx,int wy,int radius,
+                                       int *forwardOut){
+    int dx=wx-m->cx,dy=wy-m->cy;
+    int forward=(int)(((int64_t)dx*m->cosine+
+                        (int64_t)dy*m->sine)/4096);
+    int side=(int)((-(int64_t)dx*m->sine+
+                    (int64_t)dy*m->cosine)/4096);
+    if(forwardOut)*forwardOut=forward;
+    if(forward<192||forward>11*256)return 0;
+    int64_t across=(int64_t)(side<0?-side:side)*m->focal;
+    int64_t visible=(int64_t)forward*(m->w/2+14)+
+                    (int64_t)radius*m->focal;
+    return across<=visible;
+}
 static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     // New 3DS gets genuine 400x240 geometry even in exploration.
     // Under frame-clock pressure (or on Old 3DS), the SAME renderer
@@ -801,7 +821,12 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                 m->material=oldMaterial;m->materialSeed=oldSeed;
             }else{
                 uint32_t scenic=ggFilmScenicHash(tx,ty,7);
-                if(((scenic>>24)&7u)>=5u||forward<192)continue;
+                if(((scenic>>24)&7u)>=5u)continue;
+                int propX=tx*256+128+(int)((scenic>>12)&63u)-32;
+                int propY=ty*256+128+(int)((scenic>>20)&63u)-32;
+                int propForward;
+                if(!ggMeshSceneryVisible(m,propX,propY,96,
+                                          &propForward))continue;
                 int near=0;
                 if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
                 else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
@@ -810,7 +835,7 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                 int kind=ggFilmScenicKind(t,near,scenic);
                 if(!kind)continue;
                 GgMeshVisibleProp candidate={
-                    tx,ty,kind,ggExpGround(t),forward,scenic
+                    tx,ty,kind,ggExpGround(t),propForward,scenic
                 };
                 if(sceneLimit<propCap){
                     ggMeshVisibleProps[sceneLimit++]=candidate;
@@ -829,8 +854,11 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     }
     for(int i=0;i<sceneLimit;i++){
         const GgMeshVisibleProp *p=&ggMeshVisibleProps[i];
+        // Full foliage silhouette near camera, cheaper distant facets.
+        // Preserve the selected object and its world contact at all LODs.
+        int detail=ggExpScenicQuality>=2&&p->forward<5*256?2:1;
         ggMeshProp(m,p->tx,p->ty,p->kind,p->ground,p->key,
-                   ggExpScenicQuality);
+                   detail);
     }
 }
 #endif
