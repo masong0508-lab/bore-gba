@@ -97,10 +97,13 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csR(x-23,y-10-breath,14,6,edge);
     csR(x-22,y-9-breath,13,4,csSh(sk,1));
     csR(x-21,y-10-breath,12,4,sk);
-    csR(x-19,y-13-breath,39,13,edge);
-    csR(x-18,y-12-breath,37,11,cloth);
-    csR(x-17,y-12-breath,24,2,csLt(cloth,5));
-    csR(x-17,y-5-breath,33,3,csSh(cloth,2));
+    // Round the shoulder into the neck rather than drawing a square slab.
+    csD(x-15,y-7-breath,7,edge);
+    csD(x-15,y-7-breath,6,cloth);
+    csR(x-15,y-13-breath,35,13,edge);
+    csR(x-14,y-12-breath,33,11,cloth);
+    csR(x-13,y-12-breath,20,2,csLt(cloth,5));
+    csR(x-12,y-5-breath,29,3,csSh(cloth,2));
     csR(x-17,y-11-breath,6,3,sk);           // small visible collar
     csLn(x-12,y-10-breath,x-6,y-7-breath,RGB(20,29,30));
 
@@ -116,14 +119,15 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csLn(x+34,y-5,x+44,y-3,sheetFold);
     csR(x+46,y-8,4,8,csSh(sheet,2));        // tucked foot end
 
-    // Forearm lies over the lower ribs, with wrist/hand on the abdomen.
-    // It never rises vertically beside the face or detaches from the sleeve.
-    csR(x-10,y-7-breath,13,4,csSh(cloth,3));
-    csR(x-1,y-8-breath-lift,12,3,sh);
-    csR(x,y-8-breath-lift,11,2,sk);
-    csR(x+10,y-9-breath-lift,6,3,sk);
-    if(stir){ csR(x+15,y-10-breath-lift,2,2,sk);
-        csR(x+16,y-9-breath-lift,2,1,csLt(sk,2)); }
+    // Elbow drops beside the ribs; the shortened forearm folds back
+    // onto the abdomen, rather than projecting as one rigid horizontal bar.
+    csR(x-12,y-5-breath,9,4,csSh(cloth,3));
+    csR(x-4,y-4-breath,6,3,sh);
+    csR(x-3,y-4-breath,6,2,sk);
+    csR(x+1,y-6-breath-lift,8,3,sh);
+    csR(x+2,y-6-breath-lift,7,2,sk);
+    csD(x+9,y-5-breath-lift,2,sk); // relaxed hand over the blanket edge
+    if(stir) csR(x+10,y-5-breath-lift,2,1,csLt(sk,2));
 
     // Repose the face UP toward the ceiling, not pointing horizontally away
     // from the body. Skull, jaw and collar meet without the orange L-shape.
