@@ -144,12 +144,16 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         if(ggReignStep(raw)){
             *held=0;*tx=*ty=0;return;
         }
+        int priorSaga=ggSaga.mode;
         if(ggChronStep(raw)){
             ggReignSave();
             ggChron.active=0;
             ggExpFinish();
             ggExpMessage("UNWRITTEN REIGN: 2D STORY RESTORED");
         }else{
+            // The final-post event queues a full-screen decision. Force
+            // its very first picture even before directional input.
+            if(priorSaga!=ggSaga.mode)ggExpRenderValid=0;
             ggReignSquadTick();
             camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
             camY=ggExpClamp((ggExplore.py>>8)*8-96,0,WH*8-192);
