@@ -781,12 +781,16 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #else
     filmWorldContinuity(clip,beat,elapsed);
 #endif
-#ifdef __3DS__
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // Environment, weather, tree sway and background people continue
     // across edits. The spoken line, prop contact and actor poses remain
     // local to the current shot, preserving exact timing.
     filmAtmosphere(beat,ggFilmSceneTime(elapsed));
     filmStageLight(beat,ggFilmSceneTime(elapsed));
+#elif defined(__3DS__)
+    // Low-cost diagnostic path cannot call the world-stage clock.
+    filmAtmosphere(beat,elapsed);
+    filmStageLight(beat,elapsed);
 #else
     filmAtmosphere(beat,elapsed);
 #endif
