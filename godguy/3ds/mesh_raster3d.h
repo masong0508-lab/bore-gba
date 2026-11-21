@@ -106,9 +106,9 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
        (x0>=m->w&&x1>=m->w&&x2>=m->w)||
        (y0<0&&y1<0&&y2<0)||
        (y0>=m->h&&y1>=m->h&&y2>=m->h))return;
-    int e0=(left-x1)*(y2-y1)-(top-y1)*(x2-x1);
-    int e1=(left-x2)*(y0-y2)-(top-y2)*(x0-x2);
-    int e2=(left-x0)*(y1-y0)-(top-y0)*(x1-x0);
+    int e0=(x2-x1)*(top-y1)-(y2-y1)*(left-x1);
+    int e1=(x0-x2)*(top-y2)-(y0-y2)*(left-x2);
+    int e2=(x1-x0)*(top-y0)-(y1-y0)*(left-x0);
     // A single reciprocal-depth plane, computed once per triangle.
     // Pixel loop only adds; it has no divisions, floats or heap use.
     int dx=((int64_t)(b.iz-a.iz)*(y2-y0)-
