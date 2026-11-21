@@ -30,6 +30,20 @@ int main(void){
     ggMeshQuad(m,near[0],near[1],near[2],near[3],188,69,51);
     verify(pixel(200,116)[0]==188&&pixel(200,116)[1]==69,
            "near physical wall did not occlude farther wall");
+    // Actual world material is sampled in the raster; this test
+    // exercises the same near-plane clipping, depth and pixel writes.
+    ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
+    m->material=GG_MAT_STONE;m->materialSeed=24;
+    ggMeshQuad(m,near[0],near[1],near[2],near[3],167,159,147);
+    verify(m->textureSamples>140,
+           "world material sampler never reached z-tested mesh pixels");
+    int stoneA=pixel(197,105)[0],stoneB=pixel(204,116)[0];
+    verify(stoneA!=stoneB,
+           "stone facade remains a solid flat RGB billboard");
+    m->material=GG_MAT_NONE;
+    ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
+    ggMeshQuad(m,far[0],far[1],far[2],far[3],52,168,83);
+    ggMeshQuad(m,near[0],near[1],near[2],near[3],188,69,51);
     verify(ggMeshHidden(m,200,116,1024)&&
            !ggMeshHidden(m,200,116,256),
            "world depth does not mask correctly projected performers");
