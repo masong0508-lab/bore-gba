@@ -779,6 +779,27 @@ int main(void){
     ggSagaCamera(0,GG_SAGA_BEAT_TICKS/2,&shotX,&shotY);
     check(ggExplore.angle==filmAngle&&ggExplore.px!=filmCameraPX,
           "shot camera jumps bearings or never eases within a beat");
+    // Consecutive dialogue beats share a stable physical set, with a
+    // dolly that continues across their boundary instead of rewinding.
+    ggSagaCamera(0,GG_SAGA_BEAT_TICKS-1,&shotX,&shotY);
+    int endFirstPX=ggExplore.px,endFirstPY=ggExplore.py;
+    ggSagaCamera(1,0,&shotX,&shotY);
+    check(ggExplore.angle==filmAngle&&
+          abs(ggExplore.px-endFirstPX)<24&&
+          abs(ggExplore.py-endFirstPY)<24,
+          "continuous dialogue scene teleported the camera at its cut");
+    int sharedStageX=shotX,sharedStageY=shotY;
+    ggSagaCamera(1,40,&shotX,&shotY);
+    check(shotX==sharedStageX&&shotY==sharedStageY,
+          "two-line conversation jumped between unrelated settlements");
+    // A known building/occupied landmark is never used as the ground
+    // under a character; the shoot remains in this actual district.
+    bld[60][60]=B_HALL;
+    ggSagaCamera(2,0,&shotX,&shotY);
+    check(ggChronLand(shotX,shotY)&&
+          ggChronNear(shotX,shotY,60,60)<=3,
+          "cinematic actor stood inside a real building");
+    bld[60][60]=0;
     ggExplore.px=beforePX;ggExplore.py=beforePY;
     ggExplore.angle=beforeAngle;
     ggSagaDraw(guarded.img);
@@ -805,6 +826,15 @@ int main(void){
     ggSagaGuestPortrait(guarded.img,200,150,2,2,1);
     check(hash()!=miraPicture,
           "distinct named film cast render with indistinguishable colours");
+    check(ggSagaPropKind()==GG_FILM_PROP_CRATES,
+          "local town film failed to select a physical community prop");
+    memset(guarded.img,0,sizeof guarded.img);
+    ggSagaPropDraw(guarded.img,195,180,2,GG_FILM_PROP_CART);
+    unsigned long wagonPicture=hash();
+    memset(guarded.img,0,sizeof guarded.img);
+    ggSagaPropDraw(guarded.img,195,180,2,GG_FILM_PROP_RECORDS);
+    check(hash()!=wagonPicture,
+          "wagon and records used identical cinematic props");
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "named cast drew outside the one existing RGB framebuffer");
     // User can pause lengthy subtitles, advance one beat while paused,

@@ -432,31 +432,70 @@ static int ggSagaEase(int local){
           GG_SAGA_BEAT_TICKS;
     return (t*t*(768-2*t))/(256*256);
 }
-static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
-    int anchor=beat%4,tx=ggExplore.px>>8,ty=ggExplore.py>>8;
+// Paired dialogue lines are one establishing shot, not two unrelated
+// camera teleports. A controlled second shot occurs after the pair.
+static void ggSagaLocation(int beat,int *x,int *y){
+    int tx=ggExplore.px>>8,ty=ggExplore.py>>8;
     if(ggSaga.mode==GG_SAGA_INTERLUDE){
         tx=ggSaga.eventX;ty=ggSaga.eventY;
-    }else if(anchor){
-        tx=ggChron.px[anchor-1];
-        ty=ggChron.py[anchor-1];
+    }else if(ggSaga.mode==GG_SAGA_CHOICE){
+        tx=ggChron.px[GG_CHRON_POSTS-1];
+        ty=ggChron.py[GG_CHRON_POSTS-1];
+    }else{
+        int p;
+        if(ggSaga.mode==GG_SAGA_OPEN)
+            p=beat/2-1; // opening: home, first post, second post
+        else p=GG_CHRON_POSTS-1-beat/2; // aftermath: from the final post
+        if(p>=0&&p<GG_CHRON_POSTS){
+            tx=ggChron.px[p];ty=ggChron.py[p];
+        }
     }
-    tx=ggExpClamp(tx,1,WW-2);ty=ggExpClamp(ty,1,WH-2);
+    *x=ggExpClamp(tx,1,WW-2);
+    *y=ggExpClamp(ty,1,WH-2);
+}
+// Never film a person INSIDE a landmark or another living citizen.
+// A bounded 7x7 search happens only when constructing a new shot.
+static int ggSagaStagingCell(int landmarkX,int landmarkY,
+                             int *stageX,int *stageY){
+    if(ggChronLand(landmarkX,landmarkY)){
+        *stageX=landmarkX;*stageY=landmarkY;return 1;
+    }
+    for(int r=1;r<=3;r++)
+        for(int dy=-r;dy<=r;dy++)
+            for(int dx=-r;dx<=r;dx++){
+                if(abs(dx)+abs(dy)!=r)continue;
+                int x=landmarkX+dx,y=landmarkY+dy;
+                if(ggChronLand(x,y)){
+                    *stageX=x;*stageY=y;return 1;
+                }
+            }
+    return 0;
+}
+static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
+    int shot=beat/2,tx,ty;
+    ggSagaLocation(beat,&tx,&ty);
+    // When a landmark is a house, choose the nearest walkable foreground
+    // cell; keep the real house in the filmed vista behind the actors.
+    if(!ggSagaStagingCell(tx,ty,&tx,&ty)){
+        int px=ggExplore.px>>8,py=ggExplore.py>>8;
+        if(ggChronLand(px,py)){tx=px;ty=py;}
+    }
     *anchorX=tx;*anchorY=ty;
     if(!ggSagaShot.valid||ggSagaShot.mode!=ggSaga.mode||
-       ggSagaShot.act!=ggChron.act||ggSagaShot.beat!=beat||
+       ggSagaShot.act!=ggChron.act||ggSagaShot.beat!=shot||
        ggSagaShot.eventX!=ggSaga.eventX||
        ggSagaShot.eventY!=ggSaga.eventY||
        ggSagaShot.anchorX!=tx||ggSagaShot.anchorY!=ty){
-        ggSagaShot.valid=1;
-        ggSagaShot.mode=ggSaga.mode;ggSagaShot.act=ggChron.act;
-        ggSagaShot.beat=beat;ggSagaShot.eventX=ggSaga.eventX;
+        ggSagaShot.valid=1;ggSagaShot.mode=ggSaga.mode;
+        ggSagaShot.act=ggChron.act;ggSagaShot.beat=shot;
+        ggSagaShot.eventX=ggSaga.eventX;
         ggSagaShot.eventY=ggSaga.eventY;
         ggSagaShot.anchorX=tx;ggSagaShot.anchorY=ty;
-        ggSagaShot.angle=(beat*51+ggChron.act*23+32)&255;
+        ggSagaShot.angle=(shot*51+ggChron.act*23+32)&255;
         ggSagaShot.distance=3;
-        // Find an unobstructed outdoor vantage, rather than shooting
-        // from inside a house or through a city wall. Max 3*8 tries
-        // per new shot; never a search on every cinematic frame.
+        // Eight cardinal/diagonal angles at three distances, visited
+        // only once per shot. A camera never intentionally occupies a
+        // wall, water, or populated building.
         int found=0;
         for(int d=4;d>=2&&!found;d--)
             for(int turn=0;turn<8&&!found;turn++){
@@ -466,23 +505,23 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 int gx=cx>>8,gy=cy>>8;
                 if(!ggChronLand(gx,gy)||
                    !ggExpLineClear(gx,gy,tx,ty))continue;
-                ggSagaShot.angle=a;
-                ggSagaShot.distance=d;
+                ggSagaShot.angle=a;ggSagaShot.distance=d;
                 found=1;
             }
     }
     int a=ggSagaShot.angle;
-    int smooth=ggSagaEase(local);
-    // Short deliberate dolly and tracking motion remain inside the
-    // selected grounded camera cell. No zoom jumps or random orbit.
+    // Ease over the WHOLE pair: beat boundary never snaps the dolly
+    // backward to its starting point. No floating-point math.
+    int elapsed=(beat&1)*GG_SAGA_BEAT_TICKS+
+                ggExpClamp(local,0,GG_SAGA_BEAT_TICKS);
+    int progress=elapsed*256/(GG_SAGA_BEAT_TICKS*2);
+    int smooth=(progress*progress*(768-2*progress))/(256*256);
     int distance=ggSagaShot.distance*256-smooth*48/256;
-    int side=(smooth*48/256)-24;
+    int side=smooth*48/256-24;
     int x=tx*256+128-ggExpCos[a]*distance/4096+
           ggExpSin[a]*side/4096;
     int y=ty*256+128-ggExpSin[a]*distance/4096-
           ggExpCos[a]*side/4096;
-    // If parallax would put the camera inside live architecture, hold
-    // the safe shot position instead of flying through walls.
     if(!ggChronLand(x>>8,y>>8)){
         x=tx*256+128-ggExpCos[a]*ggSagaShot.distance*256/4096;
         y=ty*256+128-ggExpSin[a]*ggSagaShot.distance*256/4096;
@@ -537,21 +576,28 @@ static int ggSagaGuestStyle(const char *voice){
     if(!strcmp(voice,"ELOWEN"))return 4;
     return 5; // farmers, witnesses, workers and traveling residents
 }
-static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
+// A single real-world staging rule is shared by guest cels and scene
+// props. The preferred side prevents objects from occupying a speaker.
+static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
+                          int *worldX,int *worldY){
     int a=ggSagaShot.angle;
-    int lateralX=-ggExpSin[a],lateralY=ggExpCos[a];
+    int sideX=-ggExpSin[a],sideY=ggExpCos[a];
     int dx=0,dy=0;
-    if(abs(lateralX)>=abs(lateralY))dx=lateralX>=0?1:-1;
-    else dy=lateralY>=0?1:-1;
-    for(int sign=1;sign>=-1;sign-=2){
+    if(abs(sideX)>=abs(sideY))dx=sideX>=0?1:-1;
+    else dy=sideY>=0?1:-1;
+    for(int i=0;i<(fallback?2:1);i++){
+        int sign=i?-preferred:preferred;
         int x=tx+dx*sign,y=ty+dy*sign;
         if(!ggChronLand(x,y)||
            !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,x,y))
             continue;
-        *guestX=x*256+128;*guestY=y*256+128;
+        *worldX=x*256+128;*worldY=y*256+128;
         return 1;
     }
-    return 0; // no fake actor standing inside a home or above water
+    return 0;
+}
+static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
+    return ggSagaSideTile(tx,ty,1,1,guestX,guestY);
 }
 static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
                                 int style,int talking){
@@ -593,6 +639,71 @@ static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
         }
     }
 }
+// World-linked story props. A wagon by the ford, watch standards, records
+// in the archive, and lamps or provisions in living towns. These are
+// small screen-space cel arrangements PROJECTED from actual ground tiles,
+// never screen-anchored stickers or a second 3D asset renderer.
+enum { GG_FILM_PROP_CART,GG_FILM_PROP_BANNER,GG_FILM_PROP_RECORDS,
+       GG_FILM_PROP_CRATES,GG_FILM_PROP_LANTERN };
+static int ggSagaPropKind(void){
+    if(ggSaga.mode==GG_SAGA_INTERLUDE){
+        switch(ggSaga.event){
+        case GG_AMBIENT_COAST:case GG_AMBIENT_DELIVERY:
+        case GG_AMBIENT_MARKET:return GG_FILM_PROP_CART;
+        case GG_AMBIENT_ARCHIVE:case GG_AMBIENT_RUIN:
+            return GG_FILM_PROP_RECORDS;
+        case GG_AMBIENT_SQUAD:case GG_AMBIENT_OATH:
+            return GG_FILM_PROP_BANNER;
+        case GG_AMBIENT_CLINIC:case GG_AMBIENT_MIRACLE:
+            return GG_FILM_PROP_LANTERN;
+        default:return GG_FILM_PROP_CRATES;
+        }
+    }
+    switch(ggChron.act){
+    case 0:return GG_FILM_PROP_CART;
+    case 1:return GG_FILM_PROP_BANNER;
+    case 2:return GG_FILM_PROP_RECORDS;
+    default:return GG_FILM_PROP_LANTERN;
+    }
+}
+static void ggSagaPropDraw(u8*out,int cx,int feet,int scale,int kind){
+    int s=ggExpClamp(scale,1,3);
+    int x=cx-9*s,y=feet;
+    if(kind==GG_FILM_PROP_CART){
+        // Chassis, wagon bed, cargo and wheels: objects visibly belong
+        // to the road and remain grounded in the shot.
+        ggExpRect(out,x+2*s,y-9*s,15*s,5*s,108,73,47);
+        ggExpRect(out,x+4*s,y-13*s,11*s,4*s,171,130,75);
+        ggExpRect(out,x+3*s,y-17*s,5*s,4*s,143,102,65);
+        ggExpRect(out,x+9*s,y-16*s,5*s,3*s,184,147,96);
+        ggExpRect(out,x+4*s,y-4*s,4*s,4*s,42,46,50);
+        ggExpRect(out,x+13*s,y-4*s,4*s,4*s,42,46,50);
+        ggExpRect(out,x+5*s,y-3*s,2*s,2*s,163,143,104);
+        ggExpRect(out,x+14*s,y-3*s,2*s,2*s,163,143,104);
+    }else if(kind==GG_FILM_PROP_BANNER){
+        ggExpRect(out,cx-s,y-23*s,2*s,23*s,105,101,93);
+        ggExpRect(out,cx+s,y-21*s,11*s,12*s,119,66,83);
+        ggExpRect(out,cx+3*s,y-18*s,6*s,4*s,224,186,102);
+        ggExpRect(out,cx-5*s,y-2*s,10*s,2*s,71,68,70);
+    }else if(kind==GG_FILM_PROP_RECORDS){
+        ggExpRect(out,x+1*s,y-5*s,17*s,5*s,67,57,53);
+        ggExpRect(out,x+4*s,y-8*s,11*s,3*s,179,142,82);
+        ggExpRect(out,x+3*s,y-11*s,12*s,3*s,224,208,171);
+        ggExpRect(out,x+5*s,y-13*s,11*s,2*s,214,192,149);
+        ggExpRect(out,x+5*s,y-10*s,8*s,s,102,82,76);
+    }else if(kind==GG_FILM_PROP_CRATES){
+        ggExpRect(out,x+2*s,y-10*s,9*s,10*s,136,95,61);
+        ggExpRect(out,x+11*s,y-7*s,7*s,7*s,158,112,70);
+        ggExpRect(out,x+4*s,y-9*s,2*s,8*s,184,148,94);
+        ggExpRect(out,x+12*s,y-6*s,2*s,5*s,184,148,94);
+    }else{
+        ggExpRect(out,cx-s,y-20*s,2*s,20*s,100,94,87);
+        ggExpRect(out,cx-4*s,y-22*s,8*s,9*s,117,100,65);
+        ggExpRect(out,cx-3*s,y-21*s,6*s,7*s,237,195,89);
+        ggExpRect(out,cx-2*s,y-20*s,4*s,5*s,255,227,153);
+        ggExpRect(out,cx-5*s,y-s,10*s,s,79,77,71);
+    }
+}
 static void ggSagaDraw(u8 *out){
     if(!ggSaga.mode)return;
     int index=ggSaga.mode==GG_SAGA_CHOICE?5:
@@ -607,6 +718,13 @@ static void ggSagaDraw(u8 *out){
     ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
     ggReignSceneDraw(out);
     ggChron.frame=chronFrame;
+    // Stage a context-appropriate physical prop on the OPPOSITE side
+    // of the speaker, so a wagon or lectern cannot hover over faces.
+    int propX,propY,screenX,screenY,screenSize;
+    if(ggSagaSideTile(stageX,stageY,-1,0,&propX,&propY)&&
+       ggSagaProjectActor(propX,propY,&screenX,&screenY,&screenSize))
+        ggSagaPropDraw(out,screenX,screenY,
+                       ggExpClamp(screenSize/13,1,3),ggSagaPropKind());
     // Draw the protagonist BEFORE restoring the gameplay camera.
     // Previously projection happened after restore, so the person
     // vanished or stood in the wrong place relative to the shot.
