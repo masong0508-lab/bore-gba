@@ -141,7 +141,8 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
         { int ph=(t+who*13)%96; nod=(csTalking&&csSpk&&csSpk!=who&&ph<10&&(ph/3)%2==0); }   // a nod when someone talks to her
         lbl=((t+who*23)%110)<4; csMd=lmd; }
     if((pose==CP_LIE||pose==CP_STIR)&&(csBgNow==CB_HOSP||csBgNow==CB_FLAT)&&who==CA_MISSY){
-        csPS[who].fn=-100; csWardPatient(x,y,who,pose,t,sk,hr); return;
+        csPS[who].fn=-100; csWardPatient(x,y,who,pose,t,sk,hr);
+        csFaceBed(x-30,y-15,t,sk,hr,pose==CP_STIR); return;
     }
     if(pose==CP_LIE||pose==CP_STIR){ int st=pose==CP_STIR, lf=st?(csWv(t,30)+8)/3:0, br=csWv(t,100)>4; csR(x-19,y-1,36,1,RGB(2,1,3)); y+=jb; csR(x-11,y-7,18,7,ol); csR(x-10,y-6,17,6,cl); csR(x-10,y-6,17,1,csLt(cl,5)); if(br) csR(x-8,y-8,13,1,cl); csR(x+7,y-5-lf,10,3,ol); csR(x+7,y-4-lf,9,2,dress?sk:bt); if(st) csR(x+17,y-5-lf+((t>>2)&1),1,2,sk);   // (cutscene redo 10: she breathes; STIR lifts her hand and her fingers move)
         { int hn=nod?1:0; csD(x-14,y-4-hn,5,ol); csD(x-14,y-4-hn,4,sk); csR(x-19,y-9-hn,6,6,hr); csR(x-18,y-10-hn,3,1,csLt(hr,7)); csR(x-15,y-5-hn,1,1,lbl?sk:dk);   // G2: the head nods, the eye blinks

@@ -182,6 +182,12 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
             csR(17+i,my,1,2,bg==CB_FLAT?RGB(30,8,8):RGB(9,30,17)); }
         csR(17,27,30,1,RGB(5,13,13)); csR(17,50,30,1,RGB(5,13,13));
         csR(21,58,5,2,bg==CB_FLAT?RGB(27,7,6):RGB(8,25,13));
+        // Glasses are safe on the tray beside her, not hovering on her face.
+        csR(73,79,26,3,RGB(12,17,19)); csR(76,82,2,15,RGB(12,17,19));
+        csR(80,74,7,1,RGB(25,25,28)); csR(88,74,7,1,RGB(25,25,28));
+        csR(80,74,1,5,RGB(19,20,23)); csR(86,74,1,5,RGB(19,20,23));
+        csR(88,74,1,5,RGB(19,20,23)); csR(94,74,1,5,RGB(19,20,23));
+        csR(86,76,3,1,RGB(19,20,23));
         // Window: a cool night source behind the patient, with shadowed rain.
         csR(56,18,46,52,RGB(4,9,14)); csR(59,21,40,45,csLite?RGB(25,29,31):RGB(4,10,20));
         csR(78,21,3,45,RGB(11,18,22)); csR(59,43,40,2,RGB(11,18,22));

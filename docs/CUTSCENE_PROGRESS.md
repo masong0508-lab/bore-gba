@@ -157,3 +157,13 @@ backstage doorway; the finale stage has brighter grouped footlights.
 The hospital near rail is lowered so it cannot cross Missy's face.
 All shapes are in the existing GBA procedural renderer; no new images,
 textures, music assets, framebuffer allocation or asset loading.
+
+### Close-up face / micro-acting
+At high zoom the bedside portrait now uses screen-space face anatomy:
+temple, ear, cheek, nose silhouette, eyebrows, mouth and closed lids, all
+aligned horizontally on the pillow. During her awakening one eyelid
+opens with a brief blink, and a faint tear catches the monitor light.
+Missy's round glasses rest on the nearby tray, rather than appearing to
+levitate over her cheek. Only the hospital uses this new face painter;
+other character models and memory budgets are unchanged. Screen-space
+detail is bypassed in wide shots to preserve FPS.

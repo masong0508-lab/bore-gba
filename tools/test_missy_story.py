@@ -63,6 +63,9 @@ for needle in [
 assert cut.count("CF_AUTO,250") == 1, "the original tracker song must start once"
 assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")
+face = Path("source/csface.h").read_text(encoding="utf-8")
+assert "static void csFaceBed(" in face
+assert "csFaceBed(x-30,y-15,t,sk,hr,pose==CP_STIR)" in art
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "static void csWardFront(void)" in cut
