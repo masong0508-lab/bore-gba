@@ -24,6 +24,17 @@ static int ggFilmStagePropSide(int plusValid,int minusValid,int guests){
     if(first==-1&&plusValid)return 1;
     return 0;
 }
+// People in the same conversational blocking should not be posed
+// across an unclimbable ledge, even when both cells are technically land.
+static int ggFilmStageHeightOK(int stage,int neighbor){
+    int delta=stage-neighbor;
+    return delta>=-19&&delta<=19;
+}
+// A speaker looks toward their actual partner, not an arbitrary constant
+// screen side. Signed 1px eye/head cues avoid adding costly rotated sprites.
+static int ggFilmStageGaze(int ownSide,int targetSide){
+    return targetSide>ownSide?1:targetSide<ownSide?-1:0;
+}
 static int ggFilmStageDepth(int worldX,int worldY,
                              int cameraX,int cameraY,int cosA,int sinA){
     return ((worldX-cameraX)*cosA+
