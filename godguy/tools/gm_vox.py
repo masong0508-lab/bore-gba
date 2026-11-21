@@ -153,9 +153,19 @@ def add(name, x, vol=100, pan=64, maxs=0.9, rate=R):
     # phrases instead get their own gentler, intelligibility-first chain.
     lyric = name.startswith('LYRIC PAD') or name.startswith('CORP LYRIC')
     x = master_voice(x, rate, lead=lyric)
-    x = balance_vocal(x, lead=lyric)
-    x = norm(fade(x, 0.005 if lyric else 0.013,
-                  0.025 if lyric else 0.055), 0.88 if lyric else 0.78)
+    x = fade(x, 0.005 if lyric else 0.013,
+             0.025 if lyric else 0.055)
+    if lyric:
+        # Crucial: do not peak-normalize AGAIN after matching RMS, which
+        # would undo the loudness adjustment and make quiet words leap
+        # back to full volume. Limit genuine peaks instead.
+        x = balance_vocal(x, lead=True)
+        top = float(np.max(np.abs(x))) if len(x) else 0.
+        if top>0.90:x = x*(0.90/top)
+    else:
+        x = balance_vocal(x, lead=False)
+        top = float(np.max(np.abs(x))) if len(x) else 0.
+        if top>0.78:x = x*(0.78/top)
     CHOPS.append((name, x, vol, pan)); CRATE.append(rate)
 seg, f0 = tonal_source()
 NOTES = 'C C# D D# E F F# G G# A A# B'.split()
