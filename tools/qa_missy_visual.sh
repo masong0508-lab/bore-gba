@@ -20,7 +20,9 @@ if ! kill -0 "$pid" 2>/dev/null; then
   exit 1
 fi
 # Search only visible windows; prefer the actual emulator over an offscreen UI.
-win=$(xdotool search --onlyvisible --name 'mGBA' | head -n 1 || true)
+# Select only the window owned by this invocation. A shared CI desktop may
+# contain other emulator windows; their animation must not satisfy this smoke.
+win=$(xdotool search --onlyvisible --pid "$pid" --name 'mGBA' | head -n 1 || true)
 if [ -z "$win" ]; then
   cat "screenshots/${label}-emulator.log"
   xwininfo -root -tree || true
