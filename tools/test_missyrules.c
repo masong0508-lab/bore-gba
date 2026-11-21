@@ -19,6 +19,20 @@ int main(void){
     assert(msPressureResume(0,20)==20);
     assert(msPressureResume(msPressurePack(16,88),20)>=84);
     assert(msNightUsed(msPressurePack(16,88)));
+    assert(msPressureStep(0,3)==0u);   // must never wrap a u8 to 255
+    assert(msPressureStep(20,0)==22u);
+    assert(msPressureStep(20,1)==21u);
+    assert(msPressureStep(20,2)==20u);
+    assert(msPressureStep(20,3)==19u);
+    assert(msPressureStep(99,0)==100u);
+    assert(msPressureStep(100,0)==100u);
+    assert(msPressureStep(0,0)==2u);
+    for(unsigned pressure=0;pressure<=100;pressure++)
+        for(unsigned supports=0;supports<=5;supports++){
+            unsigned next=msPressureStep(pressure,supports);
+            assert(next<=100u);
+            if(supports>=3) assert(next<=pressure);
+        }
     assert(MS_PENDING_SCENE==64u&&MS_ONE_MORE_NIGHT==16u);
     puts("BORE Missy story memory: PASS");
     return 0;

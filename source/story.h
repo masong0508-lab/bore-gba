@@ -282,7 +282,9 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
 static const char* const stqNm[9]={"DAYS CLEAN","DAYS HOLDING ON","FRIENDS","SIMOLEONS","SIMS LIVING HERE","HAVE A NEIGHBOR OVER","FEEL HAPPY RIGHT NOW","SECURITY PIECES","PLUG PRESSURE"};
 enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ_SECURE, TQ_PLUG };
 // TV SHOW & TELL step 4: the PLUG. Chapter 4 only. Missy lies unconscious and the hospital (Dr. Okafor) wants to pull the plug: plugV is its PRESSURE, 0 to 100.
-// You are Mamesy and you hold it off by keeping the chapter going: it creeps up every 10 seconds by 3, less 1 for each of: 2 friends, feeling happy, 12000 simoleons.
+// You are Mamesy; each 10 seconds, the care review adds two pressure without support.
+// Two real friends, a happy mood, and 8k earned for hospital bills each cancel one point.
+// With all three the pressure falls by one; fewer supports may still hold it steady.
 // Every new day Dr. Okafor calls: the life-support bill is paid from your cash (PLUG_BILL; if you cannot, the pressure jumps). A new friend, a best friend or a promotion eases it.
 // At 75 and 90 you are warned. At 100 the hospital gives you ONE MORE NIGHT: the days-holding-on clock starts over, a deposit is taken and the pressure drops to 50. The chapter also
 // asks for the pressure to be 60 or less at the moment you finish. Nothing is saved: the pressure starts again at PLUG_START when the game starts and the chapter is running.
@@ -545,7 +547,9 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     int old=plugV, v=plugV;
     if((u16)simDay!=plugDay){ plugDay=(u16)simDay;   // a new day: Dr. Okafor calls about the life support
         v+=8; { static const char* const ok3[3]={"Okafor called. Bill's paid.","Bill paid. One more day.","Paid. Okafor sounds calmer."}, * const no3[3]={"You can't cover the bill.","Okafor called. No money.","Overdue bill. Okafor noticed."}; int r=rnd8()%3; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote=ok3[r]; } else { v+=20; lnote=no3[r]; } } lnoteT=120; }
-    if(++plugTen>=10){ plugTen=0; v+=3-stqOk(&qF)-stqOk(&qH)-stqOk(&qM); }
+    if(++plugTen>=10){ plugTen=0; unsigned support=(unsigned)(stqOk(&qF)+stqOk(&qH)+stqOk(&qM));
+        v=(int)msPressureStep((unsigned)(v>100?100:v),support);
+    }
     if(v>100) v=100;
     if(v>=100&&plugNight){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
     if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over

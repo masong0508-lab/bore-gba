@@ -18,5 +18,11 @@ static inline unsigned msPressureResume(unsigned mem,unsigned first){
     unsigned band=(mem&MS_PRESSURE_BITS)>>5;
     return band?band*14u:first;
 }
+// Each sustained support (friends, wellbeing, funded care) offsets pressure.
+// Three supports slowly recover the appeal. Always clamp before assigning to u8.
+static inline unsigned msPressureStep(unsigned pressure,unsigned supports){
+    int next=(int)pressure+2-(int)(supports>3u?3u:supports);
+    return next<0?0u:next>100?100u:(unsigned)next;
+}
 static inline int msNightUsed(unsigned mem){ return (mem&MS_ONE_MORE_NIGHT)!=0; }
 #endif

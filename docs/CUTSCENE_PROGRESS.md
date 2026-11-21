@@ -89,3 +89,11 @@ saved players and restoring a chapter-four medical review from disk. The
 initial handover and first story entry also hide comatose Missy immediately,
 not merely after the first gameplay AI tick. The shot cache is invalidated
 during a flashback montage so the shot following the memory cue is correct.
+
+### Hospital review balancing
+A hospital review now gains two points of pressure per ten seconds before
+support; two friends, Mamesy's wellbeing and chapter-earned hospital money
+each cancel a point. All three together slowly reduce pressure, and the
+updated host test checks the full 0..100 range, including the zero-floor
+saturation to prevent a negative value wrapping to 255. One-more-night
+remains a last resort and is still consumed permanently once spent.
