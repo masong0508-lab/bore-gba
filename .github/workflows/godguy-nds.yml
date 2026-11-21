@@ -327,6 +327,8 @@ jobs:
           /tmp/gg-3ds-direction
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_actor_visual.c -o /tmp/gg-3ds-actor-visual
           /tmp/gg-3ds-actor-visual
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_floor.c -o /tmp/gg-3ds-floor
+          /tmp/gg-3ds-floor
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_partner.c -o /tmp/gg-3ds-partner
           /tmp/gg-3ds-partner
       - name: Build native 3DS homebrew executable
