@@ -16,6 +16,11 @@ enum { GG_SAGA_IDLE,GG_SAGA_OPEN,GG_SAGA_CHOICE,GG_SAGA_OUTRO,
 enum { GG_END_HEARTH,GG_END_REPUBLIC,GG_END_CROWN,
        GG_END_MARSHAL,GG_END_VEIL,GG_END_STARBORN,
        GG_END_WITNESS,GG_END_WANDERER,GG_END_PRESIDENT };
+// Shared story event IDs must exist BEFORE the scene renderer uses them.
+enum { GG_AMBIENT_TOWN,GG_AMBIENT_FOREST,GG_AMBIENT_COAST,
+       GG_AMBIENT_RUIN,GG_AMBIENT_MARKET,GG_AMBIENT_FARM,
+       GG_AMBIENT_CLINIC,GG_AMBIENT_ARCHIVE,GG_AMBIENT_SQUAD,
+       GG_AMBIENT_OATH,GG_AMBIENT_DELIVERY,GG_AMBIENT_MIRACLE };
 typedef struct {
     int loaded,mode,frame,choice,ending,lastKeys;
     int paused; // film playback only; never alters the existing save format

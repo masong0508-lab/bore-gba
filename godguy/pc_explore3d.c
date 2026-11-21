@@ -808,6 +808,8 @@ int main(void){
           "cinematic mutated the live first-person camera on return");
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "film camera/protagonist overran the display buffer");
+    check(GG_AMBIENT_MIRACLE+1==GG_AMBIENT_N,
+          "ambient scene IDs no longer match scripted event count");
     // Recurring speakers must have their own identity and must stand
     // on visible real-world terrain, not at arbitrary screen offsets.
     ggSagaCamera(0,0,&shotX,&shotY);

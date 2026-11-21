@@ -8,10 +8,8 @@
 #ifndef GG_AMBIENT_SAVE_PATH
 #define GG_AMBIENT_SAVE_PATH "sdmc:/godguy_world_encounters.dat"
 #endif
-enum { GG_AMBIENT_TOWN,GG_AMBIENT_FOREST,GG_AMBIENT_COAST,
-       GG_AMBIENT_RUIN,GG_AMBIENT_MARKET,GG_AMBIENT_FARM,
-       GG_AMBIENT_CLINIC,GG_AMBIENT_ARCHIVE,GG_AMBIENT_SQUAD,
-       GG_AMBIENT_OATH,GG_AMBIENT_DELIVERY,GG_AMBIENT_MIRACLE };
+// Scene identities are defined alongside the saga story beats to allow
+// dialogue, effects and optional-world triggers to share the same IDs.
 typedef struct {
     u32 seen;
     int loaded,cooldown,lastX,lastY,lastSignature;
