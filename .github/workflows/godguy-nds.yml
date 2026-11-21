@@ -309,6 +309,10 @@ jobs:
         run: |
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_walkin.c -o /tmp/gg-3ds-walkin
           /tmp/gg-3ds-walkin
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_camera.c -o /tmp/gg-3ds-camera
+          /tmp/gg-3ds-camera
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_acting.c -o /tmp/gg-3ds-acting
+          /tmp/gg-3ds-acting
       - name: Build native 3DS homebrew executable
         working-directory: godguy
         run: |
