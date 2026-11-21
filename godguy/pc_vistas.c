@@ -72,7 +72,8 @@ int main(void){
             filmVistaPlace(F_FORD)==FILM_VISTA_COAST&&
             filmVistaPlace(F_RUINS)==FILM_VISTA_RIDGE,
             "cliffs and coastline shots use the wrong world landmark");
-    require(filmVistaPlace(F_PORCH)==-1&&filmVistaPlace(F_ARCHIVE)==-1,
+    require(filmVistaPlace(F_PORCH)==-1&&filmVistaPlace(F_ARCHIVE)==-1&&
+            filmVistaPlace(F_HALL)==-1,
             "distant landscape paints over a furnished interior wall");
     // No coastline exists on the second world; do not invent one.
     filmVistaCapture(128,128,64,64,64,64,plainWorld);
