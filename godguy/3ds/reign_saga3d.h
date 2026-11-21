@@ -1192,13 +1192,17 @@ static void ggSagaDraw(u8 *out){
     if(closestDepth)ggExpScenicDraw(out,1,closestDepth);
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
-    // Restrained letterbox treatment, not the old oversized computer
-    // console HUD. 18 more lines of landscape remain visible.
-    ggExpRect(out,0,0,400,23,17,24,34);
-    ggExpRect(out,0,22,400,1,189,146,92);
-    ggExpRect(out,0,188,400,52,16,23,32);
-    ggExpRect(out,0,187,400,1,196,157,99);
+    // A single designed film language: the same restrained brass,
+    // blue-slate values and inset hierarchy as the playable exploration
+    // screen. Keep landscape readable and avoid a bulky retro debug HUD.
+    ggExpRect(out,0,0,400,23,13,24,35);
+    ggExpRect(out,0,22,400,1,174,137,85);
+    ggExpRect(out,0,0,3,23,184,148,91);
+    ggExpRect(out,0,188,400,52,12,22,33);
+    ggExpRect(out,0,187,400,1,174,137,85);
     ggExpRect(out,0,190,3,48,174,124,80);
+    ggExpRect(out,386,191,5,1,119,101,81);
+    ggExpRect(out,386,193,5,1,119,101,81);
     char line[110];
     if(ggSaga.mode==GG_SAGA_CHOICE){
         snprintf(line,sizeof line,"ACT %d - YOUR CHOICE CHANGES THE REALM",
@@ -1235,10 +1239,11 @@ static void ggSagaDraw(u8 *out){
                   ggChron.act+1,ggChronActName[ggChron.act]);
     ggFilmText(out,11,9,line,238,226,190);
     snprintf(line,sizeof line,"%s:",beat->voice);
-    // Clean actor name plate, story text and a subdued secondary line.
-    // The same cutscene font now sits on a consistent cinematic panel.
-    ggExpRect(out,10,193,3,8,188,154,96);
-    ggFilmText(out,19,193,line,243,217,162);
+    // One small actor plate, a primary legible line and a quiet reply.
+    // Semantic structure takes precedence over repeated status banners.
+    ggExpRect(out,10,191,100,14,27,40,50);
+    ggExpRect(out,10,191,3,14,188,154,96);
+    ggFilmText(out,19,195,line,243,217,162);
     ggFilmText(out,12,207,beat->line,235,238,233);
     ggFilmText(out,12,221,beat->sub,168,188,198);
     // Only show help during the take's opening or while paused.

@@ -310,7 +310,7 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
     ggFilmArtStroke(out,elbowX,elbowY,wristX,wristY,
                     2*s,ggFilmArtShade(r,189),
                     ggFilmArtShade(g,189),ggFilmArtShade(b,189));
-    ggFilmArtRounded(out,elbowX-s,wristY-(2+lift/3)*s,
+    ggFilmArtRounded(out,elbowX-s,elbowY-s,
                      2*s,2*s,s,
                      ggFilmArtShade(coat[0],far?105:172),
                      ggFilmArtShade(coat[1],far?105:172),
