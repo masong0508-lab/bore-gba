@@ -92,6 +92,7 @@ static int politicalDirty;
 #include "3ds/reign3d.h"
 #define GG_ORIGIN_SAVE_PATH "/tmp/godguy_origin_pc_test.dat"
 #include "3ds/origin3d.h"
+#include "3ds/reign_scenery.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -444,6 +445,15 @@ int main(void){
           "godborn class and office progression did not survive saving");
     remove(GG_REIGN_SAVE_PATH);
     ggReign.menu=0;ggReign.noticeT=0;
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    ggExplore.angle=0;ggChron.active=1;
+    bld[60][62]=B_FARM;
+    ggExpRender(guarded.img);
+    unsigned long bareFarm=hash();
+    ggReignSceneDraw(guarded.img);
+    check(ggReignSceneDrawn>0&&hash()!=bareFarm,
+          "3DS farm decorations are absent from the real settlement");
+    bld[60][62]=0;
     ggChronDraw(guarded.img);
     ggReignDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
