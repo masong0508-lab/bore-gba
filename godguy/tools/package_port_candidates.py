@@ -51,6 +51,15 @@ def inspect_nds(data, name):
     expected = 3 if name == "godguy_dsi_mode.nds" else 0
     if unit != expected:
         raise ValueError(f"{name}: unit-code {unit}, expected {expected}")
+    if unit == 3:
+        # dsihdr.py intentionally produces unsigned DSi homebrew. A
+        # mislabeled 4 MiB DS image must not be sold as 16 MiB DSi mode.
+        region = struct.unpack_from("<I", data, 0x1B0)[0]
+        total = struct.unpack_from("<I", data, 0x210)[0]
+        if region != 0xFFFFFFFF or total != len(data):
+            raise ValueError(f"{name}: invalid DSi homebrew region/length")
+        if any(data[0x1C0:0x1E0]):
+            raise ValueError(f"{name}: unexpected ARM9i/ARM7i segments")
     claimed_crc = struct.unpack_from("<H", data, 0x15E)[0]
     if crc16(data[:0x15E]) != claimed_crc:
         raise ValueError(f"{name}: Nintendo DS header CRC mismatch")
