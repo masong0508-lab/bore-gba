@@ -27,7 +27,7 @@ static inline int ggMeshSunlight(GgMeshVertex a,GgMeshVertex b,
     // values even with all textures disabled on an Old 3DS.
     int directional=(int)((nx*(-70)+ny*42+nz*112)/den);
     int shade=ambient+directional*3/5;
-    return ggMeshClamp(shade,124,285);
+    return shade<124?124:shade>285?285:shade;
 }
 
 typedef struct { int f,s,z,u,v; } GgMeshCameraVertex;
