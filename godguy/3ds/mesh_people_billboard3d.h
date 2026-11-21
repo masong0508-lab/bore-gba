@@ -40,7 +40,20 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     GgMeshProjected projected=ggMeshProject(m,base);
     int center=projected.x*m->scale,feet=projected.y*m->scale;
     int top=feet-pixelH,left=center-width/2;
-    if(left>=400||left+width<0||top>=240||feet<0)return;
+    // Software 200x120 depth and terrain resolve in 2x2 RGB blocks.
+    // Snap the billboard to the same grid: 1-pixel facial/limb fragments
+    // on Old 3DS looked cut-out and caused four redundant depth checks.
+    int pixelStep=m->scale;
+    if(pixelStep>1){
+        width=(width+pixelStep-1)/pixelStep*pixelStep;
+        pixelH=(pixelH+pixelStep-1)/pixelStep*pixelStep;
+        left=left>=0?left/pixelStep*pixelStep:
+              -((-left+pixelStep-1)/pixelStep)*pixelStep;
+        top=top>=0?top/pixelStep*pixelStep:
+             -((-top+pixelStep-1)/pixelStep)*pixelStep;
+        feet=top+pixelH;
+    }
+    if(left>=400||left+width<=0||top>=240||feet<=0)return;
     int turn=ggMeshPersonFacing(heading,ggExplore.angle);
     ggPersonGenerate(&ggMeshPersonCel,identity,family,turn,tick,
                      active,colors);
@@ -58,9 +71,9 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     if(toY>pixelH)toY=pixelH;
     int fromX=left<0?-left:0,toX=400-left;
     if(toX>width)toX=width;
-    for(int dy=fromY;dy<toY;dy++){
+    for(int dy=fromY;dy<toY;dy+=pixelStep){
         int sourceY=dy*GG_PERSON_H/pixelH;
-        for(int dx=fromX;dx<toX;dx++){
+        for(int dx=fromX;dx<toX;dx+=pixelStep){
             int sourceX=dx*GG_PERSON_W/width;
             unsigned char ink=ggMeshPersonCel.pixels[
                 sourceY*GG_PERSON_W+sourceX];
@@ -72,15 +85,23 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
             int i=(y*400+x)*3;
             int light=ggPersonClamp(shade+(sourceX<GG_PERSON_W/2?8:-9),
                                     144,256);
-            m->rgb[i]=(unsigned char)(color[0]*light/256);
-            m->rgb[i+1]=(unsigned char)(color[1]*light/256);
-            m->rgb[i+2]=(unsigned char)(color[2]*light/256);
+            unsigned char red=(unsigned char)(color[0]*light/256);
+            unsigned char green=(unsigned char)(color[1]*light/256);
+            unsigned char blue=(unsigned char)(color[2]*light/256);
+            for(int oy=0;oy<pixelStep;oy++){
+                unsigned char*dst=m->rgb+i+oy*400*3;
+                for(int ox=0;ox<pixelStep;ox++){
+                    dst[ox*3]=red;
+                    dst[ox*3+1]=green;
+                    dst[ox*3+2]=blue;
+                }
+            }
             // Keep screen-space people in the physical depth hierarchy:
             // a nearer polygon animal cannot be hidden by a farther
             // sprite and a distant citizen cannot be painted over walls.
             if(m->depth[z]<(uint16_t)inverse)
                 m->depth[z]=(uint16_t)inverse;
-            drawn++;
+            drawn+=pixelStep*pixelStep;
         }
     }
     if(drawn){
