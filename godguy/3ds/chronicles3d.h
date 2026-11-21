@@ -234,7 +234,7 @@ static int ggChronBegin(int x,int y,int oldPause){
     int act=ggChron.cleared<GG_CHRON_ACTS?ggChron.cleared:GG_CHRON_ACTS-1;
     if(!ggChronUnlockedAct(act))return -1;
     ggExplore.actorId=0; // do not inherit a former hybrid POV walk rule
-    ggExpBegin(x,y,oldPause);
+    if(!ggExpBegin(x,y,oldPause))return -2;
     ggChron.active=1;
     ggChron.act=act;
     ggChron.frame=ggChron.lastKeys=0;

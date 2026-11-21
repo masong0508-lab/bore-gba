@@ -82,22 +82,27 @@ static int ggExpWalkable(int x,int y,int fromHeight,int climb){
     if(t<=T_WATER||t==T_LAVA||bld[y][x])return 0;
     return ggExpGround(t)-fromHeight<=(climb?30:19);
 }
-static void ggExpBegin(int x,int y,int priorPause){
+static int ggExpBegin(int x,int y,int priorPause){
     ggExpTrigInit();
     x=ggExpClamp(x,1,WW-2);
     y=ggExpClamp(y,1,WH-2);
-    if(!ggExpWalkable(x,y,60,1)){
-        int found=0;
-        for(int r=1;r<=14&&!found;r++)
-            for(int dy=-r;dy<=r&&!found;dy++)
-                for(int dx=-r;dx<=r&&!found;dx++){
+    int safe=ggExpWalkable(x,y,60,1);
+    if(!safe){
+        // Search bounded, nearby live-world terrain only. In an ocean
+        // planet, don't instantiate a stuck camera on blocked water.
+        // The expedition caller returns to the original 2D world;
+        // an intentionally selected resident can still use their actual
+        // creature-specific habitat through ggHybridBegin.
+        for(int r=1;r<=14&&!safe;r++)
+            for(int dy=-r;dy<=r&&!safe;dy++)
+                for(int dx=-r;dx<=r&&!safe;dx++){
                     int nx=x+dx,ny=y+dy;
                     if(ggExpWalkable(nx,ny,60,1)){
-                        x=nx;y=ny;found=1;
+                        x=nx;y=ny;safe=1;
                     }
                 }
     }
-    ggExplore.active=1;
+    ggExplore.active=safe;
     ggExplore.wasPaused=priorPause;
     ggExplore.actorId=0;
     ggExplore.actorIndex=-1;
@@ -113,6 +118,7 @@ static void ggExpBegin(int x,int y,int priorPause){
     ggExplore.feedbackT=0;
     ggExplore.lastTargetX=x;
     ggExplore.lastTargetY=y;
+    return safe;
 }
 static void ggExpTarget(int *tx,int *ty){
     int dir=ggExplore.angle&255;
@@ -162,10 +168,12 @@ static int ggExpStep(int held,int touchX,int touchY){
             ggExplore.py=ny;
         ggExplore.stepPhase++;
     }else ggExplore.stepPhase=0;
-    // One tap on the live bottom map teleports to a WALKABLE world tile.
-    // This is a fast way to revisit the user's own towns and coastlines.
+    // The full 256x192 lower-screen map is interactive. A previous
+    // 160px cutoff made the bottom 32px silently dead on real 3DS
+    // touchscreens (including DraStic-equivalent coordinate mapping).
+    // Teleport only to unoccupied, genuinely walkable world tiles.
     if((down&KEY_TOUCH)&&touchX>=0&&touchX<256&&
-       touchY>=0&&touchY<160){
+       touchY>=0&&touchY<192){
         int nx=(camX+touchX)>>3,ny=(camY+touchY)>>3;
         if(!ggExplore.actorId&&ggExpWalkable(nx,ny,60,1)){
             ggExplore.px=nx*256+128;

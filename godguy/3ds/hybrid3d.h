@@ -9,7 +9,8 @@
 static int ggHybridEligible(int index){
     if(index<0||index>=nCr||!cr[index].alive)return 0;
     const Cr *c=&cr[index];
-    if(c->sp>=nSp)return 0;
+    if((unsigned)c->sp>=(unsigned)nSp||
+       (unsigned)c->x>=WW||(unsigned)c->y>=WH)return 0;
     int race=sp[c->sp].a;
     if(race<0||race>=ARCH_N||!crId[index])return 0;
     if(HAS_STATUS(c,ST_MINDLESS)||DISEASE(c)==3)return 0;
@@ -45,7 +46,10 @@ static int ggHybridPick(int x,int y){
 static int ggHybridBegin(int index,int oldPause){
     if(!ggHybridEligible(index))return 0;
     Cr *c=&cr[index];
-    ggExpBegin(c->x,c->y,oldPause);
+    // An intentional resident can occupy a home or a water habitat:
+    // the generic land-spawn check does not override its own location.
+    (void)ggExpBegin(c->x,c->y,oldPause);
+    ggExplore.active=1;
     // The selected creature may be standing IN its house, on a water
     // habitat, or on a unique creature-passable tile. Do not teleport
     // its consciousness to an arbitrary nearby open grassy cell.

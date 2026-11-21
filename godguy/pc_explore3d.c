@@ -134,6 +134,17 @@ int main(void){
     check(ggExplore.active&&(ggExplore.px>>8)==64&&(ggExplore.py>>8)==64,
           "did not enter the player's map at its saved camera position");
     check(ggExpTrigReady,"first-person camera trig not cached");
+    // A planet of water must refuse an invalid free-walk spawn rather
+    // than enter a trapped/black 3D camera. A subsequent dry planet
+    // must still enter successfully with the same renderer.
+    for(int yy=0;yy<WH;yy++)for(int xx=0;xx<WW;xx++)
+        world[yy][xx]=T_WATER;
+    check(!ggExpBegin(64,64,0)&&!ggExplore.active,
+          "all-water world entered an impassable 3D free-walk state");
+    for(int yy=0;yy<WH;yy++)for(int xx=0;xx<WW;xx++)
+        world[yy][xx]=T_GRASS;
+    check(ggExpBegin(64,64,0)&&ggExplore.active,
+          "valid land failed to recover 3D after a refused spawn");
     // The faster incremental ray must sample exactly the old positions,
     // especially left/backwards rays where C division truncates to zero.
     for(int a=0;a<256;a+=7)for(int col=0;col<200;col+=5){
@@ -197,6 +208,11 @@ int main(void){
     ggExpStep(KEY_TOUCH,128+4*8,96+3*8);
     check((ggExplore.px>>8)==68&&(ggExplore.py>>8)==67,
           "tapping the actual bottom map cannot visit its world location");
+    // Lower 32 pixels of the visible touch map used to be unreachable.
+    ggExpStep(0,0,0);
+    ggExpStep(KEY_TOUCH,128,176);
+    check((ggExplore.px>>8)==64&&(ggExplore.py>>8)==74,
+          "southern 32px of the bottom-screen map ignored touch travel");
     ggExpStep(0,0,0);
     check(ggExpStep(KEY_SELECT,0,0)==GG_EXP_SAVE,
           "SELECT cannot invoke existing save system");
@@ -229,6 +245,14 @@ int main(void){
     occ[41][40]=1;occ[41][43]=2;occ[41][47]=3;
     check(ggHybridEligible(0)&&!ggHybridEligible(1),
           "hybrid mind filter confused people with ordinary animals");
+    int savedSpecies=cr[0].sp,savedX=cr[0].x;
+    cr[0].sp=-1;
+    check(!ggHybridEligible(0),
+          "damaged creature species index accessed outside species array");
+    cr[0].sp=savedSpecies;cr[0].x=WW;
+    check(!ggHybridEligible(0),
+          "out-of-world creature selected into a crashing POV");
+    cr[0].x=savedX;
     check(ggHybridPick(43,41)==-1,
           "hybrid selection possessed a nonsentient animal");
     crFl[2]=FL_SAPIENT;
