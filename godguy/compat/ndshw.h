@@ -127,15 +127,54 @@ static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: o
 #define SVBUF svBufA
 #define SVCMP ((u8*)0x02C00000)
 #else
-#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 200 KB) and up to 12000 creatures (20 bytes each)
-#define SVCMAX (0x80000-16)                     // the packed save, in the uncached block 0x02300000..0x02380000 (the ARM7 starts at 0x02380000)
-static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
-#define SVBUF svBufA
-#define SVCMP ((u8*)0x02300000)
+#define GG_DS_STREAM_SAVE 1
+#define SVMAX (700*1024)                       // original 4-MiB DS raw-save limit
+#define SVCMAX (0x80000-16)                     // maximum compressed world
+// Free the upper-half-megabyte for banked vocals; the saved world now
+// lives exclusively in a SMALLER, cached ARM9 compressed buffer.
+static u8 svPacked[0x80000] __attribute__((aligned(32)));
+#define SVCMP svPacked
+#include "ggsave_stream.h"
+static GgSaveWriter ggSaveWriter;
+static GgSaveReader ggSaveReader
 #endif
 typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
 static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }
-static void hwFlash(u32 op,u32 mem,u32 len,u32 off){ HWIPC->svBusy=1; HWIPC->svOK=0; HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0; m->a=mem; m->b=len; m->c=off; m->d=0; q->head=(q->head+1)&63; u32 t=0; while(HWIPC->svBusy&&++t<50000000u){} }
+// ARM7 accesses the packed save through IPC. The new DS buffer is in
+// cacheable ARM9 BSS, so explicitly synchronize 32-byte cache lines for
+// EVERY cartridge transfer. Voice banks remain in separate uncached RAM.
+#ifdef GG_DS_STREAM_SAVE
+static void hwSvCache(u32 addr,u32 len,int toArm7){
+#ifdef HW_CACHE
+    u32 end=(addr+len+31u)&~31u;
+    for(u32 a=addr&~31u;a<end;a+=32){
+        if(toArm7)
+            __asm__ volatile("mcr p15,0,%0,c7,c10,1"::"r"(a):"memory");
+        else
+            __asm__ volatile("mcr p15,0,%0,c7,c6,1"::"r"(a):"memory");
+    }
+    if(toArm7){
+        u32 zero=0;
+        __asm__ volatile("mcr p15,0,%0,c7,c10,4"::"r"(zero):"memory");
+    }
+#else
+    (void)addr;(void)len;(void)toArm7;
+#endif
+}
+#endif
+static void hwFlash(u32 op,u32 mem,u32 len,u32 off){
+#ifdef GG_DS_STREAM_SAVE
+    // Before an ARM7 read, clean dirty ARM9 output. Before an ARM7
+    // write, invalidate the old cached lines. No concurrent CPU writer.
+    hwSvCache(mem,len,op==8);
+#endif
+    HWIPC->svBusy=1; HWIPC->svOK=0;
+    HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){}
+    HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0;
+    m->a=mem; m->b=len; m->c=off; m->d=0;
+    q->head=(q->head+1)&63;
+    u32 t=0; while(HWIPC->svBusy&&++t<50000000u){}
+}
 static u32 rleEnc(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ if(o+140>max) return 0; u32 r=1; while(i+r<n&&in[i+r]==in[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=in[i]; i+=r; } else { u32 st=i; u32 l=0; while(i<n&&l<128){ u32 rr=1; while(i+rr<n&&in[i+rr]==in[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(u32 k=0;k<l;k++) out[o++]=in[st+k]; } } return o; }
 static u32 rleDec(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ u8 c=in[i++]; if(c<128){ u32 l=c+1; if(o+l>max||i+l>n) return 0; for(u32 k=0;k<l;k++) out[o++]=in[i++]; } else { u32 r=c-126; if(o+r>max||i>=n) return 0; for(u32 k=0;k<r;k++) out[o++]=in[i]; i++; } } return o; }
 static u32 hwSvLimit(void){ return HWIPC->svSize?HWIPC->svSize:65536u; }   // the end of the save memory (65536 when the chip does not say: the largest EEPROM)
@@ -162,13 +201,52 @@ static int hwLayoutSet(int n){      // 1 on success. Slot 1 keeps its save if it
     int old=hwSlots; u32 osz=hwSlotSz; for(int k=1;k<old;k++){ memset(SVCMP,0,256); hwFlash(8,(u32)SVCMP,256,(u32)k*osz); } hwSlotGeom(n); for(int k=1;k<n;k++) hwSlotErase(k);
     memset(SVCMP,0,SV_REC); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='L'; SVCMP[3]='1'; *(u32*)(SVCMP+4)=hwCap; SVCMP[8]=(u8)n; hwFlash(8,(u32)SVCMP,SV_REC,hwCap-SV_REC); return HWIPC->svOK; }
 static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 0; svPos=0;
-    if(m[0]=='w'){ svMode=1; svLen=0; return &svDummy; }
+    if(m[0]=='w'){ svMode=1; svLen=0;
+#ifdef GG_DS_STREAM_SAVE
+        memset(&ggSaveWriter,0,sizeof ggSaveWriter);
+#endif
+        return &svDummy; }
     hwFlash(9,(u32)SVCMP,12,hwSlotOff(hwSlotCur)); if(!HWIPC->svOK||SVCMP[0]!='G'||SVCMP[1]!='G'||SVCMP[2]!='S'||SVCMP[3]=='\0') return 0; u32 clen=*(u32*)(SVCMP+4), raw=*(u32*)(SVCMP+8); if(clen==0||clen>SVCMAX||raw>SVMAX||(hwSlotSz&&clen+12>hwSlotSz)) return 0;
-    hwFlash(9,(u32)SVCMP,clen+12,hwSlotOff(hwSlotCur)); if(!HWIPC->svOK) return 0; svLen=rleDec(SVCMP+12,clen,SVBUF,SVMAX); if(svLen!=raw) return 0; svMode=0; return &svDummy; }
-static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svLen+t>SVMAX) return 0; memcpy(SVBUF+svLen,b,t); svLen+=t; return n; }
-static size_t svRead(void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svPos+t>svLen) return 0; memcpy(b,SVBUF+svPos,t); svPos+=t; return n; }
+    hwFlash(9,(u32)SVCMP,clen+12,hwSlotOff(hwSlotCur)); if(!HWIPC->svOK) return 0;
+#ifdef GG_DS_STREAM_SAVE
+    if(!ggSvValidate(SVCMP+12,clen,SVMAX,raw))return 0;
+    ggSvReaderStart(&ggSaveReader,SVCMP+12,clen,raw);
+    svLen=raw;
+#else
+    svLen=rleDec(SVCMP+12,clen,SVBUF,SVMAX);
+    if(svLen!=raw)return 0;
+#endif
+    svMode=0; return &svDummy; }
+static size_t svWrite(const void*b,size_t s,size_t n,SV*f){
+    (void)f; if(s&&n>(size_t)SVMAX/s)return 0;
+    u32 t=(u32)(s*n); if(t>SVMAX-svLen)return 0;
+#ifdef GG_DS_STREAM_SAVE
+    if(!ggSvWrite(&ggSaveWriter,SVCMP+12,SVCMAX,b,t,SVMAX))return 0;
+#else
+    memcpy(SVBUF+svLen,b,t);
+#endif
+    svLen+=t;return n;
+}
+static size_t svRead(void*b,size_t s,size_t n,SV*f){
+    (void)f;if(s&&n>(size_t)SVMAX/s)return 0;
+    u32 t=(u32)(s*n);if(t>svLen-svPos)return 0;
+#ifdef GG_DS_STREAM_SAVE
+    if(!ggSvRead(&ggSaveReader,b,t))return 0;
+#else
+    memcpy(b,SVBUF+svPos,t);
+#endif
+    svPos+=t;return n;
+}
 static u32 hwSlotLimit(void){ return hwSlotSz?hwSlotSz:hwSvLimit(); }
-static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12,SVCMAX); svTooBig=0; if(!clen) return -1; SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; u32 tot=clen+12;
+static int svClose(SV*f){ (void)f; if(svMode==1){
+#ifdef GG_DS_STREAM_SAVE
+    if(!ggSvPack(&ggSaveWriter,SVCMP+12,SVCMAX))return -1;
+    u32 clen=ggSaveWriter.packed;
+    if(ggSaveWriter.bad||ggSaveWriter.raw!=svLen)return -1;
+#else
+    u32 clen=rleEnc(SVBUF,svLen,SVCMP+12,SVCMAX);
+#endif
+    svTooBig=0; if(!clen) return -1; SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; u32 tot=clen+12;
     if(tot>hwSlotLimit()){ svTooBig=(int)((tot+1023)/1024); return -1; }   // the packed world does not fit its slot (or the chip): refuse instead of wrapping round or running into the next slot
     if(hwSlotCur==0&&tot+44<=SVCMAX&&tot+44<=hwSlotLimit()){ hwCalPack(SVCMP+tot); tot+=44; }   // the touch calibration rides along right behind slot 1's world, in the same write
     hwFlash(8,(u32)SVCMP,tot,hwSlotOff(hwSlotCur)); return HWIPC->svOK?0:-1; } return 0; }
