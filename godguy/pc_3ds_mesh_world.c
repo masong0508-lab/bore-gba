@@ -92,6 +92,32 @@ int main(void){
                 ggMeshPersonFacing(192,0)==2,
                 "world-anchored procedural people have incorrect turn directions");
     occ[64][66]=0;nCr=0;
+    // Replace one cell with a steep mountain while its neighbors remain
+    // grass. The four mesh slopes must plant architectural foundations and
+    // the moving eye at their REAL Q8 positions, not at cell-average Z.
+    world[64][64]=T_MOUNT;
+    int sx=64*256+128,sy=64*256+128;
+    int nominal=ggMeshGroundAtQ8(sx,sy);
+    int slope=ggMeshGroundAtQ8(sx-64,sy);
+    meshRequire(nominal==ggExpGround(T_MOUNT)&&slope<nominal,
+                "triangular hillside sampler stopped interpolating");
+    int foundation=ggMeshFoundationGround(64*256+28,64*256+28,
+                                           64*256+228,64*256+228,nominal);
+    meshRequire(foundation<nominal&&
+                foundation<=ggMeshGroundAtQ8(64*256+28,64*256+28),
+                "building base still floats over its downhill terrain corner");
+    ggExplore.stepPhase=0;
+    ggExplore.px=sx-64;ggExplore.py=sy;
+    ggExpRenderMode(pixels,0);
+    meshRequire(ggMeshContext.eye==slope+13,
+                "3DS eye still jumps to the nominal height on a hillside");
+    ggExplore.px=sx;ggExplore.py=sy;
+    ggExpRenderMode(pixels,0);
+    meshRequire(ggMeshContext.eye==nominal+13&&
+                ggMeshContext.eye>slope+13,
+                "camera climb did not follow physical terrain continuously");
+    world[64][64]=T_GRASS;
+    ggExplore.px=sx;ggExplore.py=sy;
     // Moving an actual simulation citizen changes its world-space feet
     // and heading, not merely the animation tile or a screen-space wobble.
     ggPersonTrackReset();
