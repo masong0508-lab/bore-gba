@@ -41,6 +41,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_gpu_batch.c -o /tmp/gg-pica-batch
+          /tmp/gg-pica-batch
           gcc -O2 -std=c11 -DGG_NEW3DS_ONLY -w -Icompat -Isource pc_3ds_mesh_world.c -lm -o /tmp/gg-3ds-worldmesh
           /tmp/gg-3ds-worldmesh
       - name: Render 400x240 story, character turntables and occlusion comparisons
