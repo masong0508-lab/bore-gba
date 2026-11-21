@@ -129,6 +129,29 @@ int main(void){
     require(hashFrame()!=defaultVillage,
             "saved castle/hall and tower never changed the rendered village");
     filmVista[FILM_VISTA_TOWN].valid=0;
+    // A real sandy shoreline should have physically different ground
+    // depth and elevations from a steep rocky coast in the same 3DS
+    // projection, rather than a fixed flat 2D film plate in both cases.
+    FilmVista *shore=&filmVista[FILM_VISTA_COAST];
+    shore->valid=1;
+    for(int j=0;j<FILM_VISTA_H;j++)
+        for(int i=0;i<FILM_VISTA_W;i++)
+            shore->terrain[j*FILM_VISTA_W+i]=
+                j<4?T_GRASS:j<6?T_SAND:T_WATER;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmLandmarkTerrain(center,F_SHORE,84);
+    unsigned long sandyTerrain=hashFrame();
+    for(int j=0;j<6;j++)
+        for(int i=0;i<FILM_VISTA_W;i++)
+            shore->terrain[j*FILM_VISTA_W+i]=
+                (j<4&&i%3==0)?T_MOUNT:T_HILL;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmLandmarkTerrain(center,F_SHORE,84);
+    require(hashFrame()!=sandyTerrain,
+            "world cliffs and beaches still use identical flat geometry");
+    require(picture.before[0]==0xa6&&picture.after[0]==0x6d,
+            "world terrain pushed outside the existing film framebuffer");
+    shore->valid=0;
     require(frame(F_SHORE,F_NEAR,0)!=frame(F_SHORE,F_NEAR,180),
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
