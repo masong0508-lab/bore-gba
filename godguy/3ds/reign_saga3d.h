@@ -551,6 +551,8 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                               (tx+dx)*256+128,(ty+dy)*256+128,
                               (tx-dx)*256+128,(ty-dy)*256+128,
                               pValid,mValid);
+                score-=ggFilmFrameHeightPenalty(stageHeight,
+                                 ggExpGround(world[gy][gx]));
                 // Keep some shot variety when compositions tie, without
                 // allowing a whim of shot index to hide the speakers.
                 score-=turn;
