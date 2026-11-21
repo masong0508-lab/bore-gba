@@ -3,12 +3,26 @@
 // searches in the character renderer. Only two actors per film frame.
 #ifndef GG_FILM_ACTING3D_H
 #define GG_FILM_ACTING3D_H
+#include "film_walk3d.h"
 enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
     signed char pose,head,lean,armL,armR,legL,legR,bob;
     signed char gaze,blink,mouth,holdProp,reach,clothSway,turn;
 } GgFilmPose;
+// Drive the gait from actual Q8 world travel, not a second timer.
+// Exactly two symmetric footfalls over the eased one-tile walk; the
+// character starts and finishes with both boots planted. Replaying,
+// pausing, and seeking to a dialogue beat produces the same pose.
+// In particular a blocked approach cannot create a continuously
+// bouncing figure while its world position has already settled.
+static int ggFilmWalkLegAt(int beat,int local,int beatTicks){
+    int distance=ggFilmWalkProgress(beat,local,beatTicks);
+    if(distance<=0||distance>=256)return 0;
+    int phase=(distance*2)&255;
+    int triangle=phase<64?phase:phase<192?128-phase:phase-256;
+    return triangle/32;
+}
 // One 6x3x3 palette, shared by all guest film cels. These identities
 // are stable across chapters, alternate endings and nonlinear films.
 static const u8 ggFilmGuestPalette[6][3][3]={
@@ -61,13 +75,18 @@ static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
     // Acting has anticipation, held emphasis, reaction and recovery;
     // no per-frame RNG or universal continuous bobbing.
     if(p.pose==GG_FILM_WALK){
-        int phase=(t/6)&3;
-        p.legL=(signed char)((phase==0?-2:phase==2?2:0));
-        p.legR=(signed char)-p.legL;
-        p.armL=(signed char)(phase==0?1:phase==2?0:1);
-        p.armR=(signed char)(phase==2?1:phase==0?0:1);
-        p.bob=(signed char)((phase==1||phase==3)?1:0);
-        p.lean=1;
+        // Footfalls are keyed to the very same ease curve moving the
+        // actor through the real world, so a dolly cannot make them
+        // moonwalk or stop mid-stride. Opposite arm swings come from
+        // the active leg; no whole-body vertical hover while walking.
+        int step=ggFilmWalkLegAt(beat,t,GG_SAGA_BEAT_TICKS);
+        p.legL=(signed char)step;
+        p.legR=(signed char)-step;
+        p.armL=(signed char)(step<0);
+        p.armR=(signed char)(step>0);
+        p.clothSway=(signed char)(step<0?-1:step>0?1:0);
+        p.bob=0;
+        p.lean=(signed char)(step!=0);
     }else if(speaking){
         if(p.pose==GG_FILM_POINT){
             p.armR=(signed char)(strength*4/256);
