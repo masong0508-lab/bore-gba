@@ -134,7 +134,7 @@ int main(void){
     check(ggModeInputFilter(&guard,0)==0&&
           ggModeInputFilter(&guard,KEY_START)==KEY_START,
           "released START did not become usable again");
-    for(int y=0;y<WH;y>for(int x=0;x<WW;x++)world[y][x]=T_GRASS;
+    for(int y=0;y<WH;y++)for(int x=0;x<WW;x++)world[y][x]=T_GRASS;
     memset(guarded.first,0x5a,sizeof guarded.first);
     memset(guarded.last,0xc3,sizeof guarded.last);
     ggExpBegin(64,64,0);
