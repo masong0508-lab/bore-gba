@@ -202,6 +202,52 @@ static void checkCinematicActingAndMix(void){
           "hammer sound missed the actual strike");
     check(filmActionCue(firstRainBeats+5,225)==FX_SETTLE,
           "cup setdown had no tactile sound");
+#ifndef __3DS__
+    // The original DS only had idle/walk/reach cels; talking made its
+    // characters hold a permanently outstretched hand. Native speaking
+    // and listening art must actually exist, differ, and stay compressed.
+    check(FILM_CEL_N==6,"DS native speaking/listening cel keys are missing");
+    u8 idle[FILM_CEL_W*FILM_CEL_H];
+    u8 speech[FILM_CEL_W*FILM_CEL_H];
+    u8 listening[FILM_CEL_W*FILM_CEL_H];
+    for(int who=0;who<=F_ELDER;who++){
+        ggUnpack(filmCasts[who*FILM_CEL_N],idle,sizeof idle);
+        ggUnpack(filmCasts[who*FILM_CEL_N+4],speech,sizeof speech);
+        ggUnpack(filmCasts[who*FILM_CEL_N+5],listening,sizeof listening);
+        check(memcmp(idle,speech,sizeof idle)!=0,
+              "DS cast did not animate native 2D speech");
+        check(memcmp(idle,listening,sizeof idle)!=0,
+              "DS listener has no distinct reaction animation");
+    }
+    check(filmDSSpeechEnd(firstRainBeats+1)>160,
+          "DS speech length no longer follows its actual caption");
+#else
+    check(FILM_HQ_N==14,
+          "3DS film does not have its two new seated acting keys");
+    // A seated speaking frame must have a different mouth and leg/hip
+    // silhouette from both the standing and silently seated frames.
+    u8 stand[FILM_HQ_W*FILM_HQ_H];
+    u8 sit[FILM_HQ_W*FILM_HQ_H];
+    u8 sitTalk[FILM_HQ_W*FILM_HQ_H];
+    for(int who=F_MIRA;who<=F_ELDER;who++){
+        ggUnpack(filmHqCasts[who*FILM_HQ_N],stand,sizeof stand);
+        ggUnpack(filmHqCasts[who*FILM_HQ_N+12],sit,sizeof sit);
+        ggUnpack(filmHqCasts[who*FILM_HQ_N+13],sitTalk,sizeof sitTalk);
+        check(memcmp(stand,sit,sizeof stand)!=0&&
+              memcmp(sit,sitTalk,sizeof sit)!=0,
+              "3DS 2D sitter is standing or lacks real speech animation");
+    }
+    check(filmActingPose(couchBeats+3,170,1,F_ACT_AUTO)>=12,
+          "Dave does not sit and speak in the couch scene");
+#ifndef GG_FILM_2D_FALLBACK
+    FilmBlocking sitter=filmBlocking(couchBeats+3,170);
+    ggFilmWorldBlocking(couchBeats+3,170,128,&sitter);
+    check(sitter.leadHeight>=30&&sitter.leadHeight<=48,
+          "seated actor is not at its couch's world-space depth");
+    check(sitter.leadFeet>=115&&sitter.leadFeet<=150,
+          "actor feet float above the floor in the couch scene");
+#endif
+#endif
 #ifdef __3DS__
     // Do not accept a renderer that silently substitutes the four tiny DS
     // poses for the twelve 3DS acting cels.
