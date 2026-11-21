@@ -7,7 +7,7 @@
 #ifndef GG_STORY_ROUTE_H
 #define GG_STORY_ROUTE_H
 typedef struct {
-    int x[3],y[3],length[2],total,count,duration;
+    int x[3],y[3],length[2],kind[3],total,count,duration;
 } FilmRoute;
 typedef struct {int x,y,dx,dy;} FilmRouteCamera;
 static FilmRoute filmRoute;
@@ -22,6 +22,7 @@ static void filmRouteCapture(int villageExists,int duration){
     if(!villageExists||!filmVista[FILM_VISTA_TOWN].valid)return;
     r->x[0]=filmVista[FILM_VISTA_TOWN].x;
     r->y[0]=filmVista[FILM_VISTA_TOWN].y;
+    r->kind[0]=FILM_VISTA_TOWN;
     r->count=1;
     // Each place must genuinely exist on the current planet.
     for(int kind=FILM_VISTA_COAST;kind<FILM_VISTA_N;kind++){
@@ -38,6 +39,7 @@ static void filmRouteCapture(int villageExists,int duration){
         r->total+=dist;
         r->x[r->count]=x;
         r->y[r->count]=y;
+        r->kind[r->count]=kind;
         if(++r->count==3)break;
     }
     if(r->count<2||r->total<4){
