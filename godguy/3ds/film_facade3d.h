@@ -32,12 +32,16 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
                   GG_FACADE_PORTAL:GG_FACADE_TRIM;
     // Two symmetric windows. Height changes by architecture type,
     // but stays fixed in WORLD HEIGHT when camera changes.
-    int window=(u>=39&&u<=91)||(u>=164&&u<=216);
-    int low=wood?8:16,high=wood?15:27;
+    // The previous 52-unit wide, 12-height glowing openings turned
+    // halls into enormous yellow slabs. Narrow lancets with real stone
+    // surrounds keep their correct WORLD position without dominating.
+    int window=(u>=45&&u<=82)||(u>=174&&u<=211);
+    int low=wood?8:17,high=wood?13:25;
     if(window&&height>=low-1&&height<=high+1){
         int border=height<=low||height>=high||
-                   u==39||u==91||u==164||u==216||
-                   u==65||u==190;
+                   u<=48||u>=208||
+                   (u>=80&&u<=82)||(u>=174&&u<=176)||
+                   (u>=64&&u<=66)||(u>=189&&u<=191);
         return border?GG_FACADE_FRAME:GG_FACADE_GLASS;
     }
     if(wood){
