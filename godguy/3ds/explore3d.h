@@ -410,62 +410,73 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
 // foreground-only repeat is drawn after the cast to occlude the closest
 // bodies with genuine near-field scenery. The same projected geometry
 // is used in both passes and no scenery object is ever cached.
+static GgFilmScenicItem ggExpScenicItems[GG_SCENE_LIMIT];
+static int ggExpScenicCount;
 static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
-    if(!ggExpSceneryEnabled)return;
-    int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
-    int angle=ggExplore.angle&255;
-    int cosine=ggExpCos[angle],sine=ggExpSin[angle];
-    int cameraGround=ggExpGround(world[cy][cx]);
-    if(!foreground)ggExpScenicVisible=0;
-    int accepted=0;
-    int radius=ggExpScenicCoarse?7:GG_SCENE_RADIUS;
-    int budget=ggExpScenicCoarse?34:GG_SCENE_LIMIT;
-    for(int ty=cy-radius;ty<=cy+radius;ty++){
-        if((unsigned)ty>=WH)continue;
-        for(int tx=cx-radius;tx<=cx+radius;tx++){
-            if((unsigned)tx>=WW)continue;
-            if(bld[ty][tx]||occ[ty][tx])continue;
-            uint32_t key=ggFilmScenicHash(tx,ty,7);
-            // Scan-order-independent coverage: select about five eighths
-            // of physical tiles BEFORE the bounded prop cap. The older
-            // version saturated the limit on the camera's left side
-            // because rows were traversed from top to bottom.
-            if(((key>>24)&7u)>=5u)continue;
-            int near=0;
-            // A short deterministic adjacency priority, no global city
-            // lookup and no changes to settlement/simulation state.
-            if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
-            else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
-            else if(ty>0&&bld[ty-1][tx])near=bld[ty-1][tx];
-            else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
-            int kind=ggFilmScenicKind(world[ty][tx],near,key);
-            if(!kind)continue;
-            int wx=tx*256+128+(int)((key>>12)&95u)-48;
-            int wy=ty*256+128+(int)((key>>20)&95u)-48;
-            int dx=wx-ggExplore.px,dy=wy-ggExplore.py;
-            int forward=(dx*cosine+dy*sine)/4096;
-            if(forward<=128||forward>radius*256)continue;
-            int side=(-dx*sine+dy*cosine)/4096;
-            if(side<-forward*6/5||side>forward*6/5)continue;
-            // Scene scheduling order is identical between both passes.
-            // Never let the second pass cost grow with the world map.
-            if(++accepted>budget)goto finished;
-            if(foreground&&
-                (nearestActorDepth<=0||forward+96>=nearestActorDepth))
-                continue;
-            int x=ggFilmProjectScreenX(side,forward);
-            if(x<-60||x>=460)continue;
-            int feet=ggFilmProjectFootY(forward,cameraGround,
-                                        ggExpGround(world[ty][tx]));
-            if(feet<70||feet>=189)continue;
-            int height=ggFilmScenicHeight(kind)*12*256/(forward+256);
-            if(height<3)continue;
-            if(height>82)height=82;
-            ggExpScenicProp(out,kind,x,feet,height,forward,key);
-            if(!foreground)ggExpScenicVisible++;
-        }
+    if(!ggExpSceneryEnabled){
+        if(!foreground){ggExpScenicCount=0;ggExpScenicVisible=0;}
+        return;
     }
-finished:
+    if(!foreground){
+        int cx=ggExplore.px>>8,cy=ggExplore.py>>8;
+        int angle=ggExplore.angle&255;
+        int cosine=ggExpCos[angle],sine=ggExpSin[angle];
+        int cameraGround=ggExpGround(world[cy][cx]);
+        int radius=ggExpScenicCoarse?7:GG_SCENE_RADIUS;
+        int budget=ggExpScenicCoarse?34:GG_SCENE_LIMIT;
+        ggExpScenicCount=0;
+        for(int ty=cy-radius;ty<=cy+radius;ty++){
+            if((unsigned)ty>=WH)continue;
+            for(int tx=cx-radius;tx<=cx+radius;tx++){
+                if((unsigned)tx>=WW)continue;
+                if(bld[ty][tx]||occ[ty][tx])continue;
+                uint32_t key=ggFilmScenicHash(tx,ty,7);
+                // Fixed world-space thinning preserves bilateral density,
+                // and never depends on where the camera sweep begins.
+                if(((key>>24)&7u)>=5u)continue;
+                int near=0;
+                if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
+                else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
+                else if(ty>0&&bld[ty-1][tx])near=bld[ty-1][tx];
+                else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
+                int kind=ggFilmScenicKind(world[ty][tx],near,key);
+                if(!kind)continue;
+                int wx=tx*256+128+(int)((key>>12)&95u)-48;
+                int wy=ty*256+128+(int)((key>>20)&95u)-48;
+                int dx=wx-ggExplore.px,dy=wy-ggExplore.py;
+                int forward=(dx*cosine+dy*sine)/4096;
+                if(forward<=128||forward>radius*256)continue;
+                int side=(-dx*sine+dy*cosine)/4096;
+                if(side<-forward*6/5||side>forward*6/5)continue;
+                int x=ggFilmProjectScreenX(side,forward);
+                if(x<-60||x>=460)continue;
+                int feet=ggFilmProjectFootY(forward,cameraGround,
+                                            ggExpGround(world[ty][tx]));
+                if(feet<70||feet>=189)continue;
+                int height=ggFilmScenicHeight(kind)*12*256/(forward+256);
+                if(height<3)continue;
+                if(height>82)height=82;
+                ggExpScenicItems[ggExpScenicCount++]=(GgFilmScenicItem){
+                    x,feet,height,forward,kind,key
+                };
+                if(ggExpScenicCount>=budget)goto compiled;
+            }
+        }
+compiled:
+        ggFilmScenicSort(ggExpScenicItems,ggExpScenicCount);
+        ggExpScenicVisible=ggExpScenicCount;
+    }
+    // Painter order is physical depth, not map scanning order.
+    // The short foreground repeat reads this SAME fixed queue; it never
+    // rescans, rehashes or reallocates the live game world.
+    for(int i=0;i<ggExpScenicCount;i++){
+        const GgFilmScenicItem *p=&ggExpScenicItems[i];
+        if(foreground&&
+           (nearestActorDepth<=0||p->depth+96>=nearestActorDepth))
+            continue;
+        ggExpScenicProp(out,p->kind,p->x,p->foot,p->height,
+                        p->depth,p->key);
+    }
     ggExpFilmDrawDepth=0;
 }
 static void ggExpRenderMode(u8 *top,int cinematic){

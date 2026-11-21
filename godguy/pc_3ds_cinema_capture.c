@@ -261,12 +261,13 @@ int main(int argc,char **argv){
     fprintf(stats,"actor_overlay_depth_test,%d,400x240,%.6f,%zu,0\n",
             trials,maskedMs,sizeof ggExpFilmOcclusion);
     fprintf(stats,"scenery_biomes,8,400x240,,%zu,%d\n",
-            sizeof ggExpFilmOcclusion,visibleProps);
+            sizeof ggExpFilmOcclusion+sizeof ggExpScenicItems,visibleProps);
     fprintf(stats,"playable_pov_scenery,1,400x240,,%zu,%d\n",
             sizeof ggExpFilmOcclusion,povPixels);
     fclose(stats);
-    printf("3DS CAPTURE OK: 12 story frames, 15 cast turntable views, 8 biomes, 6 playable POV frames and wall occlusion; %d props across biomes, minimum %d scenic pixel changes, %d playable POV changes; %.3f ms/host scene frame, %.6f/%.6f ms actor without/with depth; %zu B scratch\n",
+    printf("3DS CAPTURE OK: 12 story frames, 15 cast turntable views, 8 biomes, 6 playable POV frames and wall occlusion; %d props across biomes, minimum %d scenic pixel changes, %d playable POV changes; %.3f ms/host scene frame, %.6f/%.6f ms actor without/with depth; %zu B depth+scenery scratch\n",
            visibleProps,minScenicPixels,povPixels,
-           ms,flatMs,maskedMs,sizeof ggExpFilmOcclusion);
+           ms,flatMs,maskedMs,
+           sizeof ggExpFilmOcclusion+sizeof ggExpScenicItems);
     return 0;
 }

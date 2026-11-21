@@ -60,6 +60,19 @@ int main(void){
               ggFilmScenicHeight(i)<=23,"invalid prop height");
     check(GG_SCENE_RADIUS<=10&&GG_SCENE_LIMIT<=84,
           "unbounded per-frame neighborhood or draw budget");
+    check(sizeof(GgFilmScenicItem)*GG_SCENE_LIMIT<=2048,
+          "scenic depth painter queue exceeds 2 KiB");
+    GgFilmScenicItem samples[4]={
+        {1,150,12,700,GG_SCENE_OAK,1},
+        {2,150,12,1300,GG_SCENE_PINE,2},
+        {3,150,12,1300,GG_SCENE_STONE,3},
+        {4,150,12,400,GG_SCENE_SHRUB,4}
+    };
+    ggFilmScenicSort(samples,4);
+    check(samples[0].depth==1300&&samples[0].key==2&&
+          samples[1].depth==1300&&samples[1].key==3&&
+          samples[2].depth==700&&samples[3].depth==400,
+          "painter drew farther vegetation over nearer scenery or reordered ties");
     check(ggFilmScenicFloorDetail(T_DIRT,77,45)<
           ggFilmScenicFloorDetail(T_DIRT,120,45),
           "world-anchored cart ruts did not darken path");

@@ -12,6 +12,26 @@ enum {
     GG_SCENE_COLUMN,GG_SCENE_REEDS,GG_SCENE_CART,GG_SCENE_STALL
 };
 enum {GG_SCENE_RADIUS=10,GG_SCENE_LIMIT=84};
+// 24 bytes x 84 = 2,016 bytes, reused within this rendered film frame.
+// No dynamic allocation, additional framebuffer or repeated map scan.
+typedef struct {
+    int x,foot,height,depth,kind;
+    uint32_t key;
+} GgFilmScenicItem;
+static inline void ggFilmScenicSort(GgFilmScenicItem *items,int count){
+    // Far-to-near insertion sort for small bounded painter queue.
+    // Stable on equal distances, so camera motion cannot reshuffle
+    // equal-plane scenery or create frame-to-frame flicker.
+    for(int i=1;i<count;i++){
+        GgFilmScenicItem item=items[i];
+        int j=i;
+        while(j>0&&items[j-1].depth<item.depth){
+            items[j]=items[j-1];
+            j--;
+        }
+        items[j]=item;
+    }
+}
 static inline uint32_t ggFilmScenicHash(int x,int y,int salt){
     uint32_t h=(uint32_t)x*0x9e3779b9u+
                (uint32_t)y*0x85ebca6bu+(uint32_t)salt*0xc2b2ae35u;
