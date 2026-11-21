@@ -8,6 +8,7 @@
 #include "film_walk3d.h"
 #include "film_camera3d.h"
 #include "film_stage3d.h"
+#include "film_framing3d.h"
 #include "film_partner3d.h"
 #ifndef GG_SAGA_SAVE_PATH
 #define GG_SAGA_SAVE_PATH "sdmc:/godguy_saga.dat"
@@ -518,20 +519,45 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
         ggSagaShot.pairResolved=0;
         ggSagaShot.angle=(shot*51+ggChron.act*23+32)&255;
         ggSagaShot.distance=3;
-        // Eight cardinal/diagonal angles at three distances, visited
-        // only once per shot. A camera never intentionally occupies a
-        // wall, water, or populated building.
-        int found=0;
-        for(int d=4;d>=2&&!found;d--)
-            for(int turn=0;turn<8&&!found;turn++){
-                int a=(ggSagaShot.angle+turn*32)&255;
-                int cx=tx*256+128-ggExpCos[a]*d*256/4096;
-                int cy=ty*256+128-ggExpSin[a]*d*256/4096;
+        // All 24 candidate angles/distances are tested ONCE at take
+        // entry. Previously the director chose the first unobstructed
+        // angle even when both guests were hidden or overlapping.
+        // We now favor distinct, horizon-safe silhouettes while retaining
+        // the same physical tile, collision and terrain constraints.
+        int found=0,bestScore=-100000,startingAngle=ggSagaShot.angle;
+        for(int d=4;d>=2;d--)
+            for(int turn=0;turn<8;turn++){
+                int a=(startingAngle+turn*32)&255;
+                int fx=ggExpCos[a],fy=ggExpSin[a];
+                int cx=tx*256+128-fx*d*256/4096;
+                int cy=ty*256+128-fy*d*256/4096;
                 int gx=cx>>8,gy=cy>>8;
                 if(!ggChronLand(gx,gy)||
                    !ggExpLineClear(gx,gy,tx,ty))continue;
-                ggSagaShot.angle=a;ggSagaShot.distance=d;
-                found=1;
+                int sx=-fy,sy=fx,dx=0,dy=0;
+                if(abs(sx)>=abs(sy))dx=sx>=0?1:-1;
+                else dy=sy>=0?1:-1;
+                int stageHeight=ggExpGround(world[ty][tx]);
+                int pValid=ggChronLand(tx+dx,ty+dy)&&
+                           ggFilmStageHeightOK(stageHeight,
+                               ggExpGround(world[ty+dy][tx+dx]))&&
+                           ggExpLineClear(gx,gy,tx+dx,ty+dy);
+                int mValid=ggChronLand(tx-dx,ty-dy)&&
+                           ggFilmStageHeightOK(stageHeight,
+                               ggExpGround(world[ty-dy][tx-dx]))&&
+                           ggExpLineClear(gx,gy,tx-dx,ty-dy);
+                int score=ggFilmFrameScore(cx,cy,fx,fy,
+                              tx*256+128,ty*256+128,
+                              (tx+dx)*256+128,(ty+dy)*256+128,
+                              (tx-dx)*256+128,(ty-dy)*256+128,
+                              pValid,mValid);
+                // Keep some shot variety when compositions tie, without
+                // allowing a whim of shot index to hide the speakers.
+                score-=turn;
+                if(!found||score>bestScore){
+                    found=1;bestScore=score;
+                    ggSagaShot.angle=a;ggSagaShot.distance=d;
+                }
             }
         // Choose one continuous dolly path through *visible*, level,
         // unoccupied world tiles. This bounded search runs only when
