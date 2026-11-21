@@ -46,9 +46,9 @@ int main(void){
     check(ggFilmWallFaceLight(gx+1,gy+128)==208&&
           ggFilmWallFaceLight(gx+128,gy+1)==256,
           "two world-facing masonry walls have identical flat lighting");
-    check(ggFilmWallFaceLight(gx+1,gy+128)==
-          ggFilmWallFaceLight(gx+1,gy+128),
-          "building surface brightness changes with the camera frame");
+    check(ggFilmWallFaceLight(gx+1,gy+80)==
+          ggFilmWallFaceLight(gx+1,gy+160),
+          "same wall face loses stable lighting across physical positions");
     puts("3DS ARCH OK: stable physical gables, eaves, near/far perspective and materials");
     return 0;
 }
