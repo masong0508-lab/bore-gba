@@ -59,6 +59,8 @@ static const char* trnLabel(void){
 static void trnPick(void){
     if(trnOn){ if(menu("END THIS SESSION?",trnYesNo,2)==1){ trnOn=0; toast("SESSION ENDED"); } return; }
     if(stage<AG_CHILD){ toast("TOO YOUNG FOR A RUN"); return; }
+    if(ldead||lstun>0||simAct){ toast("FINISH YOUR ACTION FIRST"); return; }
+    if(lz>surf8(lfx,lfy)){ toast("LAND BEFORE STARTING"); return; }
     if(!lhave){ toast(bdOwn?"NO SKATING ON THIS LOT":"FIND OR BUY A BOARD FIRST"); return; }
     int choice=menu("SKATE SESSION  2:00",trnChoices,3);
     if(choice<0||choice==2) return;
@@ -68,12 +70,17 @@ static void trnPick(void){
     }
     if(menu(choice?"ENTER PARK JAM?":"START FREE PRACTICE?",trnYesNo,2)==1) trnStart(choice);
 }
-#define TRN_BRONZE 1000   // medal scores (tune to taste)
-#define TRN_SILVER 3000
-#define TRN_GOLD   6000
+static const char* trnGoalHint(void){ // ROM literals; no per-frame buffer or UI allocation
+    switch(sjMedal(lscore)){
+    case 0: return "JAM  BRONZE 1000";
+    case 1: return "JAM  SILVER 3000";
+    case 2: return "JAM  GOLD 6000";
+    default: return "JAM  GOLD  KEEP GOING";
+    }
+}
 static void trnResult(void){   // the results card (the game holds still behind it)
     int sc=lscore<0?0:lscore, old=trnBestGet(), runs=trnRunsGet()+1, nw=sc>old;
-    int md=sc>=TRN_GOLD?3:sc>=TRN_SILVER?2:sc>=TRN_BRONZE?1:0, pay=trnMode?sjPrize(md):0;   // free practice pays no salary; park jam has a capped once-daily medal purse
+    int md=sjMedal(sc), pay=trnMode?sjPrize(md):0;   // free practice pays no salary; park jam has a capped once-daily medal purse
     static const char* const mdNm[4]={"NONE","BRONZE","SILVER","GOLD"};
     static const u16 mdCol[4]={RGB(12,14,16),RGB(24,14,6),RGB(24,26,28),RGB(31,26,6)};
     u8 meta=trnMetaGet(), before=meta;

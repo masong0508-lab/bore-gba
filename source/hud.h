@@ -1,4 +1,5 @@
-static const char* jbHint(void); static const char* wdHint(void); static const char* venueHint(void);   // weed.h, venues.h
+static const char* jbHint(void); static const char* wdHint(void); static const char* venueHint(void);
+static const char* trnGoalHint(void);  // defined in timedrun.h; the HUD is included first   // weed.h, venues.h
 // hud.h - BORE life-mode screen furniture, in the spirit of The Sims 2 control panel. Include AFTER sims.h / mood.h / the life globals, faceArt/drawFace and
 // text()/rect(), and BEFORE lifeDraw.
 //
@@ -51,6 +52,7 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     if(!lnear&&!lcamF&&!ldead&&lstun<=0&&!simAct&&lnoteT<=0&&!lskate){ const char*h=venueHint(); if(!h) h=wdHint(); if(!h) h=jbHint(); if(h){ *txt=h; *col=HC_GOLD; return 1; } }   // (a planter or the dispensary counter: weed.h)
     if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24] EWRAM_BSS; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
     if(lnoteT>0){ *txt=lnote; *col=(lnote==lnBuf&&lnPerf)?HC_GOLD:WHITE; *pts=(lpts&&lnote==lnBuf)?lpts:0; return 1; }
+    if(trnOn&&trnMode==1&&!hzOn){ *txt=trnGoalHint(); *col=HC_GOLD; return 1; } // medal progress replaces an otherwise empty hint
     return 0;
 }
 // The combo string for the middle of the top bar: the newest trick names of the chain that fit in maxw pixels, older ones become "..", then the multiplier.
