@@ -24,7 +24,7 @@ if [ -z "$win" ]; then
   exit 1
 fi
 echo "mGBA window: $win"
-xwininfo -id "$win" | head -n 26
+xwininfo -id "$win" | head -n 26 || true
 capture(){
   local name="$1"
   xwd -silent -id "$win" -out "screenshots/$name.xwd"
@@ -32,7 +32,7 @@ capture(){
   rm -f "screenshots/$name.xwd"
 }
 capture hospital-opening
-xdotool windowactivate --sync "$win" || true
+xdotool windowfocus "$win" || true
 # mGBA's default key bindings: X for A, Z for B. Alternate them so the
 # typewriter and caption pagination don't swallow one giant held-down key.
 for i in $(seq 1 16); do
@@ -44,7 +44,7 @@ done
 sleep 2
 capture hospital-bedside
 for file in screenshots/*.png; do
-  read -r width height colors < <(magick identify -format '%w %h %k' "$file")
+  read -r width height colors < <(magick identify -format '%w %h %k\\n' "$file")
   echo "$file: ${width}x${height}, ${colors} unique colours"
   test "$width" -ge 240 && test "$height" -ge 160
   test "$colors" -ge 12
