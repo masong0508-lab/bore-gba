@@ -151,8 +151,15 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
                             camX,camY)+13;
     if(radius>GG_GPU_RADIUS)radius=GG_GPU_RADIUS;
     if(radius<0)radius=0;
-    for(int y=tileY-radius;y<=tileY+radius;y++)
-        for(int x=tileX-radius;x<=tileX+radius;x++){
+    // Nearest-ring-first selection: when a very dense city exhausts
+    // the 192 KiB VBO, near doors/buildings survive. The old row-major
+    // ordering silently used up vertices on a distant scan edge first.
+    // Maximum 680 candidate probes at a seven-tile radius.
+    for(int ring=0;ring<=radius;ring++)
+      for(int y=tileY-ring;y<=tileY+ring;y++)
+        for(int x=tileX-ring;x<=tileX+ring;x++){
+            if(x!=tileX-ring&&x!=tileX+ring&&
+               y!=tileY-ring&&y!=tileY+ring)continue;
             if((unsigned)x>=(unsigned)width||
                (unsigned)y>=(unsigned)height)continue;
             int t=ggGpuTile(terrain,stride,width,height,x,y,3);
@@ -174,6 +181,9 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
             case 10:r=72;g=109;bl=98;break;
             case 12:r=137;g=111;bl=82;break;
             }
+            // Four triangles (12 vertices) form one complete floor.
+            // Never strand half a slope at the fixed VBO boundary.
+            if(b->count+12>b->capacity){b->overflow=1;continue;}
             GgGpuPoint c=ggGpuP(x0+128,y0+128,mid);
             GgGpuPoint A=ggGpuP(x0,y0,northWest);
             GgGpuPoint B=ggGpuP(x1,y0,northEast);
@@ -186,6 +196,10 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
             b->tiles++;
             int building=ggGpuTile(build,stride,width,height,x,y,0);
             if(building){
+                // Box = 5 quads, roof = 2 quads: 42 vertices.
+                // Reject the entire building at once if a city scene
+                // exceeds its budget; never leave floating half-gables.
+                if(b->count+42>b->capacity){b->overflow=1;continue;}
                 int roof=mid+ggGpuBuildingHeight(building);
                 int wood=building==1||building==2||building==4||building==7;
                 int base=ggGpuFoundation(terrain,stride,width,height,
@@ -211,10 +225,13 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
                 uint32_t k=(uint32_t)x*0x9e3779b9u+
                            (uint32_t)y*0x85ebca6bu;
                 k^=k>>16;k*=0x7feb352du;k^=k>>15;
-                if((k&7u)==0u)
+                if((k&7u)==0u){
+                    // Trunk (5 quads) + crown (4 triangles) = 42 verts.
+                    if(b->count+42>b->capacity){b->overflow=1;continue;}
                     ggGpuTree(b,x0+92,y0+144,
                         ggGpuGroundAtQ8(terrain,stride,width,height,
                                         x0+92,y0+144)-1,k);
+                }
             }
         }
 }
