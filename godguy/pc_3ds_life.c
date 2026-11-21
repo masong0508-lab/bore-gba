@@ -24,6 +24,15 @@ int main(void){
           ggFilmLifeListenCue(80,2)==0&&
           ggFilmLifeListenCue(56,3)==-1,
           "listeners have no staggered look-and-reaction choreography");
+    check(ggFilmLifeNarratorCue(0,5,1)==0&&
+          ggFilmLifeNarratorCue(0,35,1)==2&&
+          ggFilmLifeNarratorCue(0,35,0)==1&&
+          ggFilmLifeNarratorCue(1,35,1)==1,
+          "narrated ending has no staggered, expressive cast animation");
+    check(ggFilmLifeNarratorNod(0,30,1)==1&&
+          ggFilmLifeNarratorNod(1,30,1)==-1&&
+          ggFilmLifeNarratorNod(0,30,0)==0,
+          "non-speaking reactions do not follow the authored dialogue time");
     check(ggFilmLifeBrow(1,3,48)==1&&
           ggFilmLifeBrow(1,4,48)==-1&&
           ggFilmLifeBrow(1,1,48)==1&&
