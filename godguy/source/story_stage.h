@@ -1025,6 +1025,9 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
 // DS/DSi always use the shared low-cost illustrated film director.
 #include "story_world3d.h"
 #endif
+// The shared flight renderer uses the same staged pixel-art interface;
+// high-end 3DS additionally projects low-poly geometry via story_world3d.
+#include "story_flight.h"
 
 // Sparse effects are synced to on-screen hand contact, not to unrelated
 // cuts. Use times divisible by both 3 (3DS) and 5 (DS) frame ticks.
@@ -1202,6 +1205,17 @@ static int fmvRenderAt(const FmvClip *clip,int elapsed){
         return 1;
     }
     elapsed-=baked;
+    // A route is one continuous camera journey through actual map cells.
+    // It occurs before directed dialogue, and the existing chapter beats
+    // retain their original local/scenery clocks and action-cue timing.
+#ifdef __3DS__
+    if(filmBonusIndex<0)
+#endif
+    if(filmRoute.duration>0){
+        if(elapsed<filmRoute.duration)
+            return filmFlightDraw(clip,elapsed);
+        elapsed-=filmRoute.duration;
+    }
     filmSceneryClock=elapsed;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     ggFilmWorldClock=elapsed;
