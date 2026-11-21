@@ -60,6 +60,14 @@ int main(void){
               ggFilmScenicHeight(i)<=23,"invalid prop height");
     check(GG_SCENE_RADIUS<=10&&GG_SCENE_LIMIT<=84,
           "unbounded per-frame neighborhood or draw budget");
+    for(int radius=1;radius<=26;radius++)for(int band=0;band<9;band++){
+        int width=ggFilmScenicCrownHalf(radius,band,0x92af116cu);
+        check(width>=1&&width<=radius,
+              "faceted foliage escapes bounded physical canopy");
+    }
+    check(ggFilmScenicCrownHalf(20,4,5u)>
+          ggFilmScenicCrownHalf(20,0,5u),
+          "near forest crowns still look like rectangular Atari blocks");
     check(sizeof(GgFilmScenicItem)*GG_SCENE_LIMIT<=2048,
           "scenic depth painter queue exceeds 2 KiB");
     GgFilmScenicItem samples[4]={

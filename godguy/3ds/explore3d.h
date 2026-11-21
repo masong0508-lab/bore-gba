@@ -321,31 +321,53 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
         ggExpRect(out,x-trunk/2,foot-h/2,trunk,h/2,65,56,48);
         ggExpRect(out,x,foot-h/2,1,h/3,122,90,65);
         if(pine){
-            // The old spruce widened at its TOP like an upside-down
-            // block pyramid. These overlapping tiers now broaden toward
-            // the branches, exposing a grounded trunk at the bottom.
-            for(int band=0;band<4;band++){
-                int ww=w*(band+1)/4;
-                int yy=y+band*h/9;
-                ggExpRect(out,x+breeze-ww/2,yy,ww,h/3+1,
-                          foliageR+band*3,foliageG+band*4,
-                          foliageB+band*2);
-                ggExpRect(out,x+breeze-ww/3,yy,ww/3,h/5+1,
-                          71+band*2,110+band*3,91);
+            // Three overlapping triangular boughs with individually
+            // lit slopes, not a stack of rectangular green billboards.
+            for(int tier=0;tier<3;tier++){
+                int top=y+tier*h/5;
+                int levelHeight=h*(5-tier)/12;
+                for(int band=0;band<6;band++){
+                    int width=w*(band+2)*(4-tier)/30;
+                    if(width<2)width=2;
+                    int yy=top+band*levelHeight/6;
+                    int next=top+(band+1)*levelHeight/6;
+                    int rowH=next-yy;if(rowH<1)rowH=1;
+                    int offset=(int)((key>>(tier*5+band))&3u)-1;
+                    int crownX=x+breeze+offset;
+                    ggExpRect(out,crownX-width/2,yy,width,rowH,
+                        34+tier*3,71+band*3+tier*3,59+band*2);
+                    ggExpRect(out,crownX-width/3,yy,
+                        ggExpClamp(width/3,1,30),rowH,
+                        59+tier*3,104+band*3,81+band*2);
+                }
             }
         }else{
-            // Layered canopy lobes: a bright upper crown and darker rim,
-            // with staggered edges rather than three floating boxes.
-            ggExpRect(out,x+breeze-w*2/5,y+h/9,w*4/5,h/3,
-                      54,109,76);
-            ggExpRect(out,x+breeze-w/2,y+h/4,w,h/4,
-                      foliageR,foliageG,foliageB);
-            ggExpRect(out,x+breeze-w*2/5,y+h*2/5,w*4/5,h/6,
-                      39,81,63);
-            ggExpRect(out,x+breeze-w/3,y+h/12,w/2,h/7,
-                      88,139,96);
-            ggExpRect(out,x+breeze-w*3/7,y+h/3,w/5,h/9,
-                      46,91,70);
+            // Real broadleaf contour: nine irregular rounded facets,
+            // light striking the upper-left while a dark under-canopy
+            // wraps over the trunk. Deterministic in world-space.
+            int crownY=y+h/10,crownH=h*3/5;
+            for(int band=0;band<9;band++){
+                int half=ggFilmScenicCrownHalf(w/2,band,key);
+                int yy=crownY+band*crownH/9;
+                int next=crownY+(band+1)*crownH/9;
+                int rowH=next-yy;if(rowH<1)rowH=1;
+                int center=x+breeze+((band>5)?1:0);
+                int shadow=band>=6;
+                ggExpRect(out,center-half,yy,half*2,rowH,
+                          shadow?35:54-band/2,
+                          shadow?71:104+band*2,
+                          shadow?57:75+band);
+                if(half>=3){
+                    ggExpRect(out,center-half+1,yy,half-1,rowH,
+                              79-band/2,132-band/2,93-band/2);
+                }
+            }
+            // Two lopsided foliage clusters keep even the near crown
+            // from being a uniform oval. The trunk stays motionless.
+            ggExpRect(out,x+breeze-w/3,y+h/4,
+                      ggExpClamp(w/4,1,16),h/7+1,80,137,92);
+            ggExpRect(out,x+breeze+w/5,y+h/3,
+                      ggExpClamp(w/5,1,13),h/7+1,43,83,66);
         }
     }else if(kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
              kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){

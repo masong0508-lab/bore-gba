@@ -32,6 +32,24 @@ static inline void ggFilmScenicSort(GgFilmScenicItem *items,int count){
         items[j]=item;
     }
 }
+// Faceted instead of rectangular. Nine fixed crown bands are a compact
+// silhouette profile shared by every species; a 2-bit world hash breaks
+// symmetry without introducing a texture, float or dynamic allocation.
+static inline int ggFilmScenicCrownHalf(int radius,int band,uint32_t seed){
+    static const unsigned char profile[9]={3,6,8,9,10,9,8,6,3};
+    if(radius<1)radius=1;
+    if(band<0)band=0;
+    if(band>8)band=8;
+    int half=radius*profile[band]/10;
+    if(radius>=5){
+        int jag=(int)((seed>>(band*2))&3u);
+        if(jag==0)half--;
+        if(jag==3)half++;
+    }
+    if(half<1)half=1;
+    if(half>radius)half=radius;
+    return half;
+}
 static inline uint32_t ggFilmScenicHash(int x,int y,int salt){
     uint32_t h=(uint32_t)x*0x9e3779b9u+
                (uint32_t)y*0x85ebca6bu+(uint32_t)salt*0xc2b2ae35u;
