@@ -488,11 +488,13 @@ static void stTvControl(void){
     if(stTvWant==1){   // chapter 4: be Mamesy
         if(stCh!=3){ stTvWant=0; return; }
         if(stPart!=255&&hhPUid==(int)stPart){ stTvWant=0; return; }   // already her
+        int patientUid=(int)msPatientUid((unsigned)stKid,(unsigned)hhPUid);
+        if(patientUid>=HU_N){ if(!stTvWarn){ stTvWarn=1; toast("MISSY'S SAVE ID NEEDS REPAIR"); } return; }
         int m=stPart!=255?stMember(stPart):-1;
         if(m<0&&stPart==255){ // replaying this story in the same household: do not create a second Mamesy
             for(int k=0;k<hhN;k++){ const char*nm="MAMESY"; const char*p=hhM[k].name; int n=0;
                 while(n<HH_NM&&nm[n]&&nm[n]==p[n]) n++;
-                if(!nm[n]&&!p[n]&&kin[hhPUid][hhM[k].uid]==KN_SISTER){
+                if(!nm[n]&&!p[n]&&kin[patientUid][hhM[k].uid]==KN_SISTER){
                     m=k; stPart=hhM[k].uid; stTvPatientRest(k); stSave(); break;
                 }
             }
@@ -502,14 +504,14 @@ static void stTvControl(void){
             m=stAddSim(lk,AG_ADULT,hhPLast);
             if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("No room for Mamesy. Make some space."); } return; }
             { const char*nm="MAMESY"; int k=0; for(;nm[k]&&k<HH_NM-1;k++) hhM[m].name[k]=nm[k]; hhM[m].name[k]=0; }
-            stPart=hhM[m].uid; stRel(hhPUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF); kin[hhPUid][hhM[m].uid]=KN_SISTER; kin[hhM[m].uid][hhPUid]=KN_SISTER;
+            stPart=hhM[m].uid; stRel(patientUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF); kin[patientUid][hhM[m].uid]=KN_SISTER; kin[hhM[m].uid][patientUid]=KN_SISTER;
             for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
             toast("One moment. Mamesy is moving in."); hhBakeAll(); hhSave(); liveInvalidate(); stSave();
         }
         if(!stTvCan(m)) return;
         int me=hhPUid; hhSwitchTo(m);
         if(hhPUid!=(int)stPart) return;   // it did not switch: try again later
-        stKid=(u8)me; stTvWant=0;
+        stKid=(u8)msPatientUid((unsigned)stKid,(unsigned)me); stTvWant=0;
         { int patient=stMember(stKid); if(patient>=0){
             HhSim*p=&hhM[patient]; p->act=HA_AWAY; p->use=HN_REST; p->item=0;
             p->pn=p->pi=0; hhUp[patient]=0;
@@ -750,7 +752,7 @@ static int storyPick(void); static void storySetup(int s);   // (below)
 static void storyJoin(void){   // floors step 10: pause menu > STORY with no story: pick one for the life you are living now (nobody is wiped; the new housemate or kid just moves in)
     int s=storyPick(); if(!s) return;
     if(s==STY_TVSHOW&&custom){ toast("MISSY STORY NEEDS A STANDARD SIM BODY"); return; } // mandatory cast switches cannot use hand-built geometry
-    int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN||s==STY_ICE||s==STY_SPARKS)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
+    int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN||s==STY_ICE||s==STY_SPARKS||s==STY_TVSHOW)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
     if(hhN+need>HH_MAX){ toast("Too many people home for that story."); return; }
     static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
     money_t money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
@@ -762,7 +764,9 @@ static void stqPage(void){   // the journal page of TV SHOW & TELL (L R): what t
     text(14,34,stTvBrief[stCh][0],RGB(20,26,31),1); text(14,43,stTvBrief[stCh][1],RGB(20,26,31),1);
     rect(14,54,212,1,RGB(14,26,31)); text(14,58,"ALL OF THESE AT THE SAME TIME",RGB(17,29,31),1);
     stqList(14,70,10);
-    if(stCh==1||stCh==2||stCh==4) text(14,124,"A PUFF OR A FAINT STARTS THE CLOCK AGAIN",RGB(31,20,22),1);
+    if(stCh==2&&hhN>=HH_MAX) text(14,124,"MAMESY NEEDS A FREE HOUSEHOLD SLOT",RGB(31,20,22),1);
+    else if(stCh==3) text(14,124,"AS MAMESY  KEEP PRESSURE 60 OR LESS",RGB(17,29,31),1);
+    else if(stCh==1||stCh==2||stCh==4) text(14,124,"A PUFF OR A FAINT STARTS THE CLOCK AGAIN",RGB(31,20,22),1);
     text(14,136,"L OR R  BACK TO THE STORY",RGB(12,18,24),1);
 }
 static void stTkPage(void){   // the journal page of the first ten stories (L R): this chapter's story and its tasks, live
@@ -1021,7 +1025,7 @@ static void storySetup(int s){   // after the new life is set up and the old hou
     case STY_GREEN: stSeeds(); break;   // two seed packs in the mail, no note
     case STY_ICE: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } break;
     case STY_SPARKS: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,30,10,0); stPart=hhM[m].uid; } break;
-    case STY_TVSHOW: break;   // just you (the rest of the cast arrives with the chapters)
+    case STY_TVSHOW: stKid=(u8)hhPUid; break;   // record Missy now, before the player can switch household members
     case STY_HOUSE: case STY_FRIEND: case STY_TOWN:   // housemates who are not friends yet (BEST FRIENDS: two of them)
         for(int i=0;i<(s==STY_FRIEND?2:1);i++){ m=stCastSim(&stCast[s][i]); if(m>=0){ stRel(hhPUid,hhM[m].uid,20,0,0); if(!i) stPart=hhM[m].uid; } }
         break;
