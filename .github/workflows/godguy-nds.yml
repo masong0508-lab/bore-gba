@@ -35,6 +35,9 @@ jobs:
           /usr/bin/python3 -c 'import numpy,scipy,mido' 2>/dev/null || { apt-get update && apt-get install -y python3-numpy python3-scipy python3-mido; }
           /usr/bin/python3 tools/gm2_compose.py
           /usr/bin/python3 tools/gm_vox.py
+          /usr/bin/python3 tools/check_vocal_banks.py
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_save_stream.c -o /tmp/gg-ds-save-stream
+          /tmp/gg-ds-save-stream
           GM_FULL=1 /usr/bin/python3 tools/gm_vox.py
           GM_HQ=1 /usr/bin/python3 tools/gm_vox.py
           test -s source/gmdata.h
@@ -42,6 +45,8 @@ jobs:
           test -s source/gmvox_full.h
           test -s source/gmvox_hq.h
           test -s source/gmvox_hq.bin
+          test -s source/gmvox_hi.bin
+          test -s source/gmvox_compact.h
       # Generate the source-backed shared film rather than shipping the
       # previously checked-in 4-key cels. The builder rejects any shared
       # film over the fixed 192 KiB DS asset cap.
@@ -285,6 +290,8 @@ jobs:
           /usr/bin/python3 -c 'import numpy,scipy,mido' 2>/dev/null || { apt-get update && apt-get install -y python3-numpy python3-scipy python3-mido; }
           /usr/bin/python3 tools/gm2_compose.py
           GM_HQ=1 /usr/bin/python3 tools/gm_vox.py
+          /usr/bin/python3 tools/gm_vox.py
+          /usr/bin/python3 tools/check_vocal_banks.py
           test -s source/gmvox_hq.h
           /usr/bin/python3 tools/check_story_duration.py
           /usr/bin/python3 tools/make_story_fmv.py
