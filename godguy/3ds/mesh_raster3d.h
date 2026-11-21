@@ -161,7 +161,12 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
             (int64_t)(b.iz-a.iz)*(x2-x0))*4096/area;
     int start=(int64_t)a.iz*4096+
               (int64_t)(left-x0)*dx+(int64_t)(top-y0)*dy;
-    int doTexture=m->material!=GG_MAT_NONE&&m->scale==1;
+    // Beyond six world tiles, real atmosphere dominates the detail.
+    // Retain sunlit geometry but stop per-fragment divisions and hashing
+    // on distant surfaces, preserving New-3DS audio and frame budget.
+    int inverseMid=(a.iz+b.iz+c.iz)/3;
+    int doTexture=m->material!=GG_MAT_NONE&&m->scale==1&&
+                  inverseMid>=65535/(6*256);
     int dux=0,duy=0,dvx=0,dvy=0;
     int rowU=0,rowV=0;
     if(doTexture){
