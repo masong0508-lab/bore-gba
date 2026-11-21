@@ -76,6 +76,15 @@ int main(void){
           "three-quarter view still stamps an unchanged front cutout");
     check(whites(front)>whites(side)&&whites(side)>0,
           "turning does not correctly occlude the far eye behind the nose");
+    static u8 shadedCast[400*240*3];
+    memset(shadedCast,48,sizeof shadedCast);
+    ggFilmArtAmbient=220;
+    ggFilmDrawGuestActor(shadedCast,200,150,2,hair,skin,coat,&frontPose,0);
+    ggFilmArtAmbient=256;
+    check(memcmp(front,shadedCast,sizeof front)!=0,
+          "environmental light is not reaching the living cast's materials");
+    check(ggFilmArtShade(100,256)==100,
+          "world lighting was not returned to neutral after the shot");
     // Shadow and boots contact the SAME world-projected row. Posing
     // upper limbs or turning the head may not shift the feet up/down.
     for(int x=195;x<=205;x++){

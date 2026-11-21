@@ -1065,6 +1065,11 @@ static void ggSagaDraw(u8 *out){
                                  filmCos,filmSin)
             };
     }
+    // Apply one world-sampled climate light value to all performers in
+    // this take. It shares the environment's material grade; no new
+    // per-pixel normal map or frame buffer, and never changes identity.
+    int cameraTerrain=world[ggExplore.py>>8][ggExplore.px>>8];
+    ggFilmArtAmbient=ggFilmScenicActorLight(cameraTerrain);
     // Painter's algorithm: distant actors are drawn before near ones.
     // Prevents a character behind the hero from covering the hero's
     // shoulders, or a wagon appearing pasted across someone's legs.
@@ -1182,6 +1187,7 @@ static void ggSagaDraw(u8 *out){
         }
     }
     ggExpFilmDrawDepth=0;
+    ggFilmArtAmbient=256;
     // World-anchored foreground foliage, poles and market clutter can
     // properly cover an actor only when PHYSICALLY nearer than the cast.
     int closestDepth=0;

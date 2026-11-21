@@ -234,8 +234,12 @@ static void ggFilmDrawHeldObject(u8*out,int handX,int handY,
 // a shaded face/coat, readable eyes and hair, and expressive contact hands.
 // All primitives write directly to the EXISTING 400x240 RGB buffer.
 // No animation atlas, heap, alpha framebuffer, matrix or float math.
+// The same world light as the current camera/biome applies to all
+// performer's faces, hair and clothing. Reset after every shot; gameplay
+// previews and unit tests start at an unchanged neutral 256.
+static int ggFilmArtAmbient=256;
 static int ggFilmArtShade(int v,int light){
-    return ggExpClamp(v*light/256,0,255);
+    return ggExpClamp(v*(light*ggFilmArtAmbient/256)/256,0,255);
 }
 static void ggFilmArtRounded(u8*out,int x,int y,int w,int h,int cut,
                              int r,int g,int b){

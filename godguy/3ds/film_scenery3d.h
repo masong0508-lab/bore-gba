@@ -140,6 +140,19 @@ typedef struct {
     signed char skyR,skyG,skyB;
     unsigned char hazeR,hazeG,hazeB;
 } GgFilmScenicAtmosphere;
+// Small shared world-light scalar for film character materials. Clothing,
+// eyes, skin and foliage still retain their authored hue/value hierarchy.
+static inline int ggFilmScenicActorLight(int terrain){
+    switch(terrain){
+    case T_FOREST:case T_JUNGLE:return 226;
+    case T_SWAMP:return 220;
+    case T_MOUNT:return 233;
+    case T_SNOW:return 254;
+    case T_SAND:case T_DESERT:return 246;
+    case T_WATER:case T_DEEP:return 237;
+    default:return 244;
+    }
+}
 static inline GgFilmScenicAtmosphere ggFilmScenicAtmosphere(int terrain){
     switch(terrain){
     case T_SAND:case T_DESERT:

@@ -95,6 +95,16 @@ int main(void){
           "biomes share the same flat sky/horizon color regardless of climate");
     check(winter.hazeB>winter.hazeR&&desert.hazeR>marsh.hazeR,
           "distant fog lost coherent warm/cool biome tint");
+    check(ggFilmScenicActorLight(T_SNOW)>
+          ggFilmScenicActorLight(T_FOREST)&&
+          ggFilmScenicActorLight(T_SWAMP)<
+          ggFilmScenicActorLight(T_GRASS),
+          "cinematic cast lighting ignores the ground's environment");
+    for(int terrain=0;terrain<T_N;terrain++){
+        int light=ggFilmScenicActorLight(terrain);
+        check(light>=210&&light<=256,
+              "ambient lighting destroys cast color identity");
+    }
     int minGrain=100,maxGrain=-100,windLeft=0,windRight=0;
     // Offset samples from the tiny grass-stem lattice. Sampling
     // exclusively on exact 64-Q8 boundaries hit the same stem highlight
