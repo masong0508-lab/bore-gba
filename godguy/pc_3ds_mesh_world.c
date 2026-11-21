@@ -91,6 +91,10 @@ int main(void){
                 ggMeshPersonFacing(0,0)==4&&
                 ggMeshPersonFacing(192,0)==2,
                 "world-anchored procedural people have incorrect turn directions");
+    meshRequire(ggMeshPersonWidth(48)==32&&
+                ggMeshPersonWidth(96)==64&&
+                ggMeshPersonWidth(152)==96,
+                "3DS citizens have horizontally squashed faces and body sprites");
     occ[64][66]=0;nCr=0;
     // Replace one cell with a steep mountain while its neighbors remain
     // grass. The four mesh slopes must plant architectural foundations and
