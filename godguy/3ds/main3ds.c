@@ -14,6 +14,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "chronicles3d.h"
 #include "reign3d.h"
 #include "origin3d.h"
+#include "reign_scenery.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
@@ -276,7 +277,11 @@ void shimPresent(void){
                 ggOriginDraw(topBuf);
             else{
                 ggExpRender(topBuf);
-                if(ggChron.active){ggChronDraw(topBuf);ggReignDraw(topBuf);}
+                if(ggChron.active){
+                    ggReignSceneDraw(topBuf);
+                    ggChronDraw(topBuf);
+                    ggReignDraw(topBuf);
+                }
             }
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;
