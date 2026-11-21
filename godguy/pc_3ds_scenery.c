@@ -87,6 +87,14 @@ int main(void){
     check(ggFilmScenicFloorDetail(T_GRASS,0,0)==
           ggFilmScenicFloorDetail(T_GRASS,0,0),
           "floor detail depends on frame time");
+    GgFilmScenicAtmosphere winter=ggFilmScenicAtmosphere(T_SNOW);
+    GgFilmScenicAtmosphere desert=ggFilmScenicAtmosphere(T_DESERT);
+    GgFilmScenicAtmosphere marsh=ggFilmScenicAtmosphere(T_SWAMP);
+    check(winter.skyB>desert.skyB&&desert.skyR>winter.skyR&&
+          marsh.hazeG>marsh.hazeR,
+          "biomes share the same flat sky/horizon color regardless of climate");
+    check(winter.hazeB>winter.hazeR&&desert.hazeR>marsh.hazeR,
+          "distant fog lost coherent warm/cool biome tint");
     int minGrain=100,maxGrain=-100,windLeft=0,windRight=0;
     // Offset samples from the tiny grass-stem lattice. Sampling
     // exclusively on exact 64-Q8 boundaries hit the same stem highlight

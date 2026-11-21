@@ -132,6 +132,34 @@ static inline int ggFilmScenicHeight(int kind){
 // Optional detail within the existing continuous floor. Patterns follow
 // actual Q8 world coordinates, never screen pixels or changing RNG seeds.
 // Small rectilinear wagon-ruts and ground strata can be seen while moving.
+// Climate-aware lighting is sampled ONCE per camera frame and shared
+// by sky, distant surfaces and fog. Fixed subtle offsets retain the
+// common naturalistic palette (no fluorescent terrain, no flat blue
+// atmosphere regardless of the physical world biome).
+typedef struct {
+    signed char skyR,skyG,skyB;
+    unsigned char hazeR,hazeG,hazeB;
+} GgFilmScenicAtmosphere;
+static inline GgFilmScenicAtmosphere ggFilmScenicAtmosphere(int terrain){
+    switch(terrain){
+    case T_SAND:case T_DESERT:
+        return (GgFilmScenicAtmosphere){12,7,-9,104,104,98};
+    case T_SNOW:
+        return (GgFilmScenicAtmosphere){7,11,18,104,119,136};
+    case T_MOUNT:
+        return (GgFilmScenicAtmosphere){2,3,11,93,104,124};
+    case T_SWAMP:
+        return (GgFilmScenicAtmosphere){-5,4,-10,70,96,91};
+    case T_JUNGLE:
+        return (GgFilmScenicAtmosphere){-3,3,-6,69,91,93};
+    case T_DEEP:case T_WATER:
+        return (GgFilmScenicAtmosphere){0,6,10,72,102,124};
+    case T_HILL:
+        return (GgFilmScenicAtmosphere){2,3,2,82,102,111};
+    default:
+        return (GgFilmScenicAtmosphere){0,0,0,76,95,113};
+    }
+}
 static inline int ggFilmScenicFloorDetail(int type,int wx,int wy){
     int u=wx&255,v=wy&255;
     int grain=((wx>>4)*5+(wy>>5)*3)&15;

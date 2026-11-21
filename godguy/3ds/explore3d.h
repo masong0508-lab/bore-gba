@@ -559,6 +559,7 @@ static void ggExpRenderMode(u8 *top,int cinematic){
     int a=ggExplore.angle&255;
     int terrain=world[ggExplore.py>>8][ggExplore.px>>8];
     if((unsigned)terrain>=T_N)terrain=T_DIRT;
+    GgFilmScenicAtmosphere mood=ggFilmScenicAtmosphere(terrain);
     int eye=ggExpGround(terrain)+13;
     int walkBob=ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0;
     int horizon=cinematic?116+walkBob*2:58+walkBob;
@@ -579,6 +580,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             // the high-quality film rather than fluorescent cyan.
             r=sky?32+y/2:67;g=sky?57+y:99;b=sky?89+y:113;
         }
+        r=ggExpClamp(r+mood.skyR,0,255);
+        g=ggExpClamp(g+mood.skyG,0,255);
+        b=ggExpClamp(b+mood.skyB,0,255);
         u8 *line=top+(cinematic?y:y*2)*400*3;
         for(int x=0;x<400;x++){
             line[x*3]=(u8)r;
@@ -598,13 +602,24 @@ static void ggExpRenderMode(u8 *top,int cinematic){
         int y=cinematic?14+(k*19)%64:8+(k*13)%29;
         int w=cinematic?27+(k*17)%48:18+(k*7)%24;
         if(cinematic){
-            ggExpRect(top,x+w/6,y-2,w/4,1,104,125,151);
-            ggExpRect(top,x,y,w,1,97,120,148);
-            ggExpRect(top,x+w/4,y+1,w*2/3,1,90,113,142);
-            ggExpRect(top,x+w/3,y+2,w/3,1,84,109,138);
+            // Broken cloud banks have mass and overlapping shoulders,
+            // rather than the previous computer-like cyan scan lines.
+            // Eight rects at most per bank, no translucency buffer.
+            int cr=ggExpClamp(109+mood.skyR/2,0,255);
+            int cg=ggExpClamp(127+mood.skyG/2,0,255);
+            int cb=ggExpClamp(149+mood.skyB/2,0,255);
+            ggExpRect(top,x+w/5,y+2,w*3/5,5,cr-31,cg-32,cb-30);
+            ggExpRect(top,x+w/12,y+3,w/3,3,cr-18,cg-17,cb-14);
+            ggExpRect(top,x+w/3,y-1,w/3,5,cr,cg,cb);
+            ggExpRect(top,x+w/4,y+1,w*2/5,2,cr+8,cg+6,cb+4);
+            ggExpRect(top,x+w*2/3,y+2,w/4,3,
+                      cr-14,cg-12,cb-8);
+            ggExpRect(top,x+w/3,y+6,w*2/5,1,cr-41,cg-37,cb-30);
         }else{
             for(int cx=x;cx<x+w;cx++)for(int cy=y;cy<y+3;cy++)
-                ggExpDot(top,cx,cy,122,160,184);
+                ggExpDot(top,cx,cy,
+                         122+mood.skyR/2,160+mood.skyG/2,
+                         184+mood.skyB/2);
         }
     }
     // Film-only perspective floor: the same projected ground that cast
@@ -650,9 +665,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 int detail=ggFilmScenicFloorDetail(type,wx,wy);
                 r+=grain+detail;g+=grain+detail/2;b+=grain+detail/3;
                 int mist=rowMist[y];
-                r=(r*(256-mist)+76*mist)/256;
-                g=(g*(256-mist)+95*mist)/256;
-                b=(b*(256-mist)+113*mist)/256;
+                r=(r*(256-mist)+mood.hazeR*mist)/256;
+                g=(g*(256-mist)+mood.hazeG*mist)/256;
+                b=(b*(256-mist)+mood.hazeB*mist)/256;
                 u8*p=top+(y*400+x)*3;
                 p[0]=(u8)ggExpClamp(r,0,255);
                 p[1]=(u8)ggExpClamp(g,0,255);
@@ -762,9 +777,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             // stay responsive while film shots get richer distant air.
             int mist=cinematic?ggExpClamp((d-6)*6,0,144):
                                ggExpClamp((d-8)*3,0,84);
-            baseR=(baseR*(256-mist)+76*mist)/256;
-            baseG=(baseG*(256-mist)+95*mist)/256;
-            baseB=(baseB*(256-mist)+113*mist)/256;
+            baseR=(baseR*(256-mist)+mood.hazeR*mist)/256;
+            baseG=(baseG*(256-mist)+mood.hazeG*mist)/256;
+            baseB=(baseB*(256-mist)+mood.hazeB*mist)/256;
             int bright=build?13:6;
             // One material coordinate per ray/visible tile rather than
             // calling RNG or scanning any texture map per pixel.
