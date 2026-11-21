@@ -7,6 +7,7 @@
 // just three small neighborhoods at the beginning of a chapter; cinematic
 // playback never scans or mutates the simulation map, its building arrays,
 // or the save file. All coordinates are the real player's world tiles.
+static char filmTownName[24]; // player's real settlement, no save field
 static int filmWorldCell(int x,int y,int building){
     return building?bld[y][x]:world[y][x];
 }
@@ -14,13 +15,22 @@ static void filmCaptureWorld(void){
     if(WW<=0||WH<=0)return;
     int cx=(camX+128)/8,cy=(camY+96)/8;
     if(cx>=WW)cx=WW-1;if(cy>=WH)cy=WH-1;
-    int bx=cx,by=cy,best=-2147483647;
+    int bx=cx,by=cy,best=-2147483647,bestVillage=-1;
+    filmTownName[0]=0;
     for(int v=0;v<VIL_N;v++)if(vil[v].on){
         int dx=(int)vil[v].x-cx,dy=(int)vil[v].y-cy;
         int score=(int)vil[v].houses*6+(int)vil[v].towers*28+
                   (int)vil[v].lvl*18+(int)vil[v].pop/10-
                   (dx*dx+dy*dy)/14;
-        if(score>best){best=score;bx=vil[v].x;by=vil[v].y;}
+        if(score>best){best=score;bx=vil[v].x;by=vil[v].y;bestVillage=v;}
+    }
+    if(bestVillage>=0){
+        // Reuse the game's real, localized settlement name generator,
+        // not a fabricated static "Castle of the Hollow King" title.
+        char fullName[64];
+        vilName(bestVillage,fullName);
+        strncpy(filmTownName,fullName,20);
+        filmTownName[20]=0;
     }
     filmVistaCapture(WW,WH,bx,by,cx,cy,filmWorldCell);
 }
@@ -1019,6 +1029,11 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #else
         filmBars(clip->title);
 #endif
+        // Keep the name of the same real player-built city throughout
+        // exterior establishing/reverse shots. The film title and skip
+        // hint remain unchanged; the label lives in unused top-bar space.
+        if(filmTownName[0]&&(beat->place==F_VILLAGE||beat->place==F_GATE))
+            uiText(7,15,filmTownName,U_CYAN,1);
         const FilmBeat *previous=filmPreviousBeat(clip,beat);
         establishing=previous&&previous->place!=beat->place;
     }
