@@ -44,7 +44,8 @@ done
 sleep 2
 capture hospital-bedside
 for file in screenshots/*.png; do
-  read -r width height colors < <(magick identify -format '%w %h %k\\n' "$file")
+  dims=$(magick identify -format '%w %h %k' "$file")
+  read -r width height colors <<< "$dims"
   echo "$file: ${width}x${height}, ${colors} unique colours"
   test "$width" -ge 240 && test "$height" -ge 160
   test "$colors" -ge 12
