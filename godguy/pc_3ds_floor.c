@@ -20,8 +20,10 @@ int main(void){
         int reconstructed=ggFilmFloorForward(feet,GG_FILM_HORIZON,
                 GG_FILM_EYE_HEIGHT,42*256);
         int delta=reconstructed-d*256;if(delta<0)delta=-delta;
-        check(delta<=280,
-              "actor boot and rendered ground differ at medium/far distance");
+        // At the horizon one integer screen row covers several Q8
+        // distances, so bound inversion by that row's quantization.
+        check(delta<=(d+1)*24,
+              "actor boot and rendered ground differ beyond one raster row");
     }
     for(int y=117;y<239;y++){
         int a=ggFilmFloorForward(y,116,13,42*256);
