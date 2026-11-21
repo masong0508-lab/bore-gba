@@ -393,13 +393,17 @@ static void checkDirectedPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
         int length=fmvLength(clip), baked=clip->frames*FMV_TICKS;
+        // The step-four prelude is one uninterrupted geographical
+        // journey BEFORE the existing screenplay. The original actor,
+        // dialogue and sound-cue timeline must remain identical.
+        int route=filmRoute.duration;
         int spotlight=i==9||i==13||i==14;
         check(length>=60*FILM_SECOND,"a chapter film is shorter than one minute");
         if(spotlight) check(length>180*FILM_SECOND,"a centerpiece runs three minutes or less");
         unsigned previous=0;
         int same=0, shots=0, frames=0;
-        for(int t=baked;t<length;t+=FILM_STAGE_TICKS){
-            int elapsed=t-baked;
+        for(int t=baked+route;t<length;t+=FILM_STAGE_TICKS){
+            int elapsed=t-baked-route;
             const FilmBeat *beat=filmBeatAt(clip,&elapsed);
             check(beat!=NULL,"directed timeline has a gap");
             if(!elapsed){
@@ -437,7 +441,8 @@ static void checkDirectedPlayback(void){
               "the 3DS campaign skipped a featured shot");
         check(frames>=shots*3,"a 3DS campaign take was not sampled");
 #else
-        check(shots>=8&&frames==(length-baked)/FILM_STAGE_TICKS,
+        check(shots>=8&&
+              frames==(length-baked-route)/FILM_STAGE_TICKS,
               "the DS edit skipped a take or a frame");
 #endif
         printf("%-27s %6.2fs  %2d directed takes\n",clip->title,length/60.0,shots);
