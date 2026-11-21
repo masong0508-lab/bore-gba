@@ -2324,6 +2324,23 @@ static void sceneStartFmv(const char*const*t,const FmvClip*clip){
     // saved villages, coastline and topography; playback cannot change
     // their content or scan the whole map every rendered frame.
     filmCaptureWorld();
+    // Finish the real-map flight at the location the audience will
+    // recognize in the first screenplay scene. Exterior-to-interior
+    // cuts now arrive outside the same town, and shoreline scenes follow
+    // a route whose final waypoint is the actual coast.
+    int flightTarget=FILM_VISTA_TOWN;
+    int filmId=(int)(clip-fmvClips);
+    const FilmReel *landing=&filmReels[filmId];
+    for(int i=0;i<landing->count&&i<8;i++){
+        int place=landing->beats[i].place;
+        if(place==F_ORBIT)continue;
+        if(place==F_SHORE||place==F_FORD||place==F_STORM)
+            flightTarget=FILM_VISTA_COAST;
+        else if(place==F_RUINS)
+            flightTarget=FILM_VISTA_RIDGE;
+        break;
+    }
+    filmRouteEndAt(flightTarget);
     sceneStart(t,0);
     sceneClip=clip;
     gmFilmMixSet(1,0,64);
