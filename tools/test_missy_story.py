@@ -19,10 +19,23 @@ assert all(0 < n < 255 for n in scenes.values()), scenes
 assert scenes[3] == 35 and scenes[4] == 32 and scenes[5] == 52
 assert scenes[10] == 11 and scenes[11] == 22 and scenes[12] == 10
 
+# Parse every entry instead of silently ignoring invalid anchors or fields.
+shot_table = re.search(r"static const CsShot csShots\[\]\s*=\s*\{(.*?)^\};", shots, re.M | re.S)
+assert shot_table, "missing camera shot array"
+entries = re.findall(r"\{([^{}]*)\}", shot_table.group(1))
+assert len(entries) >= 120, ("missing camera shots", len(entries))
 seen = set()
 count = 0
-for m in re.finditer(r"^\s*\{(\d+),(\d+),([0-4]),\s*(-?\d+),\s*(-?\d+),", shots, re.M):
-    sc, beat, anchor, frame, duration = map(int, m.groups())
+for entry in entries:
+    fields = [field.strip() for field in entry.split(",")]
+    assert len(fields) == 11 and all(re.fullmatch(r"-?\d+", x) for x in fields), ("malformed shot entry", entry)
+    sc, beat, anchor, frame, duration, z0, x0, y0, z1, x1, y1 = map(int, fields)
+    assert 0 <= anchor <= 4, (sc, beat, anchor)
+    # Guard camera inputs before they reach signed fixed-point arithmetic on GBA.
+    assert 0 <= frame <= 4096 and 0 < duration <= 4096, (sc, beat, frame, duration)
+    assert 128 <= z0 <= 1536 and 128 <= z1 <= 1536, (sc, beat, z0, z1)
+    assert all(-256 <= x <= 512 for x in (x0, x1)), (sc, beat, x0, x1)
+    assert all(-128 <= y <= 256 for y in (y0, y1)), (sc, beat, y0, y1)
     assert sc in scenes and 0 <= beat < scenes[sc], (sc, beat, scenes.get(sc))
     assert frame >= 0 and duration > 0, (sc, beat, frame, duration)
     key = (sc, beat, frame)
