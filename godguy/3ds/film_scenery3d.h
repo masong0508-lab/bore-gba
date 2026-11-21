@@ -109,6 +109,23 @@ static inline int ggFilmScenicKind(int terrain,int nearby,uint32_t key){
     default:return GG_SCENE_NONE;
     }
 }
+// Thumbnail silhouettes remain recognizable even when the film lens
+// compresses a distant object to 3–8 pixels. Previously every distant
+// non-plant (lamps, banners, stalls, crates) became the same brown stick.
+static inline int ggFilmScenicFarClass(int kind){
+    switch(kind){
+    case GG_SCENE_OAK:case GG_SCENE_PINE:return 1;
+    case GG_SCENE_GRASS:case GG_SCENE_SHRUB:
+    case GG_SCENE_REEDS:case GG_SCENE_CROPS:return 2;
+    case GG_SCENE_STONE:case GG_SCENE_COLUMN:return 3;
+    case GG_SCENE_LAMP:case GG_SCENE_BRAZIER:return 4;
+    case GG_SCENE_BANNER:return 5;
+    case GG_SCENE_CRATES:case GG_SCENE_CART:return 6;
+    case GG_SCENE_FENCE:return 7;
+    case GG_SCENE_STALL:return 8;
+    default:return 0;
+    }
+}
 static inline int ggFilmScenicHeight(int kind){
     switch(kind){
     case GG_SCENE_OAK:return 19;

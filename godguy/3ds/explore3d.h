@@ -297,20 +297,48 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
     int breeze=ggFilmScenicWind(key,ggExplore.frame);
     ggExpFilmDrawDepth=ggExpScenicCoarse?0:depth;
     ggExpScenicShadow(out,x,foot,w/2,depth);
-    // A tiny far-field silhouette costs two rectangles, not a dozen
-    // strokes that all collapse onto the same 3-8 pixels. Actor and
-    // tree rendering still respect the same physical depth mask.
+    // LOD is deliberately minimal, but never turns a market stall
+    // into the same stick as a spruce or lantern. Tiny readable icons
+    // preserve the environment's identity out to the mist horizon.
     if(h<=8){
-        int plant=kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
-                  kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
-                  kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS;
-        int stone=kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN;
-        ggExpRect(out,x-1,foot-h/2,2,h/2,
-                  stone?103:plant?66:119,
-                  stone?105:plant?94:86,stone?102:plant?65:59);
-        ggExpRect(out,x-2,foot-h,4,h/2,
-                  stone?151:plant?73:163,
-                  stone?148:plant?114:121,stone?134:plant?79:77);
+        int cls=ggFilmScenicFarClass(kind);
+        int hh=h>3?h:3;
+        if(cls==1){
+            ggExpRect(out,x,foot-hh/2,1,hh/2,92,76,59);
+            ggExpRect(out,x-3,foot-hh,6,hh/2+1,55,101,72);
+            ggExpRect(out,x-2,foot-hh,3,1,102,140,89);
+        }else if(cls==2){
+            ggExpRect(out,x-2,foot-hh/2,1,hh/2,57,111,73);
+            ggExpRect(out,x,foot-hh,1,hh,72,122,76);
+            ggExpRect(out,x+2,foot-hh/2-1,1,hh/2+1,
+                      kind==GG_SCENE_CROPS?181:92,
+                      kind==GG_SCENE_CROPS?153:129,74);
+        }else if(cls==3){
+            ggExpRect(out,x-2,foot-hh,4,hh,101,106,106);
+            ggExpRect(out,x-2,foot-hh,2,hh/2+1,152,149,134);
+        }else if(cls==4){
+            ggExpRect(out,x,foot-hh+2,1,hh-2,89,81,68);
+            ggExpRect(out,x-1,foot-hh,3,3,239,177,97);
+            ggExpRect(out,x,foot-hh,1,1,255,233,177);
+        }else if(cls==5){
+            ggExpRect(out,x-2,foot-hh,1,hh,122,115,103);
+            ggExpRect(out,x-1,foot-hh,4,3,144,70,88);
+            ggExpRect(out,x,foot-hh+1,1,1,210,172,108);
+        }else if(cls==6){
+            ggExpRect(out,x-3,foot-hh/2,6,hh/2,134,96,62);
+            ggExpRect(out,x-3,foot-hh/2,6,1,184,138,84);
+            ggExpRect(out,x-2,foot-1,1,1,44,46,51);
+            ggExpRect(out,x+2,foot-1,1,1,44,46,51);
+        }else if(cls==7){
+            ggExpRect(out,x-3,foot-hh,1,hh,129,93,62);
+            ggExpRect(out,x+3,foot-hh,1,hh,129,93,62);
+            ggExpRect(out,x-3,foot-hh/2,7,1,175,132,89);
+        }else if(cls==8){
+            ggExpRect(out,x-3,foot-hh+1,7,2,153,81,70);
+            ggExpRect(out,x-3,foot-hh+1,2,1,215,165,111);
+            ggExpRect(out,x-2,foot-hh+3,1,hh-3,106,79,57);
+            ggExpRect(out,x+3,foot-hh+3,1,hh-3,106,79,57);
+        }
         ggExpFilmDrawDepth=0;
         return;
     }

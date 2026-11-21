@@ -60,6 +60,16 @@ int main(void){
               ggFilmScenicHeight(i)<=23,"invalid prop height");
     check(GG_SCENE_RADIUS<=10&&GG_SCENE_LIMIT<=84,
           "unbounded per-frame neighborhood or draw budget");
+    check(ggFilmScenicFarClass(GG_SCENE_OAK)!=
+          ggFilmScenicFarClass(GG_SCENE_LAMP)&&
+          ggFilmScenicFarClass(GG_SCENE_BANNER)!=
+          ggFilmScenicFarClass(GG_SCENE_FENCE)&&
+          ggFilmScenicFarClass(GG_SCENE_STALL)!=
+          ggFilmScenicFarClass(GG_SCENE_STONE),
+          "far-field biome and settlement silhouettes become identical sticks");
+    for(int kind=GG_SCENE_GRASS;kind<=GG_SCENE_STALL;kind++)
+        check(ggFilmScenicFarClass(kind)>0,
+              "one world prop disappears in far-field rendering");
     for(int radius=1;radius<=26;radius++)for(int band=0;band<9;band++){
         int width=ggFilmScenicCrownHalf(radius,band,0x92af116cu);
         check(width>=1&&width<=radius,
