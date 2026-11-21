@@ -28,6 +28,18 @@ int main(void){
     GgPersonMotion b=ggPersonMotionSample(9,2300,1500,16,90);
     check(b.x==2300&&b.heading==90,
           "separate citizen inherits another person's motion");
+    // Both residents must retain independent velocity histories during
+    // alternating draws. A free track is NOT a reason to evict another
+    // citizen already crossing a real tile.
+    GgPersonMotion shared=ggPersonMotionSample(7,1256,1000,17,201);
+    check(shared.walking&&shared.x>1000&&shared.x<1256,
+          "second visible resident evicted the first resident's walking stride");
+    GgPersonMotion second=ggPersonMotionSample(9,2300,1756,18,90);
+    check(second.walking&&second.y==1500&&second.heading==64,
+          "independent second citizen's movement snapped or changed identity");
+    shared=ggPersonMotionSample(7,1256,1000,19,201);
+    check(shared.walking&&shared.x>1000&&shared.x<1256,
+          "interleaving multiple residents resets motion on every frame");
     GgPersonMotion end=ggPersonMotionSample(7,1256,1000,20,201);
     check(end.x==1256&&!end.walking,
           "idle citizen keeps skidding beyond arrival at the tile");
@@ -47,10 +59,17 @@ int main(void){
     ggPersonTrackReset();
     for(unsigned int i=1;i<=GG_PERSON_TRACK_SLOTS;i++)
         ggPersonMotionSample(i,1000+i*8,1000,20,0);
+    for(int i=0;i<GG_PERSON_TRACK_SLOTS;i++){
+        check(ggPersonTracks[i].id!=0,
+              "free slots left unused while resident identities were evicted");
+        for(int j=0;j<i;j++)
+            check(ggPersonTracks[i].id!=ggPersonTracks[j].id,
+                  "duplicate citizen identities occupy tracking slots");
+    }
     GgPersonMotion latest=ggPersonMotionSample(999,3000,4000,25,73);
     check(latest.x==3000&&latest.y==4000&&
           sizeof ggPersonTracks<1024,
           "visible population tracker overflowed after eviction");
-    puts("3DS PERSON MOTION OK: fixed-slot identities, real heading, eased gait, arrival, teleport and capacity");
+    puts("3DS PERSON MOTION OK: independent multiple residents, fixed-slot identities, real heading, eased gait, arrival, teleport and capacity");
     return 0;
 }
