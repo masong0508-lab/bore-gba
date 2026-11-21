@@ -766,7 +766,8 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
             if(beat==roofBeats+shot)roofFinished=0;
     }
     ggFilmWorldDraw(beat,elapsed,move,
-                    filmBonusIndex>=0?14:chapter,roofFinished);
+                    filmBonusIndex>=0?14:chapter,roofFinished,
+                    filmBonusIndex==0||filmBonusIndex==1);
 #endif
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // World geometry now owns the rain window, roof construction and
