@@ -95,7 +95,12 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(0,96,SW,20,big?RGB(7,5,10):RGB(13,8,4)); csR(0,96,SW,2,big?RGB(14,11,20):RGB(21,14,7));
         for(int i=0;i<15;i++){ int hx=8+i*16+((i*7)&5), hy=110+(i&1); csD(hx,hy+4,5,RGB(1,1,3)); if(big&&((i*5+(t>>4))%7)==0) csR(hx-1,hy-3,2,2,RGB(31,31,14)); else if(!big&&(i%4==1)&&((t>>3)&1)) csR(hx,hy-2,1,2,RGB(28,28,31)); }   // the audience
         if(big&&csCurSc==5&&csCurBi>=10){ for(int i=0;i<15;i++){ int hx=8+i*16+((i*7)&5), hy=110+(i&1); if(((i*5+(t>>5))%9)!=0){ csR(hx-1,hy-5,3,3,RGB(31,31,26)); csR(hx-2,hy-6,5,5,RGB(14,14,12)); } } }   // THE PHONES: every one a small light now (the same phones that filmed her fall)
-        if(big){ csR(118,106,6,5,RGB(26,24,20)); csR(118,111,1,4,RGB(26,24,20)); csR(123,111,1,4,RGB(26,24,20)); csR(118,102,1,4,RGB(26,24,20)); }   // the empty chair, front row centre
+        if(big){ // warm twin footlights and a low riser give the solo depth
+            csR(22,93,196,2,RGB(24,17,14));
+            for(int i=0;i<12;i++){ int lx=24+i*17;
+                csR(lx,95,3,2,RGB(22,18,10));
+                if(((t>>4)+i)%5<3) csR(lx,94,2,1,RGB(31,28,15)); }
+            csR(118,106,6,5,RGB(26,24,20)); csR(118,111,1,4,RGB(26,24,20)); csR(123,111,1,4,RGB(26,24,20)); csR(118,102,1,4,RGB(26,24,20)); }   // the empty chair, front row centre
         break; }
     case CB_HOME:   // the mansion's great room at night: panelled wall, framed awards, a chandelier, a fireplace, a long window with its curtains; the sofa, the bar cart and the glass stay where the scene looks for them
         csGrad(12,98,3,4,11,5,6,16);
@@ -116,13 +121,43 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csFig(120,94,CA_MISSY,csMirPose,csFt(t));   // the reflection (acts the beat's pose a; no pose = she hangs her head)
         csR(40,98,160,18,RGB(24,24,26)); csR(40,98,160,2,RGB(30,30,31)); csR(116,88,8,10,RGB(16,16,19)); csR(112,86,16,3,RGB(16,16,19));
         break;
-    case CB_SITE:
-        csGrad(12,70,26,12,6,6,8,18); csR(0,82,SW,34,RGB(10,7,4)); csR(0,82,SW,2,RGB(15,11,6));
-        for(int i=0;i<4;i++){ csR(14+i*30,50,3,34,RGB(18,13,6)); } csR(10,50,100,3,RGB(18,13,6)); csR(10,64,100,2,RGB(18,13,6)); csR(10,76,100,2,RGB(18,13,6));   // the house frame
-        csR(128,28,3,88,RGB(14,14,16)); csR(172,28,3,88,RGB(14,14,16)); for(int y=40;y<110;y+=22){ csR(128,y,47,2,RGB(14,14,16)); csLn(131,y,172,y+22,RGB(12,12,14)); } csR(124,56,55,3,RGB(19,13,6));   // scaffold tower and a plank
-        csR(196,40,44,76,RGB(6,5,4)); for(int i=0;i<9;i++) csR(198+i*5,36+(i&1)*3,3,80,RGB(9,7,4));                                                     // the fence
-        for(int i=0;i<4;i++) if((((t>>2)+i*5)&7)<2){ int fx2=206+((i*13)&24), fy=50+((i*11)&31); csR(fx2,fy,2,2,RGB(31,31,31)); csR(fx2-1,fy,4,1,RGB(31,31,26)); }   // flashbulbs
-        break;
+    case CB_SITE: {
+        // PERSPECTIVE SITE: three depth planes, properly braced scaffold, ladder,
+        // marked hazard and collapsing plank. The accident has a visible cause.
+        csGrad(12,70,22,12,8,7,12,18);
+        for(int i=0;i<6;i++){ int bx=9+i*38, roof=38+(i%3)*5;
+            csR(bx,roof,32,82-roof,RGB(11,12,16));
+            csR(bx+2,roof+2,28,3,RGB(17,16,17));
+            for(int k=0;k<3;k++) csR(bx+5+k*8,roof+8,3,9,RGB(7,10,14));
+        } // distant buildings and empty windows
+        csR(0,82,SW,34,RGB(10,9,8)); csR(0,82,SW,2,RGB(21,17,11));
+        for(int i=0;i<4;i++) csR(10+i*29,48,4,35,RGB(19,15,10));
+        csR(10,47,103,5,RGB(28,20,11));
+        csR(10,64,103,3,RGB(24,17,10)); csR(10,77,103,3,RGB(24,17,10));
+        for(int i=0;i<3;i++) csLn(14+i*29,50,43+i*29,76,RGB(14,12,11));
+        // Actual work platform has depth, not a floating horizontal bar.
+        csR(123,53,60,7,RGB(5,7,10)); csR(123,52,60,4,RGB(26,19,10));
+        csR(124,56,59,3,RGB(14,10,8));
+        for(int i=0;i<3;i++) csR(127+i*22,52,1,4,RGB(31,26,14));
+        csR(127,25,4,88,RGB(11,14,18)); csR(173,25,4,88,RGB(11,14,18));
+        for(int y=34;y<101;y+=21){ csR(126,y,52,3,RGB(22,24,25));
+            csLn(130,y+3,173,y+21,RGB(10,15,18));
+            csLn(173,y+3,130,y+21,RGB(10,15,18)); }
+        csR(181,51,3,64,RGB(18,21,23)); csR(190,51,3,64,RGB(18,21,23));
+        for(int y=59;y<111;y+=8) csR(181,y,12,2,RGB(25,22,15)); // ladder
+        // The upper plank begins to shift, then falls behind the actress.
+        if(csCurSc==2&&csCurBi>=10&&csCurBi<=12){
+            csLn(130,52,180,56+(csCurBi-10)*7,RGB(27,19,9));
+            if(csCurBi>=11) for(int i=0;i<5;i++) csR(136+i*8,58+i*3+(t>>3)%7,2,2,RGB(28,22,12));
+        }
+        csR(198,39,42,77,RGB(7,8,9));
+        for(int i=0;i<8;i++) csR(199+i*6,40+(i&1),2,76,RGB(14,13,12));
+        csR(0,112,SW,4,RGB(5,6,8)); // foreground barrier
+        csR(70,85,24,4,RGB(29,24,6)); for(int i=0;i<3;i++) csR(74+i*7,85,3,4,RGB(6,6,5));
+        for(int i=0;i<4;i++) if((((t>>2)+i*5)&7)<2){
+            int fx2=204+((i*13)&24), fy=50+((i*11)&31);
+            csR(fx2,fy,2,2,RGB(31,31,31)); csR(fx2-1,fy,4,1,RGB(31,31,26)); }
+        break; }
     case CB_HOSP: case CB_FLAT: {
         // ICU REDESIGN: physical depth, pillow and mattress, headboard, equipment.
         // The patient goes ON the mattress in csWardPatient; the near rail is
@@ -176,6 +211,10 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         break; }
     case CB_BACK:
         csGrad(12,104,14,6,10,8,3,7); csR(0,106,SW,10,RGB(8,5,4));
+        csR(8,25,33,71,RGB(7,5,8)); csR(12,29,25,63,RGB(16,13,17)); // backstage doorway
+        csR(19,41,10,2,RGB(23,19,13)); csR(23,40,2,9,RGB(23,19,13)); // coat hook
+        csR(207,52,22,43,RGB(8,6,9)); csR(211,56,14,35,RGB(17,14,16)); // wardrobe
+        csR(18,108,204,1,RGB(22,14,10));
         csR(58,18,124,66,RGB(8,8,12)); csR(61,21,118,60,RGB(14,20,26)); for(int i=0;i<12;i++) csD(63+i*10,19+((i*3)&1),2,csMood>0?RGB(8,6,2):(((t>>4)+i)&3)?RGB(31,28,10):RGB(20,16,5));   // the mirror and its bulbs
         csR(46,84,148,6,RGB(16,10,7)); csR(40,90,4,16,RGB(16,10,7)); csR(196,90,4,16,RGB(16,10,7));
         csD(214,28,9,RGB(28,28,28)); csD(214,28,7,RGB(5,5,8)); csLn(214,28,214,22,RGB(28,28,28)); csLn(214,28,218,30,RGB(28,28,28));          // the clock
@@ -202,13 +241,41 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(184,34,44,30,RGB(2,3,5)); csR(186,36,40,26,RGB(1,2,4)); { int py=56; for(int i=0;i<38;i++){ int y=i<18?56-i*18/18:38+((i-18)*3); csLn(187+i,py,188+i,y,i<18?RGB(8,28,12):RGB(31,6,6)); py=y; } }   // the ratings screen: up, then down
         csR(14,90,34,12,RGB(9,6,4)); csR(14,89,34,2,RGB(28,20,12)); for(int i=0;i<4;i++){ csR(17+i*8,82,3,7,RGB(26,21,6)); csD(18+i*8,81,2,RGB(28,24,8)); }   // a cabinet with her statuettes on it
         break; }
-    case CB_CAR: {   // Mamesy's car at night in the rain: the windshield, the red river of tail lights, the wipers; the dashboard and the wheel come after her (csDash)
-        csR(0,12,SW,104,RGB(2,3,6)); csR(0,58,SW,34,RGB(5,6,9));
-        for(int i=0;i<8;i++){ int k=(t*2+i*12)%96, y=58+k*34/96, o=6+k*84/96; csR(120-o,y,2,2,RGB(16,16,12)); csR(120+o,y,2,2,RGB(16,16,12)); }   // the lane lines streaming past, both sides
-        for(int i=0;i<8;i++){ int x=26+((i*53)%190), y=50+((i*17)%14); csD(x,y,2,RGB(31,5,4)); csR(x-3,y+2,7,1,RGB(14,2,2)); }   // tail lights, all the way up the hill
-        for(int i=0;i<26;i++){ int x=(i*37+t*2)%SW, y=14+((i*29+t*5)%72); csR(x,y,1,4,RGB(10,14,22)); }                   // rain on the glass
-        csR(0,12,SW,6,RGB(3,3,5)); csR(0,12,14,80,RGB(3,3,5)); csR(226,12,14,80,RGB(3,3,5));                           // roof and pillars
-        csLn(120,92,120+csWv(t,56)*7,52,RGB(10,10,13)); csLn(121,92,121+csWv(t,56)*7,52,RGB(10,10,13));                // a wiper, sweeping
+    case CB_CAR: {
+        // INSIDE THE CAR: rain-streaked windscreen with a road vanishing point
+        // and a distinct oncoming truck in the collision beat, not random dots.
+        csGrad(12,104,2,4,9,7,9,13);
+        csR(0,56,SW,35,RGB(3,6,10));
+        csLn(117,55,22,93,RGB(13,16,19)); csLn(123,55,218,93,RGB(13,16,19)); // road perspective
+        csLn(120,55,92,92,RGB(15,15,13)); csLn(120,55,146,92,RGB(15,15,13));
+        for(int i=0;i<7;i++){
+            int k=(t*2+i*15)%105, y=56+k*35/105, o=5+k*79/105;
+            csR(120-o,y,2+(k>>6),2,RGB(21,20,15));
+            csR(120+o,y,2+(k>>6),2,RGB(21,20,15));
+        }
+        for(int i=0;i<7;i++){
+            int x=38+((i*41)%170), y=49+((i*17)%17);
+            csR(x-3,y-1,8,5,RGB(5,7,10));
+            csD(x,y,2,RGB(31,7,5)); csD(x+5,y,2,RGB(31,7,5));
+            csR(x-2,y+3,9,1,RGB(15,4,4));
+        }
+        if(csCurSc==10&&csCurBi>=8){
+            int grow=t/3; if(grow>25) grow=25;
+            int w=18+grow, h=11+grow/2, tx=120-w/2+18, ty=44-grow/3;
+            csR(tx,ty,w,h,RGB(4,6,9)); // truck cabin silhouetted by its lights
+            csR(tx+4,ty+2,w-8,6,RGB(12,18,23));
+            csR(tx+2,ty+h-5,w-4,4,RGB(18,20,21));
+            csR(tx+3,ty+h-3,6,4,RGB(31,31,23));
+            csR(tx+w-9,ty+h-3,6,4,RGB(31,31,23));
+            csLn(tx+4,ty+h,tx-17,91,RGB(28,24,13));
+            csLn(tx+w-4,ty+h,tx+w+17,91,RGB(28,24,13));
+        }
+        for(int i=0;i<20;i++){ int x=(i*37+t*2)%SW, y=14+((i*29+t*5)%74);
+            csR(x,y,1,4,RGB(11,16,24)); } // rain catches the road lighting
+        csR(0,12,SW,6,RGB(3,4,7));
+        csR(0,12,14,81,RGB(3,4,7)); csR(226,12,14,81,RGB(3,4,7));
+        csLn(120,92,120+csWv(t,56)*7,52,RGB(12,14,17));
+        csLn(121,92,121+csWv(t,56)*7,52,RGB(16,18,20));
         break; }
     default: csR(0,12,SW,104,0); break;
     }
@@ -216,9 +283,9 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
 static void csWardFront(void){ // near-side metal rail/bed frame overlays the patient
     csR(116,101,99,3,RGB(5,10,15));
     csR(120,100,90,2,RGB(25,29,29));
-    csR(118,89,3,13,RGB(12,19,23)); csR(211,89,3,13,RGB(12,19,23));
-    csR(118,88,96,2,RGB(26,30,30));
-    csR(153,90,2,10,RGB(17,23,25)); csR(178,90,2,10,RGB(17,23,25));
+    csR(118,91,3,11,RGB(12,19,23)); csR(211,91,3,11,RGB(12,19,23));
+    csR(118,98,96,2,RGB(26,30,30)); // below her mouth; no bar across her face
+    csR(153,98,2,3,RGB(17,23,25)); csR(178,98,2,3,RGB(17,23,25));
     csR(123,104,89,3,RGB(7,11,15)); csR(136,107,62,2,RGB(12,18,22));
 }
 static void csDash(int t){   // CB_CAR, after the figure: the dashboard hides her lap; the wheel, the radio's glow

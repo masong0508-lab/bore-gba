@@ -66,6 +66,11 @@ assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat cs
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "static void csWardFront(void)" in cut
+assert "PERSPECTIVE SITE:" in cut
+assert "INSIDE THE CAR:" in cut
+assert "if(csCurSc==10&&csCurBi>=8)" in cut
+assert "backstage doorway" in cut
+assert "warm twin footlights" in cut
 assert "if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) csWardFront()" in cut
 assert cut.index("csFtrack=0;") < cut.index("csWardFront();")  # bed rail is an occluder, after patient
 assert "csShotFind(int t)" in shots and "lastT=-1,nextT=-1" in shots

@@ -146,3 +146,14 @@ angled headboard, equipment shelf, ECG monitor with consistent heartbeat,
 window/rain, IV stand and near rail that properly overlays the blanket.
 The overlay uses existing clipping so it respects zoom and part redraws.
 No external sprites/assets, heap memory or additional framebuffer.
+
+### Broader stage and accident graphics
+The building site now layers a city background, beams, X-braces and a
+3-dimensional work platform with a visible ladder and collapsing plank at
+the fall. The Route 9 cockpit has converging road lanes, near and far
+tail lights, a legible truck with paired headlights and beams that grow
+over the collision beat. Dressing-room staging gains a wardrobe and
+backstage doorway; the finale stage has brighter grouped footlights.
+The hospital near rail is lowered so it cannot cross Missy's face.
+All shapes are in the existing GBA procedural renderer; no new images,
+textures, music assets, framebuffer allocation or asset loading.
