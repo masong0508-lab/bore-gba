@@ -339,8 +339,9 @@ jobs:
         working-directory: godguy
         run: |
           chmod +x 3ds/build.sh
-          ./3ds/build.sh
+          GG_BUILD_GPU_PROBE=1 ./3ds/build.sh
           test -s godguy.3dsx
+          test -s godguy_new3ds_gpu_probe.3dsx
       - name: Verify crisp top/bottom 3DS cinema scaling and UI restore
         working-directory: godguy
         run: |
@@ -397,6 +398,7 @@ jobs:
           name: godguy-3ds-cinema
           path: |
             godguy/godguy.3dsx
+            godguy/godguy_new3ds_gpu_probe.3dsx
             out/godguy_unwritten_reign_endings.mp4
             out/Corporations_3DS_vocal_preview.wav
             out/Duck_and_Cover_3DS_vocal_preview.wav
