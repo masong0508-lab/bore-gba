@@ -33,6 +33,39 @@ int main(void){
     u8 buffer[1]={0};
     check(ggFilmGuestPalette[0][0][0]==126,
           "actor colour identity is not stable");
+    // Walk, idle, and camera world-space interpolation share one eased
+    // distance parameter. Start/end poses must remain planted with no
+    // mid-stride snap; the two middle half-strides alternate sides.
+    check(ggFilmWalkLegAt(0,0,96)==0&&
+          ggFilmWalkLegAt(0,24,96)==0&&
+          ggFilmWalkLegAt(0,48,96)==0&&
+          ggFilmWalkLegAt(1,0,96)==0&&
+          ggFilmWalkLegAt(0,100,96)==0,
+          "walking boots do not plant at scene and dialogue boundaries");
+    check(ggFilmWalkLegAt(0,12,96)>0&&
+          ggFilmWalkLegAt(0,18,96)<0&&
+          ggFilmWalkLegAt(0,27,96)>0&&
+          ggFilmWalkLegAt(0,36,96)<0,
+          "walking gait is not synchronized with actual world travel");
+    GgFilmPose walkStart=ggFilmPoseFor("",0,0,1,0,1,0);
+    GgFilmPose walkMid=ggFilmPoseFor("",0,12,1,0,1,0);
+    GgFilmPose walkEnd=ggFilmPoseFor("",0,48,1,0,1,0);
+    check(!walkStart.legL&&!walkStart.legR&&!walkStart.bob&&
+          !walkEnd.legL&&!walkEnd.legR&&!walkEnd.bob,
+          "cinematic character was already mid-stride or floated on arrival");
+    check(walkMid.legL==-walkMid.legR&&
+          walkMid.armR>walkMid.armL&&walkMid.bob==0,
+          "walk has disconnected gait, same-side arms or floating torso");
+    // Frame-to-frame pose changes must be bounded even through easing.
+    int lastLeg=0;
+    for(int t=0;t<=48;t++){
+        GgFilmPose walking=ggFilmPoseFor("",0,t,1,0,1,0);
+        int d=walking.legL-lastLeg;if(d<0)d=-d;
+        check(d<=1&&walking.legL==-walking.legR&&
+              walking.bob==0,
+              "walk-in frame jumped limbs or lost planted foot contact");
+        lastLeg=walking.legL;
+    }
     GgFilmPose compatibility=ggFilmPoseAt("YOU","The records are open.",
                                          2,48,1,0,2);
     check(compatibility.holdProp==3,
