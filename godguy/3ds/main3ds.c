@@ -13,6 +13,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "population3d.h"
 #include "chronicles3d.h"
 #include "reign3d.h"
+#include "origin3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
@@ -103,6 +104,19 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     // A wholly separate, unlockable 3DS story. The main story stays on
     // the original 2D tile UI and neither story's save format is changed.
     if(ggChron.active){
+        // First entry begins the life-story opening and adult creator.
+        // Neither the battle nor the career council advances until the
+        // character discovers their hidden nature at age twenty-two.
+        if(ggOrigin.active){
+            int before=ggOrigin.active;
+            if(ggOriginStep(raw)){
+                ggChron.active=0;
+                ggExpFinish();
+                ggExpMessage("OPENING EXIT: ORIGINAL 2D STORY RESTORED");
+            }else if(before&&!ggOrigin.active)
+                ggExpRenderValid=0; // redraw real terrain after the reel
+            *held=0;*tx=*ty=0;return;
+        }
         if(ggReignStep(raw)){
             *held=0;*tx=*ty=0;return;
         }
@@ -126,7 +140,10 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             if(entered>0){
                 paused=1;ggExpRenderValid=0;
                 ggReignBegin();ggReign.lastKeys=raw;
-                ggExpMessage("THE UNWRITTEN REIGN: GODBORN CAMPAIGN");
+                ggOriginBegin();ggOrigin.lastKeys=raw;
+                ggExpMessage(ggOrigin.active?
+                    "UNWRITTEN REIGN: AN ORDINARY LIFE BEGINS":
+                    "THE UNWRITTEN REIGN: RETURN TO YOUR LIFE");
             }else if(entered==-2)
                 ggExpMessage("NO SAFE EXPEDITION ROUTE: CHOOSE A LAND REGION");
             else if(entered<0)
@@ -252,11 +269,15 @@ void shimPresent(void){
                   ggExplore.px!=lastX||ggExplore.py!=lastY||
                   ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
                   ggExplore.feedback!=lastFx||sky!=lastSky||
-                  (ggChron.active&&(ggChron.dirty||ggReign.menu||ggReign.noticeT||
+                  (ggChron.active&&(ggOrigin.active||ggChron.dirty||ggReign.menu||ggReign.noticeT||
                                      !(ggChron.frame&3)));
         if(dirty){
-            ggExpRender(topBuf);
-            if(ggChron.active){ggChronDraw(topBuf);ggReignDraw(topBuf);}
+            if(ggChron.active&&ggOrigin.active)
+                ggOriginDraw(topBuf);
+            else{
+                ggExpRender(topBuf);
+                if(ggChron.active){ggChronDraw(topBuf);ggReignDraw(topBuf);}
+            }
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;
             lastA=ggExplore.angle;lastEdits=ggExplore.edits;
