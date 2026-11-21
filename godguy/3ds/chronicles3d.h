@@ -1,4 +1,4 @@
-// GodGuy 3DS - The Ashen Chronicles: unlockable companion story.
+// GodGuy 3DS - The Unwritten Reign: unlockable companion story.
 // A bounded near-real-time tactical/survival campaign on the EXISTING
 // world[][] / bld[][] map. The god-game remains 2D-led and unchanged.
 // No terrain editing, duplicated world, heap allocations or per-frame scans.
@@ -23,10 +23,10 @@ static const char *const ggChronActName[GG_CHRON_ACTS]={
     "THE BORDER OF NAMES","THE HOLLOW MARCH"
 };
 static const char *const ggChronPrologue[GG_CHRON_ACTS]={
-    "MIRA: BRING THE SUPPLY COLUMN THROUGH.",
-    "THORGRIM: RESTORE THE BEACON ROAD.",
-    "SERIN: THESE LOST NAMES ARE REAL PLACES.",
-    "ELOWEN: HOLD THE ROAD AGAINST THE HOLLOW."
+    "MIRA: A GODBORN SOUL CHOOSES ITS OWN PATH.",
+    "THORGRIM: EVEN DIVINITY CANNOT BUY TRUST.",
+    "SERIN: THESE NAMES BELONG TO REAL TOWNS.",
+    "ELOWEN: NO CROWN CAN MAKE THE WORLD OBEY."
 };
 static const char *const ggChronPostName[GG_CHRON_POSTS]={
     "THE OUTER CAMP","THE WATCH POST","THE LAST STANDARD"
@@ -332,19 +332,36 @@ static void ggChronDraw(u8 *out){
         if(f->hp<=0)continue;
         int x,y,s;
         if(!ggChronProject(f->x,f->y,&x,&y,&s))continue;
-        int w=ggExpClamp(s*2/3,4,26);
+        int scale=ggExpClamp(s/4,1,9);
         int bob=(ggChron.frame/12+i)&1;
-        ggExpRect(out,x-w,y-2,w*2,2,25,33,30);
-        ggExpRect(out,x-w/2,y-s*2+bob,w,s,67,38,42);
-        ggExpRect(out,x-w/2-3,y-s+bob,4,s/2,42,29,35);
-        ggExpRect(out,x+w/2-1,y-s+bob,4,s/2,42,29,35);
-        ggExpRect(out,x-w/3,y-s*2-s/2+bob,w*2/3,s/2,180,137,112);
-        ggExpRect(out,x-w/2,y-s*2-s/2+bob,w,3,47,56,68);
-        ggExpRect(out,x+w/2,y-s*2+2,ggExpClamp(s/2,3,9),
-                  ggExpClamp(s,8,28),116,128,137);
-        ggExpRect(out,x-w/2,y-s*2-s/2-5,w*2,3,33,26,29);
-        ggExpRect(out,x-w/2,y-s*2-s/2-5,
-                  w*2*ggExpClamp(f->hp,0,40)/40,3,192,69,59);
+        int shape=(ggChron.act==3&&(i&1))?16:(i&1)?26:5;
+        // Original GodGuy animated creature cels, not block-built men.
+        // The enemy army retains a silhouette and regional uniform.
+        static const u8 enemyInk[4][3]={
+            {91,47,55},{174,120,68},{45,49,64},{244,204,149}
+        };
+        ggExpRect(out,x-4*scale,y-2,8*scale,2,29,34,33);
+        for(int py=0;py<8;py++){
+            const char *row=shpRow(shape,bob,py);
+            for(int px=0;px<8;px++){
+                int color=row[px]=='b'?0:row[px]=='a'?1:
+                          row[px]=='d'?2:row[px]=='e'?3:-1;
+                if(color<0)continue;
+                ggExpRect(out,x+(px-4)*scale,
+                          y-(8-py)*scale+bob,scale,scale,
+                          enemyInk[color][0],enemyInk[color][1],
+                          enemyInk[color][2]);
+            }
+        }
+        // Readable banner and shield, including a distinguishable
+        // opposing-faction palette at all render distances.
+        ggExpRect(out,x+4*scale,y-7*scale,2,7*scale,117,130,139);
+        ggExpRect(out,x+4*scale+2,y-7*scale,4*scale,2*scale,
+                  124,44,55);
+        int bar=ggExpClamp(14*scale,16,60);
+        ggExpRect(out,x-bar/2,y-9*scale-3,bar,3,34,29,35);
+        ggExpRect(out,x-bar/2,y-9*scale-3,
+                  bar*ggExpClamp(f->hp,0,40)/40,3,196,76,64);
     }
     if(!ggChron.won){
         int p=ggChron.post,x,y,s;
@@ -361,7 +378,7 @@ static void ggChronDraw(u8 *out){
     ggExpRect(out,0,0,400,37,13,23,34);
     ggExpRect(out,0,35,400,2,177,128,71);
     char line[100];
-    snprintf(line,sizeof line,"ASHEN CHRONICLES %d/4  %.24s",
+    snprintf(line,sizeof line,"UNWRITTEN REIGN %d/4  %.24s",
              ggChron.act+1,ggChronActName[ggChron.act]);
     ggExpText(out,9,5,line,248,220,165);
     snprintf(line,sizeof line,"HEALTH %3d   STAMINA %3d   FOOD %3d   RATIONS %d   MORALE %d",
@@ -385,7 +402,7 @@ static void ggChronDraw(u8 *out){
                  p+1,ggChronPostName[p],dir,distance,ggChronEnemiesAt(p));
         ggExpText(out,9,203,line,247,216,155);
     }
-    ggExpText(out,9,221,"A STRIKE  X SECURE POST  Y RATION  B SPRINT  L/R LOOK  START 2D",
+    ggExpText(out,9,221,"A STRIKE  X SECURE  Y RATION  B SPRINT  SELECT COUNCIL  START 2D",
               201,214,224);
     if(ggChron.briefTime>0){
         ggExpRect(out,22,69,356,65,17,31,44);
@@ -396,7 +413,7 @@ static void ggChronDraw(u8 *out){
             ggChron.post==2?"THE WATCH HOLDS. THE LAST BANNER WAITS.":
                              "THE THREE STANDARDS STAND TOGETHER.",
             243,214,166);
-        ggExpText(out,38,105,"REAL SETTLEMENTS. REAL ROADS. NO TERRAIN BUILDING.",
+        ggExpText(out,38,105,"YOUR WORLD. YOUR CLASS. YOUR CROWN. NO BUILDING MENU.",
                   180,207,225);
     }
     if(ggChron.attackFlash)
