@@ -21,3 +21,6 @@ No new assets or framebuffers. This document tracks unverified manual gates sepa
 
 ## Low-pressure reload regression
 Band 0 now restores a genuine 0..6 hospital pressure level rather than resetting it to 20. Newly entered chapter four persists its starting pressure before a save. Existing saves with zero band may resume slightly easier than before; SRAM layout and save-file decoding are unchanged.
+
+## Screenshot-driven animation correction
+Review of the actual mGBA ICU/awakening stills showed that the neck/gown were breathing on a different vertical phase than Missy’s face. The close-up and distant heads now follow the same 1px breath phase; this adds no new assets or buffers. Native capture should be reviewed again for head-to-neck continuity.

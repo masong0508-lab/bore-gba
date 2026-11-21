@@ -102,20 +102,21 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csLn(x-14,y-10-breath,x-8,y-7-breath,seam);
     // Draw the head only ONCE, with its features anchored at x-31,y-16.
     // A large close-up uses the same jaw/neck coordinates as the wide sprite.
-    if(csCz>=560) csFaceBed(x-31,y-16,t,sk,hr,awake);
+    // Keep head, eyes and mouth in phase with the breathing neck and gown.
+    if(csCz>=560) csFaceBed(x-31,y-1-breath6-breath,t,sk,hr,awake);
     else {
-        csD(x-29,y-17,7,edge); csD(x-28,y-18,7,hr);
-        csD(x-31,y-16,6,csSh(sk,1)); csD(x-32,y-16,5,sk);
-        csR(x-37,y-21,13,3,hr); csR(x-36,y-22,8,1,csLt(hr,5));
-        csR(x-39,y-15,3,2,sk);
-        csR(x-37,y-11,5,2,csSh(sk,2));
-        csR(x-26,y-15,2,3,csSh(sk,3)); csR(x-25,y-14,2,2,sk);
+        csD(x-29,y-17-breath,7,edge); csD(x-28,y-18-breath,7,hr);
+        csD(x-31,y-16-breath,6,csSh(sk,1)); csD(x-32,y-16-breath,5,sk);
+        csR(x-37,y-21-breath,13,3,hr); csR(x-36,y-22-breath,8,1,csLt(hr,5));
+        csR(x-39,y-15-breath,3,2,sk);
+        csR(x-37,y-11-breath,5,2,csSh(sk,2));
+        csR(x-26,y-15-breath,2,3,csSh(sk,3)); csR(x-25,y-14-breath,2,2,sk);
         if(awake){
-            csR(x-35,y-17,4,3,csSh(sk,6));
-            csR(x-34,y-16,2,2,RGB(30,29,25));
-            csR(x-33,y-16,1,2,RGB(10,9,8));
-        } else csR(x-35,y-15,4,1,csSh(sk,5));
-        csR(x-35,y-10,3,talking?2:1,RGB(18,7,9));
+            csR(x-35,y-17-breath,4,3,csSh(sk,6));
+            csR(x-34,y-16-breath,2,2,RGB(30,29,25));
+            csR(x-33,y-16-breath,1,2,RGB(10,9,8));
+        } else csR(x-35,y-15-breath,4,1,csSh(sk,5));
+        csR(x-35,y-10-breath,3,talking?2:1,RGB(18,7,9));
     }
     // The sheet begins at the WAIST so the chest and neckline remain
     // recognizably human; long diagonal folds suggest bent legs underneath.
