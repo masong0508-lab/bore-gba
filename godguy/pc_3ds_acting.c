@@ -56,6 +56,32 @@ int main(void){
                                   2,48,0,0,0,2);
     check(!silent.mouth&&!silent.holdProp,
           "silent partner is lip-syncing or duplicating the prop");
+    GgFilmPose reach=ggFilmPoseFor("We'll help the families.",
+                                 2,64,1,0,0,3);
+    ggFilmPairActPose(&reach,1,96);
+    check(reach.reach==4&&reach.armR>=2&&reach.legL==2&&
+          reach.legR==-2&&reach.bob==0,
+          "hero lacks planted legs, weight shift or outstretched arm");
+    int handX,handY;
+    ggFilmPairHandAt(200,140,3,218,&reach,&handX,&handY);
+    check(handX==209&&handY<140&&handY>80,
+          "offered hand went past the other actor or detached vertically");
+    GgFilmPose reply=ggFilmPoseFor("I will help.",2,64,0,0,0,3);
+    ggFilmPairActPose(&reply,-1,96);
+    int otherX,otherY;
+    ggFilmPairHandAt(218,140,2,200,&reply,&otherX,&otherY);
+    check(reply.reach==-4&&reply.armL>=2&&otherX==handX,
+          "guest did not reciprocate the same physical hand contact");
+    check(otherY>80&&otherY<140,
+          "guest hand detached from projected torso");
+    reach.holdProp=0;reply.holdProp=0;
+    draws=bookCover=parcelBody=handLinks=0;
+    ggFilmDrawActor(buffer,200,140,3,hair,skin,coat,&reach);
+    ggFilmDrawActor(buffer,218,140,2,hair,skin,coat,&reply);
+    ggFilmDrawHeldObject(buffer,handX,handY,2,3,skin);
+    check(bookCover==1&&parcelBody==0&&handLinks==1,
+          "joint interaction duplicated or disconnected shared ledger");
+    check(draws<40,"full-body joint performance added too many rect draws");
     puts("3DS ACTING OK: speaker-owned book and parcel, hand contact, no floating duplicate, cheap draw");
     return 0;
 }
