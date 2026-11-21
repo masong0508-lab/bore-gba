@@ -454,8 +454,8 @@ typedef struct { int x,y; } FilmPoint;
 static FilmPoint filmHandPoint(int who,int pose,int cx,int feet,int height,int flip){
 #ifdef __3DS__
     // High-detail actor() draws a real 40x48 hand for each acting pose.
-    static const u8 hx[FILM_HQ_N]={26,25,27,35,30,30,26,30,28,35,30,34};
-    static const u8 hy[FILM_HQ_N]={34,34,34,25,27,27,34,23,15,37,32,29};
+    static const u8 hx[FILM_HQ_N]={26,25,27,35,30,30,26,30,28,35,30,34,29,31};
+    static const u8 hy[FILM_HQ_N]={34,34,34,25,27,27,34,23,15,37,32,29,36,31};
     if(pose<0||pose>=FILM_HQ_N) pose=0;
     int sw=FILM_HQ_W, sh=FILM_HQ_H;
     int sx=hx[pose],sy=hy[pose];
@@ -814,8 +814,18 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
         // dialogue a reaction shot rather than synchronized mouth flapping.
         if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
            elapsed>=75&&elapsed<=290)return elapsed<165?9:3;
+        if(beat->place==F_COUCH&&beat->other<F_ACTOR_N&&
+           beat->other!=F_WISP)
+            return 12; // stays seated throughout the other person's speech
         if(elapsed>=280&&elapsed<320&&beat->line)return 10;
         return (elapsed+(beat->other*13))%167<10?6:0;
+    }
+    if(beat->place==F_COUCH&&beat->lead<F_ACTOR_N&&
+       beat->lead!=F_WISP){
+        // The original movie had people standing in front of the couch
+        // for an entire conversation. These authored seated cels keep
+        // hips, knees and feet grounded and lip-sync during dialogue.
+        return spoken?((elapsed/12)&1?13:12):12;
     }
     if(((beat->camera==F_TRACK&&elapsed<140)||
         (beat->camera==F_WIDE&&beat->prop>=F_PROP_N&&elapsed<180))&&
