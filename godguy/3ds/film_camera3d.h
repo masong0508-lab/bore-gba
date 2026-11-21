@@ -23,14 +23,34 @@ static void ggFilmCameraTrackAt(const GgFilmCameraTrack *track,
     *x=track->fromX+(track->toX-track->fromX)*t/256;
     *y=track->fromY+(track->toY-track->fromY)*t/256;
 }
+// A ray through the center of the camera is not a safe corridor: the
+// previous shot planner could graze the corner of a house, wall or cliff.
+// Test a 16/256-tile collision footprint, including diagonal corners.
+// This is evaluated ONLY during shot selection, never during rendering.
+// Local x/y are nonnegative Q8 map coordinates (world map indices).
+static int ggFilmCameraFootprintClear(int x,int y,int elevation,
+                                      GgFilmCameraCell pass,void *context){
+    const int radius=16;
+    int tx=x>>8,ty=y>>8;
+    int fx=x&255,fy=y&255;
+    int nx=fx<radius?tx-1:fx>=256-radius?tx+1:tx;
+    int ny=fy<radius?ty-1:fy>=256-radius?ty+1:ty;
+    if(!pass(tx,ty,elevation,context))return 0;
+    if(nx!=tx&&!pass(nx,ty,elevation,context))return 0;
+    if(ny!=ty&&!pass(tx,ny,elevation,context))return 0;
+    if(nx!=tx&&ny!=ty&&!pass(nx,ny,elevation,context))return 0;
+    return 1;
+}
 static int ggFilmCameraCorridorClear(int sx,int sy,int ex,int ey,
                                      int elevation,GgFilmCameraCell pass,
                                      void *context){
-    // Probe 16 Q8 points along the entire route only ONCE per shot.
-    // This keeps the camera out of water, walls, roofs and cliff steps.
+    // Quarter-of-a-tile probes and 16-Q8 footprint prevent thin corner
+    // intrusions while keeping shot search bounded and allocation-free.
+    // The longest proposed dolly is < one tile.
     for(int i=0;i<=16;i++){
         int x=sx+(ex-sx)*i/16,y=sy+(ey-sy)*i/16;
-        if(!pass(x>>8,y>>8,elevation,context))return 0;
+        if(!ggFilmCameraFootprintClear(x,y,elevation,pass,context))
+            return 0;
     }
     return 1;
 }
