@@ -501,6 +501,11 @@ static void stTvControl(void){
         if(stPart!=255&&hhPUid==(int)stPart){ stTvWant=0; return; }   // already her
         int patientUid=(int)msPatientUid((unsigned)stKid,(unsigned)hhPUid);
         if(patientUid>=HU_N){ if(!stTvWarn){ stTvWarn=1; toast("MISSY'S SAVE ID NEEDS REPAIR"); } return; }
+        int patientMember=patientUid==hhPUid?-1:stMember(patientUid);
+        if(patientUid!=hhPUid&&patientMember<0){
+            if(!stTvWarn){ stTvWarn=1; toast("MISSY MUST BE HOME FOR THE HANDOVER"); }
+            return;
+        }
         int m=stPart!=255?stMember(stPart):-1;
         if(m<0&&stPart==255){ // reuse a known sister instead of duplicating cast
             m=stTvMamesyMember(patientUid);
@@ -508,7 +513,7 @@ static void stTvControl(void){
         }
         if(m<0){   // the cast arrives: Mamesy, the way the cutscenes draw her (stMamesyLook)
             u8 lk[LK_N]; for(int i=0;i<LK_N;i++) lk[i]=stMamesyLook[i];
-            m=stAddSim(lk,AG_ADULT,hhPLast);
+            m=stAddSim(lk,AG_ADULT,patientUid==hhPUid?hhPLast:hhM[patientMember].last);
             if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("No room for Mamesy. Make some space."); } return; }
             { const char*nm="MAMESY"; int k=0; for(;nm[k]&&k<HH_NM-1;k++) hhM[m].name[k]=nm[k]; hhM[m].name[k]=0; }
             stPart=hhM[m].uid; stRel(patientUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF); kin[patientUid][hhM[m].uid]=KN_SISTER; kin[hhM[m].uid][patientUid]=KN_SISTER;
