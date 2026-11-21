@@ -43,6 +43,12 @@ int main(void){
           "roof light directions have no tonal difference or exceed RGB");
     ggFilmRoofMaterial(B_LIBRARY,gx+128,gy+128,256,200,&r1,&g1,&b1);
     check(b1>r1,"library roof lost its distinct cool blue material");
+    check(ggFilmWallFaceLight(gx+1,gy+128)==208&&
+          ggFilmWallFaceLight(gx+128,gy+1)==256,
+          "two world-facing masonry walls have identical flat lighting");
+    check(ggFilmWallFaceLight(gx+1,gy+128)==
+          ggFilmWallFaceLight(gx+1,gy+128),
+          "building surface brightness changes with the camera frame");
     puts("3DS ARCH OK: stable physical gables, eaves, near/far perspective and materials");
     return 0;
 }
