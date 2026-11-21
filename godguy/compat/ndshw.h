@@ -136,7 +136,7 @@ static u8 svPacked[0x80000] __attribute__((aligned(32)));
 #define SVCMP svPacked
 #include "ggsave_stream.h"
 static GgSaveWriter ggSaveWriter;
-static GgSaveReader ggSaveReader
+static GgSaveReader ggSaveReader;
 #endif
 typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
 static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }

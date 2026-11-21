@@ -1,7 +1,12 @@
 #!/bin/bash
 # builds godguy.nds in the layout DraStic and melonDS accept: ARM9 loaded at 0x02000000 with a 2 KB decrypted "secure area" first (E7FFDEFF filler) and the code entry at 0x02000800,
 # the same as the BORE2 and wordPass ROMs.   DEVKITPRO=/opt/devkitpro ./build_rom.sh [extra make flags such as GG_FLAGS=-DGG_SAFE]
-set -e; cd "$(dirname "$0")"; : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITPRO DEVKITARM=$DEVKITPRO/devkitARM
+set -e; cd "$(dirname "$0")";
+# Calico's standard linker has no reserved second bank, so it uses a
+# self-contained compact fallback header. Always build from a clean clone.
+if [ ! -s source/gmvox_compact.h ] || [ tools/gm_vox.py -nt source/gmvox_compact.h ]; then
+    /usr/bin/python3 tools/gm_vox.py
+fi : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITPRO DEVKITARM=$DEVKITPRO/devkitARM
 sed "s#ORIGIN = 0x2000000, LENGTH = 0x380000#ORIGIN = 0x2000800, LENGTH = 0x37f800#" $DEVKITPRO/calico/lib/ds9-legacy.ld > ds9-800.ld
 printf '%%include <sync-none.specs>\n\n*link:\n+ -dT %s/ds9-800.ld --gc-sections --nmagic --no-warn-rwx-segments --use-blx\n\n*startfile:\ncrti%%O%%s crtbegin%%O%%s --require-defined=main\n' "$PWD" > ds9-800.specs
 # Do not filter or ignore make output: preserve the real linker diagnostic and exit status.
