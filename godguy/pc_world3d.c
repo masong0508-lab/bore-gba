@@ -8,6 +8,10 @@
 #include <time.h>
 #include <stdlib.h>
 typedef uint8_t u8;
+enum { T_DEEP,T_WATER,T_SAND,T_GRASS,T_FOREST,T_HILL,T_MOUNT,
+       T_SNOW,T_LAVA,T_DESERT,T_SWAMP,T_JUNGLE,T_DIRT,T_N };
+enum { B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,B_DOCK,
+       B_TEMPLE,B_STATUE,B_LIBRARY,B_BORDER,B_N };
 enum { FILM_TOP=24, FILM_BOTTOM=168, FILM_H=144 };
 enum { F_ORBIT,F_SHORE,F_STORM,F_VILLAGE,F_FORD,F_GATE,F_FORGE,
        F_HALL,F_ARCHIVE,F_HEARTH,F_THRONE,F_COUCH,F_PORCH,F_RUINS,F_SET_N };
@@ -39,6 +43,7 @@ static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
             if(y>=FILM_TOP&&y<FILM_BOTTOM&&px>=0&&px<256)
                 uiBuf[y*256+px]=(u8)(who+34);
 }
+#include "source/story_vistas.h"
 #include "source/story_world3d.h"
 
 static void require(int condition,const char *why){
@@ -104,6 +109,26 @@ int main(void){
     ggFilmWorldDraw(&village,44,128,14,1,0);
     require(snowVillage!=hashFrame(),
             "bonus winter stories have the same environment as summer");
+    // This is the *same renderer* used by the player-world snapshot
+    // integration. A genuine town blueprint changes the stage geometry.
+    // Without real buildings, the founding house remains the fallback.
+    FilmBeat actualTown={F_VILLAGE,F_NEAR,F_ELOWEN,F_HOLLOW,F_NO_PROP,0};
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&actualTown,0,128,10,1,0);
+    unsigned long defaultVillage=hashFrame();
+    filmVista[FILM_VISTA_TOWN].valid=1;
+    for(int j=0;j<FILM_VISTA_H;j++)for(int i=0;i<FILM_VISTA_W;i++){
+        int k=j*FILM_VISTA_W+i;
+        filmVista[FILM_VISTA_TOWN].terrain[k]=T_GRASS;
+        filmVista[FILM_VISTA_TOWN].buildings[k]=0;
+    }
+    filmVista[FILM_VISTA_TOWN].buildings[4*FILM_VISTA_W+12]=B_HALL;
+    filmVista[FILM_VISTA_TOWN].buildings[3*FILM_VISTA_W+8]=B_TOWER;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&actualTown,0,128,10,1,0);
+    require(hashFrame()!=defaultVillage,
+            "saved castle/hall and tower never changed the rendered village");
+    filmVista[FILM_VISTA_TOWN].valid=0;
     require(frame(F_SHORE,F_NEAR,0)!=frame(F_SHORE,F_NEAR,180),
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
