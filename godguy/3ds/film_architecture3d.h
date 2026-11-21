@@ -36,6 +36,16 @@ static inline GgFilmRoofVolume ggFilmRoofVolume(
     v.faceLight=(across<128?290:208);
     return v;
 }
+// World-anchored wall normals: an east/west facing wall receives a
+// different amount of sunlight from a north/south one. The choice
+// depends on which physical tile boundary the ray sample approaches,
+// not screen x (which caused "cardboard" façades).
+static inline int ggFilmWallFaceLight(int worldX,int worldY){
+    int x=worldX&255,y=worldY&255;
+    if(x>127)x=255-x;
+    if(y>127)y=255-y;
+    return x<y?208:256;
+}
 static inline int ggFilmRoofBottomScreen(int wallTop,int eye,
                                           int horizon,int sample,int mult){
     if(sample<1)sample=1;
