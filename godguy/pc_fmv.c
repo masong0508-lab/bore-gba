@@ -389,6 +389,55 @@ static void checkFeatureFilmAndArchive(void){
            (campaignSeconds+bonusSeconds)/60,(campaignSeconds+bonusSeconds)%60);
 }
 #endif
+static void checkWorldFlightPlayback(void){
+    // Exercise the actual film renderer on a mapped city, shoreline and
+    // ridge. This is more stringent than just testing route arithmetic:
+    // it checks that DS/DSi and 3DS draw the journey in their own film page
+    // and return to the unchanged screenplay at the exact frame.
+    FilmRoute before=filmRoute;
+    filmRoute.count=2;
+    filmRoute.total=24;
+    filmRoute.duration=600;
+    filmRoute.x[0]=30;filmRoute.y[0]=30;
+    filmRoute.x[1]=54;filmRoute.y[1]=30;
+    filmRoute.length[0]=24;
+    filmRoute.kind[0]=FILM_VISTA_TOWN;
+    filmRoute.kind[1]=FILM_VISTA_COAST;
+    for(int y=20;y<41;y++)for(int x=20;x<65;x++){
+        world[y][x]=(x<44?T_GRASS:x<50?T_SAND:T_WATER);
+        bld[y][x]=0;
+    }
+    bld[30][33]=B_TOWER;
+    bld[29][36]=B_HALL;
+    world[31][40]=T_MOUNT;
+    const FmvClip *clip=&fmvClips[0];
+    int baked=clip->frames*FMV_TICKS;
+    check(fmvLength(clip)==baked+filmRoute.duration+
+          filmReelTicks(&filmReels[0])
+#ifdef __3DS__
+          +filmReelTicks(&filmExtraReels[0])+
+          filmReelTicks(&filmFeatureReels[0])
+#endif
+          ,"route duration corrupted the existing movie length");
+    check(fmvRenderAt(clip,baked),
+          "continuous geographical flight missed its first frame");
+    u32 first=pictureHash();
+    check(fmvRenderAt(clip,baked+300),
+          "flight dropped its midpoint frame");
+    u32 middle=pictureHash();
+    check(first!=middle,
+          "the cinematic journey did not show its moving world");
+    check(fmvRenderAt(clip,baked+filmRoute.duration- FILM_STAGE_TICKS),
+          "continuous route lost its last displayed frame");
+    check(fmvRenderAt(clip,baked+filmRoute.duration),
+          "flight failed to hand over to the original first story beat");
+    int local=0;
+    check(filmBeatAt(clip,&local)==filmReels[0].beats,
+          "flight rewrote or skipped the original screenplay");
+    filmRoute=before;
+    puts("WORLD FLIGHT OK: continuous real-map camera, 2D/3D frames, "
+         "original beat timeline, safe handoff");
+}
 static void checkDirectedPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
@@ -470,6 +519,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
 #ifdef __3DS__
             checkFeatureFilmAndArchive();
 #endif
+            checkWorldFlightPlayback();
             checkDirectedPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
