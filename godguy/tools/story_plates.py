@@ -20,7 +20,10 @@ PROPS = (
     "cup", "goat", "hammer", "spoon", "quill", "lamp", "crown", "leaf",
     "bread", "mask", "crumb", "seed",
 )
-CEL_WIDTH, CEL_HEIGHT, CEL_N = 28, 34, 4
+# DS keeps compact 28x34 2D pixels while gaining real dialogue poses.
+# Six compressed keys per character remain vastly smaller than the 3DS
+# twelve-pose 40x48 sheets and require no runtime animation buffers.
+CEL_WIDTH, CEL_HEIGHT, CEL_N = 28, 34, 6
 PROP_SIZE = 20
 
 
@@ -74,7 +77,10 @@ def plate(name):
 
 def cast_cel(who, index):
     image = canvas((CEL_WIDTH, CEL_HEIGHT), 255)
-    pose, phase = (("idle", 0), ("walk", 6), ("walk", 10), ("reach", 0))[index]
+    pose, phase = (
+        ("idle", 0), ("walk", 6), ("walk", 10),
+        ("reach", 0), ("talk", 4), ("listen", 0),
+    )[index]
     if who == HOLLOW and index == 3:
         pose = "bow"
     actor(image, who, CEL_WIDTH//2, CEL_HEIGHT, phase, CEL_HEIGHT, pose=pose)
