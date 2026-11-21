@@ -21,6 +21,34 @@ static inline int ggMeshCornerHeight(int x,int y){
         }
     return n?sum/n:8;
 }
+// Exact height on the four triangle sectors around a world-cell
+// center. Road markings, plants, and later actor contacts can use this
+// same surface instead of hovering at a whole-tile average altitude.
+static inline int ggMeshGroundAtQ8(int wx,int wy){
+    int tx=wx>>8,ty=wy>>8;
+    if((unsigned)tx>=WW||(unsigned)ty>=WH)return 8;
+    int a=ggMeshCornerHeight(tx,ty);
+    int b=ggMeshCornerHeight(tx+1,ty);
+    int cc=ggMeshCornerHeight(tx+1,ty+1);
+    int d=ggMeshCornerHeight(tx,ty+1);
+    int center=ggExpGround(ggMeshTerrainAt(tx,ty));
+    int u=(wx&255)-128,v=(wy&255)-128;
+    int au=u<0?-u:u,av=v<0?-v:v;
+    if(au>=av){
+        if(u>=0)
+            return (center*(128-u)*2+
+                    b*(u-v)+cc*(u+v)+128)/256;
+        int n=-u;
+        return (center*(128-n)*2+
+                a*(n-v)+d*(n+v)+128)/256;
+    }
+    if(v>=0)
+        return (center*(128-v)*2+
+                d*(v-u)+cc*(v+u)+128)/256;
+    int n=-v;
+    return (center*(128-n)*2+
+            a*(n-u)+b*(n+u)+128)/256;
+}
 static void ggMeshBox(GgMeshContext*m,int x0,int y0,int x1,int y1,
                        int bottom,int top,int r,int g,int b){
     if(x1<=x0||y1<=y0||top<=bottom)return;
@@ -46,17 +74,23 @@ static void ggMeshGroundLife(GgMeshContext*m,int tx,int ty,int type,
     for(int i=0;i<3;i++){
         int sx=tx*256+72+(int)((key>>(i*5))&95u);
         int sy=ty*256+66+(int)((key>>(i*7+2))&111u);
-        int z=ground+1;
+        int z=ggMeshGroundAtQ8(sx,sy)+1;
         if(type==T_GRASS||type==T_FOREST||type==T_JUNGLE||
            type==T_SWAMP){
             int height=type==T_JUNGLE?7:4+(int)((key>>(i*3))&3u);
-            ggMeshTriangle(m,ggMeshV(sx-13,sy-8,z),
-                ggMeshV(sx+11,sy+8,z),
+            ggMeshTriangle(m,
+                ggMeshV(sx-13,sy-8,
+                        ggMeshGroundAtQ8(sx-13,sy-8)+1),
+                ggMeshV(sx+11,sy+8,
+                        ggMeshGroundAtQ8(sx+11,sy+8)+1),
                 ggMeshV(sx+5,sy-5,z+height),
                 51+(i*7),103+(i*5),60+(i*3));
             if((key>>(i*6))&1u)
-                ggMeshTriangle(m,ggMeshV(sx-5,sy+12,z),
-                    ggMeshV(sx+10,sy-8,z),
+                ggMeshTriangle(m,
+                    ggMeshV(sx-5,sy+12,
+                            ggMeshGroundAtQ8(sx-5,sy+12)+1),
+                    ggMeshV(sx+10,sy-8,
+                            ggMeshGroundAtQ8(sx+10,sy-8)+1),
                     ggMeshV(sx-7,sy+3,z+height-1),70,116,71);
         }else if(type==T_SAND||type==T_DESERT){
             ggMeshQuad(m,ggMeshV(sx-28,sy-5,z),
@@ -418,35 +452,51 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     }
     ggMeshPropsDrawn++;
 }
+static void ggMeshCloudPuff(GgMeshContext*m,int x,int y,int z,
+                            int radius,int height,int r,int g,int b){
+    // Fully enclosed eight-sided cloud volume, no single huge kite-
+    // shaped triangles or near-plane spikes. Low-contrast faceted haze
+    // catches the sky light without turning the horizon into a polygon
+    // artifact. Visible from either side of the camera.
+    for(int i=0;i<8;i++){
+        int a=i*32,n=(i+1)*32;
+        GgMeshVertex u=ggMeshV(x+ggExpCos[a]*radius/4096,
+                              y+ggExpSin[a]*radius/4096,z);
+        GgMeshVertex v=ggMeshV(x+ggExpCos[n]*radius/4096,
+                              y+ggExpSin[n]*radius/4096,z);
+        int lit=(i+5)%4;
+        ggMeshTriangle(m,ggMeshV(x,y,z+height),u,v,
+                       r+lit*3,g+lit*2,b+lit*2);
+        ggMeshTriangle(m,u,ggMeshV(x,y,z-height/2),v,
+                       r-9,g-8,b-7);
+    }
+}
 static void ggMeshCloudBank(GgMeshContext*m,int camTileX,int camTileY,
                              int frame,int hazeR,int hazeG,int hazeB){
-    // Clouds are actually floating, depth-tested polygonal volumes at
-    // deterministic sky-world positions. They drift slightly on the
-    // global timeline and turn with parallax; they are not a static
-    // screen overlay or a second image layer.
     int gx=(camTileX/16)*16,gy=(camTileY/16)*16;
+    int sourceX=m->cx,sourceY=m->cy;
     for(int row=-2;row<=2;row++){
         for(int col=-2;col<=2;col++){
             int tx=gx+col*8+4,ty=gy+row*8+4;
             uint32_t key=ggFilmScenicHash(tx,ty,31);
             if(((key>>16)&3u)==0u)continue;
-            int cx=tx*256+(int)(key&255u)+frame/8;
-            int cy=ty*256+(int)((key>>8)&255u);
-            int z=78+(int)((key>>20)&15u);
-            int width=150+(int)((key>>11)&63u);
-            int height=7+(int)((key>>24)&7u);
-            int dr=hazeR+23,dg=hazeG+25,db=hazeB+23;
-            ggMeshTriangle(m,ggMeshV(cx-width,cy,z),
-                ggMeshV(cx,cy-100,z+height),
-                ggMeshV(cx+width,cy,z),dr,dg,db);
-            ggMeshTriangle(m,ggMeshV(cx-width/2,cy+60,z),
-                ggMeshV(cx,cy-90,z+height+3),
-                ggMeshV(cx+width/2,cy+60,z),
-                dr+9,dg+7,db+5);
-            ggMeshTriangle(m,ggMeshV(cx-width,cy,z),
-                ggMeshV(cx+width,cy,z),
-                ggMeshV(cx,cy+110,z-3),
-                dr-15,dg-14,db-12);
+            int x=tx*256+(int)(key&255u)+frame/24;
+            int y=ty*256+(int)((key>>8)&255u);
+            int dx=x-sourceX,dy=y-sourceY;
+            int forward=(dx*m->cosine+dy*m->sine)/4096;
+            int side=(-dx*m->sine+dy*m->cosine)/4096;
+            // Only distant geometry. Close, above-camera clouds caused
+            // giant clipped sky triangles in the prior preview.
+            if(forward<6*256||forward>16*256||
+               side<-forward*3/2||side>forward*3/2)continue;
+            int z=75+(int)((key>>20)&11u);
+            int radius=130+(int)((key>>11)&63u);
+            int r=ggMeshClamp(hazeR+16,0,255);
+            int g=ggMeshClamp(hazeG+17,0,255);
+            int b=ggMeshClamp(hazeB+17,0,255);
+            ggMeshCloudPuff(m,x,y,z,radius,7,r,g,b);
+            ggMeshCloudPuff(m,x+radius*2/3,y+radius/3,z-2,
+                            radius*3/4,5,r+5,g+4,b+3);
         }
     }
 }
@@ -461,8 +511,8 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     GgMeshContext*m=&ggMeshContext;
     ggMeshBegin(m,out,quality,ggExplore.px,ggExplore.py,eye,
                 ggExpCos[angle],ggExpSin[angle],
-                35+atmosphere.skyR,59+atmosphere.skyG,
-                90+atmosphere.skyB);
+                49+atmosphere.skyR,78+atmosphere.skyG,
+                108+atmosphere.skyB);
     ggMeshTilesDrawn=ggMeshBuildingsDrawn=ggMeshPropsDrawn=0;
     ggMeshCloudBank(m,cx,cy,ggExplore.frame,atmosphere.hazeR,
                     atmosphere.hazeG,atmosphere.hazeB);
