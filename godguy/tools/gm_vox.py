@@ -133,12 +133,27 @@ def tonal_source():
     seg = x[best[1]:best[1] + win]; return seg, pitch_f0(seg)
 CHOPS = []   # (name, samples, volume 0..127, pan 0..127)
 CRATE = []   # each chop's own sample rate
+def balance_vocal(x, lead):
+    """Match audible syllable RMS without crushing the singer's phrasing.
+    One constant gain per *phrase* (not a peak-by-peak compressor).
+    Ignore near-silent tails to avoid boosting hiss or reverb noise."""
+    if len(x)<32:return x
+    peak=float(np.max(np.abs(x)))
+    if peak<1e-4:return x
+    active=np.abs(x)>max(0.012,peak*0.11)
+    if not np.any(active):return x
+    rms=float(np.sqrt(np.mean(np.square(x[active]))))
+    target=0.20 if lead else 0.135
+    gain=float(np.clip(target/max(rms,0.025),0.72,1.8))
+    if peak*gain>0.89:gain=0.89/peak
+    return x*gain
 def add(name, x, vol=100, pan=64, maxs=0.9, rate=R):
     x = np.asarray(x[:int(maxs * rate)], dtype=np.float64)
     # Character chops get warm EQ and softened splices; full sung lyric
     # phrases instead get their own gentler, intelligibility-first chain.
     lyric = name.startswith('LYRIC PAD') or name.startswith('CORP LYRIC')
     x = master_voice(x, rate, lead=lyric)
+    x = balance_vocal(x, lead=lyric)
     x = norm(fade(x, 0.005 if lyric else 0.013,
                   0.025 if lyric else 0.055), 0.88 if lyric else 0.78)
     CHOPS.append((name, x, vol, pan)); CRATE.append(rate)

@@ -17,7 +17,7 @@ enum { GM_MORNING=6,GM_NIGHT=9,GM_JUNGLE=14,GM_OCEAN=13,
        GM_LANTERNRIVER=63,GM_GREATCLOCK=66,GM_ALLKINGS=67,
        GM_HOMEWORLD=68,GM_STONECIRCLES=72,GM_COUNTINGSTARS=77,
        GM_CORPORATIONS=82,GM_DUCKCOVER=83 };
-static int gmCur=-1,gmWorldMode,gmWorldGain=100,gmInN,gmInT;
+static int gmCur=-1,gmWorldMode,gmWorldGain=100,gmInN,gmInT,gmLyrT;
 static int musLast,musHold,gmRow,gmCrowd,playCalls,stopped,musQ=-1;
 static int musDirector(void){return GM_MORNING;}
 static void musReq(int id){musQ=id;}
@@ -78,7 +78,24 @@ int main(void){
     if(ggWorldMusicScene()!=GG_MUSIC_BOSS)return 8;
     ggSaga.mode=GG_SAGA_CHOICE;
     if(ggWorldMusicScene()!=GG_MUSIC_CHOICE)return 9;
-    ggSaga.mode=0;ggExplore.active=0;
+    // An ordinary village/forest change waits through active recorded
+    // speech. An urgent battle is allowed to crossfade immediately.
+    ggSaga.mode=0;ggChron.foeN=0;
+    ggWorldMusic.track=GM_CORPORATIONS;
+    ggWorldMusic.wanted=GM_JUNGLE;
+    ggWorldMusic.state=GG_MUSIC_FOREST;
+    ggWorldMusic.urgent=0;
+    ggWorldMusic.hold=180;ggWorldMusic.scanned=12;
+    gmCur=GM_CORPORATIONS;gmLyrT=110;
+    int before=playCalls;
+    ggWorldMusicTick();
+    if(playCalls!=before||ggWorldMusic.vocalDefer==0)return 12;
+    ggWorldMusic.urgent=1;
+    ggWorldMusicTick();
+    if(playCalls<=before)return 13;
+    ggWorldMusic.track=gmCur;ggWorldMusic.wanted=gmCur;
+    ggWorldMusic.urgent=0;gmLyrT=0;
+    ggExplore.active=0;
     ggWorldMusicTick();
     if(gmWorldMode||gg3dMusicNext||gmCur!=-1||gmCrowd)return 10;
     printf("WORLD SCORE OK: %d music starts, exploration %d, battle, "

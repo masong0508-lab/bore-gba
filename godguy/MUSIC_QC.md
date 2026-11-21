@@ -40,3 +40,14 @@ hardware DS ROM.
 The optional Calico/libnds `godguy.nds` build retains a smaller bank until
 its different memory/save layout has an independently validated full-voice
 solution. For complete 4-MiB-DS audio, use `godguy_hw.nds`.
+
+### November 2026 additional vocal production
+- A bounded offline **active-syllable RMS matcher** now gently adjusts each
+  vocal phrase's overall gain, without pumping or raising quiet reverb tails.
+  This costs no handheld CPU, heap allocation or sample playback channels.
+- Open-world ambient track changes on 3DS defer for the remaining foreground
+  vocal phrase when possible (maximum 180 frame ticks); immediate combat,
+  defeat and narrative decision cues are never delayed. The existing
+  60 Hz music update and 15 situation states remain unchanged.
+- Both updates have dedicated host regression checks and must pass the
+  normal-DS two-bank ROM verification before the release is replaced.

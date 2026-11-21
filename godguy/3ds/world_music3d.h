@@ -13,6 +13,7 @@ typedef struct {
     int active,state,wanted,track,hold,candidate,stable,fade;
     int scanned,frames,urgent,transitions;
     int completedSeen,celebrate;
+    int vocalDefer; // maximum 3 s postponement of non-urgent theme change
 } GgWorldMusic;
 static GgWorldMusic ggWorldMusic;
 // Themes are variations, not loops started on every step. Existing
@@ -143,7 +144,7 @@ static int ggWorldMusicTick(void){
         ggWorldMusic.stable=0;ggWorldMusic.track=-1;
         ggWorldMusic.transitions=0;
         ggWorldMusic.completedSeen=ggQuest.completed;
-        ggWorldMusic.celebrate=0;
+        ggWorldMusic.celebrate=0;ggWorldMusic.vocalDefer=0;
     }
     gg3dMusicNext=ggWorldMusicNext;
     ggWorldMusic.frames++;
@@ -206,6 +207,18 @@ static int ggWorldMusicTick(void){
               (s==GG_MUSIC_CITY?74:s==GG_MUSIC_DANGER?60:43);
     int bed=talk?82:cinematic?89:100;
     if(ggWorldMusic.track!=ggWorldMusic.wanted){
+        // Ambient travel is never a reason to interrupt a full sung
+        // sentence. Hold the current lyric up to three seconds before
+        // fading toward the new district's music; battles, defeat and
+        // story decisions retain immediate priority.
+        if(!ggWorldMusic.urgent&&ggWorldMusic.track>=0&&gmCur>=0&&
+           (gmCur==GM_CORPORATIONS||gmCur==GM_DUCKCOVER)&&
+           gmLyrT>12&&ggWorldMusic.vocalDefer<180){
+            ggWorldMusic.vocalDefer++;
+            gmWorldSet(bed,drums,-1,ggWorldPatchFor[s],
+                       ggWorldLayers[s]);
+            return 1;
+        }
         // Two-phase, click-free change: ramp down through the normal
         // mixer, switch a tracker song once, then ramp back up with the
         // sequencer's existing 45-frame fade-in.
@@ -221,9 +234,11 @@ static int ggWorldMusicTick(void){
             gmPlay(ggWorldMusic.track);
             gmInN=gmInT=64;
             ggWorldMusic.fade=0;
+            ggWorldMusic.vocalDefer=0;
             ggWorldMusic.transitions++;
         }
     }else{
+        ggWorldMusic.vocalDefer=0;
         ggWorldMusic.fade=0;
         gmWorldSet(bed,drums,motif,ggWorldPatchFor[s],
                    ggWorldLayers[s]);
