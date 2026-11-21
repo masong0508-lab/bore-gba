@@ -117,6 +117,36 @@ static void ggMeshActorHuman(GgMeshContext*m,int x,int y,
     }
     m->material=save;
 }
+// Quadruped barrels run along the animal's forward axis. Unlike the
+// vertical human limb tube, this ring is perpendicular to movement and
+// includes actual upper/lower volume, not a flat horizontal ellipse.
+static void ggMeshActorHorizontalBody(GgMeshContext*m,
+                                      int ax,int ay,int bx,int by,
+                                      int z,int halfWidth,int halfHeight,
+                                      int r,int g,int b,int sides){
+    int dx=bx-ax,dy=by-ay;
+    int mag=(dx<0?-dx:dx)+(dy<0?-dy:dy);
+    if(mag<1)return;
+    int rightX=-dy*4096/mag,rightY=dx*4096/mag;
+    for(int n=0;n<sides;n++){
+        int a=n*256/sides,bangle=(n+1)*256/sides;
+        int p=ggExpCos[a]*halfWidth/4096,
+            q=ggExpCos[bangle]*halfWidth/4096;
+        int h=ggExpSin[a]*halfHeight/4096,
+            j=ggExpSin[bangle]*halfHeight/4096;
+        GgMeshVertex f0=ggMeshV(ax+rightX*p/4096,
+                                 ay+rightY*p/4096,z+h);
+        GgMeshVertex f1=ggMeshV(ax+rightX*q/4096,
+                                 ay+rightY*q/4096,z+j);
+        GgMeshVertex t0=ggMeshV(bx+rightX*p/4096,
+                                 by+rightY*p/4096,z+h);
+        GgMeshVertex t1=ggMeshV(bx+rightX*q/4096,
+                                 by+rightY*q/4096,z+j);
+        int shade=195+((n+3)%4)*14;
+        ggMeshQuad(m,f0,f1,t1,t0,r*shade/256,
+                   g*shade/256,b*shade/256);
+    }
+}
 static void ggMeshActorAnimal(GgMeshContext*m,int x,int y,
                                int ground,int heading,int phase,
                                const u8 base[3][3],int quality){
@@ -127,11 +157,11 @@ static void ggMeshActorAnimal(GgMeshContext*m,int x,int y,
     int sideX=-forwardY,sideY=forwardX;
     int save=m->material;m->material=GG_MAT_FABRIC;
     int len=quality>=2?29:25,half=17;
-    ggMeshActorTube(m,x-forwardX*len/4096,y-forwardY*len/4096,
-                    ground+9,half,
-                    x+forwardX*len/4096,y+forwardY*len/4096,
-                    ground+9,half,
-                    coatR,coatG,coatB,quality>=2?8:6);
+    ggMeshActorHorizontalBody(m,
+        x-forwardX*len/4096,y-forwardY*len/4096,
+        x+forwardX*len/4096,y+forwardY*len/4096,
+        ground+9,half,5,
+        coatR,coatG,coatB,quality>=2?8:6);
     for(int ix=-1;ix<=1;ix+=2)
       for(int iy=-1;iy<=1;iy+=2){
         int bx=x+forwardX*ix*19/4096+sideX*iy*12/4096;
