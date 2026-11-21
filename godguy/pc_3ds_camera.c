@@ -80,6 +80,17 @@ int main(void){
     ggFilmCameraPlan(&track,sx,sy,0,4096,8,filmCell,0);
     check(track.toY==sy+192&&track.toX==sx-48,
           "camera heading was not rotated in world coordinates");
+    // Real-world entry blocking must also obey the 400x240 film
+    // boundary. At two tiles the stage mark fits, but an entrance from
+    // the adjacent near tile would put the actor under subtitles.
+    GgFilmCameraSubject stage={sx+2*256,sy,8};
+    GgFilmCameraSubject entrance={sx+256,sy,8};
+    check(ggFilmCameraSubjectFits(sx,sy,4096,0,8,stage,3)&&
+          !ggFilmCameraSubjectFits(sx,sy,4096,0,8,entrance,3),
+          "close-up approach was allowed to enter from under captions");
+    GgFilmCameraSubject mediumEntrance={sx+2*256,sy,8};
+    check(ggFilmCameraSubjectFits(sx,sy,4096,0,8,mediumEntrance,2),
+          "safe medium-shot entrance got disabled unnecessarily");
     // A close 3x camera that starts with a readable pair used to end
     // with the hero's boots under subtitles and the guest off-screen.
     // Keeping the entire pair in view takes priority over the dolly.
