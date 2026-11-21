@@ -31,6 +31,25 @@ int main(void){
                 ggMeshContext.fragments>1500&&
                 ggMeshTilesDrawn>20&&ggMeshBuildingsDrawn>=2,
                 "live world polygons or building volumes are missing");
+    // Dynamic polygonal people and animals use real 3D bones and
+    // floor joints. The image itself must change between poses, not
+    // just a simulated animation counter.
+    static const u8 colors[3][3]={
+       {20,17,12},{10,8,7},{26,21,16}
+    };
+    int beforeActor=ggMeshContext.triangles;
+    ggMeshActorCharacter(&ggMeshContext,65*256+128,64*256+128,
+                         ggMeshGroundAtQ8(65*256+128,64*256+128),
+                         0,30,2,1,colors,2);
+    meshRequire(ggMeshContext.triangles>beforeActor+45,
+                "humanoid inhabitants remain flat 8x8 bitmap sprites");
+    beforeActor=ggMeshContext.triangles;
+    ggMeshActorCharacter(&ggMeshContext,65*256+128,65*256+128,
+                         ggMeshGroundAtQ8(65*256+128,65*256+128),
+                         0,80,4,0,colors,2);
+    meshRequire(ggMeshContext.triangles>beforeActor+20,
+                "four-legged species did not receive actual 3D bodies");
+    ggExpRenderMode(pixels,1);
     unsigned long long checksum=0;
     for(int i=0;i<400*240*3;i+=13)
         checksum=checksum*131+pixels[i];

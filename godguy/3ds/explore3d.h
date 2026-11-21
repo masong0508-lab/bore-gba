@@ -594,6 +594,7 @@ compiled:
     ggExpFilmDrawDepth=0;
 }
 #include "mesh_world3d.h"
+#include "mesh_character3d.h"
 static void ggExpRenderMode(u8 *top,int cinematic){
     ggExpFilmDrawDepth=0;
     ggExpMeshActive=0;

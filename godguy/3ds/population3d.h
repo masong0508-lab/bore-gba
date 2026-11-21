@@ -106,6 +106,23 @@ static void ggExpRenderCreatures(u8 *top){
         if(scale<1)scale=1;
         int sx,feet;
         int ground=ggExpGround(world[c->y][c->x]);
+        if(ggExpMeshActive){
+            // The definitive 3DS camera now renders actual living
+            // polygonal inhabitants, not an 8x8 screen-facing tile.
+            // Every body occupies the authoritative citizen cell and
+            // obeys the terrain/world depth buffer and near foliage.
+            int wx=(c->x<<8)+128,wy=(c->y<<8)+128;
+            int planted=ggMeshGroundAtQ8(wx,wy);
+            int heading=(ggExplore.frame/6+npc.index*37)&255;
+            int phase=(ggExplore.frame*2+npc.index*17)&255;
+            int humanoid=arch[si].diet==4;
+            ggMeshActorCharacter(&ggMeshContext,wx,wy,planted,
+                                 heading,phase,fam,humanoid,
+                                 famCol[fam],
+                                 ggExpScenicQuality>=2?2:1);
+            ggExpNpcsDrawn++;
+            continue;
+        }
         int walkBob=ggExplore.stepPhase?
                     ((ggExplore.stepPhase/5)&1):0;
         ggExpNpcProject(npc.forward,npc.side,eye-13,ground,
