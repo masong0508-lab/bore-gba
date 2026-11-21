@@ -197,7 +197,12 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                 int inverse=(iz+2048)>>12;
                 int slot=y*m->w+x;
                 if(inverse>0&&inverse>m->depth[slot]){
-                    m->depth[slot]=(uint16_t)inverse;
+                    // A translucent contact decal shades geometry but
+                    // is not itself solid occluding geometry. Writing its
+                    // depth made subsequently drawn walls and people clip
+                    // against an invisible shadow polygon.
+                    if(m->opacity>=256)
+                        m->depth[slot]=(uint16_t)inverse;
                     int tr=r,tg=g,tb=bl;
                     if(doTexture){
                         // All world texture coordinates come from the
