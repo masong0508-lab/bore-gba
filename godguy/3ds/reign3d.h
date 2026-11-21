@@ -5,6 +5,9 @@
 // The 2D story and DS/DSi builds have no additional data or rendering cost.
 #ifndef GG_UNWRITTEN_REIGN_H
 #define GG_UNWRITTEN_REIGN_H
+#ifndef GG_REIGN_SAVE_PATH
+#define GG_REIGN_SAVE_PATH "sdmc:/godguy_unwritten_reign.dat"
+#endif
 
 enum { GG_REIGN_ROLES=6, GG_REIGN_PAGES=4, GG_REIGN_ORDERS=3,
        GG_REIGN_SQUAD_MAX=6, GG_REIGN_OFFICES=5 };
@@ -16,7 +19,7 @@ typedef struct {
     int loaded,role,choice,menu,page,action,order,selectedOrder;
     int credits,renown,influence,infamy,legitimacy,divine,office;
     int endorsements,lastKeys,frame,noticeT,combatTick;
-    int squadN,initialChoice;
+    int squadN,initialChoice,nextCivicAt;
     unsigned char support[(VIL_N+7)/8];
     GgReignGuard squad[GG_REIGN_SQUAD_MAX];
     char notice[74];
@@ -67,7 +70,7 @@ static void ggReignLoad(void){
     ggReign.credits=35;
     ggReign.divine=100;
     ggReign.legitimacy=10;
-    FILE *f=fopen("sdmc:/godguy_unwritten_reign.dat","rb");
+    FILE *f=fopen(GG_REIGN_SAVE_PATH,"rb");
     if(!f)return;
     GgReignDisk d;
     memset(&d,0,sizeof d);
@@ -101,7 +104,7 @@ static void ggReignSave(void){
     d.office=(u32)ggReign.office;d.endorsements=(u32)ggReign.endorsements;
     memcpy(d.support,ggReign.support,sizeof ggReign.support);
     d.checksum=ggReignChecksum(&d);
-    FILE *f=fopen("sdmc:/godguy_unwritten_reign.dat","wb");
+    FILE *f=fopen(GG_REIGN_SAVE_PATH,"wb");
     if(!f)return;
     (void)fwrite(&d,sizeof d,1,f);
     fclose(f);
@@ -127,7 +130,8 @@ static void ggReignVillageLoyalty(int v,int amount){
 }
 static int ggReignEnroll(int role){
     if(role<0||role>=GG_REIGN_ROLES)return 0;
-    if(role==ggReign.role){ggReignNotice("THIS IS ALREADY YOUR LIFE PATH");return 1;}
+    if(role==ggReign.role){ggReign.initialChoice=1;
+        ggReignNotice("THIS IS ALREADY YOUR LIFE PATH");return 1;}
     if(ggReign.initialChoice){
         int v=ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,12);
         if(v<0){ggReignNotice("CHANGE CAREER AT A LIVING SETTLEMENT");return 0;}
@@ -176,6 +180,9 @@ static int ggReignRecruit(void){
     return 0;
 }
 static int ggReignDeed(void){
+    if(ggReign.frame<ggReign.nextCivicAt){
+        ggReignNotice("WORK AND POLITICS REQUIRE PASSING WORLD TIME");return 0;
+    }
     int v=ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,12);
     if(v<0){ggReignNotice("FIND A SETTLEMENT TO CHANGE ITS FATE");return 0;}
     switch(ggReign.role){
@@ -207,6 +214,7 @@ static int ggReignDeed(void){
         ggReignVillageStock(v,14);ggReignVillageLoyalty(v,3);
         ggReignNotice("A GODBORN BLESSING FED REAL HOUSEHOLDS");break;
     }
+    ggReign.nextCivicAt=ggReign.frame+95;
     ggReignSave();
     return 1;
 }
@@ -299,6 +307,7 @@ static void ggReignBegin(void){
     ggReign.menu=0;ggReign.page=0;ggReign.action=0;
     ggReign.choice=ggReign.role;ggReign.selectedOrder=ggReign.order;
     ggReign.frame=0;ggReign.lastKeys=0;ggReign.squadN=0;
+    ggReign.nextCivicAt=0;
     ggReignNotice("YOU ARE GODBORN. YOUR SOCIAL DESTINY IS NOT FIXED.");
 }
 static int ggReignStep(int raw){
