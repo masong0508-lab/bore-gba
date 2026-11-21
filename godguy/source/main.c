@@ -2319,6 +2319,11 @@ static const char*const fieldDesc[FIELD_N]={
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static void sceneStartFmv(const char*const*t,const FmvClip*clip){
+    // Freeze recognizable views of the actual simulation world at the
+    // start of this chapter. Replays and the film archive use the current
+    // saved villages, coastline and topography; playback cannot change
+    // their content or scan the whole map every rendered frame.
+    filmCaptureWorld();
     sceneStart(t,0);
     sceneClip=clip;
     gmFilmMixSet(1,0,64);
