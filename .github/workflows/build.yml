@@ -122,3 +122,27 @@ jobs:
             bore.gba
             bore-base.gba
             packs/*.bps
+
+  missy-visual-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bore-missy-hospital-preview
+      - name: Install mGBA and virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mgba-qt xvfb xdotool imagemagick
+      - name: Boot Missy's real hospital cutscene in mGBA
+        run: |
+          mkdir -p screenshots
+          xvfb-run -a -s "-screen 0 1024x768x24" bash tools/qa_missy_visual.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: missy-hospital-emulator-screenshots
+          path: screenshots/*.png
+          if-no-files-found: warn

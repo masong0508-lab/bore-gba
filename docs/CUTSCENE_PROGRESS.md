@@ -177,3 +177,13 @@ uploads `bore-missy-hospital-preview` for direct mGBA testing and
 checks that its GBA cartridge header is stamped MISSYWARD. To preview
 the road sequence locally, use `make clean && make preview-missy CS_PREVIEW_SCENE=11`.
 A preview builds the film directly; it is not a full gameplay validation.
+
+### Native emulator smoke capture
+The build workflow includes a second Linux job that downloads the real
+hospital-preview GBA image, boots it in mGBA under a virtual X11 screen,
+sends A/B input to the cutscene and uploads two genuine captured screens.
+Basic dimensions and colour-variation checks catch a black/frozen boot.
+These captures are a useful rendering sanity check, but they do not
+establish frame-rate stability or full mission playthrough correctness.
+If the emulator package or display setup fails, this QA job fails
+openly instead of silently claiming a visual pass.
