@@ -12,6 +12,10 @@ int main(void){
           "actors at two tiles float above ground / camera eye omitted");
     check(ggFilmProjectFootY(768,8,8)==147,
           "three-tile feet do not follow the raycaster ground plane");
+    check(ggFilmProjectFootY(640,8,8)==150&&
+          ggFilmProjectFootY(640,8,8)<ggFilmProjectFootY(512,8,8)&&
+          ggFilmProjectFootY(640,8,8)>ggFilmProjectFootY(768,8,8),
+          "camera dolly snaps a grounded actor between tile sample bands");
     check(ggFilmProjectFootY(1024,8,8)==142,
           "four-tile feet are not grounded on the receding grass");
     check(ggFilmProjectFootY(512,8,12)==143&&
