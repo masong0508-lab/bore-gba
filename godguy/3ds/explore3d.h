@@ -221,11 +221,20 @@ static inline void ggExpDotInView(u8 *out,int x,int y,int r,int g,int b){
 // Actor overlay depth is zero for the world, HUD, exploration and 2D screens.
 static GgFilmOcclusionColumn ggExpFilmOcclusion[GG_FILM_OCCLUSION_COLS];
 static int ggExpFilmDrawDepth;
+// The real-time POV is rendered in 200x120, expanded 2x. Scenery must
+// align to that pixel grid rather than introducing mismatched 1px props.
+static int ggExpScenicCoarse;
 static inline int ggExpFilmPixelHidden(int x,int y){
     return ggExpFilmDrawDepth>0&&
            ggFilmOcclusionHidden(ggExpFilmOcclusion,x,y,ggExpFilmDrawDepth);
 }
 static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
+    if(ggExpScenicCoarse){
+        int right=x+w,bottom=y+h;
+        x-=x&1;y-=y&1;
+        w=((right+1)&~1)-x;
+        h=((bottom+1)&~1)-y;
+    }
     int x1=ggExpClamp(x,0,400),y1=ggExpClamp(y,0,240);
     int x2=ggExpClamp(x+w,0,400),y2=ggExpClamp(y+h,0,240);
     for(int iy=y1;iy<y2;iy++)
@@ -256,7 +265,7 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 static int ggExpSceneryEnabled=1;
 static int ggExpScenicVisible;
 static void ggExpScenicShadow(u8*out,int x,int foot,int half,int depth){
-    if(foot<1||foot>=240)return;
+    if(ggExpScenicCoarse||foot<1||foot>=240)return;
     int y=foot-1;
     int start=ggExpClamp(x-half,0,400);
     int end=ggExpClamp(x+half,0,400);
@@ -276,7 +285,7 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
     int trunk=ggExpClamp(h/9,1,5);
     int y=foot-h;
     int warmth=(int)((key>>9)&7u);
-    ggExpFilmDrawDepth=depth;
+    ggExpFilmDrawDepth=ggExpScenicCoarse?0:depth;
     ggExpScenicShadow(out,x,foot,w/2,depth);
     if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE){
         int pine=kind==GG_SCENE_PINE;
@@ -409,9 +418,11 @@ static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
     int cameraGround=ggExpGround(world[cy][cx]);
     if(!foreground)ggExpScenicVisible=0;
     int accepted=0;
-    for(int ty=cy-GG_SCENE_RADIUS;ty<=cy+GG_SCENE_RADIUS;ty++){
+    int radius=ggExpScenicCoarse?7:GG_SCENE_RADIUS;
+    int budget=ggExpScenicCoarse?34:GG_SCENE_LIMIT;
+    for(int ty=cy-radius;ty<=cy+radius;ty++){
         if((unsigned)ty>=WH)continue;
-        for(int tx=cx-GG_SCENE_RADIUS;tx<=cx+GG_SCENE_RADIUS;tx++){
+        for(int tx=cx-radius;tx<=cx+radius;tx++){
             if((unsigned)tx>=WW)continue;
             if(bld[ty][tx]||occ[ty][tx])continue;
             uint32_t key=ggFilmScenicHash(tx,ty,7);
@@ -428,12 +439,12 @@ static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
             int wy=ty*256+128+(int)((key>>20)&95u)-48;
             int dx=wx-ggExplore.px,dy=wy-ggExplore.py;
             int forward=(dx*cosine+dy*sine)/4096;
-            if(forward<=128||forward>GG_SCENE_RADIUS*256)continue;
+            if(forward<=128||forward>radius*256)continue;
             int side=(-dx*sine+dy*cosine)/4096;
             if(side<-forward*6/5||side>forward*6/5)continue;
             // Scene scheduling order is identical between both passes.
             // Never let the second pass cost grow with the world map.
-            if(++accepted>GG_SCENE_LIMIT)goto finished;
+            if(++accepted>budget)goto finished;
             if(foreground&&
                 (nearestActorDepth<=0||forward+96>=nearestActorDepth))
                 continue;
@@ -794,7 +805,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(!highest)break;
         }
     }
-    if(cinematic)ggExpScenicDraw(top,0,0);
+    ggExpScenicCoarse=!cinematic;
+    ggExpScenicDraw(top,0,0);
+    ggExpScenicCoarse=0;
     // Draw nearby live inhabitants as indexed 2D cels projected onto
     // the same raycast world. A bounded on-map search avoids scanning the
     // whole creature list or allocating skeletal 3D models.
