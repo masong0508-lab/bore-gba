@@ -613,6 +613,7 @@ int main(void){
     remove(GG_AMBIENT_SAVE_PATH);
     memset(&ggAmbient,0,sizeof ggAmbient);
     ggAmbientBegin();
+    ggAmbient.cooldown=0; // host jumps straight to a discovered town
     ggChron.active=1;ggChron.won=0;ggChron.lost=0;
     ggChron.briefTime=0;ggChron.foeN=0;ggChron.frame=64;
     ggReign.role=GG_ROLE_UNBOUND;ggReign.office=0;ggReign.squadN=0;
