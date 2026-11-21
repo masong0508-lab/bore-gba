@@ -7,8 +7,10 @@
 #undef main
 // Reuse the complete god-game world[][]/building/creature data in a live,
 // first-person voxel renderer. It is 3DS-only, leaving DS/DSi unchanged.
+static void ggExpRenderCreatures(u8 *top);
 #include "explore3d.h"
 #include "hybrid3d.h"
+#include "population3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
