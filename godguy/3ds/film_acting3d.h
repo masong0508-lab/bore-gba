@@ -363,6 +363,15 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         if(turnAbs&&dir==farDir)continue;
         ggFilmArtArm(out,bodyX,centerY,s,dir,p,coat,skin,0);
     }
+    // Hair that hangs behind the face is a BACK layer. The old
+    // costume pass drew Mira's braid over her eye in left profiles.
+    // Outline, facial features and brows must be drawn on top.
+    if(style==0){
+        int braidX=headX-6*s+p->clothSway*s;
+        ggExpRect(out,braidX,centerY-26*s,2*s,8*s,
+                  hair[0],hair[1],hair[2]);
+        ggExpRect(out,braidX,centerY-19*s,2*s,s,205,167,102);
+    }
     // Neck, cheeks and tapered jaw (6 bands create an organic silhouette).
     int skullW=(10-turnAbs/2)*s;
     int faceW=(8-turnAbs/2)*s;
@@ -419,12 +428,8 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     else ggExpRect(out,headX-s,centerY-21*s,2*s,1,122,84,76);
     // Character-exclusive costume accents and hair shapes; the same
     // distinct person remains recognizable across stories/ending routes.
-    if(style==0){ // Mira: warm shoulder shawl and visible side braid
+    if(style==0){ // Mira: warm shawl; braid behind eyes and cheeks
         ggExpRect(out,bodyX-5*s,centerY-17*s,10*s,2*s,79,151,116);
-        ggExpRect(out,headX-6*s+p->clothSway*s,centerY-26*s,2*s,8*s,
-                  hair[0],hair[1],hair[2]);
-        ggExpRect(out,headX-6*s+p->clothSway*s,centerY-19*s,
-                  2*s,s,205,167,102);
     }else if(style==1){ // Thorgrim: reinforced watch armor
         ggFilmArtRounded(out,bodyX-8*s,centerY-18*s,5*s,4*s,s,
                          106,121,142);
