@@ -36,7 +36,9 @@ capture(){
   rm -f "screenshots/$name.xwd"
 }
 capture "${label}-opening"
-xdotool windowfocus "$win" || { echo "Unable to focus mGBA before input" >&2; exit 1; }
+# A headless Xvfb server may have no window manager; focus is best-effort.
+# Send keys to the explicit window below, and fail if that injection fails.
+xdotool windowfocus "$win" || true
 # mGBA's default key bindings: X for A, Z for B. Alternate them so the
 # typewriter and caption pagination don't swallow one giant held-down key.
 for i in $(seq 1 16); do
