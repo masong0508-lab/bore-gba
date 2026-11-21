@@ -113,6 +113,44 @@ int main(int argc,char **argv){
         fputs("CINEMA CAPTURE FAIL: wall does not actually occlude cel pixels\n",stderr);
         return 8;
     }
+    // Capture the PLAYABLE first-person exploration renderer, including
+    // crosshair and control legend, over a short camera move on real map
+    // cells. These are source gameplay views, not a simulated film HUD.
+    ggExplore.active=1;ggExplore.angle=0;ggExplore.frame=0;
+    ggExplore.actorId=0;ggExplore.material=0;
+    for(int i=0;i<6;i++){
+        ggExplore.px=63*256+128+i*30;
+        ggExplore.py=65*256+128;
+        ggExplore.frame=i*3;
+        ggExpRender(guarded.img);
+        char name[40];
+        snprintf(name,sizeof name,"pov_%02d.ppm",i);
+        if(!ggCaptureSave(argv[1],name))return 11;
+    }
+    // Compare the EXACT same actor compositing load with and without
+    // the wall-depth test, on a host CPU. This is instrumentation, NOT
+    // an unmeasured claim about the Old 3DS's hardware frame rate.
+    const int trials=160;
+    ggExpRenderMode(guarded.img,1);
+    GgFilmPose overlay=ggFilmPoseFor("The village lives.",2,48,0,0,0,0);
+    clock_t startFlat=clock();
+    ggExpFilmDrawDepth=0;
+    for(int i=0;i<trials;i++)
+        ggFilmDrawGuestActor(guarded.img,200,156,2,
+            ggFilmGuestPalette[0][0],ggFilmGuestPalette[0][1],
+            ggFilmGuestPalette[0][2],&overlay,0);
+    double flatMs=(double)(clock()-startFlat)*1000.0/
+                  CLOCKS_PER_SEC/trials;
+    ggExpRenderMode(guarded.img,1);
+    clock_t startDepth=clock();
+    ggExpFilmDrawDepth=768;
+    for(int i=0;i<trials;i++)
+        ggFilmDrawGuestActor(guarded.img,200,156,2,
+            ggFilmGuestPalette[0][0],ggFilmGuestPalette[0][1],
+            ggFilmGuestPalette[0][2],&overlay,0);
+    ggExpFilmDrawDepth=0;
+    double maskedMs=(double)(clock()-startDepth)*1000.0/
+                    CLOCKS_PER_SEC/trials;
     char metrics[512];
     if(snprintf(metrics,sizeof metrics,"%s/capture_metrics.csv",argv[1])>=
        (int)sizeof metrics)return 9;
@@ -123,8 +161,12 @@ int main(int argc,char **argv){
             ms,sizeof ggExpFilmOcclusion,last);
     fprintf(stats,"foreground_depth_comparison,2,400x240,,%zu,%llu\n",
             sizeof ggExpFilmOcclusion,masked);
+    fprintf(stats,"actor_overlay_no_depth,%d,400x240,%.6f,%zu,0\n",
+            trials,flatMs,sizeof ggExpFilmOcclusion);
+    fprintf(stats,"actor_overlay_depth_test,%d,400x240,%.6f,%zu,0\n",
+            trials,maskedMs,sizeof ggExpFilmOcclusion);
     fclose(stats);
-    printf("3DS CAPTURE OK: 12 native 400x240 source frames, 15 cast angles, wall depth on/off, %.3f ms/host frame, %zu B scratch\n",
-           ms,sizeof ggExpFilmOcclusion);
+    printf("3DS CAPTURE OK: 12 story frames, 15 three-quarter turntable views, 6 playable POV frames and wall occlusion comparisons; %.3f ms/host scene frame, %.6f ms/actor without depth, %.6f ms/actor with depth; %zu B scratch\n",
+           ms,flatMs,maskedMs,sizeof ggExpFilmOcclusion);
     return 0;
 }
