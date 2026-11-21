@@ -664,8 +664,24 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
             if(ggChronLand(sx,sy)&&
                ggExpGround(world[sy][sx])==ggExpGround(world[ty][tx])&&
                ggExpLineClear(cx>>8,cy>>8,sx,sy)){
-                ggSagaShot.approachX=sx;
-                ggSagaShot.approachY=sy;
+                // On very tight close-ups an actor entering from the
+                // adjoining tile starts nearer than the subtitle-safe
+                // minimum depth. Reject that approach at shot setup,
+                // rather than silently popping the figure into frame
+                // half a second later. Fallback is the short on-tile
+                // entrance, still controlled by the same easing curve.
+                GgFilmCameraSubject entrance={
+                    sx*256+128,sy*256+128,ggExpGround(world[sy][sx])
+                };
+                if(ggFilmCameraSubjectFits(ggSagaShot.camera.fromX,
+                       ggSagaShot.camera.fromY,
+                       ggExpCos[a],ggExpSin[a],
+                       ggExpGround(world[ggSagaShot.camera.fromY>>8]
+                                         [ggSagaShot.camera.fromX>>8]),
+                       entrance,ggFilmShotScale(ggSagaShot.distance))){
+                    ggSagaShot.approachX=sx;
+                    ggSagaShot.approachY=sy;
+                }
             }
         }
     }
