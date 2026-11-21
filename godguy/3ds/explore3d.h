@@ -512,11 +512,13 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                         r=74*wallShade/256;g=68*wallShade/256;
                         b=71*wallShade/256;
                     }else if(feature==GG_FACADE_GLASS){
+                        // Dim amber glazing set INTO a dark mullion,
+                        // not a flat luminous yellow billboard.
                         int glow=((ggExplore.frame/17+tx*5+ty*11)&7)<2?
-                                 13:0;
-                        r=(212+glow)*wallShade/256;
-                        g=(177+glow/2)*wallShade/256;
-                        b=(114+glow/3)*wallShade/256;
+                                 8:0;
+                        r=(149+glow)*wallShade/256;
+                        g=(126+glow/2)*wallShade/256;
+                        b=(100+glow/3)*wallShade/256;
                     }else if(feature==GG_FACADE_DOOR){
                         r=54*wallShade/256;g=52*wallShade/256;
                         b=58*wallShade/256;
