@@ -45,6 +45,45 @@ static inline int ggGpuCorner(const uint8_t *terrain,int stride,
     }
     return n?sum/n:8;
 }
+// Match the existing software renderer's four center-fan triangle
+// sectors exactly. The GPU backend must not regress mountain camera
+// grounding, planted tree trunks or foundations on adjacent biomes.
+static inline int ggGpuGroundAtQ8(const uint8_t*terrain,int stride,
+                                   int width,int height,int wx,int wy){
+    int tx=wx>>8,ty=wy>>8;
+    if((unsigned)tx>=(unsigned)width||
+       (unsigned)ty>=(unsigned)height)return 8;
+    int a=ggGpuCorner(terrain,stride,width,height,tx,ty);
+    int b=ggGpuCorner(terrain,stride,width,height,tx+1,ty);
+    int c=ggGpuCorner(terrain,stride,width,height,tx+1,ty+1);
+    int d=ggGpuCorner(terrain,stride,width,height,tx,ty+1);
+    int center=ggGpuTerrainHeight(terrain[ty*stride+tx]);
+    int u=(wx&255)-128,v=(wy&255)-128;
+    int au=u<0?-u:u,av=v<0?-v:v;
+    if(au>=av){
+        if(u>=0)return (center*(128-u)*2+
+                        b*(u-v)+c*(u+v)+128)/256;
+        int n=-u;
+        return (center*(128-n)*2+a*(n-v)+d*(n+v)+128)/256;
+    }
+    if(v>=0)return (center*(128-v)*2+d*(v-u)+c*(v+u)+128)/256;
+    int n=-v;
+    return (center*(128-n)*2+a*(n-u)+b*(n+u)+128)/256;
+}
+static inline int ggGpuFoundation(const uint8_t*terrain,int stride,
+                                  int width,int height,int x0,int y0,
+                                  int x1,int y1,int nominal){
+    int result=nominal;
+    int z=ggGpuGroundAtQ8(terrain,stride,width,height,x0,y0);
+    if(z<result)result=z;
+    z=ggGpuGroundAtQ8(terrain,stride,width,height,x1,y0);
+    if(z<result)result=z;
+    z=ggGpuGroundAtQ8(terrain,stride,width,height,x1,y1);
+    if(z<result)result=z;
+    z=ggGpuGroundAtQ8(terrain,stride,width,height,x0,y1);
+    if(z<result)result=z;
+    return result-1;
+}
 static inline void ggGpuAppend(GgGpuBatch *b,GgGpuPoint p,
                                int red,int green,int blue,float light){
     GgGpuVertex *v=&b->vertex[b->count++];
@@ -108,8 +147,8 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
     b->count=b->tiles=b->buildings=b->trees=b->overflow=0;
     b->px=camX;b->py=camY;
     int tileX=camX>>8,tileY=camY>>8;
-    b->eye=ggGpuTerrainHeight(ggGpuTile(terrain,stride,width,height,
-                                       tileX,tileY,3))+13;
+    b->eye=ggGpuGroundAtQ8(terrain,stride,width,height,
+                            camX,camY)+13;
     if(radius>GG_GPU_RADIUS)radius=GG_GPU_RADIUS;
     if(radius<0)radius=0;
     for(int y=tileY-radius;y<=tileY+radius;y++)
@@ -149,8 +188,10 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
             if(building){
                 int roof=mid+ggGpuBuildingHeight(building);
                 int wood=building==1||building==2||building==4||building==7;
+                int base=ggGpuFoundation(terrain,stride,width,height,
+                                         x0+38,y0+38,x1-38,y1-38,mid);
                 ggGpuBox(b,x0+38,y0+38,x1-38,y1-38,
-                         mid-2,roof,wood?155:146,wood?110:139,
+                         base,roof,wood?155:146,wood?110:139,
                          wood?78:138);
                 // Distinct pitched roofs; geometry stays aligned with its
                 // supporting walls and GPU depth instead of floating.
@@ -170,7 +211,10 @@ static void ggGpuSceneBuild(GgGpuBatch*b,const uint8_t*terrain,
                 uint32_t k=(uint32_t)x*0x9e3779b9u+
                            (uint32_t)y*0x85ebca6bu;
                 k^=k>>16;k*=0x7feb352du;k^=k>>15;
-                if((k&7u)==0u)ggGpuTree(b,x0+92,y0+144,mid,k);
+                if((k&7u)==0u)
+                    ggGpuTree(b,x0+92,y0+144,
+                        ggGpuGroundAtQ8(terrain,stride,width,height,
+                                        x0+92,y0+144)-1,k);
             }
         }
 }
