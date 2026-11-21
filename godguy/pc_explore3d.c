@@ -128,7 +128,7 @@ int main(void){
           "objective marker did not render a centered crosshair");
     check(!ggMapPinDraw(guarded.img,0,0,244,204,82),
           "off-screen map pin tried to draw outside map");
-    check(guarded.first[0]==0&&guarded.last[0]==0,
+    check(guarded.first[0]==0x5a&&guarded.last[0]==0xc3,
           "objective pin overflowed 3DS map buffer");
     ggChron.active=0;
     check(ggExplore.active&&(ggExplore.px>>8)==64&&(ggExplore.py>>8)==64,
