@@ -24,7 +24,7 @@ typedef struct {
 } GgPersonCel;
 typedef struct {
     uint32_t fingerprint;
-    unsigned char hair,style,face,build,accessory,complexion;
+    unsigned char hair,hairTint,style,face,build,accessory,complexion;
     unsigned char eye,wear,shoulder;
 } GgPersonTraits;
 static inline uint32_t ggPersonMix(uint32_t x){
@@ -40,6 +40,7 @@ static inline GgPersonTraits ggPersonTraits(uint32_t id,int family){
     GgPersonTraits p;
     p.fingerprint=h;
     p.hair=(unsigned char)(h%7u);
+    p.hairTint=(unsigned char)((h>>28)%7u);
     p.style=(unsigned char)((h>>4)%6u);
     p.face=(unsigned char)((h>>8)%4u);
     p.build=(unsigned char)((h>>11)%4u);
@@ -73,7 +74,8 @@ static void ggPersonColors(GgPersonCel*c,GgPersonTraits p,
     ggPersonInk(c,GG_P_SKIN_L,r+(255-r)/3,g+(255-g)/3,b+(255-b)/3);
     ggPersonInk(c,GG_P_BLUSH,ggPersonClamp(r+8,0,255),
                 g*79/100,b*81/100);
-    r=hairs[p.hair][0];g=hairs[p.hair][1];b=hairs[p.hair][2];
+    r=hairs[p.hairTint][0];g=hairs[p.hairTint][1];
+    b=hairs[p.hairTint][2];
     ggPersonInk(c,GG_P_HAIR_D,r*58/100,g*61/100,b*63/100);
     ggPersonInk(c,GG_P_HAIR_M,r,g,b);
     ggPersonInk(c,GG_P_HAIR_L,r+(255-r)/4,g+(255-g)/4,b+(255-b)/4);
@@ -143,21 +145,21 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
     turn&=7;
     int front=turn==0||turn==1||turn==7;
     int rear=turn==3||turn==4||turn==5;
-    int left=turn==2||turn==3;
-    int right=turn==6||turn==5;
+    int left=turn==1||turn==2||turn==3;
+    int right=turn==5||turn==6||turn==7;
     int quarter=turn==1||turn==3||turn==5||turn==7;
+    int profile=turn==2||turn==6;
     int lean=turn==1||turn==7?1:turn==3||turn==5?-1:0;
     int width=7+(p.build==2?1:p.build==0?-1:0)+p.shoulder/2;
     int breath=((tick+(int)(p.fingerprint&31u))/20)&1;
     int sway=active?((tick/5)&1?2:-2):0;
     int faceY=9+breath;
     int center=16+lean;
-    int legY=34;
     int skin=GG_P_SKIN_M;
     // Shoes are BELOW pants; both retain one common grounded sole.
     // Movement changes strides only when the population marks active.
     for(int s=-1;s<=1;s+=2){
-        int legX=center+s*(quarter?3:4)+s*sway;
+        int legX=center+s*(profile?2:quarter?3:4)+s*sway;
         ggPersonOval(c,legX,39,3,7,GG_P_OUTLINE);
         ggPersonRect(c,legX-2,35,4,9,GG_P_PANTS_D);
         ggPersonRect(c,legX-1,35,2,8,GG_P_PANTS_L);
@@ -166,6 +168,10 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
         ggPersonRect(c,legX+s-3,47,7,1,GG_P_OUTLINE);
     }
     // Outer silhouette first: taper from shoulders to waist and hem.
+    // Three-quarter views narrow the torso slightly. A side profile
+    // must not retain both full front-facing shoulders and two arms.
+    if(profile)width=ggPersonClamp(width-2,4,10);
+    else if(quarter)width=ggPersonClamp(width-1,5,11);
     int shoulders=width+2,hem=width-(p.style==3?1:0);
     ggPersonOval(c,center,22+breath,shoulders,5,GG_P_OUTLINE);
     ggPersonRect(c,center-width,22,2*width+1,12,GG_P_OUTLINE);
@@ -209,6 +215,9 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
     // Articulated arms: shoulder/elbow/wrist poses are separate
     // geometries; both hands rejoin the sleeves, never float outside.
     for(int s=-1;s<=1;s+=2){
+        // From the side, the far arm is occluded by the body rather
+        // than appearing as an extra detached limb in front.
+        if(profile&&s==(left?1:-1))continue;
         int armX=center+s*(shoulders-1);
         int elbowX=armX+s*2;
         int handX=elbowX+(active?-s*sway/2:0);
@@ -300,6 +309,17 @@ static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
     }
     ggPersonStroke(c,headX-3,faceY-8,headX+1,faceY-9,
                    GG_P_HAIR_L,1);
+    // Clothing wear, clasps and a shoulder seam are intentionally
+    // tied to stable identity rather than ticking with the gait.
+    if(p.wear==1){
+        ggPersonStroke(c,center+width-3,27,
+                       center+width-2,31,GG_P_SEAM,1);
+    }else if(p.wear==2){
+        ggPersonDot(c,center-width+2,27,GG_P_COAT_L);
+        ggPersonDot(c,center-width+2,29,GG_P_COAT_L);
+    }else if(p.wear==3){
+        ggPersonRect(c,center-1,31,2,1,GG_P_METAL);
+    }
     if(rear){
         // Back of head has no phantom eyes: nape and hair part.
         ggPersonRect(c,headX-1,faceY-2,2,7,GG_P_HAIR_M);

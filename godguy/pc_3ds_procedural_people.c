@@ -16,7 +16,7 @@ int main(int argc,char**argv){
     for(int i=0;i<40;i++){
         GgPersonTraits t=ggPersonTraits((uint32_t)(i+1001),i%12);
         fingerprints[i]=t.fingerprint;
-        require(t.hair<7&&t.style<6&&t.face<4&&
+        require(t.hair<7&&t.hairTint<7&&t.style<6&&t.face<4&&
                 t.build<4&&t.accessory<6&&t.complexion<8,
                 "person traits escaped authored human range");
         require(t.fingerprint==
@@ -48,6 +48,10 @@ int main(int argc,char**argv){
     ggPersonGenerate(&b,1016u,6,0,50,0,palette);
     require(memcmp(a.pixels,b.pixels,sizeof a.pixels)!=0,
             "different citizens have indistinguishable silhouettes");
+    ggPersonGenerate(&a,1015u,6,2,50,0,palette);
+    ggPersonGenerate(&b,1015u,6,0,50,0,palette);
+    require(memcmp(a.pixels,b.pixels,sizeof a.pixels)!=0,
+            "side-profile anatomy is identical to full frontal torso");
     ggPersonGenerate(&a,1015u,6,0,50,0,palette);
     ggPersonGenerate(&b,1015u,6,4,50,0,palette);
     require(memcmp(a.pixels,b.pixels,sizeof a.pixels)!=0,
