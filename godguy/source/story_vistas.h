@@ -89,6 +89,29 @@ static int filmVistaFind(int centerX,int centerY,int width,int height,
     }
     return best>-999999;
 }
+// If the player's settlement lies far inland, a film can still use a
+// distant coastline/cliff from the *same planet*. Search a bounded sparse
+// grid once at playback start, refine only a genuine terrain candidate.
+// This prevents substituting a made-up beach for a landlocked camera view.
+static int filmVistaDiscover(int width,int height,int kind,
+                             int(*cell)(int,int,int),
+                             int *bestX,int *bestY){
+    int step=width>512?12:width>256?8:4;
+    for(int y=2;y<height-2;y+=step)for(int x=2;x<width-2;x+=step){
+        int terr=cell(x,y,0);
+        int nextX=x+step<width?x+step:x;
+        int nextY=y+step<height?y+step:y;
+        int east=cell(nextX,y,0),south=cell(x,nextY,0);
+        int possible=kind==FILM_VISTA_COAST?
+            (filmVistaIsWater(terr)!=filmVistaIsWater(east)||
+             filmVistaIsWater(terr)!=filmVistaIsWater(south)||
+             terr==T_SAND):
+            (filmVistaIsRidge(terr)||terr==T_SNOW);
+        if(possible&&filmVistaFind(x,y,width,height,kind,
+                                  cell,bestX,bestY))return 1;
+    }
+    return 0;
+}
 static void filmVistaCapture(int width,int height,int townX,int townY,
                              int cameraX,int cameraY,int(*cell)(int,int,int)){
     int bx=townX,by=townY;
@@ -98,6 +121,8 @@ static void filmVistaCapture(int width,int height,int townX,int townY,
         int x=0,y=0,valid=filmVistaFind(bx,by,width,height,kind,cell,&x,&y);
         if(!valid)valid=filmVistaFind(cameraX,cameraY,width,height,
                                      kind,cell,&x,&y);
+        if(!valid)valid=filmVistaDiscover(width,height,kind,
+                                         cell,&x,&y);
         filmVistaSample(&filmVista[kind],valid?x:-1,valid?y:-1,2,
                         width,height,cell);
     }
