@@ -58,6 +58,8 @@ for needle in [
     "plugRestore(); int d=ev==SE_BFF?15:10;",
     "plugV=(u8)msPressureEase(plugV,(unsigned)d)",
     "plugRestore(); // restore before any hospital pressure changes",
+    "case TQ_PLUG: if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255) plugRestore(); return plugV<=PLUG_OK;",
+    "if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255){ plugDay=0xFFFF; plugSec=plugTen=0; plugRestore(); }",
     "msPressureOutcome((unsigned)v,(unsigned)plugNight)==2u",
     "msPressureOutcome((unsigned)v,(unsigned)plugNight)==1u",
     "case TQ_DAYS: return (int)msDaysProgress",
@@ -135,4 +137,7 @@ assert "if(id==CS_PREVIEW-1&&CS_PREVIEW_BEAT<sc->n)" in cut
 assert "-DCS_PREVIEW=$(CS_PREVIEW_SCENE)" in makefile
 assert "csShotFind(int t)" in shots and "lastT=-1,nextT=-1" in shots
 assert "while(keyNow()&(K_A|K_B|K_START)) vsync()" in cut
+assert "game_h=$((win_w*2/3))" in qa
+assert '-crop "${win_w}x${game_h}+0+${top}"' in qa
+assert 'test $((width*2)) -eq $((height*3))' in qa
 print(f"BORE Missy cutscene timing/shot integrity: PASS ({len(scenes)} scenes, {count} camera shots)")
