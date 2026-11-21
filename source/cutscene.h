@@ -178,13 +178,16 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
           csR(chairX-8,107,20,2,RGB(6,11,14));
           csLn(chairX-6,91,chairX+9,108,RGB(15,20,21));
         }
-        csR(111,77,106,28,RGB(5,10,14)); // bed's undercarriage silhouette
-        csR(114,80,99,19,RGB(12,18,23)); // mattress shadow
-        csR(115,79,96,14,RGB(25,30,30)); // mattress
-        csR(115,80,95,2,RGB(31,31,30)); // top edge
-        csR(107,67,8,36,RGB(10,18,22)); csR(109,69,4,30,RGB(24,29,29)); // tilted headboard
-        csR(212,75,6,28,RGB(10,18,22)); csR(214,78,2,24,RGB(24,28,29)); // footboard
-        csR(121,99,3,16,RGB(7,10,14)); csR(204,99,3,16,RGB(7,10,14)); // bed legs
+        // Corrected bed plane: top y=90, not y=79 (the old character
+        // lay BELOW the mattress and looked like a detached head).
+        csR(111,89,106,26,RGB(6,12,17)); // undercarriage / cast shadow
+        csR(114,92,99,17,RGB(12,18,24)); // mattress thickness
+        csR(115,90,96,15,RGB(25,29,30)); // patient-supporting plane
+        csR(115,90,96,2,RGB(31,31,30)); // mattress top edge
+        csR(115,102,96,3,RGB(15,22,27)); // side seam
+        csR(107,78,8,36,RGB(10,18,22)); csR(109,80,4,31,RGB(24,29,29)); // headboard
+        csR(212,87,6,27,RGB(10,18,22)); csR(214,90,2,22,RGB(24,28,29)); // footboard
+        csR(121,108,3,8,RGB(7,10,14)); csR(204,108,3,8,RGB(7,10,14)); // bed supports
         csR(12,22,41,42,RGB(5,10,14)); csR(14,24,37,32,RGB(2,5,8)); // monitor case / glass
         csR(18,52,29,2,RGB(15,20,22)); csR(28,64,5,37,RGB(16,21,24));
         csR(18,99,24,3,RGB(10,15,19)); // monitor stand
@@ -299,12 +302,14 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
     }
 }
 static void csWardFront(void){ // near-side metal rail/bed frame overlays the patient
-    csR(116,101,99,3,RGB(5,10,15));
-    csR(120,100,90,2,RGB(25,29,29));
-    csR(118,91,3,11,RGB(12,19,23)); csR(211,91,3,11,RGB(12,19,23));
-    csR(118,98,96,2,RGB(26,30,30)); // below her mouth; no bar across her face
-    csR(153,98,2,3,RGB(17,23,25)); csR(178,98,2,3,RGB(17,23,25));
-    csR(123,104,89,3,RGB(7,11,15)); csR(136,107,62,2,RGB(12,18,22));
+    // Foreground rail attaches to the bed side instead of bisecting the
+    // pillow, jaw and shoulder. Posts share y=104 with mattress seam.
+    csR(116,113,99,3,RGB(5,10,15));
+    csR(120,111,90,2,RGB(25,29,29));
+    csR(118,104,3,10,RGB(12,19,23)); csR(211,104,3,10,RGB(12,19,23));
+    csR(118,107,96,2,RGB(26,30,30));
+    csR(153,108,2,5,RGB(17,23,25)); csR(178,108,2,5,RGB(17,23,25));
+    csR(123,114,89,2,RGB(7,11,15));
 }
 static void csDash(int t){   // CB_CAR, after the figure: the dashboard hides her lap; the wheel, the radio's glow
     csR(0,88,SW,28,RGB(4,4,6)); csR(0,88,SW,2,RGB(11,11,15)); csD(112,114,25,RGB(9,9,13)); csD(112,114,21,RGB(4,4,6)); csR(100,104,24,4,RGB(9,9,13));
