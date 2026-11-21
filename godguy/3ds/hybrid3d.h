@@ -54,7 +54,10 @@ static int ggHybridBegin(int index,int oldPause){
     ggExplore.actorId=crId[index];
     ggExplore.actorIndex=index;
     crName(c,ggExplore.actorName);
-    ggHybridPick(c->x,c->y);
+    // A genuine selection may originate in a house interior; the live
+    // occupancy grid is authoritative but may be transient mid-move.
+    inspected=index;inspKind=1;inspIdx=index;inspT=420;
+    possessed=index;
     return 1;
 }
 static int ggHybridMove(int oldPX,int oldPY){
