@@ -75,6 +75,9 @@ assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "Anatomical neck and shoulder connect the head" in art
 assert "Neck and collar FIRST:" in face
+assert "the jaw is warm skin, not a dark beard" in face
+assert "int blink=((t+37)%180)<5" in face
+assert "short arced quilting folds" in art
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut

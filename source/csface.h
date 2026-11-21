@@ -111,7 +111,7 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
 static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
     if(csCz<600) return; // the small profile already reads at wide zoom
     csFcx=csCamX(wx); csFcy=csCamY(wy);
-    u16 ol=RGB(3,4,8), sh=csFSh(skin,4), lit=csFLt(skin,2);
+    u16 ol=RGB(3,4,8), sh=csFSh(skin,2), lit=csFLt(skin,2); // the jaw is warm skin, not a dark beard
     // Neck and collar FIRST: the face must join the world-scale shoulder.
     csFE(33,19,17,13,ol);
     csFE(31,17,14,10,sh);
@@ -121,11 +121,11 @@ static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
     // Three-quarter side profile with a cheek, brow and hairline, not a disk.
     csFE(1,0,31,23,ol);
     csFE(3,-2,28,21,hair);
-    csFE(-3,1,27,19,sh);
+    csFE(-3,1,27,19,csFSh(skin,1));
     csFE(-5,-1,25,18,skin);
     csFE(-15,-8,13,5,lit); // brow ridge picks up the monitor light
     csFE(-22,3,9,5,skin); // front cheek toward the pillow
-    csFE(-18,12,11,5,sh); csFE(-19,10,9,3,skin); // chin / jaw
+    csFE(-18,12,11,4,csFSh(skin,2)); csFE(-20,10,10,4,skin); // short, shaped chin, no artificial beard
     csFR(-25,-15,21,4,hair); csFR(-26,-12,8,8,hair);
     csFR(-4,-21,20,5,hair); csFR(4,-19,13,3,csFLt(hair,3));
     csFR(-24,-15,9,3,csFSh(hair,2));
@@ -139,9 +139,10 @@ static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
     csFR(-30,6,9,2,RGB(18,7,9));
     csFR(-26,8,7,1,csFLt(skin,3));
     csFR(-15,9,8,2,csFLt(skin,1)); // reflected cheek light
+    csFE(-14,6,8,3,csFLt(skin,1)); // the rounded cheek catches the bedside glow
     // The first finger twitch does NOT open her eye: words at beat 16 do.
     if(awake){
-        int blink=((t/11)&3)==0;
+        int blink=((t+37)%180)<5; // a natural brief blink, not closed for 1/4 of the dialogue
         csFE(-13,-3,9,blink?2:5,csFSh(skin,6));
         if(!blink){ csFE(-13,-3,6,3,RGB(30,29,26)); csFE(-14,-3,3,3,RGB(13,13,9));
             csFR(-15,-5,2,1,RGB(31,31,30)); }

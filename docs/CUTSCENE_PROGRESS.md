@@ -245,3 +245,13 @@ readable. The rescue branch changes Missy's "How long?" answer to avoid
 falsely claiming a hard-coded nine days, while the normal branch now
 opens with a consistent nine-day post-accident timeline. A portable C
 test covers elapsed 0..20 days, with and without the extension.
+
+### Second actual-frame inspection
+The first first-awakening close-up showed a too-dark underpainting ring
+at Missy's jaw, which looked like a beard despite the new neck. Reduced
+the face-wide shadow to a one-tone skin contour, shrank the chin shadow,
+added a softer cheek highlight and changed the blink cadence from a
+long, frequent squint to a short blink roughly every three seconds.
+Three cheap angled sheet-fold details stop the patient's blanket from
+reading as a featureless rectangular slab at high zoom. Verified issues
+came from captured mGBA output, not an artist mockup.

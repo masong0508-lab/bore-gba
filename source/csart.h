@@ -117,6 +117,10 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csR(x+2,y-12-breath,6,10,csSh(linen,3)); // folded sheet slopes onto the torso
     csR(x+31,y-8,7,5,RGB(20,26,26)); // rounded fold over the feet
     csLn(x+10,y-7,x+16,y-1,fold); csLn(x+19,y-7,x+25,y-2,fold);
+    for(int i=0;i<3;i++){ int px=x+8+i*10, py=y-9+(i&1);
+        csLn(px,py,px+4,py+3,csLt(fold,3));
+        csLn(px+4,py+3,px+7,py+2,fold);
+    } // short arced quilting folds instead of a featureless flat rectangle
     csLn(x+4,y-1,x+30,y-1,RGB(20,25,26));
     // A hand rests on top of the blanket; during awakening only fingers stir.
     csR(x-3,y-8-hand,13,3,ink);
