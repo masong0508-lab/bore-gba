@@ -59,3 +59,11 @@ In `csart.h` (small sprite only; close-ups already had their own):
 - Camera: 16 additional beat-indexed shots in the offer, gate, drive, wings, and refill scenes. The shot-list lookup now caches its current shot and next cut; a full scan happens on entering a scene beat or a cut, not every rendered frame.
 - Presentation: warmth in Missy's brief laugh and in Mamesy's letter, sombre clinic and dressing-room lighting, and removal of a redundant always-true expression in the close-up face renderer.
 - Still required: GBA emulator playback at native 240x160, text readability, shot-by-shot continuity and full build/packaging checks. Static and host tests do not demonstrate cinematic frame rate.
+
+## Regression coverage added
+`tools/test_missyrules.c` checks pressure memory packing for every original
+one-byte value and 0-100 pressure, including the spent one-more-night flag.
+`tools/test_missy_story.py` rejects bad scene/shot indices, duplicate
+camera shots at the same beat and frame, missing scene sequencing, and
+accidental removal of the musical start/fade. The GBA workflow runs both
+before building. A redundant, shadowed scene-6 beat-8 camera shot was removed.

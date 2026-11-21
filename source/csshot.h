@@ -41,7 +41,6 @@ static const CsShot csShots[]={
     {2,10,1,  0, 60, 760,  0,46, 900,  0,46},
     // the flat line, THE PLUG (scene 6, beats 7-9): a push toward the monitor, a cut to the bedside, then a slow pull back out of the room
     {6,7,0,   0, 70, 256,120,64, 440, 76,52},
-    {6,8,0,   0, 80, 420,130,86, 520,134,88},
     {6,9,0,   0,220, 480,134,86, 256,120,64},
     // plug shots (cutscene redo 8): THE PLUG (scene 6): a slow push into the room (0), the doctor (1), a push on Mamesy's plea (2), the doctor leaves (3), the held hand (4-5), a hard cut to the machines being switched off (6), a tight cut-in on "Mish? ...Mish." (8)
     {6,0,0,   0,150, 256,120,64, 320,130,72},
