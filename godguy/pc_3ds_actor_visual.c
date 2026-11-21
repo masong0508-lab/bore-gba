@@ -63,6 +63,11 @@ int main(void){
     check(tintedGround[outer]==205&&tintedGround[outer+1]==220&&
           tintedGround[below]==205&&tintedGround[below+2]==235,
           "contact shadow spread outside its footprint or below the boots");
+    check(ggFilmArtWristSpread(6,0,0)==7&&
+          ggFilmArtWristSpread(8,0,0)==9&&
+          ggFilmArtWristSpread(6,2,0)==8&&
+          ggFilmArtWristSpread(6,0,5)==13,
+          "idle T-pose and reaching hand use the same rigid wrist placement");
     GgFilmPose frontPose=ggFilmPoseFor("The village lives.",1,48,0,0,0,0);
     GgFilmPose profilePose=frontPose;profilePose.turn=4;
     ggFilmDrawGuestActor(front,200,150,2,hair,skin,coat,&frontPose,0);

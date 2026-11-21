@@ -286,6 +286,12 @@ static void ggFilmArtStroke(u8*out,int x0,int y0,int x1,int y1,int thick,
 // Depth-ordered articulated sleeve. A turned character's distant arm
 // belongs BEHIND the torso, while the near arm stays in front. The old
 // renderer stamped both rectangular arms across the coat like stickers.
+// Idle wrists fall alongside the coat; only a directed gesture or
+// handover moves the hand away from the shoulder. This fixes the old
+// unnatural permanent T-pose without changing prop/contact ownership.
+static inline int ggFilmArtWristSpread(int shoulderHalf,int lift,int reach){
+    return lift>0||reach>0?8+reach:shoulderHalf+1;
+}
 static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
                           const GgFilmPose*p,const u8*coat,
                           const u8*skin,int far,int shoulderHalf){
@@ -297,8 +303,9 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
     // rather than the entire sleeve translating as a rigid rectangle.
     int elbowX=shoulderX+dir*(1+extra/2+lift/2)*s;
     int elbowY=centerY-(14+lift/2)*s;
-    int wristX=bodyX+dir*(8+extra)*s;
-    int wristY=centerY-(13+lift)*s;
+    int wristX=bodyX+dir*
+                ggFilmArtWristSpread(shoulderHalf,lift,extra)*s;
+    int wristY=centerY-(lift>0?13+lift:10)*s;
     int dim=far?127:206;
     int r=ggFilmArtShade(coat[0],dim),
         g=ggFilmArtShade(coat[1],dim),
@@ -466,7 +473,9 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                         inkR,inkG,inkB);
         ggFilmArtStroke(out,bodyX+side*2*s,y,lx,feet-4*s,2*s,
                         shadeR,shadeG,shadeB);
-        ggFilmArtRounded(out,lx-3*s,feet-4*s,6*s,3*s,s,
+        // Proportional fitted boots rather than overlapping platform
+        // shoes almost as wide as the whole body.
+        ggFilmArtRounded(out,lx-2*s,feet-4*s,4*s,3*s,s,
                          43,43,49);
         ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
         // Separate calf edge, boot sole and forward toe instead of a
@@ -531,8 +540,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     int skullW=ggFilmAnatomyWidth(anatomy.skull,turnAbs/2,7)*s;
     int faceW=ggFilmAnatomyWidth(anatomy.cheek,turnAbs/2,6)*s;
     int jawW=ggFilmAnatomyWidth(anatomy.jaw,turnAbs/2,4)*s;
+    // A slightly shorter adult skull and distinct chin, while retaining
+    // the original ~32-unit eye-to-boot framing/screen safety contract.
     ggFilmArtOval(out,headX-skullW/2,centerY-30*s,
-                  skullW,12*s,39,39,46);
+                  skullW,10*s,39,39,46);
     ggFilmArtRounded(out,headX-jawW/2,centerY-23*s,
                      jawW,4*s,s,faceShadeR,faceShadeG,faceShadeB);
     ggFilmArtOval(out,headX-faceW/2,centerY-29*s,
@@ -541,6 +552,14 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                   faceW-2*s,(anatomy.faceHeight-1)*s,faceR,faceG,faceB);
     ggExpRect(out,headX-jawW/2+s,centerY-22*s,2*s,2*s,
               faceShadeR,faceShadeG,faceShadeB);
+    if(turnAbs>=2){
+        // A separate shaded ear reinforces a real directional profile.
+        int earX=turn>0?headX-faceW/2:headX+faceW/2-s;
+        ggExpRect(out,earX,centerY-25*s,2*s,2*s,
+                  faceShadeR,faceShadeG,faceShadeB);
+        ggExpRect(out,earX+s/2,centerY-25*s,s,1,
+                  faceR,faceG,faceB);
+    }
     // Hair has a crown, swept fringe, temporal shading and a highlight;
     // head/gaze offset is independent from torso animation.
     ggFilmArtOval(out,headX-5*s,centerY-31*s,10*s,5*s,
@@ -579,13 +598,15 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     }
     // The bridge really projects in profile. Eye occlusion above
     // removes the far eye; no mirrored front mask pasted on sideways.
-    int noseOffset=turn>=2?(anatomy.nose+turnAbs/2):
-                   turn<=-2?-(anatomy.nose+turnAbs/2):0;
-    ggExpRect(out,headX+noseOffset*s,centerY-24*s,s,2*s,
+    int protrude=ggExpClamp((anatomy.nose+1)*s/2,s/2,3*s);
+    int noseX=turn>=2?headX+faceW/2-s/2:
+              turn<=-2?headX-faceW/2-protrude:headX;
+    int noseWidth=turnAbs>=2?protrude+s/2:s;
+    ggExpRect(out,noseX,centerY-24*s,noseWidth,2*s,
               faceShadeR,faceShadeG,faceShadeB);
     if(turnAbs>=2)
-        ggExpRect(out,headX+noseOffset*s,centerY-23*s,
-                  2*s,s,faceR,faceG,faceB);
+        ggExpRect(out,noseX+(turn>0?s/2:0),centerY-23*s,
+                  protrude,s,faceR,faceG,faceB);
     if(style==1){
         // Thorgrim's square beard changes his chin silhouette.
         ggFilmArtRounded(out,headX-jawW/2,centerY-21*s,
@@ -601,7 +622,8 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     // Mouth direction and emotional shape are composed under the nose.
     // Keep genuine silent frames and prevent the wide open-mouth
     // rectangle from protruding through a turned cheek.
-    int lipsX=headX-s+(turn>2?s:turn< -2?-s:0);
+    int lipsX=headX-s+
+              (turn>=2?faceW/4:turn<=-2?-faceW/4:0);
     int lipWidth=p->mouth==2?2*s:p->mouth?s+1:2*s;
     ggExpRect(out,lipsX,centerY-21*s,lipWidth,p->mouth?s:1,
               p->mouth?104:122,p->mouth?54:84,p->mouth?63:76);
