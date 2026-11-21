@@ -45,6 +45,8 @@ for needle in [
     "static void stTvPatientRest(int m)",
     "if(stCh>=4&&stPart!=255&&hhPUid!=(int)stPart",
     "if(stCh==4&&stPart!=255&&stMember(stPart)>=0) n--;",
+    "stShown=0; stModal=0; stTvWant=stTvWarn=0;",
+    "if(s==STY_TVSHOW&&custom)",
     "if(stId==STY_TVSHOW&&stCh==4&&stKid!=255",
     "if((cl!=8&&cl!=12)", "slwPut(w,(u8)(stId==STY_TVSHOW?stmGet():0))",
     "SRAM_BASE[STB_OFF+i]=c.p[9+i]",

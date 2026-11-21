@@ -465,7 +465,10 @@ static void stTvPatientRest(int m){ // the recovery scene is over: Missy may be 
     s->pn=s->pi=0; s->gok=0; s->think=20; hhUp[m]=0; hhFl[m]=0;
     s->fx=(s32)hhExX*256+128; s->fy=(s32)hhExY*256+128;
 }
-static int stTvCan(int m){ return m>=0&&!custom&&!(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m)); }   // the switch would work right now (else we ask again in a second, silently)
+static int stTvCan(int m){
+    if(custom){ if(!stTvWarn){ stTvWarn=1; toast("REBUILD CUSTOM BODY FOR STORY CAST"); } return 0; }
+    return m>=0&&!(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m));
+}   // the switch would work right now (else we ask again in a second, silently)
 static void stTvControl(void){
     if(stId!=STY_TVSHOW||!stTvWant){ stTvWant=0; return; }
     if(stTvWant==1){   // chapter 4: be Mamesy
@@ -726,6 +729,7 @@ static int stProg(const StCh*c,char*b){
 static int storyPick(void); static void storySetup(int s);   // (below)
 static void storyJoin(void){   // floors step 10: pause menu > STORY with no story: pick one for the life you are living now (nobody is wiped; the new housemate or kid just moves in)
     int s=storyPick(); if(!s) return;
+    if(s==STY_TVSHOW&&custom){ toast("MISSY STORY NEEDS A STANDARD SIM BODY"); return; } // mandatory cast switches cannot use hand-built geometry
     int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN||s==STY_ICE||s==STY_SPARKS)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
     if(hhN+need>HH_MAX){ toast("Too many people home for that story."); return; }
     static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
@@ -976,6 +980,7 @@ static int stCastSim(const StCast*c){   // one of the story's people moves in (t
 }
 static void bdSave(void);   // board.h
 static void storySetup(int s){   // after the new life is set up and the old household has gone
+    stShown=0; stModal=0; stTvWant=stTvWarn=0; // replay a fresh opening even if this story was played earlier in the session
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0; stbSet();
     int m;
     switch(s){

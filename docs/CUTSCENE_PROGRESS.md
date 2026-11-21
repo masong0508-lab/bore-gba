@@ -107,3 +107,13 @@ the existing chapter-five household goal explicitly does not count her.
 Entering the scene from a saved game immediately hides her, just as
 chapter four immediately hides unconscious Missy. This avoids altering
 the household's binary save format or silently replacing a dead Sim.
+
+### Starting or replaying the story
+Starting a new story resets the prior chapter-card identity so replaying
+TV SHOW & TELL in the same session still runs its opening film and initializes
+the sobriety clock. A player with a hand-built (custom block geometry) body
+must first rebuild a standard Sim before joining Missy's story: the cast
+switching engine cannot safely transfer hand-built bodies, and silently
+starting a story that would later deadlock in the hospital is worse than an
+explicit entry guard. If the player customizes the body mid-story, the cast
+handover displays the precise issue rather than retrying invisibly forever.
