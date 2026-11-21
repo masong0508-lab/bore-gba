@@ -120,9 +120,15 @@ static int filmFlightDraw(const FmvClip *clip,int t){
     }
     // A single uninterrupted trip; keep the bars and replace only the
     // world viewport. The 3DS and DS use identical geographical samples.
-    uiRect(0,FILM_TOP,256,FILM_H,fmvSlots[2]);
-    uiRect(0,95,256,FILM_BOTTOM-95,fmvSlots[13]);
     FilmRouteCamera camera=filmRouteCameraAt(t);
+    int localBuilding=0;
+    int below=filmRouteTerrain(&camera,0,0,WW,WH,
+                                filmWorldCell,&localBuilding);
+    // Never paint a false ocean beneath an inland viewpoint: fill the
+    // lower plane using the terrain actually under this world position.
+    uiRect(0,FILM_TOP,256,FILM_H,fmvSlots[2]);
+    uiRect(0,95,256,FILM_BOTTOM-95,
+           fmvSlots[filmFlightInk(below)]);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     filmFlight3D(&camera,t);
 #else
