@@ -103,7 +103,7 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     // Draw the head only ONCE, with its features anchored at x-31,y-16.
     // A large close-up uses the same jaw/neck coordinates as the wide sprite.
     // Keep head, eyes and mouth in phase with the breathing neck and gown.
-    if(csCz>=560) csFaceBed(x-31,y-1-breath6-breath,t,sk,hr,awake);
+    if(csCz>=560) csFaceBed(x-31,y-16-breath,t,sk,hr,awake);
     else {
         csD(x-29,y-17-breath,7,edge); csD(x-28,y-18-breath,7,hr);
         csD(x-31,y-16-breath,6,csSh(sk,1)); csD(x-32,y-16-breath,5,sk);
