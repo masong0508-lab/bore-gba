@@ -63,6 +63,31 @@ static void filmRoutePosition(int t,int *x,int *y){
     // Q8 distance retains sub-tile motion on every rendered frame;
     // moving one whole tile at a time would produce visible camera hops.
     int travel=(int)((long long)t*r->total*256/r->duration);
+    if(r->count==3){
+        // Blend the two straight flight legs with a quadratic corner
+        // over at most four map tiles. This preserves the same town,
+        // coast and cliff landmarks, but avoids a jarring instant
+        // 180-degree camera turn at a hairpin in the real geography.
+        int boundary=r->length[0]*256;
+        int radius=filmRouteMax(0,
+              filmRouteClampi(filmRouteMax(0,
+                  r->length[0]<r->length[1]?
+                  r->length[0]:r->length[1])*256/5,0,1024));
+        if(radius>=128&&travel>=boundary-radius&&
+           travel<=boundary+radius){
+            int u=(travel-(boundary-radius))*256/(radius*2);
+            int wx=r->x[1]*256,wy=r->y[1]*256;
+            int sx=wx-(r->x[1]-r->x[0])*radius/r->length[0];
+            int sy=wy-(r->y[1]-r->y[0])*radius/r->length[0];
+            int ex=wx+(r->x[2]-r->x[1])*radius/r->length[1];
+            int ey=wy+(r->y[2]-r->y[1])*radius/r->length[1];
+            int ix=sx+(wx-sx)*u/256,iy=sy+(wy-sy)*u/256;
+            int jx=wx+(ex-wx)*u/256,jy=wy+(ey-wy)*u/256;
+            *x=ix+(jx-ix)*u/256;
+            *y=iy+(jy-iy)*u/256;
+            return;
+        }
+    }
     int segment=0;
     while(segment<r->count-2&&
           travel>=r->length[segment]*256){
