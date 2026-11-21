@@ -121,18 +121,26 @@ int main(void){
     require(camA.x!=camB.x||camA.z!=camB.z,
             "successive story shots reuse identical locked-off backgrounds");
     // The scene clock is not reset by changing dialogue takes.
+    // Two different secondary performers are visible, but no one
+    // duplicates the actual named actors delivering dialogue.
+    FilmBeat life={F_VILLAGE,F_NEAR,F_ELOWEN,F_HOLLOW,F_NO_PROP,NULL};
     backgroundSpriteCalls=0;
     ggFilmWorldClock=280;
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,0,128,10,1,0);
+    ggFilmWorldDraw(&life,0,128,10,1,0);
     unsigned long firstStreet=hashFrame();
     require(backgroundSpriteCalls>=2,
             "town workers reverted to primitive polygon people");
     ggFilmWorldClock=460;
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,0,128,10,1,0);
+    ggFilmWorldDraw(&life,0,128,10,1,0);
     require(hashFrame()!=firstStreet,
             "market, foliage and villagers freeze when the shot time restarts");
+    FilmBeat speaker={F_VILLAGE,F_NEAR,F_MIRA,F_THORGRIM,F_NO_PROP,NULL};
+    backgroundSpriteCalls=0;
+    ggFilmWorldDraw(&speaker,0,128,10,1,0);
+    require(backgroundSpriteCalls==1,
+            "same character duplicated as speaker and background worker");
     // The door has a real physical arc during the first rain sequence.
     ggFilmWorldClock=0;
     memset(uiBuf,0,sizeof picture.page);
