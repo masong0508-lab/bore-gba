@@ -232,14 +232,27 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
     image = canvas((40, 48), 255)
     d = ImageDraw.Draw(image)
     # Directed acting keys: anticipation, contact, lift, hold and recovery.
+    sitting = pose in ("sit", "sit_talk")
     step = (-4, -2, 0, 3, 5, 2, 0, -2)[time//2 % 8] if pose == "walk" else 0
-    bob = abs(step)//3
+    bob = -3 if sitting else abs(step)//3
     lean = 2 if pose in ("reach", "bow", "work", "brace") else (-1 if pose == "react" else 0)
-    for foot in (15+step, 24-step):
-        heel = 45-abs(step)//3
-        d.line((19, 32-bob, foot, heel), fill=INK, width=5)
-        d.line((19, 32-bob, foot, heel-1), fill=shade, width=3)
-        d.line((foot-1, heel, foot+3, heel), fill=WOOD, width=2)
+    if sitting:
+        # Knee-to-ankle leg articulation, ankles anchored at the ground:
+        # genuinely seated rather than a rigid standing sprite lowered
+        # over the couch. Shoes remain attached during seated dialogue.
+        for hip, knee, sole in ((14, 11, 8), (23, 29, 32)):
+            d.line((hip, 35, knee, 39), fill=INK, width=6)
+            d.line((hip, 35, knee, 39), fill=shade, width=4)
+            d.line((knee, 39, sole, 45), fill=INK, width=5)
+            d.line((knee, 39, sole, 45), fill=shade, width=3)
+            d.line((sole-2, 45, sole+4, 45), fill=WOOD, width=2)
+        d.line((10, 38, 27, 38), fill=shade, width=3)
+    else:
+        for foot in (15+step, 24-step):
+            heel = 45-abs(step)//3
+            d.line((19, 32-bob, foot, heel), fill=INK, width=5)
+            d.line((19, 32-bob, foot, heel-1), fill=shade, width=3)
+            d.line((foot-1, heel, foot+3, heel), fill=WOOD, width=2)
     if who == HOLLOW:
         wind = (0,1,2,1,0,-1,-2,-1)[time//2 % 8]
         d.polygon(((12, 18), (22, 20), (25, 30), (31+wind, 44),
@@ -262,7 +275,7 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
               fill=skin, outline=INK)
     d.line((13, 24-bob, 17, 27-bob), fill=trim, width=2)
     d.line((23, 24-bob, 20, 27-bob), fill=trim, width=2)
-    head = cast_sprite(who, pose == "talk" and time//4 % 2 == 0,
+    head = cast_sprite(who, pose in ("talk", "sit_talk") and time//4 % 2 == 0,
                        pose == "listen" or (time+who*9)%79 < 3,
                        pose == "react")
     # Previous 23x21 portrait dominated nearly half a 48-pixel body. A
@@ -284,6 +297,7 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
     left_hand = {
         "brace": (4, 26), "react": (7, 20), "work": (8, 29),
         "talk": (5, 29), "listen": (8, 34),
+        "sit": (9, 35), "sit_talk": (8, 34),
     }.get(pose, (9-step//2, 34-bob))
     d.line((11, 24-bob, 7-step//2, 29-bob, *left_hand),
            fill=shade, width=4)
@@ -291,6 +305,7 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
         "reach": (35, 25), "lift": (28, 15), "bow": (30, 32),
         "work": (34, 29), "brace": (35, 37), "react": (30, 23),
         "talk": (30, 27), "listen": (26, 34),
+        "sit": (29, 36), "sit_talk": (31, 31),
         "write": (31+(time//2)%3, 32+(time//2)%2),
     }.get(pose, (26+step//2, 34-bob))
     d.line((24, 24-bob, 27, hy+2, hx, hy), fill=shade, width=5)
