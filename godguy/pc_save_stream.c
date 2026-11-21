@@ -16,7 +16,7 @@ static void run(int mode,unsigned seed){
         raw[i]=mode==0?(u8)(i/291):
                 mode==1?(u8)((i/7)%17):
                 mode==2?(u8)(seed>>24):
-                (u8)(seed>>((i%4)*8));
+                (u8)((i/61+(i/960)%3)&255);
     }
     GgSaveWriter w={0};
     memset(packed,0xA5,sizeof packed);

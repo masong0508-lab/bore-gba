@@ -7,7 +7,10 @@ set -e; cd "$(dirname "$0")"; : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$
 : ${GG_ARM9_OPT:=-Os}
 FLAGS="-march=armv5te -mtune=arm946e-s -marm -mthumb-interwork $GG_ARM9_OPT -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables -DNDSHW -DGG_DSI ${GG_NOCACHE:--DHW_CACHE} -I../compat -I../source -Wno-all ${GG_FLAGS}"
 ${B}gcc $FLAGS -c ../hw/main_hw.c -o main_hw.o; ${B}gcc $FLAGS -c ../hw/syscalls.c -o syscalls.o; ${B}gcc $FLAGS -x assembler-with-cpp -c ../hw/crt0.s -o crt0.o
-${B}gcc -nostartfiles -march=armv5te -marm -mthumb-interwork -Wl,--gc-sections -Wl,-T,../hw/arm9.ld crt0.o main_hw.o syscalls.o -lm -lc -lgcc -o arm9.elf
+# The saved-world scratch was reclaimed for the second complete
+# vocal bank, loaded from this ROM along with the ARM9 executable.
+${B}gcc -x assembler-with-cpp -march=armv5te -marm -c ../hw/arm9vox.s -o arm9vox.o
+${B}gcc -nostartfiles -march=armv5te -marm -mthumb-interwork -Wl,--gc-sections -Wl,-T,../hw/arm9.ld crt0.o main_hw.o syscalls.o arm9vox.o -lm -lc -lgcc -o arm9.elf
 ${B}objcopy -O binary arm9.elf arm9.body
 ${B}gcc -march=armv4t -mtune=arm7tdmi -marm -O2 -ffreestanding -fno-unwind-tables -Wno-all ${GG_FLAGS} -c ../hw/arm7.c -o arm7.o; ${B}gcc -x assembler-with-cpp -march=armv4t -marm -c ../hw/arm7crt.s -o arm7crt.o; ${B}gcc -x assembler-with-cpp -march=armv4t -marm -c ../hw/arm7vox.s -o arm7vox.o
 ${B}gcc -nostartfiles -nostdlib -march=armv4t -marm -Wl,-T,../hw/arm7.ld arm7crt.o arm7vox.o arm7.o -lgcc -o arm7.elf; ${B}objcopy -O binary arm7.elf arm7.bin

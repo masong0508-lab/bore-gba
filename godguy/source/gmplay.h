@@ -15,9 +15,11 @@
 #ifdef GG_HQVOX
 #include "gmvox_hq.h"      // the 3DS: the lyrics at 16 kHz (tools/gm_vox.py with GM_HQ=1)
 #elif defined(GG_DSI16)
-#include "gmvox_full.h"    // DSi mode: every phrase of CORPORATIONS, in the ARM9 program (GM_FULL=1)
+#include "gmvox_full.h"    // DSi 16 MiB: complete bank in ARM9
+#elif defined(NDSHW)
+#include "gmvox.h"         // Normal 4 MiB DS: all phrases, banked ARM9/ARM7
 #else
-#include "gmvox.h"
+#include "gmvox_compact.h" // Optional libnds ROM: smaller fallback
 #endif        // the vocal chop kit: drum-B stream ids GM_VOX0 and up play a chop instead of a cymbal
 #include "gmdata.h"
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
