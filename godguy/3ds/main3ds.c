@@ -23,7 +23,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "world_music3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
-extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
+extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void); extern void plat_new3dsRequired(void);
 static unsigned char topBuf[400*240*3], botBuf[320*240*3];
 static short sndBuf[2800*2];
 static Gg3dsFrameClock frameClock;
@@ -383,6 +383,13 @@ void shimPresent(void){
 int main(void){
     plat_init();
     int new3ds=plat_isNew3DS();
+#ifdef GG_NEW3DS_ONLY
+    if(!new3ds){
+        plat_new3dsRequired();
+        plat_exit();
+        return 0;
+    }
+#endif
     gg3dsClockInit(&frameClock,new3ds);
     gg3dsGlobeQuality=new3ds;
     gg3dMusicTick=ggWorldMusicTick;
