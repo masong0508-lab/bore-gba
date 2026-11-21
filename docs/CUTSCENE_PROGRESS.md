@@ -126,3 +126,10 @@ character explains why, without putting an unconscious or deceased
 character back into player control. The menu-only name buffers are
 widened modestly so the explicit labels cannot overrun their old
 eight-character suffix allowance.
+
+### Replay integrity
+Starting a fresh story resets all hospital clock and review variables, not
+just the saved story id. Replaying TV SHOW & TELL in an existing household
+attempts to reuse the original sister by exact name and kinship before
+adding a new cast member, preventing duplicate Mamesys and a potentially
+unfinishable cast switch when the household is already full.

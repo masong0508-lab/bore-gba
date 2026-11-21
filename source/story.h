@@ -478,6 +478,14 @@ static void stTvControl(void){
         if(stCh!=3){ stTvWant=0; return; }
         if(stPart!=255&&hhPUid==(int)stPart){ stTvWant=0; return; }   // already her
         int m=stPart!=255?stMember(stPart):-1;
+        if(m<0&&stPart==255){ // replaying this story in the same household: do not create a second Mamesy
+            for(int k=0;k<hhN;k++){ const char*nm="MAMESY"; const char*p=hhM[k].name; int n=0;
+                while(n<HH_NM&&nm[n]&&nm[n]==p[n]) n++;
+                if(!nm[n]&&!p[n]&&kin[hhPUid][hhM[k].uid]==KN_SISTER){
+                    m=k; stPart=hhM[k].uid; stTvPatientRest(k); stSave(); break;
+                }
+            }
+        }
         if(m<0){   // the cast arrives: Mamesy, the way the cutscenes draw her (stMamesyLook)
             u8 lk[LK_N]; for(int i=0;i<LK_N;i++) lk[i]=stMamesyLook[i];
             m=stAddSim(lk,AG_ADULT,hhPLast);
@@ -984,6 +992,8 @@ static int stCastSim(const StCast*c){   // one of the story's people moves in (t
 static void bdSave(void);   // board.h
 static void storySetup(int s){   // after the new life is set up and the old household has gone
     stShown=0; stModal=0; stTvWant=stTvWarn=0; // replay a fresh opening even if this story was played earlier in the session
+    plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=plugNight=0;
+    if(s==STY_TVSHOW) stmPut(0); // never inherit an old run's last-night decision or pressure
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=stPending=0; stbSet();
     int m;
     switch(s){
