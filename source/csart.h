@@ -75,9 +75,11 @@ static int csFigNowY(int who,int y){ if(who<=0||who>=7) return y; const CsPS*p=&
 // Missy's ICU patient is a SIDE-ON figure, not the standing sprite turned
 // 90 degrees. Its pillow, hair, face, gown, shoulder, legs and sheet each have
 // a readable outline. All geometry is camera-scaled; zero sprite assets or RAM.
+static int csWardAwake(void){ return csCurSc==3&&csCurBi>=16&&csCurBi<34; } // fingers at beat 14, her first words at 16
 static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
-    int flat=csBgNow==CB_FLAT, stir=pose==CP_STIR&&!flat;
-    int breath=flat?0:((t/26)&1), hand=stir?(2+((t>>3)&1)):0;
+    int flat=csBgNow==CB_FLAT, stir=pose==CP_STIR&&!flat, awake=csWardAwake()&&!flat;
+    int breath=flat?0:((t/26)&1), hand=stir?(t<21?t/7:3+((t>>3)&1)):0;
+    int talking=awake&&csTalking&&csSpk==who;
     u16 ink=RGB(3,7,12), linen=RGB(24,29,29), light=RGB(31,31,30);
     u16 fold=RGB(14,21,24), gown=RGB(12,21,23);
     // A real three-quarter hospital mattress, cast shadow and raised pillow.
@@ -96,8 +98,11 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csD(x-31,y-14,8,sk); csR(x-39,y-20,10,4,hr);
     csR(x-37,y-21,12,2,csLt(hr,4)); csR(x-39,y-15,2,3,csSh(sk,3));
     csR(x-39,y-12,4,2,sk); // nose / profile: no floating circular head
-    csR(x-34,y-14,4,1,csSh(sk,6)); // resting closed eyelid
-    csR(x-32,y-9,4,1,RGB(17,8,9)); // quiet mouth
+    if(awake){ // eyes open AFTER her first spoken line, not at the initial twitch
+        csR(x-35,y-16,5,3,csSh(sk,7)); csR(x-34,y-15,3,2,RGB(29,29,28));
+        csR(x-33,y-15,2,2,RGB(12,12,8)); csR(x-34,y-16,1,1,RGB(31,31,30));
+    } else csR(x-34,y-14,4,1,csSh(sk,6)); // comatose, closed eyelid
+    csR(x-32,y-9-(talking?1:0),4,talking?2:1,RGB(17,8,9)); // softly moving lips when she speaks
     csR(x-24,y-14,3,3,csSh(sk,3)); csR(x-23,y-14,2,2,sk); // ear
     // Blanket runs over the torso AND both legs instead of a 17px bar.
     csR(x-9,y-12-breath,47,14+breath,ink);
@@ -142,7 +147,7 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
         lbl=((t+who*23)%110)<4; csMd=lmd; }
     if((pose==CP_LIE||pose==CP_STIR)&&(csBgNow==CB_HOSP||csBgNow==CB_FLAT)&&who==CA_MISSY){
         csPS[who].fn=-100; csWardPatient(x,y,who,pose,t,sk,hr);
-        csFaceBed(x-30,y-15,t,sk,hr,pose==CP_STIR); return;
+        csFaceBed(x-30,y-15,t,sk,hr,csWardAwake()); return;
     }
     if(pose==CP_LIE||pose==CP_STIR){ int st=pose==CP_STIR, lf=st?(csWv(t,30)+8)/3:0, br=csWv(t,100)>4; csR(x-19,y-1,36,1,RGB(2,1,3)); y+=jb; csR(x-11,y-7,18,7,ol); csR(x-10,y-6,17,6,cl); csR(x-10,y-6,17,1,csLt(cl,5)); if(br) csR(x-8,y-8,13,1,cl); csR(x+7,y-5-lf,10,3,ol); csR(x+7,y-4-lf,9,2,dress?sk:bt); if(st) csR(x+17,y-5-lf+((t>>2)&1),1,2,sk);   // (cutscene redo 10: she breathes; STIR lifts her hand and her fingers move)
         { int hn=nod?1:0; csD(x-14,y-4-hn,5,ol); csD(x-14,y-4-hn,4,sk); csR(x-19,y-9-hn,6,6,hr); csR(x-18,y-10-hn,3,1,csLt(hr,7)); csR(x-15,y-5-hn,1,1,lbl?sk:dk);   // G2: the head nods, the eye blinks

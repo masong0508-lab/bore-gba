@@ -166,6 +166,18 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(0,103,SW,13,RGB(11,16,18)); csR(0,103,SW,2,RGB(21,26,26));
         csR(0,40,SW,2,RGB(11,17,21)); // wall dado
         csR(105,56,115,4,RGB(7,12,16)); csR(108,59,109,3,RGB(20,28,29)); // equipment shelf
+        // Mamesy's chair moves toward the bed in the vigil beat. The player
+        // can see the action the narration describes without allocating art.
+        { int near=csCurSc==3&&csCurBi>=7, drift=(csCurSc==3&&csCurBi==7)?(t<24?t:24):24;
+          int chairX=near?68+drift:68;
+          csR(chairX-8,83,20,4,RGB(8,13,16));
+          csR(chairX-7,84,18,2,RGB(22,27,28));
+          csR(chairX-8,89,20,3,RGB(13,19,21));
+          csR(chairX-7,92,2,19,RGB(9,15,18));
+          csR(chairX+9,92,2,19,RGB(9,15,18));
+          csR(chairX-8,107,20,2,RGB(6,11,14));
+          csLn(chairX-6,91,chairX+9,108,RGB(15,20,21));
+        }
         csR(111,77,106,28,RGB(5,10,14)); // bed's undercarriage silhouette
         csR(114,80,99,19,RGB(12,18,23)); // mattress shadow
         csR(115,79,96,14,RGB(25,30,30)); // mattress

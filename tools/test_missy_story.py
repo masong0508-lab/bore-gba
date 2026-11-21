@@ -65,10 +65,13 @@ assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")
 face = Path("source/csface.h").read_text(encoding="utf-8")
 assert "static void csFaceBed(" in face
-assert "csFaceBed(x-30,y-15,t,sk,hr,pose==CP_STIR)" in art
+assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" in art
+assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
+assert "int talking=awake&&csTalking&&csSpk==who" in art
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "static void csWardFront(void)" in cut
+assert "Mamesy's chair moves toward the bed in the vigil beat" in cut
 assert "PERSPECTIVE SITE:" in cut
 assert "INSIDE THE CAR:" in cut
 assert "qM={TQ_MONEY,8000}" in story, "hospital relief must agree with the actual 8k goal"

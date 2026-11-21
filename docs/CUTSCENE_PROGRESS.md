@@ -201,3 +201,15 @@ The first X11 smoke run compiled and booted mGBA, but Ubuntu's ImageMagick
 uses `xwd -id` followed by `magick`, includes X11 diagnostics and preserves
 `emulator.log` on failures. It also checks that screens actually change
 between input sequences rather than accepting a frozen screenshot.
+
+### Awakening continuity — facial state and nearby props
+The first movement in the ward is only the hand (scene 3, beat 14).
+Missy keeps her eyes shut during Mamesy's surprise and opens them
+when she actually speaks (beat 16). Subsequent dialogue keeps her
+eyes open even though the body stays in the resting pose; both the
+wide 240x160 model and the high-zoom horizontal portrait now animate
+her mouth when her dialogue is being typed. Her hand lifts smoothly
+over the first 21 frames rather than snapping up at once.
+A folding chair appears behind Mamesy and slides closer as the
+vigil scene describes her moving it. These use existing renderer
+primitives, no additional buffers or image files.
