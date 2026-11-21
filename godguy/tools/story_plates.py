@@ -131,7 +131,7 @@ def cast_cel(who, index):
     image = canvas((CEL_WIDTH, CEL_HEIGHT), 255)
     pose, phase = (
         ("idle", 0), ("walk", 6), ("walk", 10),
-        ("reach", 0), ("talk", 4), ("listen", 0),
+        ("reach", 0), ("talk", 0), ("listen", 0),
     )[index]
     if who == HOLLOW and index == 3:
         pose = "bow"
