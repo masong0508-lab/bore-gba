@@ -133,12 +133,14 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         // The act/ending film director has first claim on inputs, so a
         // meaningful choice never turns into an accidental combat strike.
         int sagaMode=ggSaga.mode,sagaChoice=ggSaga.choice;
+        int sagaPaused=ggSaga.paused;
         int sagaAction=ggSagaStep(raw);
         if(sagaAction){
             if(sagaAction==2){
                 ggReignSave();ggChron.active=0;ggExpFinish();
                 ggExpMessage("REIGN SAVED: RETURNED TO THE ORIGINAL STORY");
-            }else if(sagaMode!=ggSaga.mode||sagaChoice!=ggSaga.choice)
+            }else if(sagaMode!=ggSaga.mode||sagaChoice!=ggSaga.choice||
+                     sagaPaused!=ggSaga.paused)
                 ggExpRenderValid=0;
             ggChron.lastKeys=raw;ggReign.lastKeys=raw;ggQuest.lastKeys=raw;
             *held=0;*tx=*ty=0;return;
@@ -335,7 +337,7 @@ void shimPresent(void){
         // A stale ggChron.dirty flag must NOT force every movie frame.
         int movie=ggChron.active&&ggSaga.mode;
         int dirty=!ggExpRenderValid||
-                  (movie ? (ggSaga.mode==GG_SAGA_CHOICE?
+                  (movie ? (ggSaga.mode==GG_SAGA_CHOICE||ggSaga.paused?
                             0:!(ggSaga.frame&1)) :
                    tc||ggExplore.px!=lastX||ggExplore.py!=lastY||
                    ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||

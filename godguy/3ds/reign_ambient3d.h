@@ -110,6 +110,7 @@ static int ggAmbientTick(void){
         ggAmbientSave();
         ggAmbient.cooldown=720;
         ggSaga.mode=GG_SAGA_INTERLUDE;ggSaga.frame=0;
+        ggSaga.paused=0;
         ggSaga.event=scene;ggSaga.eventX=x;ggSaga.eventY=y;
         ggSaga.lastKeys=0; 
         return 1;

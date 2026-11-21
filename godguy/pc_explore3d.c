@@ -787,8 +787,45 @@ int main(void){
           "cinematic mutated the live first-person camera on return");
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "film camera/protagonist overran the display buffer");
+    // Recurring speakers must have their own identity and must stand
+    // on visible real-world terrain, not at arbitrary screen offsets.
+    ggSagaCamera(0,0,&shotX,&shotY);
+    check(ggSagaGuestStyle("MIRA")==0&&
+          ggSagaGuestStyle("VARRO")==2&&
+          ggSagaGuestStyle("NARRATOR")==-1,
+          "film director lost stable recurring speaker identities");
+    int speakerX,speakerY;
+    check(ggSagaGuestTile(shotX,shotY,&speakerX,&speakerY)&&
+          ggChronLand(speakerX>>8,speakerY>>8),
+          "cinematic supporting actor cannot occupy a grounded tile");
+    memset(guarded.img,0,sizeof guarded.img);
+    ggSagaGuestPortrait(guarded.img,200,150,2,0,1);
+    unsigned long miraPicture=hash();
+    memset(guarded.img,0,sizeof guarded.img);
+    ggSagaGuestPortrait(guarded.img,200,150,2,2,1);
+    check(hash()!=miraPicture,
+          "distinct named film cast render with indistinguishable colours");
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "named cast drew outside the one existing RGB framebuffer");
+    // User can pause lengthy subtitles, advance one beat while paused,
+    // then resume without skipping or softlocking the 3D story.
+    ggSaga.mode=GG_SAGA_OPEN;ggSaga.paused=0;ggSaga.frame=12;
+    ggSaga.lastKeys=0;
+    check(ggSagaStep(KEY_X)==1&&ggSaga.paused&&ggSaga.frame==12,
+          "X did not pause the 3DS cinematic playback");
+    ggSagaStep(0);ggSagaStep(0);
+    check(ggSaga.frame==12,
+          "paused dialogue advanced before the player could read it");
+    ggSagaStep(KEY_A);
+    check(ggSaga.paused&&ggSaga.frame==GG_SAGA_BEAT_TICKS,
+          "A did not advance precisely one movie beat during pause");
+    ggSagaStep(0);ggSagaStep(KEY_X);
+    check(!ggSaga.paused,"cinematic X resume did not restore playback");
+    ggSagaStep(0);ggSagaStep(KEY_B);
+    check(ggSaga.mode==GG_SAGA_IDLE,
+          "skipping a paused scene failed to return to world");
     ggSaga.mode=GG_SAGA_OUTRO;ggSaga.ending=achieved;
-    ggSaga.frame=0;
+    ggSaga.frame=0;ggSaga.paused=0;
     ggSagaDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "branching 3D film overran the 3DS video buffer");

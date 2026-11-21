@@ -18,6 +18,7 @@ enum { GG_END_HEARTH,GG_END_REPUBLIC,GG_END_CROWN,
        GG_END_WITNESS,GG_END_WANDERER,GG_END_PRESIDENT };
 typedef struct {
     int loaded,mode,frame,choice,ending,lastKeys;
+    int paused; // film playback only; never alters the existing save format
     int event,eventX,eventY; // anchored real-world nonlinear scene
     u32 decisions,decided,seen;
 } GgReignSaga;
@@ -64,6 +65,7 @@ static void ggSagaLoad(void){
 static void ggSagaBegin(void){
     ggSagaLoad();
     ggSaga.mode=GG_SAGA_OPEN;ggSaga.frame=0;
+    ggSaga.paused=0;
     ggSaga.choice=0;ggSaga.ending=-1;
     // Past moral decisions affect the next mission's available supplies,
     // camp confidence and living people's trust; no artificial new world.
@@ -133,7 +135,7 @@ static int ggSagaParley(int post){
 static void ggSagaStartChoice(void){
     ggSagaLoad();
     ggSaga.mode=GG_SAGA_CHOICE;
-    ggSaga.frame=0;
+    ggSaga.frame=0;ggSaga.paused=0;
     ggSaga.choice=(ggSaga.decisions>>ggChron.act)&1;
     ggSaga.lastKeys=0;
 }
@@ -164,7 +166,7 @@ static void ggSagaCommitChoice(int choice){
     ggSaga.ending=act==GG_CHRON_ACTS-1?ggSagaChooseEnding():-1;
     if(ggSaga.ending>=0)ggSaga.seen|=1u<<ggSaga.ending;
     ggSagaSave();
-    ggSaga.mode=GG_SAGA_OUTRO;ggSaga.frame=0;
+    ggSaga.mode=GG_SAGA_OUTRO;ggSaga.frame=0;ggSaga.paused=0;
 }
 static const char *const ggSagaDecision[GG_CHRON_ACTS][2]={
     {"SAVE THE STRANDED FAMILIES","TAKE THE ARMY'S SUPPLIES"},
@@ -380,7 +382,7 @@ static int ggSagaStep(int raw){
     ggSaga.lastKeys=raw;
     if(down&KEY_START){
         int optional=ggSaga.mode==GG_SAGA_INTERLUDE;
-        ggSaga.mode=GG_SAGA_IDLE;
+        ggSaga.mode=GG_SAGA_IDLE;ggSaga.paused=0;
         return optional?1:2;
     }
     if(ggSaga.mode==GG_SAGA_CHOICE){
@@ -390,8 +392,13 @@ static int ggSagaStep(int raw){
         return 1;
     }
     if(down&KEY_B){
-        ggSaga.mode=GG_SAGA_IDLE;return 1;
+        ggSaga.mode=GG_SAGA_IDLE;ggSaga.paused=0;return 1;
     }
+    // Let the player stop and READ story dialogue without pausing the
+    // wider simulation or creating an audio/render loop. A still
+    // advances a beat; B and START remain emergency escape routes.
+    if(down&KEY_X){ggSaga.paused^=1;return 1;}
+    if(ggSaga.paused&&!(down&KEY_A))return 1;
     int frames=ggSagaBeatCount()*GG_SAGA_BEAT_TICKS;
     if(down&KEY_A){
         ggSaga.frame=(ggSaga.frame/GG_SAGA_BEAT_TICKS+1)*
@@ -517,6 +524,75 @@ static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
     *worldX=stageX*256+128+ggExpSin[a]*pace/4096;
     *worldY=stageY*256+128-ggExpCos[a]*pace/4096;
 }
+// Small, recurring film cast drawn using the same 16x24 authored human
+// cel as the playable adult. Named speakers have stable clothes/hair;
+ // every actor is placed on a passable tile within the live location.
+// Zero imported image assets or heap allocations.
+static int ggSagaGuestStyle(const char *voice){
+    if(!strcmp(voice,"YOU")||!strcmp(voice,"NARRATOR"))return -1;
+    if(!strcmp(voice,"MIRA"))return 0;
+    if(!strcmp(voice,"THORGRIM"))return 1;
+    if(!strcmp(voice,"VARRO"))return 2;
+    if(!strcmp(voice,"SERIN"))return 3;
+    if(!strcmp(voice,"ELOWEN"))return 4;
+    return 5; // farmers, witnesses, workers and traveling residents
+}
+static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
+    int a=ggSagaShot.angle;
+    int lateralX=-ggExpSin[a],lateralY=ggExpCos[a];
+    int dx=0,dy=0;
+    if(abs(lateralX)>=abs(lateralY))dx=lateralX>=0?1:-1;
+    else dy=lateralY>=0?1:-1;
+    for(int sign=1;sign>=-1;sign-=2){
+        int x=tx+dx*sign,y=ty+dy*sign;
+        if(!ggChronLand(x,y)||
+           !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,x,y))
+            continue;
+        *guestX=x*256+128;*guestY=y*256+128;
+        return 1;
+    }
+    return 0; // no fake actor standing inside a home or above water
+}
+static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
+                                int style,int talking){
+    static const u8 palette[6][3][3]={
+        {{126,65,46},{212,168,133},{68,132,111}}, // Mira
+        {{72,64,58},{200,159,129},{68,99,135}},  // Thorgrim
+        {{103,78,64},{207,164,137},{143,58,66}}, // Varro
+        {{83,57,53},{201,154,120},{105,118,78}}, // Serin
+        {{211,191,146},{226,188,155},{110,91,143}}, // Elowen
+        {{90,74,58},{204,167,136},{112,99,78}}   // working people
+    };
+    const u8 *hair=palette[style][0],*skin=palette[style][1];
+    const u8 *coat=palette[style][2];
+    ggExpRect(out,x-7*scale,feet-2,14*scale,2,28,36,40);
+    for(int py=0;py<24;py++){
+        const char *row=ggOriginHumanCel[py];
+        // Run-length groups cut dozens of pixel-rectangle calls per cel.
+        for(int px=0;px<16;){
+            int kind=row[px],end=px+1;
+            while(end<16&&row[end]==kind)end++;
+            if(kind!='.'){
+                int r=42,g=45,b=50;
+                if(kind=='h'){r=hair[0];g=hair[1];b=hair[2];}
+                else if(kind=='s'){r=skin[0];g=skin[1];b=skin[2];}
+                else if(kind=='e'){r=235;g=229;b=213;}
+                else if(kind=='i'){r=46;g=49;b=53;}
+                else if(kind=='c'){r=coat[0];g=coat[1];b=coat[2];}
+                else if(kind=='d'){r=coat[0]*3/5;g=coat[1]*3/5;b=coat[2]*3/5;}
+                else if(kind=='a'){r=198;g=167;b=94;}
+                else if(kind=='m'){r=199;g=188;b=159;}
+                else if(kind=='p'){r=55;g=64;b=74;}
+                int gesture=talking&&kind=='s'&&py>=10&&py<=14&&
+                            (px<4||px>=12)?(px<4?-1:1):0;
+                ggExpRect(out,x+(px-8+gesture)*scale,
+                          feet-(24-py)*scale,(end-px)*scale,scale,
+                          r,g,b);
+            }
+            px=end;
+        }
+    }
+}
 static void ggSagaDraw(u8 *out){
     if(!ggSaga.mode)return;
     int index=ggSaga.mode==GG_SAGA_CHOICE?5:
@@ -543,6 +619,18 @@ static void ggSagaDraw(u8 *out){
             ggOriginPortrait(out,x,feet,ggExpClamp(size/12,1,3),
                              walking?((ggSaga.frame/12)&1):0,0);
         }
+    }
+    // A recurring named speaker now stands on real terrain beside the
+    // protagonist, with a tiny hand-gesture cycle during spoken lines.
+    // The guest uses the very same film perspective and line-of-sight.
+    if(ggSaga.mode!=GG_SAGA_CHOICE){
+        const GgSagaBeat *spoken=ggSagaCurrentBeat(index);
+        int style=ggSagaGuestStyle(spoken->voice);
+        int worldX,worldY,x,y,size;
+        if(style>=0&&ggSagaGuestTile(stageX,stageY,&worldX,&worldY)&&
+           ggSagaProjectActor(worldX,worldY,&x,&y,&size))
+            ggSagaGuestPortrait(out,x,y,ggExpClamp(size/16,1,3),
+                                style,(ggSaga.frame/12)&1);
     }
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
@@ -596,6 +684,12 @@ static void ggSagaDraw(u8 *out){
     ggExpText(out,11,194,line,255,216,145);
     ggExpText(out,11,208,beat->line,231,232,223);
     ggExpText(out,11,222,beat->sub,182,202,214);
+    // Text-heavy lines can be paused without missing dialogue. The
+    // controls remain visible without stealing the main subtitle band.
+    ggExpRect(out,8,170,214,13,14,26,38);
+    ggExpText(out,13,173,ggSaga.paused?
+              "X RESUME  A NEXT  B SKIP":"X PAUSE  A NEXT  B SKIP",
+              ggSaga.paused?252:186,211,168);
     int full=ggSagaBeatCount()*GG_SAGA_BEAT_TICKS;
     ggExpRect(out,0,238,400*ggSaga.frame/full,2,207,169,103);
 }
