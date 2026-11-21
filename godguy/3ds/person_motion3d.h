@@ -42,14 +42,23 @@ static GgPersonMotion ggPersonMotionSample(uint32_t identity,
                                            int frame,int seedHeading){
     GgPersonMotion sample={targetX,targetY,seedHeading&255,0,0};
     if(!identity)identity=1;
-    int slot=-1,oldest=-1;
+    int slot=-1,firstEmpty=-1,oldestOccupied=-1;
     for(int i=0;i<GG_PERSON_TRACK_SLOTS;i++){
         if(ggPersonTracks[i].id==identity){slot=i;break;}
-        if(!ggPersonTracks[i].id){if(oldest<0)oldest=i;continue;}
-        if(oldest<0||ggPersonTracks[i].lastSeen<
-                      ggPersonTracks[oldest].lastSeen)oldest=i;
+        if(!ggPersonTracks[i].id){
+            if(firstEmpty<0)firstEmpty=i;
+            continue;
+        }
+        if(oldestOccupied<0||ggPersonTracks[i].lastSeen<
+                             ggPersonTracks[oldestOccupied].lastSeen)
+            oldestOccupied=i;
     }
-    if(slot<0)slot=oldest<0?0:oldest;
+    // Never evict a moving citizen while any unused tracking slot
+    // remains. Previously oldest could point at an occupied slot even
+    // though a free slot existed, so two visible creatures continually
+    // evicted one another and the screen showed no walking animation.
+    if(slot<0)slot=firstEmpty>=0?firstEmpty:
+                    oldestOccupied>=0?oldestOccupied:0;
     GgPersonTrack*p=&ggPersonTracks[slot];
     if(p->id!=identity||frame<p->lastSeen||
        frame-p->lastSeen>120||
