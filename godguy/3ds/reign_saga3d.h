@@ -493,6 +493,8 @@ static int ggSagaStagingCell(int landmarkX,int landmarkY,
             }
     return 0;
 }
+// The cast resolver is defined later with the script/voice helpers.
+static void ggSagaPairGuests(int beat,int *first,int *second);
 static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
     int shot=beat/2,tx,ty;
     ggSagaLocation(beat,&tx,&ty);
@@ -537,6 +539,14 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 int gx=cx>>8,gy=cy>>8;
                 if(!ggChronLand(gx,gy)||
                    !ggExpLineClear(gx,gy,tx,ty))continue;
+                // Reject a collision-free viewpoint if the hero's boots
+                // already cross the captions or the head clips the matte.
+                GgFilmCameraSubject hero={
+                    tx*256+128,ty*256+128,ggExpGround(world[ty][tx])
+                };
+                if(!ggFilmCameraSubjectFits(cx,cy,fx,fy,
+                         ggExpGround(world[gy][gx]),hero,
+                         ggFilmShotScale(d)))continue;
                 int sx=-fy,sy=fx,dx=0,dy=0;
                 if(abs(sx)>=abs(sy))dx=sx>=0?1:-1;
                 else dy=sy>=0?1:-1;
@@ -589,10 +599,51 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
         ggSagaShot.camera.fromY=ggSagaShot.camera.toY=cy;
         if(found){
             GgSagaCameraContext context={tx,ty};
+            int fx=ggExpCos[cameraAngle],fy=ggExpSin[cameraAngle];
+            int cameraGround=ggExpGround(world[cy>>8][cx>>8]);
             ggFilmCameraPlan(&ggSagaShot.camera,cx,cy,
-                             ggExpCos[cameraAngle],ggExpSin[cameraAngle],
-                             ggExpGround(world[cy>>8][cx>>8]),
+                             fx,fy,cameraGround,
                              ggSagaCameraFloor,&context);
+            // Hold the hero and all staged speaking partners within
+            // the safe 400x240 picture across the full camera dolly.
+            // This bounded check happens only once at shot setup.
+            GgFilmCameraSubject cast[3]={
+                {tx*256+128,ty*256+128,ggExpGround(world[ty][tx])}
+            };
+            int castCount=1,first=-1,second=-1;
+            ggSagaPairGuests(beat,&first,&second);
+            if(first>=0){
+                int sideX=-fy,sideY=fx,dx=0,dy=0;
+                if(abs(sideX)>=abs(sideY))dx=sideX>=0?1:-1;
+                else dy=sideY>=0?1:-1;
+                int stageHeight=cast[0].ground;
+                int plusOK=ggChronLand(tx+dx,ty+dy)&&
+                    ggFilmStageHeightOK(stageHeight,
+                        ggExpGround(world[ty+dy][tx+dx]))&&
+                    ggExpLineClear(cx>>8,cy>>8,tx+dx,ty+dy);
+                int minusOK=ggChronLand(tx-dx,ty-dy)&&
+                    ggFilmStageHeightOK(stageHeight,
+                        ggExpGround(world[ty-dy][tx-dx]))&&
+                    ggExpLineClear(cx>>8,cy>>8,tx-dx,ty-dy);
+                int firstSide=ggFilmStageGuestSide(plusOK,minusOK,0);
+                if(firstSide){
+                    int guestX=tx+firstSide*dx,guestY=ty+firstSide*dy;
+                    cast[castCount++]=(GgFilmCameraSubject){
+                        guestX*256+128,guestY*256+128,
+                        ggExpGround(world[guestY][guestX])
+                    };
+                }
+                if(second>=0&&plusOK&&minusOK){
+                    int guestX=tx-dx,guestY=ty-dy;
+                    cast[castCount++]=(GgFilmCameraSubject){
+                        guestX*256+128,guestY*256+128,
+                        ggExpGround(world[guestY][guestX])
+                    };
+                }
+            }
+            ggFilmCameraKeepCastInFrame(&ggSagaShot.camera,cast,
+                  castCount,fx,fy,cameraGround,
+                  ggFilmShotScale(ggSagaShot.distance));
         }
         // Instead of walking a few pixels in place, enter from a real
         // neighboring tile toward the camera. One lookup per TWO dialogue
