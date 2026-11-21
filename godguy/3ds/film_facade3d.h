@@ -9,7 +9,8 @@ enum { GG_FACADE_WALL,GG_FACADE_COURSE,GG_FACADE_BEAM,
        GG_FACADE_FRAME,GG_FACADE_GLASS,GG_FACADE_DOOR,
        GG_FACADE_TRIM,GG_FACADE_PORTAL,GG_FACADE_SILL,
        GG_FACADE_CORNICE,GG_FACADE_BRACE,GG_FACADE_MOSS,
-       GG_FACADE_SCULPT };
+       GG_FACADE_SCULPT,GG_FACADE_PILASTER,GG_FACADE_RELIEF,
+       GG_FACADE_SHUTTER };
 static inline int ggFilmFacadeHeightAt(int y,int horizon,int eye,
                                         int sample,int ground){
     if(sample<1)sample=1;
@@ -55,6 +56,35 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
     if(stone&&nearCenter&&height>=13&&height<=18)
         return (u>115&&u<141&&height<=15)?
                   GG_FACADE_PORTAL:GG_FACADE_TRIM;
+    // Individual building types have their own architectural identity,
+    // rather than treating temples, libraries, towers and timber homes
+    // as differently tinted copies of the same rectangular hut.
+    if(build==B_TEMPLE){
+        int column=(u>=24&&u<=39)||(u>=217&&u<=232);
+        if(column&&height>=7&&height<=27)return GG_FACADE_PILASTER;
+        if(height==28&&u>19&&u<236)return GG_FACADE_CORNICE;
+        if(u>=91&&u<=165&&height>=23&&height<=26)
+            return GG_FACADE_RELIEF;
+    }else if(build==B_LIBRARY){
+        // An upper storey of narrow reading-room windows.
+        int upper=(u>=50&&u<=77)||(u>=179&&u<=206);
+        if(upper&&height>=27&&height<=31)
+            return height==27||height==31||
+                   u==50||u==77||u==179||u==206?
+                   GG_FACADE_FRAME:GG_FACADE_GLASS;
+    }else if(build==B_TOWER){
+        // Narrow watch slits above the normal civilian windows.
+        int upper=(u>=49&&u<=70)||(u>=184&&u<=205);
+        if(upper&&height>=32&&height<=42)
+            return height<=33||height>=41||u<=50||u>=204||
+                   u==70||u==184?
+                   GG_FACADE_FRAME:GG_FACADE_GLASS;
+    }else if(build==B_HOUSE||build==B_HUT){
+        int shutter=(u>=39&&u<=44)||(u>=83&&u<=89)||
+                    (u>=168&&u<=173)||(u>=212&&u<=218);
+        if(shutter&&height>=8&&height<=13)
+            return GG_FACADE_SHUTTER;
+    }
     // Two symmetric windows. Height changes by architecture type,
     // but stays fixed in WORLD HEIGHT when camera changes.
     // The previous 52-unit wide, 12-height glowing openings turned

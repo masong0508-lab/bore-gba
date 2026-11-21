@@ -57,6 +57,18 @@ int main(void){
     check(ggFilmFacadeFeature(B_HOUSE,56,6)==GG_FACADE_SILL&&
           ggFilmFacadeFeature(B_HALL,55,15)==GG_FACADE_SILL,
           "windows lack physically anchored stone/wood sills");
-    puts("3DS FACADE OK: portals, framed windows, farmland, docks, ruins and sculpted monuments");
+    check(ggFilmFacadeFeature(B_TEMPLE,30,20)==GG_FACADE_PILASTER&&
+          ggFilmFacadeFeature(B_TEMPLE,125,24)==GG_FACADE_RELIEF,
+          "temples still look like color-swapped stone dwellings");
+    check(ggFilmFacadeFeature(B_LIBRARY,55,29)==GG_FACADE_GLASS&&
+          ggFilmFacadeFeature(B_LIBRARY,50,29)==GG_FACADE_FRAME,
+          "libraries lack their own upper-storey reading-room windows");
+    check(ggFilmFacadeFeature(B_TOWER,55,38)==GG_FACADE_GLASS&&
+          ggFilmFacadeFeature(B_TOWER,49,38)==GG_FACADE_FRAME,
+          "tower watch slits have no framed physical placement");
+    check(ggFilmFacadeFeature(B_HOUSE,43,10)==GG_FACADE_SHUTTER&&
+          ggFilmFacadeFeature(B_HOUSE,55,10)==GG_FACADE_GLASS,
+          "wood houses lack shutter depth beside existing windows");
+    puts("3DS FACADE OK: unique temples, towers, libraries, timber shutters, masonry and monuments");
     return 0;
 }

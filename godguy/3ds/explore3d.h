@@ -839,6 +839,12 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                              feature==GG_FACADE_COURSE||
                              feature==GG_FACADE_BRACE){
                         r=r*3/5;g=g*3/5;b=b*3/5;
+                    }else if(feature==GG_FACADE_PILASTER||
+                             feature==GG_FACADE_RELIEF){
+                        r=r*7/6;g=g*7/6;b=b*6/5;
+                    }else if(feature==GG_FACADE_SHUTTER){
+                        r=73*shade/256;g=59*shade/256;
+                        b=53*shade/256;
                     }else if(feature==GG_FACADE_SILL||
                              feature==GG_FACADE_CORNICE){
                         r=r*5/4;g=g*5/4;b=b*5/4;
@@ -912,6 +918,21 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     }else if(feature==GG_FACADE_SCULPT){
                         r=171*wallShade/256;g=159*wallShade/256;
                         b=140*wallShade/256;
+                    }else if(feature==GG_FACADE_PILASTER){
+                        int edge=(surfaceU&7)<2;
+                        r=(194+edge*14)*wallShade/256;
+                        g=(187+edge*9)*wallShade/256;
+                        b=(172+edge*7)*wallShade/256;
+                    }else if(feature==GG_FACADE_RELIEF){
+                        int frieze=((surfaceU/7+wallHeight/2)&3)==0;
+                        r=(132+frieze*20)*wallShade/256;
+                        g=(121+frieze*15)*wallShade/256;
+                        b=(109+frieze*10)*wallShade/256;
+                    }else if(feature==GG_FACADE_SHUTTER){
+                        int slat=(wallHeight&1)==0;
+                        r=(82+slat*17)*wallShade/256;
+                        g=(58+slat*13)*wallShade/256;
+                        b=(51+slat*10)*wallShade/256;
                     }
                 }else if(cinematic&&!build){
                     // Restrained grass and stone microtexture in genuine
