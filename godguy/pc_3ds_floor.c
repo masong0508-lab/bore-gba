@@ -31,6 +31,17 @@ int main(void){
         check(b<=a&&a>=0&&a<=42*256,
               "ground moves farther away down the screen or exceeds ray budget");
     }
+    // The old heightfield painted a 2-unit forest step from y=160 to
+    // y=240: eighty pixels of dark solid rectangle. Its physical volume
+    // above a grass tile is only eight pixels at two tiles' distance.
+    int flat=ggFilmTerrainSurfaceY(8,21,116,2,12);
+    int forest=ggFilmTerrainSurfaceY(10,21,116,2,12);
+    int high=ggFilmTerrainSurfaceY(16,21,116,2,12);
+    check(flat==168&&forest==160&&flat-forest==8&&high==136,
+          "a small vegetation rise still generates a full-screen cube");
+    check(ggFilmTerrainSurfaceY(8,21,116,5,12)-
+          ggFilmTerrainSurfaceY(10,21,116,5,12)==4,
+          "small cliff height fails to shrink at longer camera distance");
     check(ggFilmFloorMist(256)==0&&
           ggFilmFloorMist(42*256)>60&&
           ggFilmFloorMist(42*256)<=144,
