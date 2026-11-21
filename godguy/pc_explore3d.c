@@ -7,6 +7,9 @@
 #include <math.h>
 #include <time.h>
 typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef int8_t s8;
 enum { T_DEEP,T_WATER,T_SAND,T_GRASS,T_FOREST,T_HILL,T_MOUNT,
        T_SNOW,T_LAVA,T_DESERT,T_SWAMP,T_JUNGLE,T_DIRT,T_N };
 enum { B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,
@@ -78,7 +81,15 @@ static const char *shpRow(int shape,int frame,int row){
 }
  #include "3ds/population3d.h"
 static int chapter,storyDone;
+#define VIL_N 16
+typedef struct {int on,x,y;u16 stock;} Vil;
+static Vil vil[VIL_N];
+static s8 vilL[VIL_N];
+static int politicalDirty;
+#define KD_DIRTY() (politicalDirty++)
+#define GG_REIGN_SAVE_PATH "/tmp/godguy_unwritten_reign_pc_test.dat"
 #include "3ds/chronicles3d.h"
+#include "3ds/reign3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -300,6 +311,78 @@ int main(void){
     ggChronDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "campaign banners or HUD overran the shared 3DS framebuffer");
+    // UNWRITTEN REIGN - class, crime, civic, office and divine systems
+    // are independent from the native 2D story; all civic actions use
+    // actual village stocks/loyalty rather than invented map markers.
+    vil[0]=(Vil){1,60,60,125};
+    vil[1]=(Vil){1,70,60,125};
+    vil[2]=(Vil){1,80,60,125};
+    vil[3]=(Vil){1,90,60,125};
+    ggChron.active=1;ggChron.won=0;ggChron.lost=0;ggChron.foeN=0;
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    ggExplore.angle=0;
+    memset(&ggReign,0,sizeof ggReign);
+    ggReign.loaded=1;ggReign.credits=110;ggReign.divine=100;
+    ggReign.legitimacy=80;ggReign.influence=25;
+    ggReignBegin();
+    check(ggReignEnroll(GG_ROLE_SHADE)&&ggReign.role==GG_ROLE_SHADE,
+          "a godborn character could not freely choose a thieving class");
+    int stock=vil[0].stock;
+    check(ggReignDeed()&&vil[0].stock==stock-8&&ggReign.infamy==9 &&
+          politicalDirty>0,
+          "a heist did not change the generated town or public trust");
+    check(!ggReignDeed(),"repeated heists bypassed the world-time cooldown");
+    ggReign.frame=ggReign.nextCivicAt;
+    check(ggReignEnroll(GG_ROLE_ENVOY)&&ggReign.role==GG_ROLE_ENVOY,
+          "a thief cannot retrain into civic leadership at a real town");
+    check(ggReignDeed()&&vil[0].stock>stock-8,
+          "civic relief never reached the simulation's village stores");
+    check(ggReignPetition()&&ggReign.endorsements==1,
+          "village endorsement was not earned on generated world geography");
+    check(!ggReignPetition()&&ggReign.endorsements==1,
+          "the same settlement can vote repeatedly for one election");
+    ggReign.influence=40;ggReign.legitimacy=40;
+    check(ggReignElection()&&ggReign.office==1,
+          "legitimate elected councillor office did not unlock");
+    check(!ggReignElection(),"higher offices bypassed distinct town support");
+    ggExplore.px=70*256+128;ggExplore.py=60*256+128;
+    check(ggReignPetition()&&ggReign.endorsements==2,
+          "second real town did not record its own endorsement");
+    check(ggReignElection()&&ggReign.office==2,
+          "mayoral office was not reachable with local civic consent");
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    check(ggReignRecruit()&&ggReign.squadN==1 &&
+          vil[0].stock>0,"real settlement could not provision a companion");
+    ggChron.foeN=1;
+    ggChron.foe[0]=(GgChronFoe){61,60,40,0,0};
+    check(ggReignDivine(0)&&ggChron.foe[0].hp<=0&&ggReign.divine==80,
+          "the native godborn ranged power failed or hit civilians");
+    ggChron.foe[0].hp=40;ggReign.order=GG_REIGN_ASSAULT;
+    for(int t=0;t<100;t++)ggReignSquadTick();
+    check(ggChron.foe[0].hp<40,
+          "tactical field squad did not damage an opposing soldier");
+    int storyChapter=chapter;
+    ggReignStep(KEY_SELECT);
+    check(ggReign.menu,"SELECT did not open the independent council");
+    ggReignStep(0);ggReignStep(KEY_RIGHT);
+    check(ggReign.page==1,"council could not navigate to the war room");
+    ggReignStep(0);ggReignStep(KEY_B);
+    check(!ggReign.menu&&chapter==storyChapter,
+          "side campaign political controls changed the original story");
+    remove(GG_REIGN_SAVE_PATH);
+    ggReignSave();
+    int savedCredits=ggReign.credits,savedOffice=ggReign.office;
+    memset(&ggReign,0,sizeof ggReign);
+    ggReignLoad();
+    check(ggReign.credits==savedCredits&&ggReign.office==savedOffice&&
+          ggReign.endorsements==2,
+          "godborn class and office progression did not survive saving");
+    remove(GG_REIGN_SAVE_PATH);
+    ggReign.menu=0;ggReign.noticeT=0;
+    ggChronDraw(guarded.img);
+    ggReignDraw(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "new 3DS civic HUD overflowed its sole allocated frame buffer");
     double elapsed=1000.0*(clock()-started)/CLOCKS_PER_SEC;
     printf("EXPLORE3D OK: hybrid minds, stable IDs, selection, 2D/3D "
            "actor movement, protected homes, safe frame buffers; "
