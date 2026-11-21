@@ -243,6 +243,39 @@ static void checkCinematicActingAndMix(void){
         }
     check(ness>=10&&serin>=10,"new 3DS cast lacks a persistent story arc");
 #endif // !GG_FILM_2D_FALLBACK
+#else
+    // The DS has the same edited story, but its own tighter 28x34 cels.
+    // Check that roof planks accumulate across takes instead of vanishing
+    // when a different character speaks, without importing 3DS assets.
+    int startPlanks=0,finishedPlanks=0;
+    memset(uiBuf,0,256*192);
+    filmWorldContinuity(&fmvClips[2],roofBeats+2,0);
+    for(int y=109;y<116;y++)
+        for(int x=48;x<109;x++)
+            startPlanks+=uiBuf[y*256+x]==fmvSlots[24];
+    memset(uiBuf,0,256*192);
+    filmWorldContinuity(&fmvClips[2],roofBeats+2,6*7*FILM_SECOND);
+    for(int y=109;y<116;y++)
+        for(int x=48;x<109;x++)
+            finishedPlanks+=uiBuf[y*256+x]==fmvSlots[24];
+    check(finishedPlanks>startPlanks+20,
+          "DS village roof regressed to repeating an unfinished scene");
+    FilmBeat archive={F_ARCHIVE,F_NEAR,F_ELOWEN,F_MIRA,F_NO_PROP,
+                      7,0,NULL,F_ACT_AUTO};
+    memset(uiBuf,0,256*192);
+    filmDSSetAction(&archive,0,7);
+    unsigned imageA=2166136261u,imageB=2166136261u;
+    for(int y=138;y<155;y++)
+        for(int x=105;x<149;x++)
+            imageA=(imageA^uiBuf[y*256+x])*16777619u;
+    memset(uiBuf,0,256*192);
+    filmDSSetAction(&archive,4*42,7);
+    for(int y=138;y<155;y++)
+        for(int x=105;x<149;x++)
+            imageB=(imageB^uiBuf[y*256+x])*16777619u;
+    check(imageA!=imageB,"DS library set stopped animating its page");
+    check(sizeof filmCasts/sizeof *filmCasts==F_ACTOR_N*FILM_CEL_N,
+          "DS film has lost the native 2D actor cels");
 #endif
     puts("FMV cinematic mix and acting OK: smooth ducks, timed props and native-detail 3DS poses");
 }
