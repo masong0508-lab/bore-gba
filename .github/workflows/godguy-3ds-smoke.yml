@@ -1,0 +1,38 @@
+name: GodGuy 3DS cinematic regression smoke
+on:
+  push:
+    paths:
+      - 'godguy/3ds/**'
+      - 'godguy/pc_3ds_*.c'
+      - '.github/workflows/godguy-3ds-smoke.yml'
+  pull_request:
+    paths:
+      - 'godguy/3ds/**'
+      - 'godguy/pc_3ds_*.c'
+      - '.github/workflows/godguy-3ds-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godguy-3ds-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk-free:
+    name: C11 cinematic geometry and acting
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run bounded camera, actor and material regressions
+        working-directory: godguy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test in walkin camera acting type staging framing projection architecture direction actor_visual floor partner; do
+            printf '\n-- 3DS %s --\n' "$test"
+            gcc -O2 -std=c11 -Wall -Wextra -Werror "pc_3ds_${test}.c" -o "/tmp/gg-3ds-${test}"
+            "/tmp/gg-3ds-${test}"
+          done
