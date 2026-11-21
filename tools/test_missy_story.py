@@ -53,6 +53,7 @@ for needle in [
     "stPending=(u8)(stId==STY_TVSHOW",
     "stModal=2;", "if(stPending){ stPending=0; stSave(); }",
     "plugNight=(u8)msNightUsed", "plugRemember(v)",
+    "if(stId==STY_TVSHOW&&stCh==3) stmPut(msPressurePack((unsigned)stmGet(),PLUG_START))",
     "static void plugRestore(void)",
     "plugRestore(); int d=ev==SE_BFF?15:10;",
     "plugV=(u8)msPressureEase(plugV,(unsigned)d)",

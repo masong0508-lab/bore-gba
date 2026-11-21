@@ -9,7 +9,7 @@ int main(void){
             unsigned packed=msPressurePack(mem,pressure);
             assert((packed&31u)==(mem&31u)); // slips and the last-night decision survive
             assert((packed>>5)==msPressureBand(pressure));
-            unsigned revived=msPressureResume(packed,20u);
+            unsigned revived=msPressureResume(packed);
             assert(revived<=100u);
             if(msPressureBand(pressure)!=0)
                 assert(revived+7u>=pressure&&revived<=pressure+13u);
@@ -20,13 +20,13 @@ int main(void){
     // then the first hospital tick overwrote it from the save's pressure band.
     for(unsigned old=0;old<=100;old++){
         unsigned saved=msPressurePack(0,old);
-        unsigned restored=msPressureResume(saved,20u);
+        unsigned restored=msPressureResume(saved);
         for(unsigned relief=10;relief<=15;relief+=5){
             unsigned eased=msPressureEase(restored,relief);
             assert(eased==(restored>relief?restored-relief:0u));
             assert(eased<=restored && eased<=100u);
             unsigned stored=msPressurePack(saved,eased);
-            unsigned resumed=msPressureResume(stored,20u);
+            unsigned resumed=msPressureResume(stored);
             assert(resumed<=100u);
             assert(msNightUsed(stored)==msNightUsed(saved));
         }
@@ -54,9 +54,15 @@ int main(void){
     assert(msPressureEase(0,15)==0u);
     assert(msPressureEase(20,15)==5u);
     assert(msPressureEase(90,10)==80u);
+    // A user who lowers pressure to 0 must not be reset to 20 by reload.
+    // New chapter-four saves explicitly start at PLUG_START (20) instead.
+    for(unsigned p=0;p<=6;p++)
+        assert(msPressureResume(msPressurePack(0,p))==0u);
+    assert(msPressureResume(msPressurePack(0,20u))==14u);
+    assert(msPressureResume(msPressurePack(0,0u))==0u);
     assert(msPressureBand(0)==0&&msPressureBand(100)==7);
-    assert(msPressureResume(0,20)==20);
-    assert(msPressureResume(msPressurePack(16,88),20)>=84);
+    assert(msPressureResume(0)==0u);
+    assert(msPressureResume(msPressurePack(16,88))>=84);
     assert(msNightUsed(msPressurePack(16,88)));
     assert(msPressureStep(0,3)==0u);   // must never wrap a u8 to 255
     assert(msPressureStep(20,0)==22u);

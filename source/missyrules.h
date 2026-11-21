@@ -23,9 +23,12 @@ static inline unsigned msPressureBand(unsigned p){
 static inline unsigned msPressurePack(unsigned mem,unsigned pressure){
     return (mem&~MS_PRESSURE_BITS)|(msPressureBand(pressure)<<5);
 }
-static inline unsigned msPressureResume(unsigned mem,unsigned first){
+// Band zero is a real low-pressure state (0..6), not a request to reset
+// pressure to the starting value. Chapter four initializes its starting
+// pressure explicitly on entry, including when saved before the first tick.
+static inline unsigned msPressureResume(unsigned mem){
     unsigned band=(mem&MS_PRESSURE_BITS)>>5;
-    return band?band*14u:first;
+    return band?band*14u:0u;
 }
 // Each sustained support (friends, wellbeing, funded care) offsets pressure.
 // Three supports slowly recover the appeal. Always clamp before assigning to u8.

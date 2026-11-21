@@ -322,7 +322,7 @@ static void plugRemember(int v){ int old=stmGet(), next=(int)msPressurePack((uns
 static void plugRestore(void){   // Events may arrive before the first hospital tick after loading SRAM.
     if(plugDay!=0xFFFF) return;
     plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
-    plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);
+    plugV=(u8)msPressureResume((unsigned)stmGet());
 }
 static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) return; int n=(m>>sh)&3; if(n<3) stmPut((m&~(3<<sh))|((n+1)<<sh)); }
 // CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
@@ -454,7 +454,9 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
     if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
     for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); stGotAdd(palNm[catItems[NCAT-1][j]]); break; }
     if(c->goal==SG_DAYS||c->goal==SG_MULTI){ stKidDay=255; if(c->goal==SG_MULTI) stGuest=0; }
-    stCh++; stTkL=0; stPending=(u8)(stId==STY_TVSHOW&&stCh>=1&&stCh<=5); stbSet(); stSave(); stAnnounce(); stShown=(u16)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
+    stCh++; stTkL=0; stPending=(u8)(stId==STY_TVSHOW&&stCh>=1&&stCh<=5);
+    if(stId==STY_TVSHOW&&stCh==3) stmPut(msPressurePack((unsigned)stmGet(),PLUG_START)); // initialize hospital pressure before first save
+    stbSet(); stSave(); stAnnounce(); stShown=(u16)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 // TV SHOW & TELL, chapter 4 (YOU ARE MAMESY NOW): the CAST ARRIVAL and the hand-over of control.
 // Cast arrival = a person the chapter needs moves in as a real Sim of the household (not only a figure in a cutscene). Here: Mamesy, Missy's sister.

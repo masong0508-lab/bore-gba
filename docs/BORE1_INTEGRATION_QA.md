@@ -18,3 +18,6 @@ This PR combines the tested ICU anatomy and bed-plane improvements, stricter emu
 ## Integration
 Source: PR #61, #62, #64 and #65 plus the camera parser already merged as #63.
 No new assets or framebuffers. This document tracks unverified manual gates separately from automated CI.
+
+## Low-pressure reload regression
+Band 0 now restores a genuine 0..6 hospital pressure level rather than resetting it to 20. Newly entered chapter four persists its starting pressure before a save. Existing saves with zero band may resume slightly easier than before; SRAM layout and save-file decoding are unchanged.
