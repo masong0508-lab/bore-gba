@@ -41,7 +41,6 @@ static const CsShot csShots[]={
     {2,10,1,  0, 60, 760,  0,46, 900,  0,46},
     // the flat line, THE PLUG (scene 6, beats 7-9): a push toward the monitor, a cut to the bedside, then a slow pull back out of the room
     {6,7,0,   0, 70, 256,120,64, 440, 76,52},
-    {6,8,0,   0, 80, 420,130,86, 520,134,88},
     {6,9,0,   0,220, 480,134,86, 256,120,64},
     // plug shots (cutscene redo 8): THE PLUG (scene 6): a slow push into the room (0), the doctor (1), a push on Mamesy's plea (2), the doctor leaves (3), the held hand (4-5), a hard cut to the machines being switched off (6), a tight cut-in on "Mish? ...Mish." (8)
     {6,0,0,   0,150, 256,120,64, 320,130,72},
@@ -95,6 +94,8 @@ static const CsShot csShots[]={
     {5,47,0,  0,41, 296,120,68, 256,120,64},
     // waking shots (cutscene redo 7): WAKING UP (scene 3): a slow push into the room (0), Mamesy's plea (4), the held hand (7), her grief (8), the monitor (11-12), a hard cut to the fingers (14), Missy's face (16), the shout (17), the coffee and lawyer (21), "I heard you" (28), the rain (29-30), a last push (33)
     {3,0,0,   0,150, 256,120,64, 300,120,70},
+    {3,3,0,   0,110, 280,120,69, 325,120,73}, // hold doctor and patient in the same framed bedside geography
+    {3,20,0,  0,110, 285,120,69, 335,120,72}, // Okafor returns: repeat the two-shot instead of clipping Missy's head
     {3,4,2,   0, 90, 560,  0,80, 620,  0,80},
     {3,7,1,   0,120, 330,-40,86, 560,-30,88},
     {3,8,2,   0,120, 520,  0,80, 700,  0,82},
@@ -134,11 +135,37 @@ static const CsShot csShots[]={
     {1,7,1,   0, 10, 360,-20,72, 300, 60,72},
     {1,10,0,  0,120, 760,120,66, 900,120,68},
     {1,12,0,  0,150, 900,120,68, 256,120,64},
+    // MISSY DIRECTOR'S PASS: fixed, hand-timed shots for plot turns.
+    // These add camera direction but no sprites, textures, framebuffer or per-frame map scans.
+    {8,5,1,  0,110, 420,  0,78, 640,  0,83},  // Vance calls her fall a product
+    {8,10,1, 0,110, 560,  0,82, 820,  0,84},  // the pen she refuses to use
+    {8,11,1, 0, 95, 780,  0,83,1024,  0,84},  // No.
+    {8,15,2, 0,140, 410,  0,76, 620,  0,82},  // Vance's call to the photographers
+    {9,4,1,  0,110, 500,  0,83, 720,  0,85},  // Missy asks Dex to stay
+    {9,10,1, 0, 70, 600,  0,83, 800,  0,85},  // the promise to avoid scaffolding
+    {10,4,2, 0,130, 320,  0,80, 520,  0,81},  // the two-note whistle
+    {10,5,2, 0, 80, 460,  0,80, 650,  0,80},  // message in the phone cradle
+    {10,7,2, 0,130, 300,  0,75, 390,  0,82},  // back into the traffic
+    {10,8,2, 0, 30, 390,  0,79, 900,  0,82},  // headlights, then cut to black
+    {11,4,2, 0, 60, 420,  0,79, 560,  0,80},  // Dex refuses to cut the show
+    {11,16,1,0,110, 480,  0,81, 760,  0,83},  // the letter from Mamesy
+    {11,17,1,0,140, 760,  0,83, 960,  0,87},  // the handwriting
+    {11,19,1,0,100, 900,  0,86, 620,  0,80},  // a breath before the curtain
+    {12,3,1, 0,120, 520,  0,81, 720,  0,84},  // Vance's offer of another glass
+    {12,6,1, 0,110, 530,  0,81, 760,  0,82},  // her answer
 };
 static const CsShot* csShotFind(int t){   // the shot in use on this beat now, if any (several on a beat: the one with the latest start that has begun)
-    if(csMemOn) return 0;   // (a memory: the automatic camera frames it)
+    static int lastSc=-1,lastBi=-1,lastT=-1,nextT=-1;
+    static const CsShot*lastShot;
+    if(csMemOn){ lastSc=-1; return 0; } // a montage invalidates the cache: after it, find the correct live shot
     const CsShot*s=0; int n=(int)(sizeof(csShots)/sizeof(csShots[0]));
-    for(int i=0;i<n;i++){ const CsShot*c=&csShots[i]; if(c->sc==csCurSc&&c->bi==csCurBi&&t>=c->t0&&(!s||c->t0>=s->t0)) s=c; }
+    if(lastSc==csCurSc&&lastBi==csCurBi&&t>=lastT&&t<nextT) return lastShot;
+    nextT=0x7FFFFFFF;
+    for(int i=0;i<n;i++){ const CsShot*c=&csShots[i]; if(c->sc!=csCurSc||c->bi!=csCurBi) continue;
+        if(t<c->t0){ if(c->t0<nextT) nextT=c->t0; }
+        else if(!s||c->t0>=s->t0) s=c;
+    }
+    lastSc=csCurSc; lastBi=csCurBi; lastT=t; lastShot=s;
     return s;
 }
 static void csShotApply(const CsBeat*b,int t){

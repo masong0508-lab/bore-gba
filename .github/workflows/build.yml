@@ -19,6 +19,12 @@ jobs:
         run: |
           command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
           python3 tools/check_here_today.py | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Missy story and cinema regression
+        run: |
+          if ! command -v cc >/dev/null 2>&1; then apt-get update && apt-get install -y gcc; fi
+          cc -std=c11 -O2 -Wall -Wextra -Werror tools/test_missyrules.c -o /tmp/bore-missyrules
+          /tmp/bore-missyrules
+          python3 tools/test_missy_story.py
       - name: Skate feel host regression
         run: |
           if ! command -v cc >/dev/null 2>&1; then apt-get update && apt-get install -y gcc; fi
@@ -37,6 +43,39 @@ jobs:
           make
           make size
           make creator
+      - name: Build Missy hospital cinematic preview
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
+          make preview-missy CS_PREVIEW_SCENE=4
+          test -s bore-missy-preview.gba
+          python3 - <<'PY'
+          from pathlib import Path
+          rom=Path("bore-missy-preview.gba").read_bytes()
+          assert rom[0xA0:0xA9]==b"MISSYWARD"
+          print(f"Missy hospital preview ROM: PASS ({len(rom)} bytes)")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bore-missy-hospital-preview
+          path: bore-missy-preview.gba
+      - name: Build Missy's first-awakening cinematic preview
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
+          make preview-missy-awake
+          python3 - <<'PY'
+          from pathlib import Path
+          rom=Path("bore-missy-awake.gba").read_bytes()
+          assert rom[0xA0:0xAA]==b"MISSYAWAKE"
+          print(f"Missy awakening preview ROM: PASS ({len(rom)} bytes)")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bore-missy-awakening-preview
+          path: bore-missy-awake.gba
       - name: Biggest users and ROM headroom
         run: |
           export PATH=/opt/devkitpro/devkitARM/bin:$PATH
@@ -99,3 +138,32 @@ jobs:
             bore.gba
             bore-base.gba
             packs/*.bps
+
+  missy-visual-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bore-missy-hospital-preview
+      - uses: actions/download-artifact@v4
+        with:
+          name: bore-missy-awakening-preview
+      - name: Install mGBA and virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mgba-qt xvfb xdotool x11-apps imagemagick
+      - name: Boot Missy's real hospital cutscene in mGBA
+        run: |
+          mkdir -p screenshots
+          xvfb-run -a -s "-screen 0 1024x768x24" bash -e -c 'bash tools/qa_missy_visual.sh bore-missy-preview.gba hospital && bash tools/qa_missy_visual.sh bore-missy-awake.gba awakening'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: missy-hospital-emulator-screenshots
+          path: |
+            screenshots/*.png
+            screenshots/*emulator.log
+          if-no-files-found: error

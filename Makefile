@@ -48,8 +48,37 @@ $(TARGET)-creator.gba: $(TARGET)-creator.elf
 	$(OBJCOPY) -O binary --wildcard -R '.xp*' $< $@   # (the demo never plays a pack: their slots stay out of its ROM)
 	gbafix $@ -tBORECREATOR
 
+# Direct-play film reel for frame-by-frame emulator review. Scene 4 is Missy's
+# hospital awakening (CS_PREVIEW=4 => csPlay(3)); does not modify normal ROM.
+# Use e.g. "make clean && make preview-missy CS_PREVIEW_SCENE=11" for Route 9.
+CS_PREVIEW_SCENE ?= 4
+preview-missy: bore-missy-preview.gba
+bore-missy-preview.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz)
+	python3 tools/make_packs.py ld
+	$(CC) $(CFLAGS) -DCS_PREVIEW=$(CS_PREVIEW_SCENE) -c source/main.c -o main-missy-preview.o
+	$(CC) $(CFLAGS) -c source/logo.c -o logo.o
+	sh tools/bss2ewram.sh $(OBJDUMP) $(OBJCOPY) main-missy-preview.o
+	$(CC) main-missy-preview.o logo.o $(LDFLAGS) -o $@
+	@sh tools/budget.sh $@
+bore-missy-preview.gba: bore-missy-preview.elf
+	$(OBJCOPY) -O binary --wildcard -R '.xp*' $< $@
+	gbafix $@ -tMISSYWARD
+
+# Direct-play awakening cutscene. The normal game is never built with this.
+preview-missy-awake: bore-missy-awake.gba
+bore-missy-awake.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz)
+	python3 tools/make_packs.py ld
+	$(CC) $(CFLAGS) -DCS_PREVIEW=4 -DCS_PREVIEW_BEAT=16 -c source/main.c -o main-missy-awake.o
+	$(CC) $(CFLAGS) -c source/logo.c -o logo.o
+	sh tools/bss2ewram.sh $(OBJDUMP) $(OBJCOPY) main-missy-awake.o
+	$(CC) main-missy-awake.o logo.o $(LDFLAGS) -o $@
+	@sh tools/budget.sh $@
+bore-missy-awake.gba: bore-missy-awake.elf
+	$(OBJCOPY) -O binary --wildcard -R '.xp*' $< $@
+	gbafix $@ -tMISSYAWAKE
+
 clean:
-	rm -f $(TARGET).elf $(TARGET).gba $(TARGET)-base.gba main.o logo.o $(TARGET)-creator.elf $(TARGET)-creator.gba main-cc.o; rm -rf packs
+	rm -f $(TARGET).elf $(TARGET).gba $(TARGET)-base.gba main.o logo.o $(TARGET)-creator.elf $(TARGET)-creator.gba main-cc.o bore-missy-preview.elf bore-missy-preview.gba main-missy-preview.o bore-missy-awake.gba bore-missy-awake.elf main-missy-awake.o; rm -rf packs
 
 # Memory report: EWRAM = .sbss (+ .ewram), IWRAM = .bss + .data + .iwram (the stack gets what is left of it), ROM = the .gba file.
 # Prints a table (and appends it to the GitHub job summary when run in Actions).
@@ -61,4 +90,4 @@ size: $(TARGET).elf $(TARGET).gba
 	       printf("| IWRAM (before stack) | %d B (%.1f%%) | 32768 | %d B |\n",i,i*100/32768,32768-i); \
 	       printf("| ROM | %d B (%.1f%%) | 33554432 | %d B |\n",rom,rom*100/33554432,33554432-rom) }' | tee mem-report.md
 	@if [ -n "$$GITHUB_STEP_SUMMARY" ]; then { echo "### GBA memory"; cat mem-report.md; echo; echo '<details><summary>biggest EWRAM/IWRAM symbols</summary>'; echo; echo '```'; arm-none-eabi-nm -S --size-sort -r $(TARGET).elf | head -25; echo '```'; echo '</details>'; } >> "$$GITHUB_STEP_SUMMARY"; fi
-.PHONY: all clean size creator
+.PHONY: all clean size creator preview-missy preview-missy-awake

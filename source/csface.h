@@ -35,7 +35,7 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
 #define csFOff(o) (csFcx=bx+csFu(o))
     u16 dk=RGB(3,2,3), ol=RGB(2,1,4), lip=RGB(20,7,8), wh=RGB(30,30,31);
     int sick=(csFxNow&CF_SICK)!=0, shake=(csFxNow&CF_SHAKE)!=0;
-    int lie=pose==CP_LIE||pose==CP_STIR, sad=pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP, sing=pose==CP_SING||open, scream=pose==CP_FLAIL||pose==CP_SHOCK||sick, yell=shake&&!sad&&!lie&&(who!=CA_MISSY||pose!=CP_STAND||1);
+    int lie=pose==CP_LIE||pose==CP_STIR, sad=pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP, sing=pose==CP_SING||open, scream=pose==CP_FLAIL||pose==CP_SHOCK||sick, yell=shake&&!sad&&!lie;  /* the old '||1' made this condition needlessly always true */
     int crying=(sad&&shake&&!sick)||pose==CP_CRY, bph=((t+who*23)%100), bk=bph<6?((bph<2||bph>=4)?1:2):0, closed=lie||bk==2||crying, half=bk==1&&!closed, loud=sing||scream||(yell&&!sad);
     u16 fc=sick?csFMix(sk,RGB(12,24,6),4):sk, hat=RGB(31,31,28); int w4=csMd==4;   // csMd: the mood (cutscene redo 14 step 4)
     int ex=(who==CA_MISSY)?10:8;
@@ -103,4 +103,57 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     if(sick) csFE(17,-12,2,3,RGB(14,24,31));
     csFOff(0);
     if(who==CA_DOC){ u16 g=RGB(22,22,24); csFLn(-12,18,-2,40,g); csFLn(12,18,2,40,g); csFLn(-11,18,-1,40,g); csFLn(11,18,1,40,g); csFE(0,42,3,3,RGB(26,26,28)); }
+}
+
+// Hospital profile CLOSE-UP: a horizontally staged face at screen resolution.
+// csFaceBig is built for standing people and previously appeared upright even
+// though Missy was lying down. Keep the geometry oriented along the pillow.
+static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
+    if(csCz<600) return; // the small profile already reads at wide zoom
+    csFcx=csCamX(wx); csFcy=csCamY(wy);
+    u16 ol=RGB(3,4,8), sh=csFSh(skin,2), lit=csFLt(skin,2); // the jaw is warm skin, not a dark beard
+    // Neck and collar FIRST: the face must join the world-scale shoulder.
+    csFE(33,19,17,13,ol);
+    csFE(31,17,14,10,sh);
+    csFE(27,14,12,9,skin);
+    csFR(38,16,24,9,RGB(12,21,23)); // gown neckline, under the jaw
+    csFR(41,16,18,2,RGB(20,27,27));
+    // Three-quarter side profile with a cheek, brow and hairline, not a disk.
+    csFE(1,0,31,23,ol);
+    csFE(3,-2,28,21,hair);
+    csFE(-3,1,27,19,csFSh(skin,1));
+    csFE(-5,-1,25,18,skin);
+    csFE(-15,-8,13,5,lit); // brow ridge picks up the monitor light
+    csFE(-22,3,9,5,skin); // front cheek toward the pillow
+    csFE(-18,12,11,4,csFSh(skin,2)); csFE(-20,10,10,4,skin); // short, shaped chin, no artificial beard
+    csFR(-25,-15,21,4,hair); csFR(-26,-12,8,8,hair);
+    csFR(-4,-21,20,5,hair); csFR(4,-19,13,3,csFLt(hair,3));
+    csFR(-24,-15,9,3,csFSh(hair,2));
+    csFR(6,-16,8,9,csFSh(hair,3)); // low sideburn against the pillow
+    csFR(-10,-20,10,1,csFLt(hair,5));
+    csFE(17,5,6,8,sh); csFE(18,4,4,6,skin); // ear toward bed's far side
+    // Missy's nose and lips point left, not down as on an upright portrait.
+    csFE(-29,1,8,5,csFSh(skin,3));
+    csFE(-31,0,6,4,skin); // round nose bridge, not square masonry
+    csFR(-34,3,6,2,csFSh(skin,4));
+    csFR(-30,6,9,2,RGB(18,7,9));
+    csFR(-26,8,7,1,csFLt(skin,3));
+    csFR(-15,9,8,2,csFLt(skin,1)); // reflected cheek light
+    csFE(-14,6,8,3,csFLt(skin,1)); // the rounded cheek catches the bedside glow
+    // The first finger twitch does NOT open her eye: words at beat 16 do.
+    if(awake){
+        int blink=((t+37)%180)<5; // a natural brief blink, not closed for 1/4 of the dialogue
+        csFE(-13,-3,9,blink?2:5,csFSh(skin,6));
+        if(!blink){ csFE(-13,-3,6,3,RGB(30,29,26)); csFE(-14,-3,3,3,RGB(13,13,9));
+            csFR(-15,-5,2,1,RGB(31,31,30)); }
+    } else { csFR(-20,-4,14,2,csFSh(skin,7)); csFR(-19,-2,12,1,lit); }
+    csFR(-22,-10,13,2,csFLt(hair,4)); // brow
+    // Cool tear-track / moist cheek under the monitor light, not flashing.
+    if(awake&&t>25){ csFR(-15,2,2,5,RGB(14,21,26)); csFR(-14,3,1,3,RGB(22,26,29)); }
+    if(awake&&csTalking&&csSpk==CA_MISSY){ // profile speech, not a closed-mouth statue
+        int open=((t>>2)&3)!=0;
+        csFR(-29,5,9,open?4:2,RGB(18,5,9));
+        if(open) csFR(-28,5,7,1,RGB(27,20,21));
+    }
+    csFE(0,13,10,3,sh); // jaw-to-neck shadow
 }
