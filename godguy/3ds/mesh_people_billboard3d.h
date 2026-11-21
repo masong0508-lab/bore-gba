@@ -64,7 +64,8 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
             if(inverse+1<m->depth[z])continue;
             const unsigned char *color=ggMeshPersonCel.palette[ink];
             int i=(y*400+x)*3;
-            int light=shade+(sourceX<GG_PERSON_W/2?8:-9);
+            int light=ggPersonClamp(shade+(sourceX<GG_PERSON_W/2?8:-9),
+                                    144,256);
             m->rgb[i]=(unsigned char)(color[0]*light/256);
             m->rgb[i+1]=(unsigned char)(color[1]*light/256);
             m->rgb[i+2]=(unsigned char)(color[2]*light/256);
