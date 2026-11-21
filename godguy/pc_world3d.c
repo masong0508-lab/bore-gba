@@ -108,18 +108,31 @@ int main(void){
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
             "world-space rain did not animate");
-    // Regression: consecutive dialogue lines must not reuse precisely
-    // the same camera position and generic painted backdrop.
+    // Coverage continuity: two unrelated lines spoken by the SAME actor
+    // should reuse the familiar three-quarter angle. A response from the
+    // other side uses the companion angle; a wide two-shot restores the
+    // establishing position. This avoids a jump-cut after every sentence.
     FilmBeat cutA={F_PORCH,F_NEAR,F_MIRA,F_THORGRIM,F_CUP};
     FilmBeat cutB={F_PORCH,F_NEAR,F_MIRA,F_THORGRIM,F_CUP};
-    // The first five letters deliberately change, but the room and cast
-    // remain the same, so any difference is an authored camera choice.
     cutA.line="THE CUP IS STILL ON THE TABLE.";
     cutB.line="LOOK OUT THROUGH THE WINDOW.";
     GgFilmCamera camA=ggFilmCameraAt(&cutA,128);
     GgFilmCamera camB=ggFilmCameraAt(&cutB,128);
-    require(camA.x!=camB.x||camA.z!=camB.z,
-            "successive story shots reuse identical locked-off backgrounds");
+    require(camA.x==camB.x&&camA.z==camB.z,
+            "new subtitle text unnecessarily changed the camera");
+    FilmBeat reverse={F_PORCH,F_NEAR,F_THORGRIM,F_MIRA,F_CUP};
+    GgFilmCamera reverseCam=ggFilmCameraAt(&reverse,128);
+    require(camA.x!=reverseCam.x,
+            "two-person conversation has no consistent reverse angle");
+    FilmBeat anchor={F_PORCH,F_WIDE,F_MIRA,F_THORGRIM,F_CUP};
+    GgFilmCamera wideCam=ggFilmCameraAt(&anchor,128);
+    require(wideCam.x==0&&wideCam.z<camA.z,
+            "returning wide shot did not restore the spatial anchor");
+    FilmBeat tracking={F_PORCH,F_TRACK,F_MIRA,F_THORGRIM,F_NO_PROP};
+    GgFilmCamera trackStart=ggFilmCameraAt(&tracking,0);
+    GgFilmCamera trackEnd=ggFilmCameraAt(&tracking,256);
+    require(trackStart.x!=trackEnd.x&&trackStart.z!=trackEnd.z,
+            "motivated traveling shot never moves through the set");
     // The scene clock is not reset by changing dialogue takes.
     // Two different secondary performers are visible, but no one
     // duplicates the actual named actors delivering dialogue.
