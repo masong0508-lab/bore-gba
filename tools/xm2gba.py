@@ -1130,7 +1130,7 @@ def convert(sid, path):
     if maxch >= 16: sys.exit("  ERROR: notes on channel %d, the player has channels 1-16" % (maxch + 1))
     if max(used, default=0) > 32: sys.exit("  ERROR: instrument numbers go up to 32")
     if eff: print("  WARNING: %d effect commands are ignored by the player" % eff)
-    if offs: print("  INFO: %d note-off keys converted to declicked voice releases" % offs)
+    if offs: print("  INFO: %d XM note-off keys (honored only for Winner Koala, preserved as before for other songs)" % offs)
     insts = convert_samples(S, used, sid)
     ninst = len(insts)
     panf = design_pan(S, used, insts, sid)
@@ -1145,7 +1145,7 @@ def convert(sid, path):
         for ri, r in enumerate(p):
             e = []
             for ch, (n, i, v, _, _) in enumerate(r):
-                if n and n <= 97 and i and i - 1 < ninst and insts[i - 1]:
+                if n and (n<97 or (n==97 and sid=="winner_koala")) and i and i - 1 < ninst and insts[i - 1]:
                     I = insts[i - 1]
                     if n == 97:   # XM key-off: stop this channel, no new sample
                         vol, note_index = 0, 96
