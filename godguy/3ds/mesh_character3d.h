@@ -116,38 +116,7 @@ static void ggMeshActorHuman(GgMeshContext*m,int x,int y,
     }
     m->material=save;
 }
-// Quadruped barrels run along the animal's forward axis. Unlike the
-// vertical human limb tube, this ring is perpendicular to movement and
-// includes actual upper/lower volume, not a flat horizontal ellipse.
-static void ggMeshActorHorizontalBody(GgMeshContext*m,
-                                      int ax,int ay,int bx,int by,
-                                      int z,int halfWidth,int halfHeight,
-                                      int r,int g,int b,int sides){
-    int dx=bx-ax,dy=by-ay;
-    int mag=(dx<0?-dx:dx)+(dy<0?-dy:dy);
-    if(mag<1)return;
-    int rightX=-dy*4096/mag,rightY=dx*4096/mag;
-    for(int n=0;n<sides;n++){
-        int a=n*256/sides,bangle=((n+1)*256/sides)&255;
-        int p=ggExpCos[a]*halfWidth/4096,
-            q=ggExpCos[bangle]*halfWidth/4096;
-        int h=ggExpSin[a]*halfHeight/4096,
-            j=ggExpSin[bangle]*halfHeight/4096;
-        GgMeshVertex f0=ggMeshV(ax+rightX*p/4096,
-                                 ay+rightY*p/4096,z+h);
-        GgMeshVertex f1=ggMeshV(ax+rightX*q/4096,
-                                 ay+rightY*q/4096,z+j);
-        GgMeshVertex t0=ggMeshV(bx+rightX*p/4096,
-                                 by+rightY*p/4096,z+h);
-        GgMeshVertex t1=ggMeshV(bx+rightX*q/4096,
-                                 by+rightY*q/4096,z+j);
-        int shade=195+((n+3)%4)*14;
-        ggMeshQuad(m,f0,f1,t1,t0,r*shade/256,
-                   g*shade/256,b*shade/256);
-    }
-}
 // Creature dimensions are local forward/across XY plus actual world Z.
-// One tiny pose on the stack rotates every limb/fin with its owner.
 typedef struct {int x,y,z,fx,fy;} GgMeshCreaturePose;
 static GgMeshVertex ggMeshCreatureV(const GgMeshCreaturePose*p,
                                    int along,int across,int height){
@@ -159,44 +128,137 @@ static int ggMeshCreatureFoot(const GgMeshCreaturePose*p,
     GgMeshVertex v=ggMeshCreatureV(p,along,across,0);
     return ggMeshGroundAtQ8(v.x,v.y)-p->z-1;
 }
-// Two ring sections and tapered end fans make a CLOSED rounded hull.
-// The old open barrel exposed the background through noses and rumps.
-// Six sides costs 24 triangles; no temporary mesh/vertex array is used.
+typedef struct {int along,across,height,width,rise;} GgMeshCreatureSection;
+static GgMeshVertex ggMeshCreatureSectionPoint(const GgMeshCreaturePose*p,
+                                               GgMeshCreatureSection s,int angle){
+    return ggMeshCreatureV(p,s.along,s.across+ggExpCos[angle]*s.width/4096,
+                           s.height+ggExpSin[angle]*s.rise/4096);
+}
+// Tapered torso sections share their edges and close to a point at the
+// head and tail. The palette keeps broad back, flank and belly planes.
+static void ggMeshCreatureSections(GgMeshContext*m,const GgMeshCreaturePose*p,
+                                    const GgMeshCreatureSection*section,
+                                    int count,int sides,int r,int g,int b){
+    for(int i=1;i<count;i++){
+        GgMeshCreatureSection a=section[i-1],c=section[i];
+        for(int n=0;n<sides;n++){
+            int t=n*256/sides,u=((n+1)*256/sides)&255;
+            int mid=(t+128/sides)&255;
+            int shade=217+ggExpSin[mid]/120+ggExpCos[mid]/440;
+            int rr=r*shade/256,gg=g*shade/256,bb=b*shade/256;
+            GgMeshVertex a0=ggMeshCreatureSectionPoint(p,a,t);
+            GgMeshVertex c0=ggMeshCreatureSectionPoint(p,c,t);
+            if(!a.width){
+                ggMeshTriangle(m,a0,ggMeshCreatureSectionPoint(p,c,u),
+                                c0,rr,gg,bb);
+            }else if(!c.width){
+                ggMeshTriangle(m,a0,ggMeshCreatureSectionPoint(p,a,u),
+                                c0,rr,gg,bb);
+            }else{
+                ggMeshQuad(m,a0,ggMeshCreatureSectionPoint(p,a,u),
+                            ggMeshCreatureSectionPoint(p,c,u),c0,rr,gg,bb);
+            }
+        }
+    }
+}
 static void ggMeshCreatureHull(GgMeshContext*m,const GgMeshCreaturePose*p,
                                int along,int across,int height,
                                int length,int width,int rise,
                                int r,int g,int b,int sides){
-    for(int n=0;n<sides;n++){
-        int a=n*256/sides,bangle=((n+1)*256/sides)&255;
-        int u=ggExpCos[a]*width/4096,v=ggExpCos[bangle]*width/4096;
-        int h=ggExpSin[a]*rise/4096,j=ggExpSin[bangle]*rise/4096;
-        GgMeshVertex r0=ggMeshCreatureV(p,along-length/2,across+u,height+h);
-        GgMeshVertex r1=ggMeshCreatureV(p,along-length/2,across+v,height+j);
-        GgMeshVertex f0=ggMeshCreatureV(p,along+length/2,across+u,height+h);
-        GgMeshVertex f1=ggMeshCreatureV(p,along+length/2,across+v,height+j);
-        GgMeshVertex tail=ggMeshCreatureV(p,along-length,across,height);
-        GgMeshVertex nose=ggMeshCreatureV(p,along+length,across,height);
-        int shade=ggExpSin[a]>=0?256:213;
-        int rr=r*shade/256,gg=g*shade/256,bb=b*shade/256;
-        ggMeshQuad(m,r0,r1,f1,f0,rr,gg,bb);
-        ggMeshTriangle(m,tail,r1,r0,rr*9/10,gg*9/10,bb*9/10);
-        ggMeshTriangle(m,nose,f0,f1,rr,gg,bb);
+    GgMeshCreatureSection section[]={
+        {along-length,across,height,0,0},
+        {along-length/2,across,height,width,rise},
+        {along+length/2,across,height,width,rise},
+        {along+length,across,height,0,0}
+    };
+    ggMeshCreatureSections(m,p,section,4,sides,r,g,b);
+}
+typedef struct {int along,across,height,radius;} GgMeshCreatureJoint;
+static int ggMeshCreatureLength(int x,int y){
+    x=abs(x);y=abs(y);
+    return x>y?x+y/2:y+x/2;
+}
+static void ggMeshCreatureJointRing(const GgMeshCreaturePose*p,
+                                    GgMeshCreatureJoint joint,
+                                    GgMeshCreatureJoint from,
+                                    GgMeshCreatureJoint to,GgMeshVertex ring[4]){
+    int a=to.along-from.along,u=to.across-from.across;
+    // World height units project roughly seven times wider than XY units.
+    int rise=(to.height-from.height)*7;
+    int run=ggMeshCreatureLength(a,u);
+    int sa=0,su=joint.radius,ta=joint.radius,tu=0,h=0;
+    if(run){
+        int span=ggMeshCreatureLength(run,rise);
+        sa=-u*joint.radius/run;
+        su=a*joint.radius/run;
+        ta=-a*rise*joint.radius/(run*span);
+        tu=-u*rise*joint.radius/(run*span);
+        h=(joint.radius*run+span*3)/(span*7);
+        if(!h&&run>=abs(rise))h=1;
     }
+    ring[0]=ggMeshCreatureV(p,joint.along+sa,joint.across+su,joint.height);
+    ring[1]=ggMeshCreatureV(p,joint.along+ta,joint.across+tu,joint.height+h);
+    ring[2]=ggMeshCreatureV(p,joint.along-sa,joint.across-su,joint.height);
+    ring[3]=ggMeshCreatureV(p,joint.along-ta,joint.across-tu,joint.height-h);
+}
+// Each bend has one shared ring. Four-sided bones keep a visible elbow,
+// hock or knee without overlapping open tubes, even at a horizontal joint.
+static void ggMeshCreatureChain(GgMeshContext*m,const GgMeshCreaturePose*p,
+                                 const GgMeshCreatureJoint*joint,int count,
+                                 int r,int g,int b){
+    GgMeshVertex rear[4],front[4];
+    ggMeshCreatureJointRing(p,joint[0],joint[0],joint[1],rear);
+    ggMeshQuad(m,rear[3],rear[2],rear[1],rear[0],r*4/5,g*4/5,b*4/5);
+    for(int i=1;i<count;i++){
+        ggMeshCreatureJointRing(p,joint[i],joint[i-1],
+                                joint[i+1<count?i+1:i],front);
+        for(int n=0;n<4;n++){
+            int next=(n+1)&3;
+            int shade=n==0?251:n==1?229:n==2?191:210;
+            ggMeshQuad(m,rear[n],rear[next],front[next],front[n],
+                        r*shade/256,g*shade/256,b*shade/256);
+        }
+        for(int n=0;n<4;n++)rear[n]=front[n];
+    }
+    ggMeshQuad(m,rear[0],rear[1],rear[2],rear[3],r,g,b);
 }
 static void ggMeshCreatureLimb(GgMeshContext*m,const GgMeshCreaturePose*p,
                                int a,int u,int h,int b,int v,int z,
                                int thick,int taper,int r,int g,int blue){
-    GgMeshVertex from=ggMeshCreatureV(p,a,u,h);
-    GgMeshVertex to=ggMeshCreatureV(p,b,v,z);
-    ggMeshActorTube(m,from.x,from.y,from.z,thick,to.x,to.y,to.z,taper,
-                    r,g,blue,4);
+    GgMeshCreatureJoint joint[]={{a,u,h,thick},{b,v,z,taper}};
+    ggMeshCreatureChain(m,p,joint,2,r,g,blue);
+}
+// Wing and flipper membranes have a raised ridge and a closed underside.
+// World-space edge points let feathers, membranes and flukes use the
+// same few triangles without sharing their silhouettes.
+static void ggMeshCreatureMembrane(GgMeshContext*m,const GgMeshVertex edge[4],
+                                   GgMeshVertex top,GgMeshVertex bottom,
+                                   int r,int g,int b){
+    for(int n=0;n<4;n++){
+        int next=(n+1)&3;
+        int shade=n<2?256:226;
+        ggMeshTriangle(m,edge[n],edge[next],top,r*shade/256,g*shade/256,b*shade/256);
+        ggMeshTriangle(m,edge[next],edge[n],bottom,r*3/4,g*3/4,b*3/4);
+    }
+}
+static void ggMeshCreatureFin(GgMeshContext*m,const GgMeshCreaturePose*p,
+                              const GgMeshVertex edge[4],int along,int across,
+                              int height,int thickness,int r,int g,int b){
+    GgMeshVertex top=ggMeshCreatureV(p,along,across,height+thickness);
+    GgMeshVertex bottom=ggMeshCreatureV(p,along,across,height-thickness);
+    ggMeshCreatureMembrane(m,edge,top,bottom,r,g,b);
 }
 static void ggMeshCreatureEye(GgMeshContext*m,const GgMeshCreaturePose*p,
                               int along,int across,int height){
-    GgMeshVertex e=ggMeshCreatureV(p,along,across,height);
-    int material=m->material;m->material=GG_MAT_NONE;
-    ggMeshBox(m,e.x-2,e.y-2,e.x+2,e.y+2,e.z,e.z+1,27,32,37);
-    m->material=material;
+    int out=across<0?-2:2;
+    GgMeshVertex a=ggMeshCreatureV(p,along-2,across,height);
+    GgMeshVertex b=ggMeshCreatureV(p,along+2,across,height);
+    GgMeshVertex c=ggMeshCreatureV(p,along,across+out,height);
+    GgMeshVertex cap=ggMeshCreatureV(p,along,across+out/2,height+1);
+    ggMeshTriangle(m,a,b,c,27,32,37);
+    ggMeshTriangle(m,a,cap,b,27,32,37);
+    ggMeshTriangle(m,b,cap,c,34,40,45);
+    ggMeshTriangle(m,c,cap,a,34,40,45);
 }
 // Classification follows the authored sprite SHAPE, never its random
 // family color. A red fish is still a fish and an ant has six legs.
@@ -225,222 +287,361 @@ static void ggMeshCreatureQuadruped(GgMeshContext*m,
                                     const GgMeshCreaturePose*p,
                                     int shape,int phase,int quality,
                                     int r,int g,int b){
-    int low=shape==7||shape==15||shape==52||shape==59;
-    int rabbit=shape==10,shelled=shape==15||shape==59;
+    int rabbit=shape==10,shell=shape==15||shape==59;
+    int low=shape==7||shell||shape==52;
     int hoof=shape==9||shape==23||shape==58||shape==67;
     int heavy=shape==8||shape==21||shape==22||shape==23;
-    int bodyZ=low?5:rabbit?7:hoof?11:8;
-    int length=rabbit?28:low?34:heavy?47:42;
-    int width=rabbit?20:heavy?25:low?24:19;
-    ggMeshCreatureHull(m,p,0,0,bodyZ,length,width,heavy?4:3,
-                       r,g,b,quality>=2?8:6);
-    // Jointed fore/hind limbs, with actual terrain under each toe.
+    int cat=shape==55,canine=shape==20||shape==56;
+    int length=rabbit?20:low?25:heavy?42:33;
+    int width=rabbit?13:heavy?20:low?16:14;
+    int height=low?3:rabbit?5:hoof?12:cat?7:9;
+    int depth=low?2:rabbit?3:heavy?5:4;
+    int sides=quality>=2?8:6;
+    GgMeshCreatureSection torso[]={
+        {-length,0,height,0,0},
+        {-length*2/3,0,height,rabbit?width:width-2,depth},
+        {0,0,height-(hoof||canine),width-(canine?4:0),depth-1},
+        {length*2/3,0,height+canine,width,depth},
+        {length,0,height+canine,0,0}
+    };
+    ggMeshCreatureSections(m,p,torso,5,sides,r,g,b);
     for(int front=-1;front<=1;front+=2)
       for(int side=-1;side<=1;side+=2){
-        int gait=ggExpSin[(phase+front*32+side*64)&255]/650;
-        int hip=front*(length-13),across=side*(width-4);
-        if(rabbit&&front<0)across=side*(width-2);
-        int knee=hip+front*4-gait/2,toe=hip+gait;
+        int gait=ggExpSin[(phase+(front==side?128:0))&255]/(hoof?580:750);
+        int hip=front*(length-10);
+        int across=side*(width-3+(rabbit&&front<0?2:0));
+        int knee=hip+(front<0?6:-3)-gait/2;
+        int toe=hip+gait+(rabbit&&front<0?5:2);
         int foot=ggMeshCreatureFoot(p,toe,across);
-        ggMeshCreatureLimb(m,p,hip,across,bodyZ-1,knee,across,
-                           (bodyZ+foot)/2,5,4,r*4/5,g*4/5,b*4/5);
-        ggMeshCreatureLimb(m,p,knee,across,(bodyZ+foot)/2,
-                           toe,across,foot,4,3,r*3/5,g*3/5,b*3/5);
+        int ankle=toe-(front<0?4:2);
+        int thigh=low?4:hoof?5:front<0?8:6;
+        GgMeshCreatureJoint leg[]={
+            {hip,across-side*2,height,thigh},
+            {knee,across,(height+foot+2)/2,thigh-2},
+            {ankle,across,foot+2,3},
+            {toe,across,foot+1,hoof?3:4}
+        };
+        if(hoof)leg[2]=leg[3];
+        ggMeshCreatureChain(m,p,leg,hoof?3:4,r*3/4,g*3/4,b*3/4);
       }
-    // A wolf/cat has its muzzle near the shoulder line; only hoofed
-    // animals have a tall neck. Rabbits have a compact body and haunches.
-    int head=length+(shelled?2:rabbit?4:9);
-    int headZ=bodyZ+(low?1:rabbit?3:hoof?5:2);
-    ggMeshCreatureLimb(m,p,length-7,0,bodyZ,head-3,0,headZ,
-                       11,9,r*9/10,g*9/10,b*9/10);
-    ggMeshCreatureHull(m,p,head,0,headZ,shelled?12:rabbit?13:18,
-                       low?13:rabbit?12:13,rabbit?3:2,
-                       r,g,b,quality>=2?6:4);
-    ggMeshCreatureHull(m,p,head+(rabbit||shelled?9:15),0,headZ-1,
-                       rabbit||shelled?5:9,7,1,
-                       r*3/5,g*3/5,b*3/5,4);
+
+    int head=length+(low||rabbit?3:canine?8:6);
+    int headZ=height+(low?1:rabbit?2:hoof?5:canine?3:2);
+    int headWidth=rabbit?8:hoof?9:heavy?12:low?8:10;
+    int muzzle=canine?18:hoof?13:shape==21?14:low?9:7;
+    ggMeshCreatureLimb(m,p,length-11,0,height,head-3,0,headZ,
+                       hoof?14:headWidth+3,headWidth-1,r*9/10,g*9/10,b*9/10);
+    GgMeshCreatureSection skull[]={
+        {head-10,0,headZ,0,0},
+        {head-5,0,headZ,headWidth,low?2:3},
+        {head+4,0,headZ,headWidth-1,low?2:3},
+        {head+muzzle-3,0,headZ-(hoof?2:1),headWidth/2,1},
+        {head+muzzle,0,headZ-(hoof?2:1),0,0}
+    };
+    ggMeshCreatureSections(m,p,skull,5,quality>=2?6:4,r,g,b);
+    ggMeshCreatureHull(m,p,head+muzzle-2,0,headZ-(hoof?2:1),
+                       4,headWidth/2,1,r*3/5,g*3/5,b*3/5,4);
     for(int side=-1;side<=1;side+=2){
+        ggMeshCreatureEye(m,p,head+3,side*(headWidth-1),headZ+1);
         if(!low){
-            int ear=rabbit?6:3;
-            GgMeshVertex a=ggMeshCreatureV(p,head-5,side*7,headZ+1);
-            GgMeshVertex c=ggMeshCreatureV(p,head+2,side*13,headZ+2);
-            GgMeshVertex tip=ggMeshCreatureV(p,head-4,side*15,headZ+ear);
-            ggMeshTriangle(m,a,c,tip,r*4/5,g*4/5,b*4/5);
-            ggMeshTriangle(m,c,a,tip,r,g,b);
+            int ear=rabbit?7:canine||cat?4:2;
+            ggMeshCreatureLimb(m,p,head-4,side*(headWidth-4),headZ+1,
+                               head-8,side*(headWidth+2),headZ+ear,
+                               rabbit?5:4,heavy?3:1,r*4/5,g*4/5,b*4/5);
         }
-        ggMeshCreatureEye(m,p,head+5,side*(low?14:12),headZ+1);
         if(shape==9||shape==58){
-            ggMeshCreatureLimb(m,p,head-5,side*7,headZ+2,
-                               head-11,side*13,headZ+7,3,1,171,150,113);
+            GgMeshCreatureJoint horn[]={
+                {head-5,side*5,headZ+2,3},
+                {head-8,side*10,headZ+5,2},
+                {head-14,side*15,headZ+8,1}
+            };
+            ggMeshCreatureChain(m,p,horn,3,171,150,113);
+            if(shape==9&&quality>=2)
+                ggMeshCreatureLimb(m,p,head-8,side*10,headZ+5,
+                                   head-4,side*14,headZ+8,2,1,178,157,120);
         }
     }
     if(shape==67)
-        ggMeshCreatureLimb(m,p,head+5,0,headZ+2,
-                           head+11,0,headZ+9,3,1,221,207,159);
-    if(shelled){
-        ggMeshCreatureHull(m,p,-4,0,bodyZ+1,length-3,width+2,3,
-                           r*3/4,g*3/4,b*3/4,quality>=2?8:6);
+        ggMeshCreatureLimb(m,p,head+3,0,headZ+2,
+                           head+10,0,headZ+8,3,1,221,207,159);
+    if(shell){
+        // Lower plastron and a flattened, overhanging carapace rim.
+        GgMeshCreatureSection carapace[]={
+            {-length-1,0,height,0,0},
+            {-length*2/3,0,height+1,width+1,4},
+            {length/2,0,height+1,width+3,5},
+            {length+1,0,height,0,0}
+        };
+        ggMeshCreatureSections(m,p,carapace,4,sides,r*3/4,g*4/5,b*3/4);
     }
-    // Tail follows yaw and a slow gait sway, attached at the rump.
-    int tail=ggExpSin[(phase+40)&255]/550;
+    int tail=ggExpSin[(phase+40)&255]/620;
     if(rabbit)
-        ggMeshCreatureHull(m,p,-length,0,bodyZ+1,6,6,1,
-                           r,g,b,4);
-    else if(shape!=52)
-        ggMeshCreatureLimb(m,p,-length+4,0,bodyZ+1,
-                           -length-(shelled?9:19),tail,
-                           bodyZ+(shape==55?4:-2),
-                           4,2,r*4/5,g*4/5,b*4/5);
+        ggMeshCreatureHull(m,p,-length+1,0,height+1,6,5,1,
+                           r*9/10,g*9/10,b*9/10,4);
+    else if(shape!=52&&shape!=8){
+        GgMeshCreatureJoint tailBones[]={
+            {-length+5,0,height,4},
+            {-length-6,tail/2,height+(cat?2:0),3},
+            {-length-(shell?10:canine?22:18),tail,height+(cat?6:-2),1}
+        };
+        ggMeshCreatureChain(m,p,tailBones,3,r*4/5,g*4/5,b*4/5);
+    }
+}
+static void ggMeshCreatureBat(GgMeshContext*m,const GgMeshCreaturePose*p,
+                               int phase,int quality,int r,int g,int b){
+    int height=13+ggExpSin[phase&255]/1500;
+    int flap=ggExpSin[phase&255]/580;
+    ggMeshCreatureHull(m,p,-2,0,height,18,9,3,r,g,b,quality>=2?8:6);
+    ggMeshCreatureHull(m,p,15,0,height+1,9,7,2,r*9/10,g*9/10,b*9/10,4);
+    for(int side=-1;side<=1;side+=2){
+        GgMeshVertex shoulder=ggMeshCreatureV(p,5,side*7,height+1);
+        GgMeshVertex wrist=ggMeshCreatureV(p,9,side*21,height+2+flap/2);
+        GgMeshVertex finger=ggMeshCreatureV(p,0,side*40,height+flap);
+        GgMeshVertex knee=ggMeshCreatureV(p,-15,side*17,height-1+flap/2);
+        GgMeshVertex inner[]={shoulder,wrist,knee,
+                             ggMeshCreatureV(p,-18,side*4,height-1)};
+        GgMeshVertex outer[]={wrist,finger,
+                             ggMeshCreatureV(p,-14,side*28,height-2+flap),knee};
+        ggMeshCreatureFin(m,p,inner,-1,side*14,height+flap/3,1,r,g,b);
+        ggMeshCreatureFin(m,p,outer,-3,side*26,height+flap*3/4,2,
+                          r*4/5,g*4/5,b*4/5);
+        ggMeshCreatureLimb(m,p,11,side*5,height+2,
+                           10,side*9,height+6,4,1,r,g,b);
+        ggMeshCreatureEye(m,p,18,side*6,height+2);
+    }
 }
 static void ggMeshCreatureBird(GgMeshContext*m,const GgMeshCreaturePose*p,
                                int shape,int phase,int quality,
                                int r,int g,int b){
-    int tall=shape==60,bat=shape==14;
-    int center=tall?13:8,headZ=tall?25:shape==57?14:11;
-    ggMeshCreatureHull(m,p,0,0,center,tall?26:20,13,4,
-                       r,g,b,quality>=2?6:4);
-    for(int side=-1;side<=1;side+=2){
-        if(!bat){
-            int toe=ggExpSin[(phase+side*64)&255]/1300;
-            ggMeshCreatureLimb(m,p,0,side*7,center-2,
-                               toe,side*7,ggMeshCreatureFoot(p,toe,side*7),
-                               2,1,169,132,71);
-        }
-        int flap=ggExpSin[phase&255]/1800;
-        GgMeshVertex root=ggMeshCreatureV(p,4,side*9,center+1);
-        GgMeshVertex tip=ggMeshCreatureV(p,-10,side*(bat?40:23),center+flap);
-        GgMeshVertex back=ggMeshCreatureV(p,-25,side*8,center-1);
-        ggMeshTriangle(m,root,tip,back,r*4/5,g*4/5,b*4/5);
-        ggMeshTriangle(m,back,tip,root,r*9/10,g*9/10,b*9/10);
+    if(shape==14){
+        ggMeshCreatureBat(m,p,phase,quality,r,g,b);
+        return;
     }
-    ggMeshCreatureLimb(m,p,13,0,center+1,19,0,headZ-1,
-                       5,5,r,g,b);
-    ggMeshCreatureHull(m,p,20,0,headZ,9,7,3,r,g,b,quality>=2?6:4);
-    if(bat){
-        ggMeshCreatureHull(m,p,28,0,headZ-1,5,5,1,
-                           r*3/5,g*3/5,b*3/5,4);
-    }else{
-        GgMeshVertex beak=ggMeshCreatureV(p,36,0,headZ-1);
-        ggMeshTriangle(m,ggMeshCreatureV(p,26,-4,headZ),
-                       ggMeshCreatureV(p,26,4,headZ),beak,207,163,80);
-        ggMeshTriangle(m,ggMeshCreatureV(p,26,4,headZ),
-                       ggMeshCreatureV(p,26,-4,headZ),beak,160,112,51);
-    }
+    int tall=shape==60,penguin=shape==51,chicken=shape==57;
+    int center=tall?11:penguin?7:5;
+    int headZ=tall?22:penguin?13:chicken?10:8;
+    int head=tall?17:penguin?8:16;
+    GgMeshCreatureSection chest[]={
+        {-24,0,center+1,0,0},
+        {-13,0,center,8,penguin?5:3},
+        {3,0,center,12,penguin?6:4},
+        {14,0,center+1,8,3},
+        {20,0,center+2,0,0}
+    };
+    ggMeshCreatureSections(m,p,chest,5,quality>=2?6:4,r,g,b);
+    GgMeshCreatureJoint neck[]={
+        {6,0,center+1,penguin?9:8},
+        {head-5,0,(center+headZ)/2,tall?4:6},
+        {head,0,headZ-1,5}
+    };
+    ggMeshCreatureChain(m,p,neck,3,r,g,b);
+    ggMeshCreatureHull(m,p,head,0,headZ,9,7,2,r,g,b,quality>=2?6:4);
+    ggMeshCreatureHull(m,p,head+9,0,headZ-1,chicken?6:8,4,1,207,163,80,4);
+    if(chicken)
+        ggMeshCreatureLimb(m,p,head-3,0,headZ+1,
+                           head-2,0,headZ+4,5,1,169,74,60);
     for(int side=-1;side<=1;side+=2){
-        ggMeshCreatureEye(m,p,23,side*6,headZ+1);
-        if(bat){
-            ggMeshTriangle(m,ggMeshCreatureV(p,16,side*3,headZ+1),
-                           ggMeshCreatureV(p,20,side*10,headZ+6),
-                           ggMeshCreatureV(p,24,side*5,headZ+2),
-                           r*4/5,g*4/5,b*4/5);
-        }else{
-            ggMeshTriangle(m,ggMeshCreatureV(p,-14,side*5,center),
-                           ggMeshCreatureV(p,-35,side*11,center+2),
-                           ggMeshCreatureV(p,-27,0,center),r*4/5,g*4/5,b*4/5);
-        }
+        int toe=ggExpSin[(phase+side*64)&255]/(tall?700:1300);
+        int across=side*(tall?8:6);
+        int foot=ggMeshCreatureFoot(p,toe+5,across);
+        GgMeshCreatureJoint leg[]={
+            {-2,across,center-1,tall?4:3},
+            {toe-4,across,(center+foot)/2,2},
+            {toe,across,foot+2,2},
+            {toe+5,across,foot+1,3}
+        };
+        ggMeshCreatureChain(m,p,leg,4,168,133,77);
+        ggMeshCreatureEye(m,p,head+3,side*6,headZ+1);
+
+        int flap=ggExpSin[phase&255]/(tall||penguin?2600:1400);
+        int span=penguin?17:tall?18:23;
+        GgMeshVertex feathers[]={
+            ggMeshCreatureV(p,7,side*8,center+2),
+            ggMeshCreatureV(p,-5,side*(span-3),center+1+flap),
+            ggMeshCreatureV(p,-22,side*span,center+flap),
+            ggMeshCreatureV(p,-23,side*7,center)};
+        ggMeshCreatureFin(m,p,feathers,-8,side*(span-7),center+1+flap,1,
+                          r*4/5,g*4/5,b*4/5);
+    }
+    if(!penguin){
+        GgMeshVertex tail[]={
+            ggMeshCreatureV(p,-13,-4,center),
+            ggMeshCreatureV(p,-32,-8,center+(chicken?4:1)),
+            ggMeshCreatureV(p,-32,8,center+(chicken?4:1)),
+            ggMeshCreatureV(p,-13,4,center)};
+        ggMeshCreatureFin(m,p,tail,-23,0,center+(chicken?3:1),1,
+                          r*4/5,g*4/5,b*4/5);
     }
 }
 static void ggMeshCreatureFish(GgMeshContext*m,const GgMeshCreaturePose*p,
-                               int shape,int phase,int quality,
+                               int shape,int phase,int quality,int water,
                                int r,int g,int b){
     GgMeshCreaturePose swimmer=*p;
-    swimmer.z-=2;
+    swimmer.z=water?ggMeshGroundCenter(T_WATER)-3:p->z-1;
     p=&swimmer;
-    int seal=shape==61,whale=shape==13;
-    int length=whale?56:43;
-    ggMeshCreatureHull(m,p,0,0,4,length,whale?20:12,whale?4:3,
-                       r,g,b,quality>=2?8:6);
-    int tail=ggExpSin[phase&255]/700;
-    GgMeshVertex root=ggMeshCreatureV(p,-length+6,0,4);
+    int seal=shape==61,whale=shape==13,piranha=shape==62;
+    int length=whale?55:seal?34:30;
+    int width=whale?19:seal?13:10;
+    int height=whale?5:4;
+    int tail=ggExpSin[phase&255]/520;
+    int tailZ=height+(whale||seal?ggExpSin[phase&255]/1500:0);
+    GgMeshCreatureSection hull[]={
+        {-length-3,tail,tailZ,0,0},
+        {-length,tail,tailZ,3,1},
+        {-length*2/3,tail/2,height,width/2,2},
+        {-length/4,0,height,width,whale?4:3},
+        {length/3,0,height,width,whale?4:piranha?4:3},
+        {length*3/4,0,height,piranha?width:width/2,2},
+        {length,0,height-1,0,0}
+    };
+    ggMeshCreatureSections(m,p,hull,7,quality>=2?8:6,r,g,b);
     if(seal||whale){
-        ggMeshTriangle(m,root,ggMeshCreatureV(p,-length-18,-18+tail,4),
-                       ggMeshCreatureV(p,-length-14,0,6),r*3/4,g*3/4,b*3/4);
-        ggMeshTriangle(m,root,ggMeshCreatureV(p,-length-14,0,6),
-                       ggMeshCreatureV(p,-length-18,18+tail,4),r*3/4,g*3/4,b*3/4);
+        for(int side=-1;side<=1;side+=2){
+            int span=whale?23:13;
+            GgMeshVertex fluke[]={
+                ggMeshCreatureV(p,-length+3,tail,tailZ),
+                ggMeshCreatureV(p,-length-8,tail+side*span,tailZ),
+                ggMeshCreatureV(p,-length-19,tail+side*(span-4),tailZ-1),
+                ggMeshCreatureV(p,-length-13,tail,tailZ)};
+            ggMeshCreatureFin(m,p,fluke,-length-9,tail+side*(span/2),tailZ,1,
+                              r*4/5,g*4/5,b*4/5);
+        }
     }else{
-        GgMeshVertex upper=ggMeshCreatureV(p,-length-16,tail,9);
-        GgMeshVertex lower=ggMeshCreatureV(p,-length-16,tail,0);
-        ggMeshTriangle(m,root,upper,lower,r*3/4,g*3/4,b*3/4);
-        ggMeshTriangle(m,root,lower,upper,r*4/5,g*4/5,b*4/5);
-        ggMeshTriangle(m,ggMeshCreatureV(p,8,0,6),
-                       ggMeshCreatureV(p,-12,0,10),
-                       ggMeshCreatureV(p,-21,0,6),r*3/4,g*3/4,b*3/4);
+        // Bony fish have a vertical fork and lateral thickness.
+        GgMeshVertex fluke[]={
+            ggMeshCreatureV(p,-length+4,tail,tailZ),
+            ggMeshCreatureV(p,-length-15,tail*2,tailZ+4),
+            ggMeshCreatureV(p,-length-5,tail,tailZ),
+            ggMeshCreatureV(p,-length-15,tail*2,tailZ-4)};
+        GgMeshVertex right=ggMeshCreatureV(p,-length-3,tail+3,tailZ);
+        GgMeshVertex left=ggMeshCreatureV(p,-length-3,tail-3,tailZ);
+        ggMeshCreatureMembrane(m,fluke,right,left,r*4/5,g*4/5,b*4/5);
+        ggMeshCreatureLimb(m,p,8,0,height+2,-11,0,height+6,5,1,
+                           r*4/5,g*4/5,b*4/5);
     }
     for(int side=-1;side<=1;side+=2){
-        ggMeshTriangle(m,ggMeshCreatureV(p,8,side*9,4),
-                       ggMeshCreatureV(p,-12,side*26,2),
-                       ggMeshCreatureV(p,-16,side*7,4),r*4/5,g*4/5,b*4/5);
-        ggMeshCreatureEye(m,p,length/2+7,side*9,5);
+        GgMeshVertex flipper[]={
+            ggMeshCreatureV(p,8,side*(width-2),height),
+            ggMeshCreatureV(p,-7,side*(width+8),height-1),
+            ggMeshCreatureV(p,-18,side*(width+9),height-2),
+            ggMeshCreatureV(p,-13,side*(width-2),height-1)};
+        ggMeshCreatureFin(m,p,flipper,-7,side*(width+2),height-1,1,
+                          r*4/5,g*4/5,b*4/5);
+        ggMeshCreatureEye(m,p,length/3+4,side*(width-1),height+1);
     }
 }
 static void ggMeshCreatureCrawler(GgMeshContext*m,const GgMeshCreaturePose*p,
                                   int shape,int phase,int quality,
                                   int r,int g,int b){
-    int legs=shape==12||shape==37||shape==50?4:3;
-    ggMeshCreatureHull(m,p,-9,0,4,20,shape==50?23:14,2,
-                       r,g,b,quality>=2?6:4);
-    ggMeshCreatureHull(m,p,14,0,4,13,10,2,r*4/5,g*4/5,b*4/5,4);
-    for(int side=-1;side<=1;side+=2)
-      for(int leg=0;leg<legs;leg++){
-        int along=14-leg*9;
-        int twitch=ggExpSin[(phase+leg*53+side*40)&255]/1100;
-        int footAlong=along+(leg<legs/2?8:-8)+twitch;
-        ggMeshCreatureLimb(m,p,along,side*8,3,
-                           along+(leg<legs/2?4:-4),side*28,4,
-                           2,2,r*3/5,g*3/5,b*3/5);
-        ggMeshCreatureLimb(m,p,along+(leg<legs/2?4:-4),side*28,4,
-                           footAlong,side*40,
-                           ggMeshCreatureFoot(p,footAlong,side*40),
-                           2,1,r*3/5,g*3/5,b*3/5);
-      }
+    int crab=shape==50,scorpion=shape==37,spider=shape==12;
+    int legs=crab||scorpion||spider?4:3;
+    int body=crab?18:spider?16:12;
+    int span=crab?36:spider?29:26;
+    ggMeshCreatureHull(m,p,-10,0,4,crab?17:20,body,crab?3:4,
+                       r,g,b,quality>=2?8:6);
+    ggMeshCreatureHull(m,p,11,0,4,crab?13:12,crab?15:9,2,
+                       r*4/5,g*4/5,b*4/5,4);
     for(int side=-1;side<=1;side+=2){
-        ggMeshCreatureEye(m,p,22,side*7,5);
-        ggMeshCreatureLimb(m,p,24,side*5,5,34,side*12,8,
-                           1,1,r*4/5,g*4/5,b*4/5);
+        for(int leg=0;leg<legs;leg++){
+            int along=13-leg*8;
+            int reach=leg<legs/2?1:-1;
+            int twitch=ggExpSin[(phase+leg*53+side*40)&255]/1100;
+            int knee=along+reach*(leg==0||leg==legs-1?9:3);
+            int toe=knee+reach*6+twitch;
+            int toeAcross=side*(span+(leg==0||leg==legs-1?-3:4));
+            int foot=ggMeshCreatureFoot(p,toe,toeAcross);
+            GgMeshCreatureJoint limb[]={
+                {along,side*(body-4),3,3},
+                {knee,toeAcross-side*8,spider?7:5,2},
+                {toe,toeAcross,foot+1,1}
+            };
+            ggMeshCreatureChain(m,p,limb,3,r*3/5,g*3/5,b*3/5);
+        }
+        ggMeshCreatureEye(m,p,16,side*(crab?12:7),5);
+        if(crab||scorpion){
+            int tip=crab?28:36,across=side*(crab?24:18);
+            ggMeshCreatureLimb(m,p,15,side*8,4,tip-6,across,6,
+                               4,3,r,g,b);
+            ggMeshCreatureHull(m,p,tip,across,6,9,crab?6:5,2,
+                               r*9/10,g*9/10,b*9/10,4);
+        }else if(!spider){
+            ggMeshCreatureLimb(m,p,19,side*4,5,32,side*10,8,
+                               2,1,r*4/5,g*4/5,b*4/5);
+        }
     }
-    if(shape==37){
-        ggMeshCreatureLimb(m,p,-22,0,7,-35,0,13,4,3,r,g,b);
-        ggMeshCreatureLimb(m,p,-35,0,13,-23,0,17,3,1,r,g,b);
+    if(scorpion){
+        GgMeshCreatureJoint sting[]={
+            {-21,0,5,5},{-35,0,8,4},{-32,0,13,3},{-23,0,12,1}
+        };
+        ggMeshCreatureChain(m,p,sting,4,r,g,b);
     }
 }
 static void ggMeshCreatureSerpent(GgMeshContext*m,const GgMeshCreaturePose*p,
-                                  int phase,int quality,int r,int g,int b){
-    for(int part=0;part<5;part++){
-        int along=28-part*15;
-        int wave=ggExpSin[(phase+part*30)&255]/400;
-        int footing=ggMeshCreatureFoot(p,along,wave);
-        int belly=footing+2;
-        ggMeshCreatureHull(m,p,along,wave,part?belly:belly+3,13,part==4?5:9,
-                           part==4?1:2,r,g,b,quality>=2?6:4);
-        if(!part)for(int side=-1;side<=1;side+=2)
-            ggMeshCreatureEye(m,p,along+5,wave+side*7,belly+4);
+                                  int shape,int phase,int quality,
+                                  int r,int g,int b){
+    GgMeshCreatureSection spine[9];
+    int worm=shape==77;
+    for(int i=0;i<8;i++){
+        int along=(i-4)*(worm?9:12);
+        int wave=ggExpSin[(phase+(7-i)*34)&255]/(worm?720:350);
+        int rise=i<2?1:2;
+        int belly=ggMeshCreatureFoot(p,along,wave)+1;
+        int wide=i==0?0:i<4?4+i:8;
+        spine[i]=(GgMeshCreatureSection){along,wave,belly+rise+(i>=6?i-5:0),
+                                         wide,rise};
     }
+    GgMeshCreatureSection last=spine[7];
+    spine[8]=(GgMeshCreatureSection){last.along+8,last.across,last.height-1,0,0};
+    ggMeshCreatureSections(m,p,spine,9,quality>=2?8:6,r,g,b);
+    for(int side=-1;side<=1;side+=2)
+        ggMeshCreatureEye(m,p,last.along+2,last.across+side*7,last.height+1);
 }
 static void ggMeshCreatureWinged(GgMeshContext*m,const GgMeshCreaturePose*p,
                                  int shape,int phase,int r,int g,int b){
-    int height=12+ggExpSin[phase&255]/2300;
-    ggMeshCreatureHull(m,p,0,0,height,19,7,2,r,g,b,4);
-    int wingZ=height+ggExpSin[(phase*3)&255]/850;
+    int butterfly=shape==63,bee=shape==53;
+    int height=10+ggExpSin[phase&255]/1300;
+    int flap=ggExpSin[(phase*3)&255]/780;
+    int span=butterfly?30:19;
+    ggMeshCreatureHull(m,p,-5,0,height,17,bee?9:6,bee?3:2,r,g,b,6);
+    ggMeshCreatureHull(m,p,10,0,height,8,5,2,r*3/4,g*3/4,b*3/4,4);
+    if(bee)
+        ggMeshCreatureHull(m,p,-11,0,height,6,9,3,98,74,40,6);
     for(int side=-1;side<=1;side+=2){
-        int span=shape==63?32:25;
-        GgMeshVertex root=ggMeshCreatureV(p,0,side*4,height+1);
-        GgMeshVertex tip=ggMeshCreatureV(p,14,side*span,wingZ);
-        GgMeshVertex back=ggMeshCreatureV(p,-20,side*(span-4),wingZ-1);
-        int wr=shape==63?r:189,wg=shape==63?g:204,wb=shape==63?b:207;
-        ggMeshTriangle(m,root,tip,back,wr,wg,wb);
-        ggMeshTriangle(m,root,back,tip,wr*4/5,wg*4/5,wb*4/5);
-        ggMeshCreatureEye(m,p,14,side*5,height+1);
-        ggMeshCreatureLimb(m,p,17,side*3,height,25,side*8,height+3,
+        GgMeshVertex base=ggMeshCreatureV(p,1,side*4,height);
+        GgMeshVertex tip=ggMeshCreatureV(p,12,side*span,height+flap);
+        GgMeshVertex turn=ggMeshCreatureV(p,-7,side*(span-4),height+flap);
+        GgMeshVertex wing[]={base,ggMeshCreatureV(p,13,side*12,height+flap/2+1),
+                             tip,turn};
+        int wr=butterfly?r:189,wg=butterfly?g:204,wb=butterfly?b:207;
+        ggMeshCreatureFin(m,p,wing,6,side*(span-10),height+flap*2/3,1,wr,wg,wb);
+        if(butterfly){
+            GgMeshVertex hind[]={base,turn,
+                ggMeshCreatureV(p,-19,side*(span-7),height+flap-1),
+                ggMeshCreatureV(p,-19,side*7,height)};
+            ggMeshCreatureFin(m,p,hind,-11,side*(span-12),height+flap/2,1,
+                              r*4/5,g*4/5,b*4/5);
+        }
+        ggMeshCreatureEye(m,p,12,side*4,height+1);
+        ggMeshCreatureLimb(m,p,15,side*2,height,23,side*6,height+3,
                            1,1,58,54,51);
     }
 }
 static void ggMeshCreatureBlob(GgMeshContext*m,const GgMeshCreaturePose*p,
-                               int phase,int quality,int r,int g,int b){
-    int breath=ggExpSin[phase&255]>0;
-    ggMeshCreatureHull(m,p,0,0,3,29,28+breath,4+breath,
-                       r,g,b,quality>=2?8:6);
+                               int shape,int phase,int quality,int r,int g,int b){
+    int ghost=shape==17||shape==48;
+    int breath=ggExpSin[phase&255]/2600;
+    int height=ghost?9+breath:3+breath;
+    int width=ghost?16:24-breath;
+    GgMeshCreatureSection mass[]={
+        {-27,0,height-2,0,0},
+        {-16,0,height,width-3,ghost?4:3},
+        {0,0,height,width,ghost?6:4+breath},
+        {16,0,height,width-2,ghost?4:3},
+        {25,0,height-1,0,0}
+    };
+    ggMeshCreatureSections(m,p,mass,5,quality>=2?8:6,r,g,b);
     for(int side=-1;side<=1;side+=2)
-        ggMeshCreatureEye(m,p,20,side*10,5+breath);
+        ggMeshCreatureEye(m,p,14,side*(width-5),height+2);
 }
 static void ggMeshActorAnimal(GgMeshContext*m,int x,int y,
                                int ground,int heading,int phase,
@@ -463,18 +664,22 @@ static void ggMeshActorSpecies(GgMeshContext*m,int x,int y,int ground,
     int oldMat=m->material,oldSeed=m->materialSeed;
     m->material=GG_MAT_NONE;m->materialSeed=family*991;
     int kind=ggMeshCreatureKind(shape);
-    ggMeshContactShadow(m,x,y,kind==GG_CREATURE_QUADRUPED?48:32,4);
+    int water=kind==GG_CREATURE_FISH&&ggMeshTerrainAt(x>>8,y>>8)<=T_WATER;
+    int airborne=shape==14||kind==GG_CREATURE_WINGED||shape==17||shape==48;
+    if(!water)
+        ggMeshContactShadow(m,x,y,kind==GG_CREATURE_QUADRUPED?42:27,
+                            airborne?9:3);
     switch(kind){
     case GG_CREATURE_BIRD:
         ggMeshCreatureBird(m,&p,shape,phase,quality,r,g,b);break;
     case GG_CREATURE_FISH:
-        ggMeshCreatureFish(m,&p,shape,phase,quality,r,g,b);break;
+        ggMeshCreatureFish(m,&p,shape,phase,quality,water,r,g,b);break;
     case GG_CREATURE_CRAWLER:
         ggMeshCreatureCrawler(m,&p,shape,phase,quality,r,g,b);break;
     case GG_CREATURE_SERPENT:
-        ggMeshCreatureSerpent(m,&p,phase,quality,r,g,b);break;
+        ggMeshCreatureSerpent(m,&p,shape,phase,quality,r,g,b);break;
     case GG_CREATURE_BLOB:
-        ggMeshCreatureBlob(m,&p,phase,quality,r,g,b);break;
+        ggMeshCreatureBlob(m,&p,shape,phase,quality,r,g,b);break;
     case GG_CREATURE_WINGED:
         ggMeshCreatureWinged(m,&p,shape,phase,r,g,b);break;
     case GG_CREATURE_QUADRUPED:

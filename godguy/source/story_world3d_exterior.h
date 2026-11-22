@@ -184,7 +184,7 @@ static void ggFilmSun(GgFilmCamera cam,int x,int y,int z,int radius,u8 color){
     GgS2 center=ggFilmProject(cam,ggV3(x,y,z));
     for(unsigned i=0;i<sizeof rim/sizeof *rim;i++){
         unsigned j=(i+1)%(sizeof rim/sizeof *rim);
-        ggFilmTri(cam.page,center,
+        ggFilmTri(cam,center,
             ggFilmProject(cam,ggV3(x+rim[i][0]*radius/100,y+rim[i][1]*radius/100,z)),
             ggFilmProject(cam,ggV3(x+rim[j][0]*radius/100,y+rim[j][1]*radius/100,z)),color);
     }
@@ -323,5 +323,31 @@ static void ggFilmMarket(GgFilmCamera cam,int x,int z){
     }
     ggFilmRock(cam,x-18,64,z-18,49,21,43,GG_MOSS,18,24);
     ggFilmRock(cam,x+41,64,z-25,45,25,35,8,GG_COPPER,24);
+}
+static void ggFilmVillageWell(GgFilmCamera cam,int x,int z){
+    static const signed char corners[][2]={{-38,-92},{38,-92},{92,-38},{92,38},
+                                            {38,92},{-38,92},{-92,38},{-92,-38}};
+    GgV3 base[8],wall[8],outer[8],inner[8],water[8];
+    ggFilmGroundPatch(cam,x+12,1,z,165,164,GG_PINE);
+    for(int i=0;i<8;i++){
+        int dx=corners[i][0],dz=corners[i][1];
+        base[i]=ggV3(x+dx*66/100,1,z+dz*66/100);
+        wall[i]=ggV3(base[i].x,48,base[i].z);
+        outer[i]=ggV3(x+dx*73/100,54,z+dz*73/100);
+        inner[i]=ggV3(x+dx*49/100,54,z+dz*49/100);
+        water[i]=ggV3(inner[i].x,30,inner[i].z);
+    }
+    for(int i=0;i<8;i++){
+        int j=(i+1)&7;
+        ggFilmFace(cam,ggV3(x,30,z),water[i],water[j],GG_WATER_DARK);
+        ggFilmQuad(cam,water[i],water[j],inner[j],inner[i],GG_SLATE);
+        ggFilmQuad(cam,base[i],base[j],wall[j],wall[i],i%3?GG_STONE:21);
+        ggFilmQuad(cam,wall[i],wall[j],outer[j],outer[i],GG_SLATE);
+        ggFilmQuad(cam,outer[i],outer[j],inner[j],inner[i],i%3?GG_LIMESTONE:GG_STONE);
+    }
+    ggFilmBox(cam,x+54,50,z+19,13,76,14,25,24,26);
+    ggFilmBox(cam,x+31,119,z+19,61,9,13,25,24,26);
+    ggFilmBox(cam,x+12,64,z+19,3,59,3,24,20,25);
+    ggFilmBox(cam,x+12,55,z+19,24,21,23,GG_SLATE,20,GG_STONE);
 }
 #endif

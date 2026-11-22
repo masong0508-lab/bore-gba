@@ -157,6 +157,23 @@ static void artPropAnchors(unsigned char *pixels){
         }
     }
 }
+static void artTropicalSilhouette(unsigned char *pixels){
+    memset(world,T_JUNGLE,sizeof world);
+    int x=65*256+128,y=64*256+128,z=ggMeshGroundAtQ8(x,y);
+    GgMeshContext *m=&ggMeshContext;
+    int frame=ggExplore.frame;
+    ggExplore.frame=40;
+    ggMeshBegin(m,pixels,2,x-448,y,z+20,4096,0,36,59,89);
+    ggMeshFoliage(m,x,y,z,2,0x2571bb32u,2);
+    int crown=0,trunk=0;
+    for(int y0=25;y0<46;y0++)for(int x0=150;x0<250;x0++)
+        crown+=m->depth[y0*m->w+x0]!=0;
+    for(int y0=100;y0<111;y0++)for(int x0=174;x0<227;x0++)
+        trunk+=m->depth[y0*m->w+x0]!=0;
+    artRequire(crown>75&&trunk>20&&trunk<160&&m->triangles<92,
+               "tropical canopy does not stand clear above a narrow trunk");
+    ggExplore.frame=frame;
+}
 static void artSceneryToggle(unsigned char *pixels){
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
         world[y][x]=T_GRASS;bld[y][x]=0;occ[y][x]=0;
@@ -199,6 +216,9 @@ static void artWaterline(unsigned char *pixels){
                ggMeshGroundAtQ8(67*256,64*256+128)==level&&
                ggMeshGroundAtQ8(67*256+128,64*256+128)>level,
                "deep sea, shallows, and dry bank do not share a level shoreline");
+    artRequire(ggMeshGroundAtQ8(67*256+18,64*256+128)==level&&
+               ggMeshGroundAtQ8(67*256+80,64*256+128)>level,
+               "shore has no level shelf below its dry bank");
     uint32_t key=0;
     artRequire(ggOutdoorPropKind(65,64,T_DEEP,key)==GG_SCENE_NONE&&
                ggOutdoorPropKind(66,64,T_WATER,key)==GG_SCENE_REEDS,
@@ -239,6 +259,20 @@ static void artNearBank(unsigned char *pixels){
                        "near terrain clipping opens a hole under a steep bank");
         artRequire(ggMeshContext.near==GG_MESH_NEAR,
                    "ground near clip changes later actor and prop projection");
+    }
+}
+static void artSteepShoulder(void){
+    memset(world,T_GRASS,sizeof world);
+    world[64][65]=T_MOUNT;
+    int x=65*256+128,y=64*256+128;
+    artRequire(ggMeshGroundAtQ8(x,y)==48,"steep relief moves a summit anchor");
+    for(int side=0;side<4;side++){
+        int dx=ggOutdoorSideX[side],dy=ggOutdoorSideY[side];
+        artRequire(ggMeshGroundAtQ8(x+dx*128,y+dy*128)==19,
+                   "steep relief moves a shared tile-edge anchor");
+        int shoulder=ggMeshGroundAtQ8(x+dx*64,y+dy*64);
+        artRequire(shoulder>=37&&shoulder<48,
+                   "steep relief is still a straight line from toe to summit");
     }
 }
 static void artSolidContacts(unsigned char *pixels){
@@ -298,6 +332,9 @@ static void artDockShore(unsigned char *pixels){
         int dx=ggOutdoorSideX[side],dy=ggOutdoorSideY[side];
         memset(world,T_GRASS,sizeof world);
         world[64+dy][65+dx]=T_WATER;
+        artRequire(ggMeshGroundAtQ8(wx+dx*110,wy+dy*110)==1&&
+                   ggMeshGroundAtQ8(wx+dx*48,wy+dy*48)>1,
+                   "a shore orientation loses its level shelf or floods the dock approach");
         ggMeshBegin(m,pixels,2,wx-dx*380,wy-dy*380,ground+13,
                     dx*4096,dy*4096,80,120,150);
         m->material=GG_MAT_WOOD;
@@ -319,6 +356,7 @@ int main(void){
     artFlatGround(pixels,T_SAND);
     artFacadeDepth(pixels);
     artPropAnchors(pixels);
+    artTropicalSilhouette(pixels);
     artSceneryToggle(pixels);
     // On the same camera, actual hills still carry directional light
     // and height. Removing the fake pinwheel must not flatten real land.
@@ -336,6 +374,7 @@ int main(void){
     artRequire(covered>2000&&max-min>=10,
                 "real slope normals lost visible directional light");
     artWaterline(pixels);
+    artSteepShoulder();
     artNearBank(pixels);
     artSolidContacts(pixels);
     artContactLighting(pixels);

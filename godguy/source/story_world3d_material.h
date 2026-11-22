@@ -2,7 +2,7 @@
 #define GG_STORY_WORLD3D_MATERIAL_H
 
 static void ggFilmFace(GgFilmCamera cam,GgV3 a,GgV3 b,GgV3 c,u8 ink){
-    ggFilmTri(cam.page,ggFilmProject(cam,a),ggFilmProject(cam,b),
+    ggFilmTri(cam,ggFilmProject(cam,a),ggFilmProject(cam,b),
               ggFilmProject(cam,c),ink);
 }
 static void ggFilmPanel(GgFilmCamera cam,int l,int r,int b,int t,int z,u8 ink){

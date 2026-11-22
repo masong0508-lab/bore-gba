@@ -146,19 +146,26 @@ static inline GgMeshProjected ggMeshProject(const GgMeshContext*m,
     };
     return p;
 }
-static inline GgMeshCameraVertex ggMeshIntersectNear(GgMeshCameraVertex a,
-                                                      GgMeshCameraVertex b,
-                                                      int near){
-    int d=b.f-a.f;
-    int t=near-a.f;
-    GgMeshCameraVertex result={near,a.s,a.z,a.u,a.v};
-    if(d){
-        result.s+=((int64_t)(b.s-a.s)*t)/d;
-        result.z+=((int64_t)(b.z-a.z)*t)/d;
-        result.u+=((int64_t)(b.u-a.u)*t)/d;
-        result.v+=((int64_t)(b.v-a.v)*t)/d;
-    }
-    return result;
+static inline GgMeshProjected ggMeshProjectNear(const GgMeshContext*m,
+                                                GgMeshCameraVertex a,
+                                                GgMeshCameraVertex b){
+    // Combine the two endpoint weights before dividing. Both windings
+    // land on the same screen pixel and keep fractional height until
+    // projection, where a whole height unit can span several pixels.
+    int weightA=b.f-m->near,weightB=m->near-a.f;
+    int span=b.f-a.f,iz=65535/m->near;
+    int64_t side=(int64_t)a.s*weightA+(int64_t)b.s*weightB;
+    int64_t height=(int64_t)(m->eye-a.z)*weightA+
+                   (int64_t)(m->eye-b.z)*weightB;
+    int64_t screenDivisor=(int64_t)span*m->near;
+    GgMeshProjected p={
+        m->w/2+(int)(side*m->focal/screenDivisor),
+        m->horizon+(int)(height*m->vertical*256/screenDivisor),
+        iz,
+        (int)(((int64_t)a.u*weightA+(int64_t)b.u*weightB)*iz/span),
+        (int)(((int64_t)a.v*weightA+(int64_t)b.v*weightB)*iz/span)
+    };
+    return p;
 }
 static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                                   GgMeshProjected b,GgMeshProjected c,
@@ -189,14 +196,15 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
     int edge0=(y2<y1||(y2==y1&&x2>x1))?0:1;
     int edge1=(y0<y2||(y0==y2&&x0>x2))?0:1;
     int edge2=(y1<y0||(y1==y0&&x1>x0))?0:1;
-    // A single reciprocal-depth plane, computed once per triangle.
-    // Pixel loop only adds; it has no divisions, floats or heap use.
-    int dx=((int64_t)(b.iz-a.iz)*(y2-y0)-
-            (int64_t)(c.iz-a.iz)*(y1-y0))*4096/area;
-    int dy=((int64_t)(c.iz-a.iz)*(x1-x0)-
-            (int64_t)(b.iz-a.iz)*(x2-x0))*4096/area;
-    int start=(int64_t)a.iz*4096+
-              (int64_t)(left-x0)*dx+(int64_t)(top-y0)*dy;
+    // Depth and UV planes extrapolate across the whole bounding box.
+    // A thin face can exceed the signed range far outside its edges;
+    // wrap these fixed-point accumulators and sample only covered pixels.
+    uint32_t dx=(uint32_t)(((int64_t)(b.iz-a.iz)*(y2-y0)-
+                          (int64_t)(c.iz-a.iz)*(y1-y0))*4096/area);
+    uint32_t dy=(uint32_t)(((int64_t)(c.iz-a.iz)*(x1-x0)-
+                          (int64_t)(b.iz-a.iz)*(x2-x0))*4096/area);
+    uint32_t rowIz=(uint32_t)a.iz*4096u+
+                   (uint32_t)(left-x0)*dx+(uint32_t)(top-y0)*dy;
     // Beyond six world tiles, real atmosphere dominates the detail.
     // Retain sunlit geometry but stop per-fragment divisions and hashing
     // on distant surfaces, preserving New-3DS audio and frame budget.
@@ -204,34 +212,32 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
     int doTexture=m->material!=GG_MAT_NONE&&m->scale==1&&
                   m->detailQuality>=2&&
                   inverseMid>=65535/(6*256);
-    int dux=0,duy=0,dvx=0,dvy=0;
-    int rowU=0,rowV=0;
+    uint32_t dux=0,duy=0,dvx=0,dvy=0;
+    uint32_t rowU=0,rowV=0;
     if(doTexture){
         // Perspective-correct u/z and v/z, interpolated incrementally.
-        // Each material coordinate uses a small tile-local origin, so
-        // 32-bit gradients stay bounded even at map edge coordinates.
-        dux=(int)(((int64_t)(b.uiz-a.uiz)*(y2-y0)-
+        // The tile-local origin keeps samples inside the visible face
+        // in range even when UVs extrapolate outside the face.
+        dux=(uint32_t)(((int64_t)(b.uiz-a.uiz)*(y2-y0)-
                      (int64_t)(c.uiz-a.uiz)*(y1-y0))*256/area);
-        duy=(int)(((int64_t)(c.uiz-a.uiz)*(x1-x0)-
+        duy=(uint32_t)(((int64_t)(c.uiz-a.uiz)*(x1-x0)-
                      (int64_t)(b.uiz-a.uiz)*(x2-x0))*256/area);
-        dvx=(int)(((int64_t)(b.viz-a.viz)*(y2-y0)-
+        dvx=(uint32_t)(((int64_t)(b.viz-a.viz)*(y2-y0)-
                      (int64_t)(c.viz-a.viz)*(y1-y0))*256/area);
-        dvy=(int)(((int64_t)(c.viz-a.viz)*(x1-x0)-
+        dvy=(uint32_t)(((int64_t)(c.viz-a.viz)*(x1-x0)-
                      (int64_t)(b.viz-a.viz)*(x2-x0))*256/area);
-        rowU=(int)((int64_t)a.uiz*256+
-             (int64_t)(left-x0)*dux+(int64_t)(top-y0)*duy);
-        rowV=(int)((int64_t)a.viz*256+
-             (int64_t)(left-x0)*dvx+(int64_t)(top-y0)*dvy);
+        rowU=(uint32_t)a.uiz*256u+(uint32_t)(left-x0)*dux+(uint32_t)(top-y0)*duy;
+        rowV=(uint32_t)a.viz*256u+(uint32_t)(left-x0)*dvx+(uint32_t)(top-y0)*dvy;
     }
-    int rowE0=e0,rowE1=e1,rowE2=e2,rowIz=start;
+    int rowE0=e0,rowE1=e1,rowE2=e2;
     int stepX0=y1-y2,stepX1=y2-y0,stepX2=y0-y1;
     int stepY0=x2-x1,stepY1=x0-x2,stepY2=x1-x0;
     for(int y=top;y<=bottom;y++){
-        int w0=rowE0,w1=rowE1,w2=rowE2,iz=rowIz;
-        int uvX=rowU,uvY=rowV;
+        int w0=rowE0,w1=rowE1,w2=rowE2;
+        uint32_t iz=rowIz,uvX=rowU,uvY=rowV;
         for(int x=left;x<=right;x++){
             if(w0>=edge0&&w1>=edge1&&w2>=edge2){
-                int inverse=(iz+2048)>>12;
+                int inverse=(int32_t)(iz+2048u)>>12;
                 int slot=y*m->w+x;
                 // A scoped tolerance lets a surface decal survive
                 // quantization at a shared edge. Stored depth remains
@@ -248,8 +254,8 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                         // All world texture coordinates come from the
                         // actual 3D vertices: moving the camera does
                         // not move mortar joints or wood grain.
-                        int u=((uvX>>8)/inverse)+m->texBaseU;
-                        int v=((uvY>>8)/inverse)+m->texBaseV;
+                        int u=(((int32_t)uvX>>8)/inverse)+m->texBaseU;
+                        int v=(((int32_t)uvY>>8)/inverse)+m->texBaseV;
                         ggMatSampleLit(m->material,u,v,
                                        (uint32_t)m->materialSeed,detailGain,
                                        &tr,&tg,&tb);
@@ -356,23 +362,25 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
             if(daylight)detailGain=detailGain*(256-haze)/256;
         }
     }
-    GgMeshCameraVertex clipped[5];
+    r=ggMeshClamp(r,0,255);g=ggMeshClamp(g,0,255);bl=ggMeshClamp(bl,0,255);
+    if(points[0].f>=m->near&&points[1].f>=m->near&&points[2].f>=m->near){
+        ggMeshRasterProjected(m,ggMeshProject(m,points[0]),
+            ggMeshProject(m,points[1]),ggMeshProject(m,points[2]),
+            r,g,bl,detailGain);
+        return;
+    }
+    GgMeshProjected clipped[4];
     int n=0;
     for(int i=0;i<3;i++){
         GgMeshCameraVertex prev=points[(i+2)%3],cur=points[i];
-        int prior=prev.f>=m->near,present=cur.f>=m->near;
-        if(prior!=present&&n<5)
-            clipped[n++]=ggMeshIntersectNear(prev,cur,m->near);
-        if(present&&n<5)clipped[n++]=cur;
+        if((prev.f<m->near&&cur.f>m->near)||
+           (cur.f<m->near&&prev.f>m->near))
+            clipped[n++]=ggMeshProjectNear(m,prev,cur);
+        if(cur.f>=m->near)clipped[n++]=ggMeshProject(m,cur);
     }
-    if(n<3)return;
     for(int i=1;i+1<n;i++)
-        ggMeshRasterProjected(m,
-            ggMeshProject(m,clipped[0]),
-            ggMeshProject(m,clipped[i]),
-            ggMeshProject(m,clipped[i+1]),
-            ggMeshClamp(r,0,255),ggMeshClamp(g,0,255),
-            ggMeshClamp(bl,0,255),detailGain);
+        ggMeshRasterProjected(m,clipped[0],clipped[i],clipped[i+1],
+                             r,g,bl,detailGain);
 }
 static inline GgMeshVertex ggMeshV(int x,int y,int z){
     GgMeshVertex v={x,y,z};return v;

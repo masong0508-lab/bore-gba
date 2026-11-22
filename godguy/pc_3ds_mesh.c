@@ -38,6 +38,32 @@ static void verifyDaylight(void){
            overcastShade[0]>shady[0],
            "overcast weather does not soften sun and lift shaded surfaces");
 }
+static void verifyClippedSharedEdge(void){
+    GgMeshContext *m=&ggMeshContext;
+    GgMeshVertex a=ggMeshV(42,-28,17),b=ggMeshV(420,-126,13),
+                 c=ggMeshV(420,126,5),d=ggMeshV(42,28,9);
+    for(int winding=0;winding<2;winding++){
+        ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
+        memset(image.rgb,120,sizeof image.rgb);
+        m->opacity=128;
+        if(winding)ggMeshQuad(m,a,d,c,b,28,28,28);
+        else ggMeshQuad(m,a,b,c,d,28,28,28);
+        for(int y=96;y<115;y++)for(int x=224;x<250;x++)
+            verify(pixel(x,y)[0]==74,
+                   "clipped faces disagree on their shared edge");
+    }
+}
+static void verifySliverInterpolation(void){
+    GgMeshContext *m=&ggMeshContext;
+    ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,36,59,89);
+    m->material=GG_MAT_STONE;
+    GgMeshProjected a={-400,-300,2730,512000,620000};
+    GgMeshProjected b={22,21,128,80000,72000};
+    GgMeshProjected c={444,343,120,70000,89000};
+    ggMeshRasterProjected(m,a,b,c,152,148,138,256);
+    verify(m->fragments>10&&m->fragments==m->textureSamples,
+           "thin projected face lost its texture or depth");
+}
 int main(void){
     memset(image.before,0x5a,32);
     memset(image.after,0x6c,32);
@@ -163,6 +189,8 @@ int main(void){
            !ggMeshHidden(m,200,240,300),
            "world-depth mask reads outside viewport");
     verifyDaylight();
+    verifyClippedSharedEdge();
+    verifySliverInterpolation();
     puts("3DS MESH OK: perspective, near-plane clipping, stable z depth, stereo-ready RGB and 2x low-cost output");
     return 0;
 }

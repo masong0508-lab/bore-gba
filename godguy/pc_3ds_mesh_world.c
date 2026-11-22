@@ -83,6 +83,67 @@ static void meshEntrances(unsigned char *pixels){
     }
     meshRequire(open>65,"the central portico post blocks the temple entrance");
 }
+static void meshBuildingSilhouettes(unsigned char *pixels){
+    GgMeshContext *m=&ggMeshContext;
+    int cx=64*256+128,cy=64*256+128;
+    int ground=ggExpGround(T_GRASS);
+    // Each sample is a camera ray aimed at a visible architectural
+    // feature. Its depth distinguishes real projection from a decal.
+    static const struct {
+        int build,dx,dy,dz,minDepth,maxDepth;
+        const char *failure;
+    } checks[]={
+        {B_HOUSE,-110,0,41,176,65535,"cottage roof lacks a raised gable"},
+        {B_TOWER,-82,0,56,166,65535,"tower gallery does not project beyond its shaft"},
+        {B_TEMPLE,-142,62,13,195,65535,"temple has no load-bearing porch on the visible gable"},
+        {B_RUIN,-100,0,6,0,145,"ruin breach is blocked by an intact exterior wall"},
+        {B_DOCK,-88,180,5,172,65535,"pier shoreward approach and landing have the same narrow width"},
+        {B_BORDER,-108,56,3,0,0,"a border flag blocks the view like a solid roof"}
+    };
+    int passed=1;
+    world[65][64]=T_WATER;
+    for(unsigned i=0;i<sizeof checks/sizeof checks[0];i++){
+        int eye=ground+(checks[i].build==B_TOWER?42:22);
+        ggMeshBegin(m,pixels,2,cx-450,cy,eye,4096,0,42,65,89);
+        ggMeshBuilding(m,64,64,checks[i].build,ground,1);
+        GgMeshVertex point=ggMeshV(cx+checks[i].dx,cy+checks[i].dy,
+                                  ground+checks[i].dz);
+        GgMeshProjected sample=ggMeshProject(m,ggMeshCameraPoint(m,point));
+        meshRequire((unsigned)sample.x<(unsigned)m->w&&
+                    (unsigned)sample.y<(unsigned)m->h,
+                    "building silhouette sample fell outside the camera");
+        int depth=m->depth[sample.y*m->w+sample.x];
+        if(depth<checks[i].minDepth||depth>checks[i].maxDepth){
+            fprintf(stderr,"3DS ARCHITECTURE FAIL: %s (depth %d)\n",
+                    checks[i].failure,depth);
+            passed=0;
+        }
+    }
+    world[65][64]=T_GRASS;
+    meshRequire(passed,"building silhouettes lost their architectural volumes");
+}
+static void meshPorticoRotation(unsigned char *pixels){
+    GgMeshContext *m=&ggMeshContext;
+    int x=64*256+128,y=64*256+128,ground=ggExpGround(T_GRASS);
+    GgMeshVertex column=ggMeshV(x-143,y-62,ground+12);
+    for(int offset=-3;offset<=3;offset+=6){
+        ggMeshBegin(m,pixels,2,x-100+offset,y-500,ground+22,0,4096,42,65,89);
+        ggMeshBuilding(m,64,64,B_TEMPLE,ground,1);
+        GgMeshProjected sample=ggMeshProject(m,ggMeshCameraPoint(m,column));
+        meshRequire(m->depth[sample.y*m->w+sample.x]>=145,
+                    "west temple column disappears when the camera crosses its facade plane");
+    }
+}
+static void meshNearArchitecture(unsigned char *pixels){
+    GgMeshContext *m=&ggMeshContext;
+    ggMeshBegin(m,pixels,2,0,0,10,4096,0,42,65,89);
+    // The near plane removes the front of this column. Its far face
+    // must still occlude the view down the middle as the camera passes.
+    ggMeshArchitectureBlock(m,64,-80,180,80,0,22,147,126,105);
+    int depth=m->depth[m->horizon*m->w+m->w/2];
+    meshRequire(abs(depth-65535/180)<=2,
+                "column disappeared while crossing the near plane");
+}
 static void meshRoundGeometryRegression(unsigned char *pixels){
     // Exercise the real final facet of every circular world primitive.
     // In particular, the six/eight-sided closing vertex used to read
@@ -110,9 +171,8 @@ static void meshRoundGeometryRegression(unsigned char *pixels){
                 ggMeshCloudPuff(&ggMeshContext,x,y,ground+15,90,7,
                                 130,140,160);break;
             case 4:
-                ggMeshActorHorizontalBody(&ggMeshContext,
-                    x-29,y,x+29,y,ground+9,17,5,
-                    150,110,75,quality>=2?8:6);break;
+                ggMeshActorSpecies(&ggMeshContext,x,y,ground,
+                    0,0,0,20,famCol[0],quality);break;
             }
             meshRequire(ggMeshContext.triangles>=4&&
                         ggMeshContext.fragments>8,
@@ -132,6 +192,9 @@ int main(void){
     static unsigned char pixels[400*240*3];
     meshHumanPerspective(pixels);
     meshEntrances(pixels);
+    meshBuildingSilhouettes(pixels);
+    meshPorticoRotation(pixels);
+    meshNearArchitecture(pixels);
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
                 "cinema is still a raycast image, not 3D mesh geometry");
