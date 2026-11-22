@@ -22,6 +22,12 @@ ROW_S=5.0/170.0
 # overall phrase duration; the shuffle moves attacks later. Retain the real
 # recording's pitch, add a modest delay, and apply 62% offbeat swing.
 VOCAL_LAG_S=0.045
+# The original singer stem begins 1.49 seconds in, but the Koala song has an
+# 18-bar introduction/build before the source bass/groove establishes itself.
+# Keep the 56 original clips and their intra-phrase timing entirely intact;
+# put the FIRST sung phrase after that build instead of over the intro.
+VOCAL_ENTRY_SHIFT_BARS=18
+KOALA_ROWS_PER_BAR=64
 
 def target_seconds(source_seconds):
     beat=(source_seconds-REFERENCE_DOWNBEAT_S)*REFERENCE_BPM/60.0
@@ -41,7 +47,7 @@ def make():
         count=int.from_bytes(packed[off:off+4],"little")
         assert count==int(clip["samples"]), (i,count,clip["samples"])
         assert size>=4+(count+1)//2
-        row=round(target_seconds(float(clip["start_s"]))/ROW_S)
+        row=round(target_seconds(float(clip["start_s"]))/ROW_S)+VOCAL_ENTRY_SHIFT_BARS*KOALA_ROWS_PER_BAR
         assert 0<=row<206*64 and (not cues or row>cues[-1][0])
         # Keep the live Koala shuffle audible under the singing. The isolated
         # ADPCM vocals are individually normalized, so a full 112/256 mix
@@ -63,7 +69,7 @@ def make():
         "extern const u8 winnerVocalBlob[];\n"
     ])
     DEST.write_text("".join(text))
-    print("Winner vocals: 56 sung lines, source 131 BPM -> Koala 127.565 BPM; rows %d..%d"%(cues[0][0],cues[-1][0]))
+    print("Winner vocals: 56 original phrases, entry after %d-bar Koala intro; rows %d..%d"%(VOCAL_ENTRY_SHIFT_BARS,cues[0][0],cues[-1][0]))
     return cues
 
 if __name__=="__main__":make()
