@@ -1997,7 +1997,7 @@ static inline __attribute__((always_inline)) int softClip(int x){
 }
 // Song-local early reflections stay in ROM, not IWRAM (tight interrupt budget).
 // Original dry transients remain in front; only mids/highs feed this tiny room.
-__attribute__((noinline)) static void winnerRoomMix(s8*outL,s8*outR){
+__attribute__((noinline,long_call)) static void winnerRoomMix(s8*outL,s8*outR){
     u32 rp=winnerRoomPos;
     int low=winnerRoomLow;
     for(int i=0;i<MUS_N;i++){
