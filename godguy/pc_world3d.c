@@ -27,11 +27,14 @@ static struct { u8 before[32],page[256*192],after[32]; } picture;
 #define uiBuf picture.page
 static u8 fmvSlots[32];
 static int backgroundSpriteCalls;
+static int backgroundFootX,backgroundFootY;
 // Real firmware uses the decompressed 40x48 actor cels. Standalone geometry
 // testing uses a minimal projected rectangle so it can verify the camera,
 // animation timeline and memory bounds without depending on art generator.
 static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
     backgroundSpriteCalls++;
+    backgroundFootX=x;
+    backgroundFootY=feet;
     (void)pose;(void)flip;
     if(h<0||h>100)return;
     for(int y=feet-h;y<feet;y++)
@@ -124,8 +127,10 @@ int main(void){
     FilmBeat ford={F_FORD,F_WIDE,F_GRUUL,F_MIRA,F_CUP,NULL};
     GgFilmCamera fordCam=ggFilmCameraAt(&ford,128);
     FilmBlocking onFord={0},onBridge={0};
-    ggFilmWorldBlocking(fordCam,&ford,180,3,&onFord);
+    GgFilmFootprints stone=ggFilmWorldBlocking(fordCam,&ford,180,3,&onFord);
     GgFilmFootprints marks=ggFilmWorldBlocking(fordCam,&ford,180,9,&onBridge);
+    require(stone.other.y>3&&stone.other.y<marks.other.y,
+            "the pre-bridge cast stands below its raised stepping stones");
     memset(uiBuf,0,sizeof picture.page);
     ggFilmFloor(fordCam,F_FORD,0,9,0);
     GgS2 nearBank=ggFilmProject(fordCam,ggV3(0,1,592));
@@ -135,19 +140,51 @@ int main(void){
             uiBuf[farBank.y*256+farBank.x]==fmvSlots[17]&&
             uiBuf[channel.y*256+channel.x]==fmvSlots[13],
             "the projected crossing has to connect two dry banks across water");
+    // The uphill end of the ramp is above the river and in front of the bank.
+    // In the old render this point was empty without the water/backdrop pass.
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmBridge(fordCam,0,0);
+    GgS2 ramp=ggFilmProject(fordCam,ggV3(0,20,1197));
+    require(uiBuf[ramp.y*256+ramp.x]!=0,
+            "the raised bridge ends without a ramp to the bank");
+    FilmBeat farWorker={F_FORD,F_NEAR,F_MIRA,F_GRUUL,F_NO_PROP,NULL};
+    GgFilmCamera workerCam=ggFilmCameraAt(&farWorker,128);
+    GgS2 dryBank=ggFilmProject(workerCam,ggV3(165,1,1160));
+    backgroundSpriteCalls=0;
+    ggFilmWorldDraw(workerCam,&farWorker,0,10,1,0);
+    require(backgroundSpriteCalls==1&&backgroundFootX>128&&backgroundFootY<dryBank.y,
+            "the far-bank repair worker is standing in the river");
     GgS2 deck=ggFilmProject(fordCam,ggV3(-65,GG_FILM_BRIDGE_TOP,690));
     require(onBridge.otherX==deck.x&&onBridge.otherFeet==deck.y&&
             onBridge.otherFeet<onFord.otherFeet,
             "the sprite does not stand on its projected bridge deck");
     require(marks.other.y==GG_FILM_BRIDGE_TOP,
             "a bridge actor casts a shadow at river height");
-    ggFilmCastShadow(fordCam,marks.other,F_FORD);
+    ggFilmCastShadow(fordCam,marks.other,F_FORD,9);
     require(uiBuf[deck.y*256+deck.x]==fmvSlots[24],
             "a bridge cast shadow lost its projection onto the deck");
     GgS2 window=ggFilmPropSupport(fordCam,F_PORCH,1);
     GgS2 tabletop=ggFilmProject(fordCam,ggV3(0,36,583));
     require(window.x==tabletop.x&&window.y==tabletop.y,
             "the cup loses its physical resting surface during camera movement");
+    FilmBeat porchHand={F_PORCH,F_HAND,F_MIRA,F_THORGRIM,F_LAMP,NULL};
+    GgFilmCamera porchCam=ggFilmCameraAt(&porchHand,128);
+    FilmBlocking reach={0};
+    GgFilmFootprints stand=ggFilmWorldBlocking(porchCam,&porchHand,120,2,&reach);
+    require(ggFilmFurnitureFront(F_PORCH)<stand.otherDepth,
+            "the porch table must be staged in front of the actor");
+    GgS2 top=ggFilmProject(porchCam,ggV3(-37,36,588));
+    uiBuf[top.y*256+top.x]=253;
+    ggFilmFurnitureForeground(porchCam,F_PORCH,120);
+    require(uiBuf[top.y*256+top.x]==ggFilmInk(GG_PLASTER),
+            "an actor pixel can overwrite the porch tabletop");
+    FilmBeat couch={F_COUCH,F_NEAR,F_DAVE,F_MIRA,F_NO_PROP,NULL};
+    GgFilmCamera couchCam=ggFilmCameraAt(&couch,128);
+    FilmBlocking seated={0};
+    GgFilmFootprints sitter=ggFilmWorldBlocking(couchCam,&couch,0,12,&seated);
+    GgS2 cushion=ggFilmProject(couchCam,ggV3(sitter.lead.x,32,879));
+    require(abs(seated.leadFeet-seated.leadHeight*11/48-cushion.y)<=2,
+            "the seated actor's hips miss the front of the couch cushion");
     require(frame(F_SHORE,F_NEAR,0)!=frame(F_SHORE,F_NEAR,180),
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),

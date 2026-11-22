@@ -241,6 +241,76 @@ static void artNearBank(unsigned char *pixels){
                    "ground near clip changes later actor and prop projection");
     }
 }
+static void artSolidContacts(unsigned char *pixels){
+    memset(world,T_GRASS,sizeof world);
+    GgMeshContext*m=&ggMeshContext;
+    static const int props[]={GG_SCENE_SHRUB,GG_SCENE_CRATES,GG_SCENE_COLUMN};
+    int ground=ggExpGround(T_GRASS);
+    for(unsigned i=0;i<sizeof props/sizeof *props;i++){
+        int wx,wy;
+        uint32_t key=29763u;
+        ggMeshPropAnchor(65,64,props[i],key,&wx,&wy);
+        for(int heading=0;heading<256;heading+=64){
+            int cosine=ggExpCos[heading],sine=ggExpSin[heading];
+            ggMeshBegin(m,pixels,1,wx-cosine/12,wy-sine/12,
+                        ground+13,cosine,sine,80,120,150);
+            m->fogMax=0;
+            GgMeshProjected contact=ggMeshProject(m,
+                ggMeshCameraPoint(m,ggMeshV(wx,wy,ground)));
+            ggMeshProp(m,65,64,props[i],ground,key,1);
+            int nearFoot=0;
+            for(int y=contact.y-1;y<=contact.y+8;y++)
+                for(int x=contact.x-16;x<=contact.x+16;x++)
+                    nearFoot+=m->depth[y*m->w+x]!=0;
+            artRequire(nearFoot>5,"solid scenery leaves an air gap beneath its footprint");
+        }
+    }
+}
+
+static void artContactLighting(unsigned char *pixels){
+    memset(world,T_GRASS,sizeof world);
+    GgMeshContext*m=&ggMeshContext;
+    int wx=65*256+128,wy=64*256+128;
+    int z=ggExpGround(T_GRASS);
+    ggMeshBegin(m,pixels,1,wx-360,wy,z+13,4096,0,80,120,150);
+    m->fogMax=0;
+    for(int y=63;y<=65;y++)for(int x=64;x<=66;x++)
+        ggMeshGroundTile(m,x,y,T_GRASS,0);
+    static uint16_t physical[400*240];
+    memcpy(physical,m->depth,sizeof physical);
+    GgMeshProjected foot=ggMeshProject(m,ggMeshCameraPoint(m,ggMeshV(wx,wy,z)));
+    int before=pixels[(foot.y*m->w+foot.x)*3+1];
+    ggMeshContactShadow(m,wx,wy,30,13);
+    artRequire(pixels[(foot.y*m->w+foot.x)*3+1]<before,
+               "contact shadow is detached from the foot on level ground");
+    artRequire(!memcmp(physical,m->depth,sizeof physical),
+               "the contact patch overwrites the ground's physical depth");
+    world[65][66]=T_SWAMP;
+    artRequire(!ggMeshShadowFlat(65,65,64,64,z),
+               "a neighbouring low tile moves the corner inside a seemingly level shadow");
+}
+
+static void artDockShore(unsigned char *pixels){
+    GgMeshContext*m=&ggMeshContext;
+    int wx=65*256+128,wy=64*256+128;
+    int ground=ggExpGround(T_GRASS);
+    for(int side=0;side<4;side++){
+        int dx=ggOutdoorSideX[side],dy=ggOutdoorSideY[side];
+        memset(world,T_GRASS,sizeof world);
+        world[64+dy][65+dx]=T_WATER;
+        ggMeshBegin(m,pixels,2,wx-dx*380,wy-dy*380,ground+13,
+                    dx*4096,dy*4096,80,120,150);
+        m->material=GG_MAT_WOOD;
+        ggMeshBuilding(m,65,64,B_DOCK,ground,1);
+        GgMeshProjected end=ggMeshProject(m,
+            ggMeshCameraPoint(m,ggMeshV(wx+dx*170,wy+dy*170,ground+3)));
+        int deck=0;
+        for(int y=end.y-2;y<=end.y+2;y++)
+            for(int x=end.x-4;x<=end.x+4;x++)deck+=m->depth[y*m->w+x]!=0;
+        artRequire(deck>10,"pier does not extend toward its actual water tile");
+    }
+}
+
 int main(void){
     static unsigned char pixels[400*240*3];
     ggExpTrigInit();
@@ -267,6 +337,9 @@ int main(void){
                 "real slope normals lost visible directional light");
     artWaterline(pixels);
     artNearBank(pixels);
+    artSolidContacts(pixels);
+    artContactLighting(pixels);
+    artDockShore(pixels);
     // A coast and a crowded settlement exercise the new shore, crown
     // and architecture paths together, with the fixed native resources.
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
