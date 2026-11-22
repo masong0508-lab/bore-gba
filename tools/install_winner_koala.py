@@ -35,9 +35,13 @@ def install():
     from winner_voice import make as make_vocal_cues
     make_vocal_cues()
     gated,gate_report=add_note_releases(source)
-    rebuild_digest=hashlib.sha256(gated).hexdigest()
-    if not XM.exists() or XM.read_bytes()!=gated:
-        XM.write_bytes(gated)
+    # Apply the source-accurate bass and keyboard note lengths AFTER the
+    # original flute gate pass, keeping the vendor XM archive immutable.
+    from winner_arrangement_fix import transform as fix_melodic_articulation
+    corrected,articulation_report=fix_melodic_articulation(gated)
+    rebuild_digest=hashlib.sha256(corrected).hexdigest()
+    if not XM.exists() or XM.read_bytes()!=corrected:
+        XM.write_bytes(corrected)
     old=HEADER.read_text(encoding='utf8')
     end=old.find(MARK)
     if end>=0:
@@ -78,6 +82,7 @@ def install():
     output=old+''.join(decl)
     BANK.write_bytes(BANK.read_bytes()+blob)
     HEADER.write_text(output,encoding='utf8')
+    print('Winner source-accurate note releases: flute=%d, melodic=%d, bass accented=%d' % (gate_report['inserted_releases'],articulation_report['melodic_releases_added'],articulation_report['bass_downbeats_accented']))
     print('Installed Koala Winner: %d sample/event bytes at XM bank offset %d, sha256=%s' % (len(blob),base,rebuild_digest[:16]))
 
 if __name__=='__main__':install()
