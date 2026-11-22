@@ -75,8 +75,13 @@ jobs:
       - name: Verify save recovery and cartridge capacity before building ROMs
         working-directory: godguy
         run: |
-          gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h pc_save_safety.c -lm -o /tmp/gg-save-safety
-          /tmp/gg-save-safety
+          for layout in DS DSI BIG; do
+            flags=""
+            if [ "$layout" = DSI ]; then flags="-DGG_DSI16"; fi
+            if [ "$layout" = BIG ]; then flags="-DGG_BIG"; fi
+            gcc -O1 -DNDSSHIM $flags -fsanitize=bounds -fno-sanitize-recover=bounds -Icompat -Isource -Wno-all -include unistd.h pc_save_safety.c -lm -o /tmp/gg-save-safety
+            /tmp/gg-save-safety
+          done
           gcc -O2 -w -Isource pc_save_hw_guard.c -lm -o /tmp/gg-save-hw-guard
           /tmp/gg-save-hw-guard
 
@@ -93,7 +98,9 @@ jobs:
           gcc -O2 -std=c11 -Wall -Wextra -Icompat -Isource pc_vistas.c -o /tmp/godguy-vistas
           /tmp/godguy-vistas
 
-      # 1. the main one: no libnds, no calico. Runs in DraStic and melonDS. No SD saving (it saves to the cartridge chip, or use DraStic save states).
+      # 1. Main DS target: no libnds/Calico. Real-ROM startup, gameplay,
+      # audio and cartridge save/reload tested in DeSmuME; each flashcart
+      # and other emulator still needs its own runtime check.
       - name: godguy_hw.nds  (DraStic / melonDS / hardware, no libnds)
         working-directory: godguy
         run: |
@@ -102,7 +109,9 @@ jobs:
           /usr/bin/python3 tools/check_nds_vocal_image.py godguy_hw.nds
           mkdir -p ../out && cp godguy_hw.nds ../out/godguy_hw.nds
 
-      # 2. the libnds 2 / calico build: SD saving, three save slots, globe. For melonDS and flashcarts.
+      # 2. Optional libnds/Calico SD-save experiment. DeSmuME currently
+      # reaches white screens; other loaders remain unverified. Package
+      # separately from the recommended direct-hardware DS candidate.
       - name: godguy.nds  (libnds + calico, SD saves)
         continue-on-error: true
         working-directory: godguy

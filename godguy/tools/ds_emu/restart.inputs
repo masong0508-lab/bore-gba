@@ -1,0 +1,9 @@
+run 600 cold_boot_title 0 -1 -1
+run 8 cold_continue 100 -1 -1
+run 60 cold_reloaded_world 0 -1 -1
+run 8 cold_pause 8 -1 -1
+run 30 cold_pause_menu 0 -1 -1
+run 8 resume_for_soak 8 -1 -1
+run 3000 live_soak_first 0 -1 -1
+run 3000 live_soak_second 0 -1 -1
+quit

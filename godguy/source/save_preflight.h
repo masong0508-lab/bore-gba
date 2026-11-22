@@ -26,14 +26,82 @@ static int saveWord(SV*f,u32 expected){
     u32 value;
     return svRead(&value,4,1,f)==1&&value==expected;
 }
+// Tile codes and ownership are array indices in the ordinary DS renderer.
+static int saveBytesBounded(SV*f,u32 bytes,u32 maximum){
+    u8 scratch[512];
+    while(bytes){
+        u32 n=bytes<sizeof scratch?bytes:(u32)sizeof scratch;
+        if(svRead(scratch,1,n,f)!=n)return 0;
+        for(u32 i=0;i<n;i++)if(scratch[i]>maximum)return 0;
+        bytes-=n;
+    }
+    return 1;
+}
+static int saveCreatureRecordsValid(SV*f,const SaveHdr*h,u32 count){
+    for(u32 i=0;i<count;i++){
+        u32 alive,x,y,species,weapon,armor,trait,trait2;
+#ifdef GG_BIGMAP
+        if(h->szCr==sizeof(CrOld)){
+            CrOld c;if(svRead(&c,sizeof c,1,f)!=1)return 0;
+            alive=c.alive;x=c.x;y=c.y;species=c.sp;weapon=c.wep;armor=c.arm;trait=c.tr;trait2=c.tr2;
+        }else
+#endif
+        {
+            Cr c;if(svRead(&c,sizeof c,1,f)!=1)return 0;
+            alive=c.alive;x=c.x;y=c.y;species=c.sp;weapon=c.wep;armor=c.arm;trait=c.tr;trait2=c.tr2;
+        }
+        // compact() immediately rebuilds occ[y][x] after loading. Check
+        // against the saved world, not the currently open world's size.
+        if(alive&&(x>=h->gw||y>=h->gw||species>=(u32)nSp||
+           weapon>(u32)nIt||armor>(u32)nIt||
+           trait>=sizeof trNm/sizeof trNm[0]||trait2>=sizeof trNm/sizeof trNm[0]))return 0;
+    }
+    return 1;
+}
+static int saveVillageRecordsValid(SV*f,const SaveHdr*h,u32 villages,u32 limit){
+    for(u32 i=0;i<villages;i++){
+        u32 on,x,y,race,foe;
+#ifdef GG_BIGMAP
+        if(h->szVil==sizeof(VilOld)){
+            VilOld v;if(svRead(&v,sizeof v,1,f)!=1)return 0;
+            on=v.on;x=v.x;y=v.y;race=v.race;foe=v.foe;
+        }else
+#endif
+        {
+            Vil v;if(svRead(&v,sizeof v,1,f)!=1)return 0;
+            on=v.on;x=v.x;y=v.y;race=v.race;foe=v.foe;
+        }
+        // Extra source slots are discarded by rdVec. Retained villages
+        // must never index a missing enemy or land outside this world.
+        if(i<VIL_N&&on&&(x>=h->gw||y>=h->gw||race>=8||foe>limit))return 0;
+    }
+    return 1;
+}
+static int saveKingdomRecordsValid(SV*f,u32 villages){
+    for(u32 i=0;i<KN_N;i++){
+        Kd k;if(svRead(&k,sizeof k,1,f)!=1)return 0;
+        if(k.on&&(k.race>=8||k.cap>villages||k.lord>KN_N||k.plot>KN_N||
+           k.tech>=sizeof techN/sizeof techN[0]||
+           k.rtr>=4||k.cul>=5||k.rlg>=4||k.lang>=5||k.nlang>=5||k.clan>=8))return 0;
+    }
+    return 1;
+}
 static int savePreflight(SV*f,const SaveHdr*h){
     u32 count=(u32)h->nCr|((u32)h->pad_[1]<<16);
     u32 villages=h->planet?h->planet:VIL_OLDN;
-    // All versions require the map, inhabitants, villages and journal.
-    if(!saveSkip(f,3u*h->gw*h->gw)||
-       !saveSkip(f,count*h->szCr)||
-       !saveSkip(f,villages*h->szVil)||
-       !saveSkip(f,sizeof kd+2u*villages+4u+34u*24u+2u*24u))return 0;
+    u32 villageLimit=villages<VIL_N?villages:VIL_N;
+    // Validate values used as indices as well as the byte lengths. A
+    // complete file can still contain damaged coordinates or ownership.
+    for(u32 y=0;y<h->gw;y++){
+        if(!saveBytesBounded(f,h->gw,T_N-1)||
+           !saveBytesBounded(f,h->gw,B_N-1)||
+           !saveBytesBounded(f,h->gw,villageLimit))return 0;
+    }
+    if(!saveCreatureRecordsValid(f,h,count)||
+       !saveVillageRecordsValid(f,h,villages,villageLimit)||
+       !saveKingdomRecordsValid(f,villageLimit)||
+       !saveSkip(f,villages)||!saveBytesBounded(f,villages,KN_N)||
+       !saveSkip(f,4u+34u*24u+2u*24u))return 0;
     // Version 11 deliberately permits missing optional legacy trailers.
     // Versions 12+ require their final records, which can only be reached
     // through the complete preceding sequence.

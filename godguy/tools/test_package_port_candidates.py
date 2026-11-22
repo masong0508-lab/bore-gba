@@ -54,6 +54,7 @@ def main():
         experimental=out/"godguy_0123456789_experimental.zip"
         with zipfile.ZipFile(playable) as z:
             assert "godguy_hw.nds" in z.namelist()
+            assert "godguy.nds" not in z.namelist()
             assert "godguy_new3ds_gpu_probe.3dsx" not in z.namelist()
             assert "godguy_dsi_mode.nds" not in z.namelist()
             assert "README_PORTS.txt" in z.namelist()
@@ -64,6 +65,7 @@ def main():
         with zipfile.ZipFile(experimental) as z:
             assert "godguy_new3ds_gpu_probe.3dsx" in z.namelist()
             assert "godguy_dsi_mode.nds" in z.namelist()
+            assert "godguy.nds" not in z.namelist()
         for broken,label in (
             (nds("godguy_hw.nds", bad_crc=True),"godguy_hw.nds"),
             (nds("godguy_hw.nds")[:0x6200],"godguy_hw.nds"),
@@ -80,6 +82,10 @@ def main():
         # still reject mismatched DS ROMs.
         alternate_3ds = dsx()[:-1] + b"\x01"
         (b / pack.GAME_3DSX).write_bytes(alternate_3ds)
+        # A compiled optional Calico port belongs only in experiments:
+        # successful linking must not promote a failed emulator boot.
+        calico = nds("godguy.nds")
+        (a / "godguy.nds").write_bytes(calico)
         alternates = []
         found = pack.scan([a, b], alternates)
         assert found[pack.GAME_3DSX] == dsx()
@@ -93,6 +99,13 @@ def main():
             manifest = json.loads(z.read("PORTS_MANIFEST.json"))
             assert len(manifest["alternate_builds"]) == 1
             assert z.read(pack.GAME_3DSX) == dsx()
+            assert "godguy.nds" not in z.namelist()
+            assert "godguy.nds" not in manifest["contents"]
+        with zipfile.ZipFile(experimental) as z:
+            manifest = json.loads(z.read("PORTS_MANIFEST.json"))
+            assert z.read("godguy.nds") == calico
+            assert "godguy.nds" in manifest["contents"]
+            assert "two white screens and no audio" in z.read("README_PORTS.txt").decode()
         # Incompatible unit codes and mismatched duplicates fail closed.
         try:
             pack.inspect(nds("godguy_hw.nds"),"godguy_dsi_mode.nds")

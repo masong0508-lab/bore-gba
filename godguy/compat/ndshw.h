@@ -173,7 +173,11 @@ static void hwFlash(u32 op,u32 mem,u32 len,u32 off){
     HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0;
     m->a=mem; m->b=len; m->c=off; m->d=0;
     q->head=(q->head+1)&63;
-    u32 t=0; while(HWIPC->svBusy&&++t<50000000u){}
+    // ARM7 owns this buffer until it publishes completion. A large save
+    // on a slow EEPROM can outlast an arbitrary ARM9 spin count; returning
+    // early would let the next save overwrite data still being written.
+    // ARM7 bounds every SPI wait and reports failures through svOK.
+    while(HWIPC->svBusy){}
 }
 static u32 rleEnc(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ if(o+140>max) return 0; u32 r=1; while(i+r<n&&in[i+r]==in[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=in[i]; i+=r; } else { u32 st=i; u32 l=0; while(i<n&&l<128){ u32 rr=1; while(i+rr<n&&in[i+rr]==in[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(u32 k=0;k<l;k++) out[o++]=in[st+k]; } } return o; }
 static u32 rleDec(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ u8 c=in[i++]; if(c<128){ u32 l=c+1; if(o+l>max||i+l>n) return 0; for(u32 k=0;k<l;k++) out[o++]=in[i++]; } else { u32 r=c-126; if(o+r>max||i>=n) return 0; for(u32 k=0;k<r;k++) out[o++]=in[i]; i++; } } return o; }

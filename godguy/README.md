@@ -39,7 +39,21 @@ A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in 
 
 **GLOBE (v0.9).** The 3D globe is now drawn by the CPU, not the 3D hardware, so it works in every build (including the DraStic one): a lit planet with a dark side and city lights, atmosphere, drifting clouds that follow the weather, a sparkle on the water and stars; touch picking and walk mode use the same maths backwards (tested: walking faces every tile to within 1 tile). The cube world and ring world are gone; the pause menu was redrawn with a dimmed backdrop and the page counter replaced the dots.
 
-**DS BUILDS (which one to use).** `godguy_hw.nds` (made by `build_hw.sh`) is the one that runs in DraStic: it uses NO libnds and NO calico (own ARM9 start-up, own ARM7 for sound and touch, direct hardware registers, the top screen as a tile layer) in the classic ROM layout. It has no SD saving (use DraStic's save states). `godguy.nds` (made by `build_rom.sh` / `make`) is the libnds 2 / calico build for emulators and hardware that support it (melonDS, recent flashcarts) and has saving and the globe. `godguy_hw_safe.nds` is the hardware build with all sound off, for finding crashes.
+**DS builds (which one to use).** Start with `godguy_hw.nds`, made by
+`build_hw.sh`. It uses its own ARM9 startup and ARM7 sound/touch routines,
+and saves to cartridge or emulator backup memory. DeSmuME runtime QA
+verified startup, touch, world painting, audio and an in-game save loaded
+after a cold process restart. Target flashcart behavior still needs
+testing; this build does not save to an SD filesystem.
+
+`godguy.nds`, made by `build_rom.sh` / `make`, is the optional libnds 2 /
+Calico route with SD filesystem saving. It is in the **experimental** ZIP:
+boot QA observed two white screens and no audio in DeSmuME after 900 JIT
+frames and 1,800 interpreter frames. This observation does not establish
+behavior on other loaders. Use `godguy_hw.nds` for the DS candidate.
+The `godguy_hw_safe.nds` diagnostics disable sound and cartridge saving
+to isolate startup problems. See [port verification](PORT_RELEASE_QA.md)
+for the exact test scope and remaining hardware checks.
 
 **v0.8: A CAST, WEATHER, WALKING THE GLOBE, BETTER SPRITES, A BETTER FLOW.**
 - **Narrative**: a cast with portraits and typed dialogue (Wisp, Mira, Gruul, Elowen, Thorgrim, the Hollow King): a scene at the start of every chapter and an epilogue before the ending and credits. The Hollow King is the last god before you, who gave up; the story is about what to do with him.

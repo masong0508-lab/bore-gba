@@ -2,17 +2,18 @@
 
 Updated 21 November 2026. The New 3DS world and DS/DSi improvements from
 #58, #67, #68 and #69 are integrated into `main` through #71, merge
-`e0dbfe8a91b7213be1df3058ab3476c5618ee407`. The build workflows are
-**not** hardware certification.
+`e0dbfe8a91b7213be1df3058ab3476c5618ee407`. PR #72 adds the finishing
+pass documented below. Source/SDK checks and the specified DS emulator
+tests are separate from physical-console certification.
 
 ## Which binary is which
 
 | File | Hardware / role | Automated checks | Required manual gate |
 | --- | --- | --- | --- |
 | `godguy.3dsx` | New Nintendo 3DS, New 3DS XL, New 2DS XL; playable software 3D world | devkitARM/libctru link, world/camera/cinematics/audio, host capture | New hardware startup, playable movement, touch, saves, film, music, stress |
-| `godguy_hw.nds` | DS and DS-mode emulators/flashcarts, direct-hardware ARM9/ARM7 | real ARM SDK link, voice-bank integrity, zoom/simulation | Emulator startup, sound, cartridge-save handling or save states |
+| `godguy_hw.nds` | Recommended DS target, direct-hardware ARM9/ARM7 | real ARM SDK link, voice-bank integrity, zoom/simulation; DeSmuME gameplay, audio and cartridge save/cold reload | Physical DS/flashcart timing and compatibility with other emulators |
 | `godguy_dsi.nds` | DSi in **DS-compatibility mode**, not 16 MiB DSi mode | full ROM, identical DS voice-bank integrity | On-device DSi DS-mode gameplay/save behavior |
-| `godguy.nds` | Optional libnds/Calico DS build, conditional CI | compile when available; packaged only if build succeeded | melonDS/flashcart boot and SD save/reload |
+| `godguy.nds` | Optional libnds/Calico experiment, conditional CI | compile when available; experimental package only | DeSmuME currently shows two white screens and no audio; other loaders and SD save/reload unverified |
 | `godguy_dsi_mode.nds` | Experimental DSi 16 MiB extended mode | ARM9 image and homebrew DSi header validation | Dedicated DSi-mode loader test, title startup, memory, sound, input |
 | `godguy_new3ds_gpu_probe.3dsx` | **Separate graphics experiment**, not the game | real PICA200 shader assembly, Citro3D link, vertex/depth sources | New-series hardware GPU screenshot, camera, near/far geometry and timing |
 | `godguy_hw_safe.nds`, `*_audio_only.nds`, `*_save_only.nds` | DS troubleshooting | builds verified | Only use to isolate startup/audio/save failures |
@@ -30,10 +31,10 @@ independent 3DS cinema/SDK build to succeed. It fetches the two build
 artifacts, validates all required compiled binaries and produces:
 
 - `godguy_<commit>_playable.zip`: compact software-renderer 3DS and
-  DS/DSi compatibility-mode candidates; the optional libnds file is
-  included only when it actually compiled.
+  direct-hardware DS/DSi compatibility-mode candidates.
 - `godguy_<commit>_experimental.zip`: DSi extended mode, separate
-  hardware-GPU experiment and diagnostic fallback ROMs.
+  hardware-GPU experiment, optional libnds/Calico build and diagnostic
+  fallback ROMs. The optional libnds file appears only if it compiled.
 
 Each ZIP includes `README_PORTS.txt`, exact `PORTS_MANIFEST.json`
 with file SHA-256 hashes/sizes, and `SHA256SUMS.txt`. No film clips
@@ -76,7 +77,8 @@ The source tests exercise failures as well as normal play:
   blend once; five circular primitive generators wrap their final angle;
   both geometry detail levels run under undefined-behavior/bounds checks.
 - `pc_save_safety.c`: failed save-and-title preserves the current world;
-  malformed headers, identity records, truncated bodies and final records
+  malformed headers, identity records, unsafe saved coordinates/indices,
+  truncated bodies and final records
   are refused before replacing live progress; backups still appear and
   load; successful save-and-title survives reloading. The read-only
   preflight uses 512-byte scratch and preserves versions 11–14. It checks
@@ -85,6 +87,13 @@ The source tests exercise failures as well as normal play:
 - `pc_save_hw_guard.c`: a write exceeding cartridge archive limits is
   latched and cannot commit a partial save; compressed data rewinds in
   its existing buffer without another cartridge read.
+- The ARM7 cartridge driver explicitly ends SPI transactions and reads
+  every written page back before reporting success. ARM9 retains the
+  packed buffer until ARM7 completes; large saves cannot race a later
+  transfer because an arbitrary ARM9 spin counter expired. SPI transfer
+  and readiness waits are bounded, and a transfer error stops the
+  current operation. A completely unresponsive ARM7 still requires a
+  device reset; this synchronous protocol is not a hardware watchdog.
 - `pc_3ds.c`: 400-frame framebuffer/stereo parity, twelve audio allocation
   failure positions, DSP failure, repeated initialization/shutdown,
   recovery, ordered stereo chunks and release of all linear audio buffers.
@@ -93,6 +102,42 @@ Local save regression runs also cover DS/DSi/GG_BIG record layouts,
 12,000/38,000/199,999-inhabitant caps, 384/768/1024 worlds, legacy identity
 fallback and DS-to-GG_BIG save migration. These are source/host checks;
 actual device timing and the acceptance checklist below remain separate.
+
+## Actual DS ROM runtime check
+
+The direct-hardware ROM was executed in the upstream DeSmuME libretro
+core at commit `95b4d798731caa809125b6c3c11d17cc332ff6ef`, with its
+built-in BIOS/firmware, software rendering, native 256 x 192 screens and
+one emulation worker. This executes the real ARM9/ARM7 ROM rather than
+the x86 source harness. The portable input/capture frontend and replay
+instructions are in `tools/ds_emu/`.
+
+Verified actions include touch calibration, title/options navigation,
+opening film and audio, skipping the film, Wisp dialogue, entering the
+story world, painting an island, increasing the first chapter objective
+from 0/6 to 1/6, D-pad panning, pause, save, return to title and Continue.
+The in-game save was then loaded in a newly started emulator process,
+using the cartridge `.dsv` file without loading an emulator state.
+
+The earlier driver left the one-byte WRITE ENABLE command active in
+this emulator. Its save file stayed blank despite the SAVED message.
+The corrected driver produces a real packed version-14 world archive;
+page readback now makes an ignored cartridge write fail visibly. The
+final passing restart preserved the world seed, painted terrain,
+350 inhabitants, camera and story state. A further 6,000 emulated frames
+produced 5,933 changing frames and 8,836,542 nonzero stereo samples, and
+autosaving advanced the same world from year 1 to year 3 with 793
+inhabitants. The ROM/core hashes, decoded save evidence and visual
+review are recorded in `tools/ds_emu/reviewed_run.json`. This is a
+bounded runtime smoke/soak test, not a complete campaign playthrough or
+a physical-console frame-rate measurement.
+
+The optional libnds/Calico ROM was separately checked in this same
+emulator. It remained on two white screens with no audio after 900 JIT
+frames and 1,800 interpreter frames. It is therefore included only as
+an experimental alternative; this observation does not establish how
+other loaders behave. Enhanced DSi mode and the New 3DS binary require
+their own target-device runtime checks.
 
 ## On-device acceptance checklist
 
@@ -137,4 +182,5 @@ at the `godguy-ports-ci-candidate` release tag.
 **Certification status:** automated source/SDK and image-format checks
 passed for that baseline. Every subsequent candidate must pass fresh
 checks, including agreement between independent New 3DS builds. The
-hardware/emulator acceptance checklist remains outstanding.
+finishing pass adds the scoped DS emulator results above; the remaining
+target-device acceptance checks are still outstanding.
