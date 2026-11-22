@@ -727,7 +727,7 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
         "A SHOOT   HOLD A DRAW   ZL AIM","A CAST   HOLD A CHANNEL   ZL WARD"};
     int result=ggChron.combatNotice;
     const char *cue=cues[ggChron.style];
-    if(modal)cue="B BACK";
+    if(modal)cue="";
     else if(ggChron.won)cue="START WORLD MAP";
     else if(ggChron.lost)cue="START RETREAT";
     else if(ggChron.charge)cue=ggChron.charge>=ggChronChargeThreshold(ggChron.style)?

@@ -52,7 +52,7 @@ static void ggFieldStripDraw(u8 *out,int mode){
     if(mode==GG_FIELD_PICK)ggFieldStripText(out,16,"TAP A PERSON",0);
 }
 static void ggFieldGuideDraw(u8 *out,int combat,int following){
-    ggExpRect(out,24,34,352,169,16,28,38);
+    ggExpRect(out,24,34,352,157,16,28,38);
     ggExpRect(out,24,34,352,2,200,158,90);
     ggExpText(out,40,47,combat?"REIGN CONTROLS":"3D WORLD CONTROLS",247,224,174);
     ggExpText(out,40,68,"PAD MOVE    L / R TURN    B RUN",225,234,232);
