@@ -9,7 +9,8 @@ original 2DS are intentionally unsupported by this specific 3DS build.
 An unsupported machine shows a safe on-device explanation rather than
 attempting the heavier triangle world.
 
-Other DS/DSi/GBA ports are separate targets and are **not removed**.
+Other DS/DSi ports are separate targets and are **not removed**. The
+repository's GBA workflow builds BORE; it is not a GodGuy GBA build.
 This is a target-policy change, not an assertion that all those ports can
 render the New-series mesh at identical fidelity.
 

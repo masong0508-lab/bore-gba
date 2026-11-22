@@ -3,7 +3,9 @@
 set -e; cd "$(dirname "$0")"; : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$DEVKITPRO/devkitARM; GCC=$DEVKITARM/bin/arm-none-eabi-gcc
 # Direct local 3DS builds must generate the same cels as CI.
 (cd .. && /usr/bin/python3 tools/make_story_hq.py)
-CF="-O2 -mword-relocations -ffunction-sections -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft -DGG_NEW3DS_ONLY -D__3DS__ -DARM11 -DNDSSHIM -DSHIM_HQ -DGG_HQVOX -I$DEVKITPRO/libctru/include -I../compat -I../source -Wno-all"
+# Keep legacy UI warning noise separate from memory safety: optimized
+# out-of-bounds mesh loops must fail the native build, not ship a ROM.
+CF="-O2 -mword-relocations -ffunction-sections -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft -DGG_NEW3DS_ONLY -D__3DS__ -DARM11 -DNDSSHIM -DSHIM_HQ -DGG_HQVOX -I$DEVKITPRO/libctru/include -I../compat -I../source -Wno-all -Werror=array-bounds -Werror=aggressive-loop-optimizations"
 $GCC $CF -c main3ds.c -o main3ds.o
 $GCC $CF -c platform3ds.c -o platform3ds.o
 $GCC -specs=3dsx.specs -g -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft main3ds.o platform3ds.o -L$DEVKITPRO/libctru/lib -lctru -lm -o godguy3ds.elf

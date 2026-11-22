@@ -8,6 +8,8 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_globe 
 gcc -O2 -DNDSSHIM -D__3DS__ -DGG_GLOBE_TEST -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_globe3ds pc_globe3ds.c -lm && /tmp/gg_globe3ds | tail -4   # 3DS globe colour/geometry/picking and partial tile updates
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_music_fast pc_music_fast.c -lm && /tmp/gg_music_fast | tail -2   # 1800 exact music director comparisons against the original scan
 gcc $F -o /tmp/gg_save pc_save.c -lm && /tmp/gg_save
+gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_save_safety pc_save_safety.c -lm && /tmp/gg_save_safety   # failed loads and failed save-and-title preserve current progress
+gcc -O2 -w -Isource -o /tmp/gg_save_hw_guard pc_save_hw_guard.c -lm && /tmp/gg_save_hw_guard   # a failed cartridge write cannot commit a partial archive
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_touch_run pc_touch.c -lm && rm -rf /tmp/gg_touch && /tmp/gg_touch_run | head -1   # stylus taps on the menus
 gcc $F -o /tmp/gg_king pc_kingdom.c -lm && /tmp/gg_king 3 50000 | grep -E "^world|totals"
 gcc $F -o /tmp/gg_story pc_story.c -lm && for sz in 128 192 256; do /tmp/gg_story 7 24 $sz | grep -E "planet|END"; done

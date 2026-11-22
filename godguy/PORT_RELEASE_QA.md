@@ -1,9 +1,9 @@
 # GodGuy — Console port verification and release gates
 
-Updated 21 November 2026. The canonical code for the New 3DS world is
-stacked across #58 -> #67 -> #68 -> #69 -> #71. The build workflows are
-**not** hardware certification. No automatic merges are implied by this
-document.
+Updated 21 November 2026. The New 3DS world and DS/DSi improvements from
+#58, #67, #68 and #69 are integrated into `main` through #71, merge
+`e0dbfe8a91b7213be1df3058ab3476c5618ee407`. The build workflows are
+**not** hardware certification.
 
 ## Which binary is which
 
@@ -42,15 +42,57 @@ unnecessarily increase download/storage size.
 
 The verifier rejects absent core images, invalid Nintendo DS header
 CRC or ARM segment bounds, a mislabeled 16 MiB DSi ROM, malformed 3DSX
-headers and conflicting duplicate Nintendo DS builds. When the two
-independent SDK jobs produce valid but byte-different `godguy.3dsx`
-executables, the mixed-console job's binary is authoritative. The
-independent cinema binary is **not** distributed and its separate hash,
-size and origin are recorded in the manifest for reproducibility review.
-Both SDK jobs now print compiler versions and generated 3DS asset hashes.
+headers and conflicting duplicate Nintendo DS builds. Fresh CI also
+requires the two independent SDK jobs to produce byte-identical
+`godguy.3dsx` executables before creating or publishing candidate bundles.
+Both jobs update the SDK package database and print compiler/library
+versions, the linked `libctru.a` hash and generated 3DS asset hashes.
+
+The original merged candidate's alternate 3DS hash came from a specific
+SDK mismatch: the mixed-port job upgraded to libctru 2.7.1 while the
+cinema job retained 2.7.0. Its generated assets and compiler matched.
+That historic manifest records the independent binary's hash and size;
+only the mixed-port image was distributed. The packaging tool retains
+that audit capability for older artifacts, but new CI rejects such a
+mismatch rather than silently selecting a binary. Candidate releases
+are labeled as GitHub prereleases and use a separate
+`godguy-ports-ci-<full commit SHA>` tag for each source revision, so an
+older tag never gains a mixture of old and new ROMs.
+
 Independent
 `GodGuy multiport image format and release packaging` CI exercises
 corrupt synthetic fixtures before the large console builds finish.
+
+## Finishing-pass regression coverage
+
+The source tests exercise failures as well as normal play:
+
+- `pc_3ds_interaction.c`: exact terrain targets, building/inhabitant
+  protection, all 256 headings at tile corners, interpolated hillside
+  occlusion, honest status messages, native-depth preview and no camera
+  bob while blocked. The preview is bounded to 32 translucent triangles
+  and uses the existing RGB/depth surfaces.
+- `pc_3ds_mesh.c` and `pc_3ds_mesh_world.c`: shared translucent edges
+  blend once; five circular primitive generators wrap their final angle;
+  both geometry detail levels run under undefined-behavior/bounds checks.
+- `pc_save_safety.c`: failed save-and-title preserves the current world;
+  malformed headers, identity records, truncated bodies and final records
+  are refused before replacing live progress; backups still appear and
+  load; successful save-and-title survives reloading. The read-only
+  preflight uses 512-byte scratch and preserves versions 11–14. It checks
+  structure, not every arbitrary payload bit flip; these formats have no
+  whole-file checksum.
+- `pc_save_hw_guard.c`: a write exceeding cartridge archive limits is
+  latched and cannot commit a partial save; compressed data rewinds in
+  its existing buffer without another cartridge read.
+- `pc_3ds.c`: 400-frame framebuffer/stereo parity, twelve audio allocation
+  failure positions, DSP failure, repeated initialization/shutdown,
+  recovery, ordered stereo chunks and release of all linear audio buffers.
+
+Local save regression runs also cover DS/DSi/GG_BIG record layouts,
+12,000/38,000/199,999-inhabitant caps, 384/768/1024 worlds, legacy identity
+fallback and DS-to-GG_BIG save migration. These are source/host checks;
+actual device timing and the acceptance checklist below remain separate.
 
 ## On-device acceptance checklist
 
@@ -82,17 +124,17 @@ finished until these pass.
    into the actual game without duplicating the simulation. The GPU
    demo's success does **not** certify the game uses GPU rendering.
 
-## Main-branch merge dependency
+## Verified main-branch baseline
 
-The current Open PR chain is #58 -> #67 -> #68 -> #69 -> #71. When
-this document was written, #58 had a merge conflict with a newer
-`main`. Reconcile that foundation branch first, then require fresh
-full checks on the reconciled head before merging the chain in order.
-Do not force-update `main` or bypass release gates to make the
-project appear finished.
+PR #71 merged the complete chain into `main`; #58 is merged and #67,
+#68 and #69 were closed as superseded with their changes included.
+All six postmerge workflows passed on
+`e0dbfe8a91b7213be1df3058ab3476c5618ee407`, including both SDK builders,
+PICA200, cinematic, procedural-people and packaging checks. Run
+`44963948553` published the corresponding checksummed candidate bundles
+at the `godguy-ports-ci-candidate` release tag.
 
-**Certification status:** source/SDK builds and host tests passed on
-GodGuy PR #71 commit `2b3abdce208bcf41cdd27a4add2ed3703506ead9`.
-The independent port packaging workflow and later candidate commit
-must pass before new candidate ZIPs can be treated as CI-qualified.
-The hardware/emulator acceptance checklist remains outstanding.
+**Certification status:** automated source/SDK and image-format checks
+passed for that baseline. Every subsequent candidate must pass fresh
+checks, including agreement between independent New 3DS builds. The
+hardware/emulator acceptance checklist remains outstanding.

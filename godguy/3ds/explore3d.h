@@ -1,7 +1,7 @@
 // GodGuy's first playable, first-person 3DS world.
-// Software voxel-column terrain at 200x120, scaled exactly 2x to the
-// existing 400x240 top RGB buffer; no new framebuffer, GPU allocations,
-// 3D model assets, or duplicate world. Bottom LCD retains the 2D map.
+// Native 400x240 software mesh on New 3DS, with the original voxel
+// fallback retained for comparison. Both reuse the existing RGB screen
+// and live world. Bottom LCD retains the interactive 2D map.
 // Uses the SAME world[][], bld[][], occ[][] and setCell() as god-game play.
 //
 // Real-world voxel terrain, collision, first-person walking, live tile
@@ -18,6 +18,8 @@
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
+enum { GG_EDIT_READY,GG_EDIT_UNCHANGED,GG_EDIT_EDGE,GG_EDIT_SELF,
+       GG_EDIT_BUILDING,GG_EDIT_CREATURE,GG_EDIT_RANGE,GG_EDIT_MATERIAL };
 static const u8 ggExpMaterials[GG_EXP_MATERIALS]={
     T_GRASS,T_DIRT,T_SAND,T_FOREST,T_HILL,T_MOUNT,T_WATER,T_SNOW
 };
@@ -36,11 +38,14 @@ typedef struct {
     int material;
     int frame,rendered,stepPhase;
     int lastHeld,lastTargetX,lastTargetY;
-    int edits,feedback,feedbackT;
+    int edits,feedback,feedbackT,editStatus;
 } GgExplore3D;
 static GgExplore3D ggExplore;
 static short ggExpSin[256],ggExpCos[256];
 static int ggExpTrigReady;
+// Campaign combat has its own target and HUD. Only sandbox exploration
+// shows terrain tools; the platform sets this before drawing that mode.
+static int ggExpBuildPreview=1;
 
 static int ggExpClamp(int n,int low,int high){
     return n<low?low:n>high?high:n;
@@ -123,22 +128,71 @@ static int ggExpBegin(int x,int y,int priorPause){
     ggExplore.lastHeld=0;
     ggExplore.feedback=0;
     ggExplore.feedbackT=0;
+    ggExplore.editStatus=GG_EDIT_READY;
     ggExplore.lastTargetX=x;
     ggExplore.lastTargetY=y;
     return safe;
 }
+// Defined by mesh_world3d.h below. Aiming and the visible eye must use
+// the same triangular ground surface, especially at steep tile edges.
+static int ggMeshGroundAtQ8(int wx,int wy);
 static void ggExpTarget(int *tx,int *ty){
     int dir=ggExplore.angle&255;
-    // Aim a short three-tile construction ray from the central crosshair.
-    *tx=(ggExplore.px+ggExpCos[dir]*768/4096)>>8;
-    *ty=(ggExplore.py+ggExpSin[dir]*768/4096)>>8;
+    int px=ggExplore.px>>8,py=ggExplore.py>>8;
+    int eye=ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)+13+
+            (ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0);
+    // A bounded three-tile ray stops at the first real obstruction.
+    // Never silently paint unseen land through a house or an inhabitant.
+    // Ignore our own occupied cell when looking through a citizen's eyes.
+    *tx=px;*ty=py;
+    for(int d=64;d<=768;d+=64){
+        int wx=ggExplore.px+ggExpCos[dir]*d/4096;
+        int wy=ggExplore.py+ggExpSin[dir]*d/4096;
+        int x=wx>>8,y=wy>>8;
+        *tx=x;*ty=y;
+        if((unsigned)x>=WW||(unsigned)y>=WH)break;
+        if(ggMeshGroundAtQ8(wx,wy)>eye)break;
+        if(x==px&&y==py)continue;
+        if(bld[y][x]||occ[y][x])break;
+    }
+}
+static int ggExpEditStatus(int tx,int ty,int material,int removing){
+    int px=ggExplore.px>>8,py=ggExplore.py>>8;
+    if(tx<1||ty<1||tx>=WW-1||ty>=WH-1)return GG_EDIT_EDGE;
+    if(tx==px&&ty==py)return GG_EDIT_SELF;
+    // Four tile widths include the furthest corner of the aimed cell.
+    // Reject remote coordinates before multiplying, so corrupted input
+    // cannot overflow the distance calculation or touch arbitrary land.
+    int dx=tx-px,dy=ty-py;
+    if(dx<-4||dx>4||dy<-4||dy>4)
+        return GG_EDIT_RANGE;
+    int qx=dx*256+128-(ggExplore.px&255);
+    int qy=dy*256+128-(ggExplore.py&255);
+    if(qx*qx+qy*qy>1024*1024)
+        return GG_EDIT_RANGE;
+    if(bld[ty][tx])return GG_EDIT_BUILDING;
+    if(occ[ty][tx])return GG_EDIT_CREATURE;
+    if(!removing&&(unsigned)material>=GG_EXP_MATERIALS)
+        return GG_EDIT_MATERIAL;
+    int t=removing?T_GRASS:ggExpMaterials[material];
+    return world[ty][tx]==t?GG_EDIT_UNCHANGED:GG_EDIT_READY;
+}
+static const char *ggExpEditReason(int status){
+    switch(status){
+    case GG_EDIT_UNCHANGED:return "ALREADY THIS TERRAIN";
+    case GG_EDIT_EDGE:return "WORLD EDGE: MOVE INLAND";
+    case GG_EDIT_SELF:return "YOUR FOOTING IS PROTECTED";
+    case GG_EDIT_BUILDING:return "BUILDING IS PROTECTED";
+    case GG_EDIT_CREATURE:return "INHABITANT IS PROTECTED";
+    case GG_EDIT_RANGE:return "TOO FAR: MOVE CLOSER";
+    case GG_EDIT_MATERIAL:return "CHOOSE A BUILDING MATERIAL";
+    default:return "READY TO SHAPE";
+    }
 }
 static int ggExpEdit(int tx,int ty,int material,int removing){
-    int px=ggExplore.px>>8,py=ggExplore.py>>8;
-    if(tx<1||ty<1||tx>=WW-1||ty>=WH-1||
-       (tx==px&&ty==py)||bld[ty][tx]||occ[ty][tx])return 0;
-    int t=removing?T_GRASS:ggExpMaterials[material%GG_EXP_MATERIALS];
-    if(world[ty][tx]==t)return 0;
+    ggExplore.editStatus=ggExpEditStatus(tx,ty,material,removing);
+    if(ggExplore.editStatus!=GG_EDIT_READY)return 0;
+    int t=removing?T_GRASS:ggExpMaterials[material];
     // Never secretly raze a civilization or crush a living creature.
     // setCell keeps the 2D map, biome data and terrain transitions in sync.
     setCell(tx,ty,(u8)t);
@@ -163,6 +217,7 @@ static int ggExpStep(int held,int touchX,int touchY){
     int strafe=!!(held&KEY_RIGHT)-!!(held&KEY_LEFT);
     if(forward||strafe){
         int a=ggExplore.angle;
+        int oldX=ggExplore.px,oldY=ggExplore.py;
         int speed=held&KEY_B?35:20;
         if(forward&&strafe)speed=speed*3/4;
         int dx=(ggExpCos[a]*forward-ggExpSin[a]*strafe)*speed/4096;
@@ -173,7 +228,8 @@ static int ggExpStep(int held,int touchX,int touchY){
             ggExplore.px=nx;
         if(ggExpWalkable(ggExplore.px>>8,ny>>8,from,held&KEY_B))
             ggExplore.py=ny;
-        ggExplore.stepPhase++;
+        if(ggExplore.px!=oldX||ggExplore.py!=oldY)ggExplore.stepPhase++;
+        else ggExplore.stepPhase=0;
     }else ggExplore.stepPhase=0;
     // The full 256x192 lower-screen map is interactive. A previous
     // 160px cutoff made the bottom 32px silently dead on real 3DS
@@ -597,6 +653,37 @@ compiled:
 #include "mesh_character3d.h"
 #include "mesh_people_billboard3d.h"
 #include "person_motion3d.h"
+static void ggExpTargetOutline(int tx,int ty,int status){
+    if((unsigned)tx>=WW||(unsigned)ty>=WH)return;
+    GgMeshContext *m=&ggMeshContext;
+    int material=m->material,opacity=m->opacity,fog=m->fogMax;
+    m->material=GG_MAT_NONE;m->opacity=208;m->fogMax=0;
+    int ready=status==GG_EDIT_READY,unchanged=status==GG_EDIT_UNCHANGED;
+    int r=ready?117:unchanged?231:239;
+    int g=ready?225:unchanged?196:126;
+    int b=ready?191:unchanged?115:111;
+    static const short corner[4][2]={{20,20},{236,20},{236,236},{20,236}};
+    static const short inward[4][2]={{0,9},{-9,0},{0,-9},{9,0}};
+    // A thin world-space ribbon follows the actual terrain triangles.
+    // It uses existing depth, so a wall or person still hides it. Fixed
+    // 32 triangles, no second image, and no opaque depth writes.
+    for(int side=0;side<4;side++)for(int part=0;part<4;part++){
+        int next=(side+1)&3;
+        int dx=corner[next][0]-corner[side][0];
+        int dy=corner[next][1]-corner[side][1];
+        int ax=tx*256+corner[side][0]+dx*part/4;
+        int ay=ty*256+corner[side][1]+dy*part/4;
+        int bx=tx*256+corner[side][0]+dx*(part+1)/4;
+        int by=ty*256+corner[side][1]+dy*(part+1)/4;
+        int cx=bx+inward[side][0],cy=by+inward[side][1];
+        int ex=ax+inward[side][0],ey=ay+inward[side][1];
+        ggMeshQuad(m,ggMeshV(ax,ay,ggMeshGroundAtQ8(ax,ay)+1),
+                     ggMeshV(bx,by,ggMeshGroundAtQ8(bx,by)+1),
+                     ggMeshV(cx,cy,ggMeshGroundAtQ8(cx,cy)+1),
+                     ggMeshV(ex,ey,ggMeshGroundAtQ8(ex,ey)+1),r,g,b);
+    }
+    m->material=material;m->opacity=opacity;m->fogMax=fog;
+}
 static void ggExpRenderMode(u8 *top,int cinematic){
     ggExpFilmDrawDepth=0;
     ggExpMeshActive=0;
@@ -1029,6 +1116,11 @@ mesh_world_ready:
     // whole creature list or allocating skeletal 3D models.
     if(cinematic)return; // no first-person crosshair, build HUD or 2x
                         // creature cels pasted over filmed cast
+    int targetX,targetY;
+    ggExpTarget(&targetX,&targetY);
+    int targetStatus=ggExpEditStatus(targetX,targetY,ggExplore.material,0);
+    if(ggExpMeshActive&&ggExpBuildPreview)
+        ggExpTargetOutline(targetX,targetY,targetStatus);
     ggExpRenderCreatures(top);
     // Nearby foliage can pass in FRONT of actual world-depth citizens.
     // Reuse the existing POV scenery selection, no second tile scan.
@@ -1054,13 +1146,16 @@ mesh_world_ready:
     ggExpRect(top,0,0,400,28,13,24,35);
     ggExpRect(top,0,26,400,2,174,137,85);
     ggExpRect(top,0,0,3,28,192,148,93);
-    ggExpText(top,9,5,ggExplore.actorId?"CITIZEN'S EYES":
-                                       "GODGUY  /  EXPLORING",
-              242,220,164);
     char buf[96];
+    if(ggExplore.actorId)snprintf(buf,sizeof buf,"CITIZEN: %.25s",ggExplore.actorName);
+    else snprintf(buf,sizeof buf,"GODGUY  /  EXPLORING");
+    ggExpText(top,9,5,buf,242,220,164);
+    static const char *const facing[8]={"E","SE","S","SW","W","NW","N","NE"};
+    snprintf(buf,sizeof buf,"FACING %s",facing[((ggExplore.angle+16)&255)/32]);
+    ggExpText(top,229,5,buf,181,203,204);
     snprintf(buf,sizeof buf,"X:%d  Y:%d",
              ggExplore.px>>8,ggExplore.py>>8);
-    ggExpText(top,293,5,buf,220,225,221);
+    ggExpText(top,287,5,buf,220,225,221);
     int localTerrain=world[ggExplore.py>>8][ggExplore.px>>8];
     const char *region=localTerrain==T_FOREST?"WOODLAND":
                  localTerrain==T_JUNGLE?"JUNGLE":
@@ -1073,35 +1168,36 @@ mesh_world_ready:
                  localTerrain==T_DIRT?"ROADLAND":"GREEN COUNTRY";
     snprintf(buf,sizeof buf,"REGION: %s",region);
     ggExpText(top,9,17,buf,181,203,204);
-    if(ggExplore.actorId)
-        snprintf(buf,sizeof buf,"YOU ARE: %.18s",ggExplore.actorName);
-    else snprintf(buf,sizeof buf,"BUILD: %s",
-                  ggExpMaterialNames[ggExplore.material]);
+    int buildMat=(unsigned)ggExplore.material<GG_EXP_MATERIALS?ggExplore.material:0;
+    snprintf(buf,sizeof buf,"BUILD: %s",ggExpMaterialNames[buildMat]);
     ggExpText(top,223,17,buf,225,204,153);
     ggExpRect(top,376,15,15,9,
-              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][0]*8,0,255),
-              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][1]*8,0,255),
-              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][2]*8,0,255));
+              ggExpClamp(terrCol[ggExpMaterials[buildMat]][0]*8,0,255),
+              ggExpClamp(terrCol[ggExpMaterials[buildMat]][1]*8,0,255),
+              ggExpClamp(terrCol[ggExpMaterials[buildMat]][2]*8,0,255));
     ggExpRect(top,0,196,400,44,12,22,33);
     ggExpRect(top,0,195,400,1,178,143,91);
     ggExpRect(top,0,239,400,1,178,143,91);
     // Controls are grouped by actual action rather than one long
     // unexplained NES-style string of letters.
-    ggExpRect(top,8,202,92,14,29,42,53);
-    ggExpRect(top,105,202,92,14,29,42,53);
-    ggExpRect(top,202,202,92,14,29,42,53);
-    ggExpRect(top,299,202,92,14,29,42,53);
-    ggExpText(top,14,206,ggExplore.actorId?"A  INTERACT":"A  PLACE",
-              239,218,163);
-    ggExpText(top,111,206,"Y  CLEAR",239,218,163);
-    ggExpText(top,208,206,"X  MATERIAL",239,218,163);
-    ggExpText(top,305,206,"B  SPRINT",239,218,163);
-    ggExpText(top,9,225,"MOVE PAD   LOOK L/R   TAP MAP TO WARP",
-              202,217,218);
-    ggExpText(top,250,225,"SELECT SAVE  START EXIT",171,197,206);
+    ggExpRect(top,8,199,92,12,29,42,53);
+    ggExpRect(top,105,199,92,12,29,42,53);
+    ggExpRect(top,202,199,92,12,29,42,53);
+    ggExpRect(top,299,199,92,12,29,42,53);
+    ggExpText(top,14,202,"A  PLACE",239,218,163);
+    ggExpText(top,111,202,"Y  CLEAR",239,218,163);
+    ggExpText(top,208,202,"X  MATERIAL",239,218,163);
+    ggExpText(top,305,202,"B  SPRINT",239,218,163);
+    ggExpText(top,9,216,"PAD MOVE   L/R LOOK",202,217,218);
+    ggExpText(top,250,216,"SELECT SAVE  START EXIT",171,197,206);
+    snprintf(buf,sizeof buf,"TARGET: %s",ggExpEditReason(targetStatus));
+    ggExpText(top,9,229,buf,targetStatus==GG_EDIT_READY?147:236,
+              targetStatus==GG_EDIT_READY?221:184,177);
+    ggExpText(top,250,229,ggExplore.actorId?"TAP MAP: SWITCH PERSON":
+                                           "TAP MAP: TRAVEL",171,197,206);
     if(ggExplore.feedbackT){
         const char *msg=ggExplore.feedback==2?"TERRAIN CHANGED":
-                        ggExplore.feedback==3?"BLOCKED: PROTECTED/TOO FAR":
+                        ggExplore.feedback==3?ggExpEditReason(ggExplore.editStatus):
                         ggExplore.feedback==4?"WORLD SAVED":
                         ggExplore.feedback==5?"SAVE FAILED: RETURN TO MAP":
                         "BUILDING MATERIAL SELECTED";

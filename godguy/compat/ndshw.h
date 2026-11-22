@@ -138,7 +138,7 @@ static u8 svPacked[0x80000] __attribute__((aligned(32)));
 static GgSaveWriter ggSaveWriter;
 static GgSaveReader ggSaveReader;
 #endif
-typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
+typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode,svFailed;
 static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }
 // ARM7 accesses the packed save through IPC. The new DS buffer is in
 // cacheable ARM9 BSS, so explicitly synchronize 32-byte cache lines for
@@ -201,7 +201,7 @@ static int hwLayoutSet(int n){      // 1 on success. Slot 1 keeps its save if it
     int old=hwSlots; u32 osz=hwSlotSz; for(int k=1;k<old;k++){ memset(SVCMP,0,256); hwFlash(8,(u32)SVCMP,256,(u32)k*osz); } hwSlotGeom(n); for(int k=1;k<n;k++) hwSlotErase(k);
     memset(SVCMP,0,SV_REC); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='L'; SVCMP[3]='1'; *(u32*)(SVCMP+4)=hwCap; SVCMP[8]=(u8)n; hwFlash(8,(u32)SVCMP,SV_REC,hwCap-SV_REC); return HWIPC->svOK; }
 static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 0; svPos=0;
-    if(m[0]=='w'){ svMode=1; svLen=0;
+    if(m[0]=='w'){ svMode=1; svLen=0; svFailed=0; svTooBig=0;
 #ifdef GG_DS_STREAM_SAVE
         memset(&ggSaveWriter,0,sizeof ggSaveWriter);
 #endif
@@ -218,10 +218,11 @@ static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 
 #endif
     svMode=0; return &svDummy; }
 static size_t svWrite(const void*b,size_t s,size_t n,SV*f){
-    (void)f; if(s&&n>(size_t)SVMAX/s)return 0;
-    u32 t=(u32)(s*n); if(t>SVMAX-svLen)return 0;
+    (void)f; if(svFailed)return 0;
+    if(s&&n>(size_t)SVMAX/s){svFailed=1;return 0;}
+    u32 t=(u32)(s*n); if(t>SVMAX-svLen){svFailed=1;return 0;}
 #ifdef GG_DS_STREAM_SAVE
-    if(!ggSvWrite(&ggSaveWriter,SVCMP+12,SVCMAX,b,t,SVMAX))return 0;
+    if(!ggSvWrite(&ggSaveWriter,SVCMP+12,SVCMAX,b,t,SVMAX)){svFailed=1;return 0;}
 #else
     memcpy(SVBUF+svLen,b,t);
 #endif
@@ -237,8 +238,21 @@ static size_t svRead(void*b,size_t s,size_t n,SV*f){
 #endif
     svPos+=t;return n;
 }
+// Re-run the validated archive without re-reading the cartridge or
+// reserving a second raw world. The first pass only uses small records.
+static int svRewind(SV*f){
+    (void)f;
+    if(svMode!=0)return 0;
+    svPos=0;
+#ifdef GG_DS_STREAM_SAVE
+    ggSvReaderStart(&ggSaveReader,SVCMP+12,ggSaveReader.packed,svLen);
+#endif
+    return 1;
+}
 static u32 hwSlotLimit(void){ return hwSlotSz?hwSlotSz:hwSvLimit(); }
 static int svClose(SV*f){ (void)f; if(svMode==1){
+    // Never overwrite a valid cartridge save with a partial archive.
+    if(svFailed)return -1;
 #ifdef GG_DS_STREAM_SAVE
     if(!ggSvPack(&ggSaveWriter,SVCMP+12,SVCMAX))return -1;
     u32 clen=ggSaveWriter.packed;

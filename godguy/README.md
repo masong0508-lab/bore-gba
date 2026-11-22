@@ -5,9 +5,24 @@
 2DS XL**. Original 3DS/2DS models are unsupported by this build and
 receive a safe startup notice. Its real-polygon software renderer keeps
 400×240 output when reducing expensive material/scenery effects during
-slow frames. DS, DSi and GBA builds remain separate. See
+slow frames. DS and DSi builds remain separate; this repository's GBA
+workflow builds BORE, not a GodGuy GBA port. See
 [`3ds/NEW3DS_TARGET.md`](3ds/NEW3DS_TARGET.md) for compatibility, test
 gates, caveats, and the future hardware-GPU milestone.
+
+**Playability and reliability pass (21 November 2026).** The New 3DS
+construction tool now outlines its exact terrain target, shows a compass
+heading, and explains protected buildings, inhabitants, unchanged terrain
+and range limits. Aiming follows the visible hillside and stops at real
+obstructions. The selected material remains visible when controlling a
+citizen; walking into a wall no longer bobs the camera. Circular foliage,
+clouds, animal bodies and shadows close safely, and translucent shadows
+have no double-dark diagonal seams. Failed saving keeps the current world
+open, malformed/truncated saves are checked before loading, and failed
+cartridge writes cannot commit a partial archive. New 3DS audio allocation
+failures fall back to playable silent output and release partial buffers.
+See [port verification](PORT_RELEASE_QA.md) for regression coverage and
+the remaining console acceptance checks.
 
 
 A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in life, and watch it live, eat, hunt and breed.

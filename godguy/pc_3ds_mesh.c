@@ -101,6 +101,29 @@ int main(void){
     ggMeshQuad(m,mid[0],mid[1],mid[2],mid[3],207,151,82);
     verify(pixel(200,116)[0]==207&&pixel(200,116)[1]==151,
            "opaque architecture could not draw after translucent ground decal");
+    // A contact-shadow quad shares a diagonal between two triangles.
+    // That edge must be owned by exactly one face: double coverage draws
+    // a dark spoke, while missing coverage leaves a bright crack.
+    // Exercise both windings and submission orders with a known 50% blend.
+    GgMeshProjected shadow[4]={
+        {150,90,128,0,0},{250,90,128,0,0},
+        {250,150,128,0,0},{150,150,128,0,0}
+    };
+    for(int winding=0;winding<2;winding++){
+        ggMeshBegin(m,image.rgb,2,0,0,10,4096,0,120,120,120);
+        memset(image.rgb,120,sizeof image.rgb);
+        m->opacity=128;
+        if(winding){
+            ggMeshRasterProjected(m,shadow[0],shadow[3],shadow[2],28,28,28);
+            ggMeshRasterProjected(m,shadow[0],shadow[2],shadow[1],28,28,28);
+        }else{
+            ggMeshRasterProjected(m,shadow[0],shadow[1],shadow[2],28,28,28);
+            ggMeshRasterProjected(m,shadow[0],shadow[2],shadow[3],28,28,28);
+        }
+        for(int y=91;y<150;y++)for(int x=151;x<250;x++)
+            verify(pixel(x,y)[0]==74&&pixel(x,y)[1]==74&&pixel(x,y)[2]==74,
+                   "shared shadow edge is double-blended or leaves a crack");
+    }
     ggMeshBegin(m,image.rgb,1,0,0,10,4096,0,36,59,89);
     verify(m->w==200&&m->h==120&&m->scale==2,
            "Old 3DS low-resolution geometry mode changed aspect");
