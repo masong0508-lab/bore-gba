@@ -182,8 +182,11 @@ preserved. The first full verse now starts around 47.74 seconds.
 **Dryness:** BORE's GBA tracker still cannot implement the entire original
 Koala DSP chain. A Winner-only 4 KiB 8-bit EWRAM short stereo room was added
 after note declick and original-vocal mixing. The room has decorrelated
-86/175-ms reflections and light feedback with a high-passed send to avoid
-washing the bass and drums. The helper lives in ROM instead of tight IWRAM,
+86/175-ms reflections and light feedback with a ~185-Hz high-passed
+send to keep bass and kick transients predominantly dry. The original
+Koala BUS A used flanger (mix 0.71), tempo delay (mix 0.203) and
+FREEVERB (dry/wet 0.20, size 0.834), while bass/drum pads mostly
+bypassed that bus; this GBA compromise is not a full FX reconstruction. The helper lives in ROM instead of tight IWRAM,
 and the other jukebox songs retain their existing mix path.
 This is a restrained approximation, not full native Koala FX parity.
 
