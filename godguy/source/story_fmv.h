@@ -15,10 +15,17 @@ _Static_assert(FMV_BLOCK_LIMIT<=sizeof uiNew,"FMV blocks must fit the transition
 // Free slots between the sub-screen UI, kingdom, terrain and title palettes.
 static const u8 fmvSlots[32]={32,33,34,35,36,37,38,39,56,57,58,59,60,61,62,63,
                               96,97,98,99,188,189,190,191,192,193,194,195,196,197,198,199};
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+#include "story_world3d_palette.h"
+#endif
 static const u8 *fmvBlock, *fmvRead, *fmvBlockEnd;
 
 static void fmvSetPalette(void){
     for(int i=0;i<32;i++) BG_PALETTE_SUB[fmvSlots[i]]=fmvPalette[i];
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    for(int i=0;i<GG_FILM_MATERIALS;i++)
+        BG_PALETTE_SUB[ggFilmMaterialSlots[i]]=ggFilmMaterialPalette[i];
+#endif
 }
 
 static void filmBars(const char *title);

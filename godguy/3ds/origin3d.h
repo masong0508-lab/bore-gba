@@ -270,8 +270,9 @@ static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
     }
     ggExpRect(out,0,0,400,240,17,24,36);
     u8 rgb[256][3]={0};
-    for(unsigned ink=0;ink<sizeof fmvSlots;ink++){
-        unsigned c=fmvPalette[ink],slot=fmvSlots[ink];
+    for(unsigned ink=0;ink<GG_FILM_INK_N;ink++){
+        unsigned c=ink<32?fmvPalette[ink]:ggFilmMaterialPalette[ink-32];
+        unsigned slot=ggFilmInk((u8)ink);
         rgb[slot][0]=(u8)((c&31)*255/31);
         rgb[slot][1]=(u8)((c>>5&31)*255/31);
         rgb[slot][2]=(u8)((c>>10&31)*255/31);

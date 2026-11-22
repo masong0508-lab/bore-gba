@@ -9,7 +9,13 @@
 // first-person voxel renderer. It is 3DS-only, leaving DS/DSi unchanged.
 static void ggExpRenderCreatures(u8 *top);
 #include "explore3d.h"
+static int ggHybridWalkable(const Cr *actor,int x,int y){
+    if((unsigned)x>=WW||(unsigned)y>=WH)return 0;
+    unsigned terrain=world[y][x];
+    return terrain<T_N&&((arch[sp[actor->sp].a].mask|trMask(actor))>>terrain&1);
+}
 #include "hybrid3d.h"
+#include "outdoor3d.h"
 #include "population3d.h"
 #include "chronicles3d.h"
 #include "reign3d.h"
@@ -36,7 +42,7 @@ static int ggHybridPicking;
 static u32 ggHybridSelectedId;
 static int ggHybridSelectedIndex=-1;
 static int ggExpRenderValid;
-static int ggChronHintShown;
+static int ggChronHintShown,ggOutdoorHintShown;
 static GgModeInputGuard gg3dModeInput;
 static int gg3dPhysicalKeys;
 static void ggExpRemember(int i){
@@ -89,6 +95,7 @@ static void ggExpFinish(void){
         if(i>=0){ggHybridAfterSave();ggExpRemember(i);}
     }
     ggExplore.active=0;
+    ggOutdoorReset();
     paused=ggExplore.wasPaused;
     camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
     camY=ggExpClamp((ggExplore.py>>8)*8-96,0,WH*8-192);
@@ -107,8 +114,12 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     int raw=ggModeInputFilter(&gg3dModeInput,gg3dPhysicalKeys);
     static int previousRaw;
     int pressedTouch=(raw&KEY_TOUCH)&&!(previousRaw&KEY_TOUCH);
-    int pressedView=((raw&(KEY_SELECT|KEY_R))==(KEY_SELECT|KEY_R))&&
+    int pressedView=((raw&(KEY_SELECT|KEY_L|KEY_R))==(KEY_SELECT|KEY_R))&&
                     ((previousRaw&(KEY_SELECT|KEY_R))!=(KEY_SELECT|KEY_R));
+    int pressedWalk=((raw&(KEY_SELECT|KEY_L|KEY_R))==(KEY_SELECT|KEY_L))&&
+                    ((previousRaw&(KEY_SELECT|KEY_L))!=(KEY_SELECT|KEY_L));
+    int pressedField=((raw&(KEY_L|KEY_A))==(KEY_L|KEY_A))&&
+                     ((previousRaw&(KEY_L|KEY_A))!=(KEY_L|KEY_A));
     int pressedPick=((raw&(KEY_SELECT|KEY_X))==(KEY_SELECT|KEY_X))&&
                     ((previousRaw&(KEY_SELECT|KEY_X))!=(KEY_SELECT|KEY_X));
     int pressedChron=((raw&(KEY_SELECT|KEY_Y))==(KEY_SELECT|KEY_Y))&&
@@ -203,6 +214,28 @@ void shimInput(int frame,int*held,int*tx,int*ty){
        ggExpCanEnter()&&!toastT){
         ggChronHintShown=1;
         ggExpMessage("UNWRITTEN REIGN: SELECT+Y TO ENTER");
+    }else if(!ggOutdoorHintShown&&!ggExplore.active&&ggExpCanEnter()&&!toastT){
+        ggOutdoorHintShown=1;
+        ggExpMessage("SELECT+L: WALK IN THE 3D WORLD");
+    }
+    if(pressedWalk){
+        if(ggExplore.active){
+            ggExpFinish();
+            ggExpMessage("BACK TO THE MAP");
+        }else if(ggExpCanEnter()){
+            int x=(camX+128)>>3,y=(camY+96)>>3;
+            ggExplore.actorId=0;
+            if(ggExpBegin(x,y,paused)){
+                ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+                paused=1;
+                ggHybridPicking=0;
+                ggOutdoorHintShown=1;
+                ggOutdoorReset();
+                ggExpRenderValid=0;
+                ggExpMessage("FREE WALK: L+A EXPLORES PLACES");
+            }else ggExpMessage("WALK FROM A LAND REGION");
+        }
+        *held=0;*tx=*ty=0;return;
     }
     if(pressedPick){
         if(ggExplore.active)ggExpFinish();
@@ -224,6 +257,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                     ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
                     paused=1;
                     ggHybridPicking=0;
+                    ggOutdoorReset();
                     ggExpRenderValid=0;
                 }
             }else{
@@ -266,9 +300,17 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 int oldPause=ggExplore.wasPaused;
                 ggExpRemember(i);
                 ggHybridBegin(i,oldPause);
+                ggOutdoorReset();
                 ggExpRenderValid=0;
             }
         }
+        if(!(raw&KEY_A))ggOutdoorCaptureA=0;
+        if(pressedField){
+            ggOutdoorCaptureA=1;
+            ggOutdoorUse();
+            ggExpRenderValid=0;
+        }
+        if(ggOutdoorCaptureA)raw&=~(KEY_A|KEY_L);
         int beforeX=ggExplore.px,beforeY=ggExplore.py;
         int action=ggExpStep(raw,*tx,*ty);
         if(action&GG_EXP_EXIT)ggExpFinish();
@@ -366,7 +408,7 @@ void shimPresent(void){
                     ggChronDraw(topBuf);
                     ggReignDraw(topBuf);
                     ggQuestDraw(topBuf);
-                }
+                }else ggOutdoorHud(topBuf);
             }
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;

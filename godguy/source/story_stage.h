@@ -1045,7 +1045,7 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     FilmBlocking block=filmBlocking(beat,elapsed);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     GgFilmCamera camera=ggFilmCameraAt(beat,move);
-    ggFilmWorldBlocking(camera,beat,elapsed,stageChapter,&block);
+    GgFilmFootprints footprints=ggFilmWorldBlocking(camera,beat,elapsed,stageChapter,&block);
 #endif
     int captionOn=beat->line&&elapsed>=100&&elapsed<total-20;
     int position=beat->lead<F_ACTOR_N?
@@ -1064,6 +1064,8 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     }
     ggFilmWorldDraw(camera,beat,ggFilmSceneTime(elapsed),stageChapter,roofFinished,
                     filmBonusIndex==0||filmBonusIndex==1);
+    ggFilmCastShadow(camera,footprints.other,beat->place);
+    ggFilmCastShadow(camera,footprints.lead,beat->place);
     if(beat->prop<F_PROP_N){
         GgS2 pos=ggFilmPropSupport(camera,beat->place,stageChapter);
         projectedSupport=(FilmPoint){pos.x,pos.y};
@@ -1158,10 +1160,12 @@ static int fmvRenderAt(const FmvClip *clip,int elapsed){
 #ifdef __3DS__
     if(filmBonusIndex>=0&&filmBonusIndex<FILM_BONUS_N)baked=0;
 #endif
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    if(!elapsed)fmvSetPalette();
+#endif
     if(elapsed<baked){
         if(elapsed%FMV_TICKS) return 0;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-        if(!elapsed)fmvSetPalette();
         int frame=elapsed/FMV_TICKS,end=clip->frames;
         const FilmEntranceTake *takes=filmEntrances[clip-fmvClips];
         int take=0;

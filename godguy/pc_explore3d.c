@@ -51,11 +51,10 @@ static int possessed=-1,inspected=-1,inspKind,inspIdx,inspT;
 static void crName(const Cr*c,char*out){
     snprintf(out,40,"CITIZEN %d",c->sp);
 }
-static int stepOk(const Sp*species,int*nx,int*ny){
-    (void)species;
-    return *nx>0&&*ny>0&&*nx<WW-1&&*ny<WH-1&&
-           world[*ny][*nx]>T_WATER&&
-           world[*ny][*nx]!=T_LAVA&&!occ[*ny][*nx];
+static int ggHybridWalkable(const Cr *actor,int x,int y){
+    (void)actor;
+    return x>0&&y>0&&x<WW-1&&y<WH-1&&
+           world[y][x]>T_WATER&&world[y][x]!=T_LAVA;
 }
 static void moveTo(Cr*c,int i,int nx,int ny){
     occ[c->y][c->x]=0;

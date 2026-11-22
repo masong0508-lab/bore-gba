@@ -78,7 +78,7 @@ static int ggHybridMove(int oldPX,int oldPY){
             ny-fromY>1||ny-fromY< -1)||
            (unsigned)nx>=WW||(unsigned)ny>=WH||
            bld[ny][nx]||occ[ny][nx]||
-           !stepOk(&sp[c->sp],&nx,&ny)){
+           !ggHybridWalkable(c,nx,ny)){
             ggExplore.px=oldPX;
             ggExplore.py=oldPY;
             ggExplore.stepPhase=0;

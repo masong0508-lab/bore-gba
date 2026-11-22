@@ -43,7 +43,7 @@ typedef struct {
     int opacity,blendedFragments;
     int depthBias; // scoped decal tolerance; depth storage remains physical
     int fogR,fogG,fogB,fogMax;
-    int texBaseU,texBaseV;
+    int texBaseU,texBaseV,groundUV;
     int detailQuality; // independent of native 400x240 pixel geometry
 } GgMeshContext;
 static uint16_t ggMeshDepthStorage[GG_MESH_MAX_W*GG_MESH_MAX_H];
@@ -90,7 +90,7 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
     m->opacity=256;m->blendedFragments=0;m->depthBias=0;
     m->fogR=skyR;m->fogG=skyG;m->fogB=skyB;
     m->fogMax=150;
-    m->texBaseU=m->texBaseV=0;
+    m->texBaseU=m->texBaseV=m->groundUV=0;
     memset(m->depth,0,(size_t)m->w*m->h*sizeof(uint16_t));
     ggMeshSkyFill(m);
 }
@@ -279,7 +279,7 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
         int yy2=a.y-c.y;if(yy2<0)yy2=-yy2;
         int zz=a.z-b.z;if(zz<0)zz=-zz;
         int zz2=a.z-c.z;if(zz2<0)zz2=-zz2;
-        int vertical=zz+zz2>8;
+        int vertical=!m->groundUV&&zz+zz2>8;
         int axis=xx+xx2>=yy+yy2?0:1;
         int us[3],vs[3];
         GgMeshVertex src[3]={a,b,c};

@@ -43,7 +43,9 @@ A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in 
 
 **Starting out.** New worlds open on the six-power Kit with Grass selected. Tap the map to shape it, then use Spawn for individual creatures or Settle on clear grass for a village. Browse all other powers in Land, Life, Events and Folk. L/R moves through a tab and B+L/R switches tabs. Powers starred in the World Browser also appear in Kit.
 
-**Riven March.** Choose **Create a Planet**, then set **Land** to **Riven March**. On New 3DS choose **1024 × 1024** for the largest map. Start in the central valley and use the river crossings to reach the northern snowline, western woods, dry eastern hills, and southern wetlands. The layout also fits the smaller maps available on DS and DSi.
+**Riven March.** Choose **Create a Planet**, then set **Land** to **Riven March**. On New 3DS choose **1024 × 1024** for the largest map. Each new world has its own coastline, islands, river branches, and mountain ridges. Follow the valley crossings to find stone markers, ruins, and public docks. The layout also fits the smaller maps available on DS and DSi.
+
+**3DS outdoor exploration.** From the map, press **Select+L** to walk or **Select+R** to take the viewpoint of a selected resident. Aim at a nearby feature and press **L+A** to follow the prompt. You can record discoveries, talk to residents, watch wildlife, and take ferries between connected docks. As a resident, you can also forage, share food, and use village supplies. Press **Start** to return to the map.
 
 **Field Tools.** Use X/Y to switch modes. Survey opens a city's ledger when you tap a home or city center. Rations feeds hungry folk from the city's stores. Clinic treats disease and Restore reclaims ruins and damaged land. On the flat map B+X/Y adjusts the Clinic and Restore radius. Find optional Relief Routes and Greenbelts under **World → Laws → Care**. **World → Pins** saves three map positions for the current session.
 
