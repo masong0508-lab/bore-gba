@@ -215,6 +215,15 @@ static void ggQuestAboutTown(void){
         ggQuestResponse("I have a home and a life. Keep our roads safe.");
     else ggQuestResponse("The roads hold stories; towns offer work.");
 }
+static int ggQuestTalkTarget(int *town,int *person){
+    *town=ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,6);
+    *person=ggQuestCitizenNear();
+    return *town>=0||*person>=0;
+}
+static int ggQuestAimedAtFoe(void){
+    return ggChron.style!=GG_CHRON_BLADE&&
+           ggChronCombatTarget((ggChron.style==GG_CHRON_BOW?8:6)*256,0,NULL)>=0;
+}
 static int ggQuestStep(int raw){
     int down=raw&~ggQuest.lastKeys;
     ggQuest.lastKeys=raw;
@@ -235,17 +244,27 @@ static int ggQuestStep(int raw){
     if(!ggChron.active||ggChron.won||ggChron.lost||ggReign.menu||
        ggChron.briefTime||!(down&KEY_A)||ggQuestThreatNear())
         return 0;
-    if((raw&GG_3DS_ZL)||(ggChron.style!=GG_CHRON_BLADE&&
-       ggChronCombatTarget((ggChron.style==GG_CHRON_BOW?8:6)*256,0,NULL)>=0))
-        return 0;
-    int px=ggExplore.px>>8,py=ggExplore.py>>8;
-    int town=ggReignVillage(px,py,6);
-    int person=ggQuestCitizenNear();
-    if(town<0&&person<0)return 0;
+    int town,person;
+    if((raw&GG_3DS_ZL)||!ggQuestTalkTarget(&town,&person)||ggQuestAimedAtFoe())return 0;
     ggQuest.talk=1;ggQuest.choice=0;
     ggQuest.talkVillage=town;ggQuest.talkPerson=person;
     ggQuestResponse("A life is more than a job or a prophecy.");
     return 1;
+}
+static const char *ggQuestFieldHint(char *out,size_t size){
+    if(ggChron.briefTime||ggChron.guardTicks||ggQuestThreatNear())return NULL;
+    int town,person;
+    if(ggQuestTalkTarget(&town,&person)&&!ggQuestAimedAtFoe()){
+        return "A TALK";
+    }
+    if(ggQuest.stage==GG_QUEST_IDLE)return NULL;
+    int v=ggQuest.stage==GG_QUEST_FETCH?ggQuest.target:ggQuest.home;
+    if(v<0||v>=VIL_N||!vil[v].on)return NULL;
+    int dx=(int)vil[v].x-(ggExplore.px>>8),dy=(int)vil[v].y-(ggExplore.py>>8);
+    const char *bearing=abs(dx)>abs(dy)?(dx>0?"EAST":"WEST"):(dy>0?"SOUTH":"NORTH");
+    snprintf(out,size,"%s SUPPLIES   %s %d",
+             ggQuest.stage==GG_QUEST_FETCH?"COLLECT":"RETURN",bearing,abs(dx)+abs(dy));
+    return out;
 }
 static void ggQuestJournalDraw(u8 *out){
     char line[100];
@@ -267,7 +286,7 @@ static void ggQuestJournalDraw(u8 *out){
     ggExpText(out,25,132,line,221,199,153);
 }
 static void ggQuestDraw(u8 *out){
-    if(!ggChron.active||ggOrigin.active||ggReign.menu)return;
+    if(!ggChron.active||ggOrigin.active||ggReign.menu||!ggQuest.talk)return;
     char line[92];
     if(ggQuest.talk){
         ggExpRect(out,18,54,364,139,15,28,42);
@@ -293,23 +312,5 @@ static void ggQuestDraw(u8 *out){
         ggExpText(out,29,177,"UP/DOWN CHOOSE   A SPEAK   B EXIT",171,205,231);
         return;
     }
-    if(ggReign.noticeT)return; // no overlap with important game notice
-    if(ggQuest.stage!=GG_QUEST_IDLE){
-        int v=ggQuest.stage==GG_QUEST_FETCH?ggQuest.target:ggQuest.home;
-        if(v>=VIL_N||!vil[v].on)return;
-        int dx=(int)vil[v].x-(ggExplore.px>>8);
-        int dy=(int)vil[v].y-(ggExplore.py>>8);
-        int distance=abs(dx)+abs(dy);
-        const char *bearing=abs(dx)>abs(dy)?(dx>=0?"EAST":"WEST"):
-                                               (dy>=0?"SOUTH":"NORTH");
-        snprintf(line,sizeof line,"DELIVERY: %s TO TOWN %d  %s %d TILES",
-                 ggQuest.stage==GG_QUEST_FETCH?"COLLECT":"RETURN",
-                 v+1,bearing,distance);
-    }else if(ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,6)>=0&&
-             !ggQuestThreatNear())
-        snprintf(line,sizeof line,"A: TALK TO LOCAL PEOPLE  -  SELECT: QUEST JOURNAL");
-    else return;
-    ggExpRect(out,8,157,384,15,18,34,47);
-    ggExpText(out,14,161,line,233,210,158);
 }
 #endif

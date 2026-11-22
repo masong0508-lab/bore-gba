@@ -37,34 +37,69 @@ static int ggMeshFacadeFoundation(int axis,int p0,int u0,int p1,int u1,int z){
     return axis?ggMeshFoundationGround(u0,p0,u1,p1,z):
                 ggMeshFoundationGround(p0,u0,p1,u1,z);
 }
-static void ggMeshPortico(GgMeshContext*m,int axis,int plane,int center,
-                          int ground,int top,int temple){
+enum { GG_MESH_PORTICO_STEP=9, GG_MESH_TEMPLE_REACH=52, GG_MESH_HALL_REACH=34,
+       GG_MESH_PORTICO_BLOCKS=8 };
+typedef struct { int p0,u0,p1,u1,z0,z1; } GgMeshPorticoBlock;
+typedef struct {
+    GgMeshPorticoBlock block[GG_MESH_PORTICO_BLOCKS];
+    int roofP0,roofP1,roofHalf,roofBase,roofPeak,center;
+} GgMeshPorticoShape;
+static GgMeshPorticoShape ggMeshPorticoLayout(int axis,int plane,int center,
+                                              int ground,int top,int temple){
     int clearance=ground+GG_WORLD_DOOR_HEIGHT+3;
     if(top<clearance)top=clearance;
-    int reach=temple?52:34,half=temple?79:66;
-    int corner=center-half,far=center+half,pier=plane-reach;
-    int col=temple?62:51;
+    int reach=temple?GG_MESH_TEMPLE_REACH:GG_MESH_HALL_REACH;
+    int half=temple?79:66,col=temple?62:51;
+    int left=center-half,right=center+half,pier=plane-reach;
+    int start=pier-GG_MESH_PORTICO_STEP;
+    int base=ggMeshFacadeFoundation(axis,start,left-5,plane,right+5,ground);
+    GgMeshPorticoShape p={
+        .roofP0=pier-2,.roofP1=plane+8,.roofHalf=half+3,
+        .roofBase=top+2,.roofPeak=top+11,.center=center
+    };
+    p.block[0]=(GgMeshPorticoBlock){start,left-5,plane,right+5,base,ground+1};
+    for(int i=0;i<2;i++){
+        int u=center+(i?col:-col),normal=pier+9,j=1+3*i;
+        p.block[j]=(GgMeshPorticoBlock){normal-14,u-13,normal+14,u+13,ground,ground+3};
+        // An exposed shaft is wider than the usual projectile sample
+        // spacing on each axis, while keeping the central aisle free.
+        p.block[j+1]=(GgMeshPorticoBlock){normal-10,u-10,normal+10,u+10,ground+3,top-4};
+        p.block[j+2]=(GgMeshPorticoBlock){normal-12,u-12,normal+12,u+12,top-4,top-1};
+    }
+    p.block[7]=(GgMeshPorticoBlock){pier,left,plane+6,right,top-1,top+2};
+    return p;
+}
+static int ggMeshPorticoContains(const GgMeshPorticoShape *p,
+                                 int normal,int across,int z,int temple){
+    for(int i=0;i<GG_MESH_PORTICO_BLOCKS;i++){
+        const GgMeshPorticoBlock *b=&p->block[i];
+        if(normal>=b->p0&&normal<=b->p1&&across>=b->u0&&across<=b->u1&&
+           z>=b->z0&&z<=b->z1)return 1;
+    }
+    int side=abs(across-p->center);
+    if(!temple||normal<p->roofP0||normal>p->roofP1||
+       side>p->roofHalf||z<p->roofBase||z>p->roofPeak)return 0;
+    return (z-p->roofBase)*p->roofHalf<=(p->roofPeak-p->roofBase)*(p->roofHalf-side);
+}
+static void ggMeshPortico(GgMeshContext*m,int axis,int plane,int center,
+                          int ground,int top,int temple){
+    GgMeshPorticoShape p=ggMeshPorticoLayout(axis,plane,center,ground,top,temple);
     int r=temple?203:153,g=temple?189:142,b=temple?165:121;
     int material=m->material;
     m->material=temple?GG_MAT_STONE:GG_MAT_WOOD;
-    int base=ggMeshFacadeFoundation(axis,pier-9,corner-5,plane,far+5,ground);
-    ggMeshFacadeBox(m,axis,pier-9,corner-5,plane,far+5,base,ground+1,
-                   r-25,g-23,b-20);
-    for(int n=-1;n<=1;n+=2){
-        int u=center+n*col,p=pier+9;
-        ggMeshFacadeBox(m,axis,p-10,u-11,p+10,u+11,ground,ground+3,r,g,b);
-        ggMeshFacadeBox(m,axis,p-7,u-8,p+7,u+8,ground+3,top-4,
-                       r-17,g-16,b-14);
-        ggMeshFacadeBox(m,axis,p-11,u-11,p+10,u+11,top-4,top-1,r,g,b);
+    static const unsigned char shade[GG_MESH_PORTICO_BLOCKS]={25,0,17,0,0,17,0,0};
+    for(int i=0;i<GG_MESH_PORTICO_BLOCKS;i++){
+        const GgMeshPorticoBlock *block=&p.block[i];
+        ggMeshFacadeBox(m,axis,block->p0,block->u0,block->p1,block->u1,
+                       block->z0,block->z1,r-shade[i],g-shade[i],b-shade[i]);
     }
-    ggMeshFacadeBox(m,axis,pier,corner,plane+6,far,top-1,top+2,r,g,b);
     if(temple){
-        GgMeshVertex left=ggMeshFacadePoint(axis,pier-2,corner-3,top+2);
-        GgMeshVertex peak=ggMeshFacadePoint(axis,pier-2,center,top+11);
-        GgMeshVertex right=ggMeshFacadePoint(axis,pier-2,far+3,top+2);
+        GgMeshVertex left=ggMeshFacadePoint(axis,p.roofP0,center-p.roofHalf,p.roofBase);
+        GgMeshVertex peak=ggMeshFacadePoint(axis,p.roofP0,center,p.roofPeak);
+        GgMeshVertex right=ggMeshFacadePoint(axis,p.roofP0,center+p.roofHalf,p.roofBase);
         GgMeshVertex innerLeft=left,innerPeak=peak,innerRight=right;
-        if(axis)innerLeft.y=innerPeak.y=innerRight.y=plane+8;
-        else innerLeft.x=innerPeak.x=innerRight.x=plane+8;
+        if(axis)innerLeft.y=innerPeak.y=innerRight.y=p.roofP1;
+        else innerLeft.x=innerPeak.x=innerRight.x=p.roofP1;
         if(axis)ggMeshTriangle(m,left,right,peak,r,g,b);
         else ggMeshTriangle(m,left,peak,right,r,g,b);
         m->material=GG_MAT_ROOF;
@@ -194,16 +229,32 @@ static void ggMeshRuin(GgMeshContext*m,int x0,int y0,int x1,int y1,
         ggMeshArchitectureSupport(m,x1-55,y0+8,x1-36,y0+25,ground+4,151,145,128);
     }
 }
+typedef struct { signed char x0,y0,x1,y1,z0,z1; unsigned char r,g,b; } GgMeshStatueBlock;
+static const GgMeshStatueBlock ggMeshStatueBlocks[]={
+    {-67,-62,67,62,0,4,135,131,118},
+    {-53,-49,53,49,4,8,176,165,142},
+    {-39,-39,39,39,8,17,158,148,130},
+    {-44,-44,44,44,17,19,184,169,144},
+    {-15,-18,14,-4,19,25,156,163,144},
+    {-16,4,13,18,19,25,156,163,144},
+    {-16,-22,18,22,24,33,169,176,152},
+    {-13,-14,13,14,33,39,182,193,165},
+    {-23,18,-14,39,27,31,173,181,156}
+};
 static void ggMeshStatue(GgMeshContext*m,int x,int y,int base,int ground){
-    ggMeshArchitectureBlock(m,x-67,y-62,x+67,y+62,base,ground+4,135,131,118);
-    ggMeshArchitectureBlock(m,x-53,y-49,x+53,y+49,ground+4,ground+8,176,165,142);
-    ggMeshArchitectureBlock(m,x-39,y-39,x+39,y+39,ground+8,ground+17,158,148,130);
-    ggMeshArchitectureBlock(m,x-44,y-44,x+44,y+44,ground+17,ground+19,184,169,144);
-    ggMeshArchitectureBlock(m,x-15,y-18,x+14,y-4,ground+19,ground+25,156,163,144);
-    ggMeshArchitectureBlock(m,x-16,y+4,x+13,y+18,ground+19,ground+25,156,163,144);
-    ggMeshArchitectureBlock(m,x-16,y-22,x+18,y+22,ground+24,ground+33,169,176,152);
-    ggMeshArchitectureBlock(m,x-13,y-14,x+13,y+14,ground+33,ground+39,182,193,165);
-    ggMeshArchitectureBlock(m,x-23,y+18,x-14,y+39,ground+27,ground+31,173,181,156);
+    for(unsigned i=0;i<sizeof ggMeshStatueBlocks/sizeof ggMeshStatueBlocks[0];i++){
+        const GgMeshStatueBlock *p=&ggMeshStatueBlocks[i];
+        ggMeshArchitectureBlock(m,x+p->x0,y+p->y0,x+p->x1,y+p->y1,
+                                i?ground+p->z0:base,ground+p->z1,p->r,p->g,p->b);
+    }
+}
+static int ggMeshStatueContains(int x,int y,int z,int base){
+    for(unsigned i=0;i<sizeof ggMeshStatueBlocks/sizeof ggMeshStatueBlocks[0];i++){
+        const GgMeshStatueBlock *p=&ggMeshStatueBlocks[i];
+        if(x>=p->x0&&x<=p->x1&&y>=p->y0&&y<=p->y1&&
+           z>=(i?p->z0:base)&&z<=p->z1)return 1;
+    }
+    return 0;
 }
 static void ggMeshBorderMarker(GgMeshContext*m,int x,int y,int ground){
     int prior=m->material;

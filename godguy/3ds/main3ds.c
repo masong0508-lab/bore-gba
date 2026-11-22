@@ -28,6 +28,7 @@ static int ggHybridWalkable(const Cr *actor,int x,int y){
 #include "mode_input3d.h"
 #include "world_music3d.h"
 #include "frame_clock.h"
+#include "field_ui3d.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void); extern void plat_new3dsRequired(void);
 static unsigned char topBuf[400*240*3], botBuf[320*240*3];
@@ -38,11 +39,10 @@ static Gg3dsFrameClock frameClock;
 // Then SELECT+R toggles its 2D tile/3D POV. SELECT+X opens the picker.
 // Persistent IDs avoid accidentally controlling another creature if the
 // simulation compacts its array after a save.
-static int ggHybridPicking;
+static int ggHybridPicking,ggPickAndEnter,ggWalkHelp;
 static u32 ggHybridSelectedId;
 static int ggHybridSelectedIndex=-1;
 static int ggExpRenderValid;
-static int ggChronHintShown,ggOutdoorHintShown;
 static GgModeInputGuard gg3dModeInput;
 static int gg3dPhysicalKeys;
 static void ggExpRemember(int i){
@@ -86,6 +86,27 @@ static int ggExpCanEnter(void){
     return !titleOn&&!menuOn&&!extrasView&&!sceneOn&&!dlgOn&&
            !sceneClip&&!view3d&&!zBmp&&dlgPend<0;
 }
+static int ggFieldMode(void){
+    if(shimSwap||sceneClip||(ggChron.active&&(ggOrigin.active||ggSaga.mode)))
+        return GG_FIELD_HIDDEN;
+    if(ggWalkHelp)return GG_FIELD_GUIDE;
+    if(ggChron.active&&(ggQuest.talk||ggReign.menu))return GG_FIELD_MODAL;
+    if(ggChron.active)return GG_FIELD_REIGN;
+    if(ggExplore.active)return GG_FIELD_WALK;
+    if(!ggExpCanEnter())return GG_FIELD_HIDDEN;
+    if(ggHybridPicking)return GG_FIELD_PICK;
+    return ggChronReady()?GG_FIELD_MAP_READY:GG_FIELD_MAP_LOCKED;
+}
+static int ggExpEnterPerson(int index){
+    if(!ggHybridBegin(index,paused))return 0;
+    ggExpRemember(index);
+    ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+    paused=1;
+    ggHybridPicking=0;
+    ggOutdoorReset();
+    ggExpRenderValid=0;
+    return 1;
+}
 static void ggExpFinish(void){
     // The exit button must NOT trigger another action when control
     // resumes in the 2D game (e.g. START opening its pause menu).
@@ -95,6 +116,7 @@ static void ggExpFinish(void){
         if(i>=0){ggHybridAfterSave();ggExpRemember(i);}
     }
     ggExplore.active=0;
+    ggWalkHelp=0;
     ggOutdoorReset();
     paused=ggExplore.wasPaused;
     camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
@@ -124,7 +146,40 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                     ((previousRaw&(KEY_SELECT|KEY_X))!=(KEY_SELECT|KEY_X));
     int pressedChron=((raw&(KEY_SELECT|KEY_Y))==(KEY_SELECT|KEY_Y))&&
                      ((previousRaw&(KEY_SELECT|KEY_Y))!=(KEY_SELECT|KEY_Y));
+    int down=raw&~previousRaw;
     previousRaw=raw;
+    int fieldMode=ggFieldMode();
+    int button=(down&GG_3DS_SHORTCUT_TOUCH)?ggFieldButtonAt(fieldMode,*tx,*ty):-1;
+    if(ggWalkHelp){
+        if(button==1||(down&(KEY_A|KEY_B|KEY_START|KEY_SELECT))){
+            ggWalkHelp=0;
+            ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+            ggExpRenderValid=0;
+        }
+        *held=0;*tx=*ty=0;return;
+    }
+    if(button>=0){
+        if(fieldMode==GG_FIELD_MAP_LOCKED||fieldMode==GG_FIELD_MAP_READY){
+            pressedWalk=button==0;pressedPick=button==1;pressedChron=button==2;
+        }else if(fieldMode==GG_FIELD_PICK){
+            ggHybridPicking=0;
+            ggExpMessage("CHOOSE A 3D VIEW ON THE MAP");
+            *held=0;*tx=*ty=0;return;
+        }else if(fieldMode==GG_FIELD_MODAL){
+            raw|=KEY_B;
+        }else if(button==1){
+            ggWalkHelp=1;
+            if(ggChron.active)ggChronCombatStow();
+            ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+            ggExpRenderValid=0;
+            *held=0;*tx=*ty=0;return;
+        }else if(fieldMode==GG_FIELD_REIGN){
+            raw|=button==0?KEY_START:KEY_SELECT;
+        }else{
+            pressedWalk=button==0;pressedField=button==2;
+        }
+    }
+    raw&=~GG_3DS_SHORTCUT_TOUCH;
     // A wholly separate, unlockable 3DS story. The main story stays on
     // the original 2D tile UI and neither story's save format is changed.
     if(ggChron.active){
@@ -215,14 +270,6 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
         *held=0;*tx=*ty=0;return;
     }
-    if(!ggChronHintShown&&ggChronReady()&&!ggExplore.active&&
-       ggExpCanEnter()&&!toastT){
-        ggChronHintShown=1;
-        ggExpMessage("UNWRITTEN REIGN: SELECT+Y TO ENTER");
-    }else if(!ggOutdoorHintShown&&!ggExplore.active&&ggExpCanEnter()&&!toastT){
-        ggOutdoorHintShown=1;
-        ggExpMessage("SELECT+L: WALK IN THE 3D WORLD");
-    }
     if(pressedWalk){
         if(ggExplore.active){
             ggExpFinish();
@@ -234,7 +281,6 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
                 paused=1;
                 ggHybridPicking=0;
-                ggOutdoorHintShown=1;
                 ggOutdoorReset();
                 ggExpRenderValid=0;
                 ggExpMessage("FREE WALK: L+A EXPLORES PLACES");
@@ -246,7 +292,8 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         if(ggExplore.active)ggExpFinish();
         if(ggExpCanEnter()){
             ggHybridPicking=1;
-            ggExpMessage("HYBRID PICK: TAP A SAPIENT; B CANCEL");
+            ggPickAndEnter=button==1;
+            ggExpMessage("TAP A PERSON ON THE MAP");
         }
         *held=0;*tx=*ty=0;return;
     }
@@ -256,19 +303,12 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             ggExpMessage("HYBRID: BACK TO 2D; SELECT+R FOR 3D");
         }else if(ggExpCanEnter()){
             int i=ggExpSelected();
-            if(i>=0){
-                ggExpRemember(i);
-                if(ggHybridBegin(i,paused)){
-                    ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
-                    paused=1;
-                    ggHybridPicking=0;
-                    ggOutdoorReset();
-                    ggExpRenderValid=0;
-                }
-            }else{
+            if(i>=0)ggExpEnterPerson(i);
+            else{
                 // No playable mind selected: stay in 2D, prompt a
                 // deliberate choice instead of possessing a random animal.
                 ggHybridPicking=1;
+                ggPickAndEnter=1;
                 ggExpMessage("TAP A SAPIENT PERSON OR UPLIFTED ANIMAL");
             }
         }
@@ -279,12 +319,14 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             int x=(camX+*tx)>>3,y=(camY+*ty)>>3;
             int i=(*ty>=0&&*ty<TB_Y)?ggHybridPick(x,y):-1;
             if(i>=0){
-                ggExpRemember(i);
-                ggHybridPicking=0;
-                char nm[48];crName(&cr[i],nm);
-                snprintf(info,sizeof info,"SELECTED %.36s  SELECT+R: 3D",nm);
-                toastT=420;
-                shimExternalInvalidate=1;
+                if(!ggPickAndEnter||!ggExpEnterPerson(i)){
+                    ggExpRemember(i);
+                    ggHybridPicking=0;
+                    char nm[48];crName(&cr[i],nm);
+                    snprintf(info,sizeof info,"FOLLOW %.36s WITH SELECT+R",nm);
+                    toastT=420;
+                    shimExternalInvalidate=1;
+                }
             }else ggExpMessage("NOT A SENTIENT MIND: TAP ANOTHER");
         }else if(raw&KEY_B){
             ggHybridPicking=0;
@@ -311,7 +353,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
         if(!(raw&KEY_A))ggOutdoorCaptureA=0;
         if(pressedField){
-            ggOutdoorCaptureA=1;
+            ggOutdoorCaptureA=(raw&KEY_A)!=0;
             ggOutdoorUse();
             ggExpRenderValid=0;
         }
@@ -374,6 +416,13 @@ void shimPresent(void){
     }
     shimRenderChanged(topBuf,botBuf,&tc,&bc);
     if(bc)ggMapObjectivesDraw(botBuf);
+    static int lastFieldMode;
+    int fieldMode=ggFieldMode();
+    if(!shimFilmFullscreen&&(fieldMode||lastFieldMode)&&(bc||fieldMode!=lastFieldMode)){
+        ggFieldStripDraw(botBuf,fieldMode);
+        bc=1;
+    }
+    lastFieldMode=fieldMode;
     if(ggExplore.active){
         // Render on actual camera/world changes, or every eighth frame
         // for subtle clouds/feedback. Static scenes reuse the existing
@@ -397,7 +446,7 @@ void shimPresent(void){
                    ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
                    ggExplore.material!=lastMaterial||
                    ggExplore.feedback!=lastFx||sky!=lastSky||
-                   (ggChron.active&&(ggOrigin.active||ggChron.dirty||
+                   (ggChron.active&&!ggWalkHelp&&(ggOrigin.active||ggChron.dirty||
                                       ggReign.menu||ggReign.noticeT||
                                       !(ggChron.frame&3))));
         if(dirty){
@@ -409,11 +458,16 @@ void shimPresent(void){
                 ggExpBuildPreview=!ggChron.active;
                 ggExpRender(topBuf);
                 if(ggChron.active){
+                    int modal=ggWalkHelp||ggReign.menu||ggQuest.talk;
+                    char hint[64];
+                    const char *context=modal?NULL:ggReign.noticeT?ggReign.notice:
+                                        ggQuestFieldHint(hint,sizeof hint);
                     ggReignSceneDraw(topBuf);
-                    ggChronDraw(topBuf);
+                    ggChronDraw(topBuf,context,modal);
                     ggReignDraw(topBuf);
                     ggQuestDraw(topBuf);
                 }else ggOutdoorHud(topBuf);
+                if(ggWalkHelp)ggFieldGuideDraw(topBuf,ggChron.active,ggExplore.actorId!=0);
             }
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;

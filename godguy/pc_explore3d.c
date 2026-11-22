@@ -110,6 +110,8 @@ static int politicalDirty;
 #include "3ds/reign_saga3d.h"
 #define GG_AMBIENT_SAVE_PATH "/tmp/godguy_ambient_pc_test.dat"
 #include "3ds/reign_ambient3d.h"
+static int testToolbarY=160;
+#define TB_Y testToolbarY
 #include "3ds/reign_map3d.h"
 #include "3ds/mode_input3d.h"
 static void check(int value,const char *message){
@@ -213,13 +215,28 @@ static void combatStyles(void){
     for(int i=0;i<7;i++)ggChronStep(0);
     check(ggChron.foe[0].hp==49,"heavy blade did not resolve once in reach");
 
+    combatFixture(GG_CHRON_BLADE,2);
+    ggExplore.px=20*256+248;
+    bld[20][21]=B_HALL;
+    for(int i=0;i<22;i++)ggChronStep(KEY_A);
+    ggChronStep(0);
+    for(int i=0;i<6;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==80&&ggChron.combatNotice==GG_COMBAT_COVER,
+          "blade did not distinguish cover from missing its target");
+    bld[20][21]=0;
+
     combatFixture(GG_CHRON_BLADE,5);
     ggChronStep(GG_3DS_ZR);
     check(ggChron.style==GG_CHRON_BOW,"weapon cycle did not equip the bow");
-    for(int i=0;i<6;i++)ggChronStep(0);
+    combatFixture(GG_CHRON_BOW,3);
     ggChronStep(KEY_A);ggChronStep(0);
-    check(!combatShots()&&ggChron.combatNotice==GG_COMBAT_TOO_SOON,
-          "an undrawn bow released a combat projectile");
+    check(combatShots()==1&&ggChron.stamina==94&&ggChron.foe[0].hp==80,
+          "tapping A did not launch one low-cost arrow");
+    for(int i=0;i<18;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==71&&!combatShots(),
+          "tap arrow did not resolve once at short range");
+
+    combatFixture(GG_CHRON_BOW,5);
     for(int i=0;i<22;i++)ggChronStep(KEY_A|GG_3DS_ZL);
     ggChronStep(GG_3DS_ZL);
     check(combatShots()==1&&ggChron.foe[0].hp==80&&ggChron.stamina<100,
@@ -227,6 +244,15 @@ static void combatStyles(void){
     for(int i=0;i<31;i++)ggChronStep(0);
     check(ggChron.foe[0].hp==56&&!combatShots(),
           "aimed arrow missed a visible foe or struck it twice");
+
+    combatFixture(GG_CHRON_BOW,5);
+    ggChron.foeN=0;
+    for(int i=0;i<8;i++)ggChronStep(KEY_A|GG_3DS_ZL);
+    int drawY=ggExplore.py;
+    ggChronStep(KEY_R|KEY_RIGHT);
+    check(combatShots()==1&&ggChron.shots[0].y==ggExplore.py&&
+          ggChron.shots[0].y!=drawY&&ggChron.shots[0].vy==ggExpSin[2]*76/4096,
+          "releasing A and ZL together changed a moving shot's aim");
 
     combatFixture(GG_CHRON_BOW,5);
     bld[20][22]=B_HALL;
@@ -245,6 +271,46 @@ static void combatStyles(void){
           "ruin collision blocks a visible breach or leaks through a wall");
     bld[20][22]=0;
 
+    combatFixture(GG_CHRON_EMBER,2);
+    ggChronStep(KEY_A);ggChronStep(0);
+    check(combatShots()==1&&ggChron.focus==88&&ggChron.foe[0].hp==80,
+          "tapping A did not launch one low-focus ember bolt");
+    for(int i=0;i<14;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==67&&!combatShots(),
+          "tap ember did not resolve once at short range");
+
+    combatFixture(GG_CHRON_EMBER,4);
+    ggChronStep(KEY_A);ggChronStep(0);
+    ggChronStep(KEY_A);
+    check(!ggChron.charge&&ggChron.combatNotice==GG_COMBAT_RECOVERY,
+          "pressing A during recovery was silently ignored");
+    for(int i=0;i<14;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==80&&!combatShots()&&
+          ggChron.combatNotice==GG_COMBAT_SHOT_MISS,
+          "tap ember reached charged range or missed without feedback");
+
+    combatFixture(GG_CHRON_EMBER,4);
+    ggChron.focus=17;
+    for(int i=0;i<22;i++)ggChronStep(KEY_A);
+    ggChronStep(0);
+    check(!combatShots()&&ggChron.focus==17&&ggChron.combatNotice==GG_COMBAT_FOCUS,
+          "an unaffordable charged cast changed focus or fired");
+    ggChron.focus=5;
+    ggChronStep(KEY_A);
+    check(!ggChron.charge&&ggChron.combatNotice==GG_COMBAT_FOCUS,
+          "an unaffordable tap began drawing a cast");
+
+    combatFixture(GG_CHRON_EMBER,4);
+    for(int i=0;i<GG_CHRON_SHOTS;i++){
+        ggChronStep(KEY_A);ggChronStep(0);
+        ggChron.attackWait=0;
+    }
+    int reserve=ggChron.focus;
+    ggChronStep(KEY_A);ggChronStep(0);
+    check(combatShots()==GG_CHRON_SHOTS&&ggChron.focus==reserve&&
+          ggChron.combatNotice==GG_COMBAT_BUSY,
+          "full projectile pool lost a cast or spent its focus");
+
     combatFixture(GG_CHRON_EMBER,4);
     for(int i=0;i<22;i++)ggChronStep(KEY_A);
     ggChronStep(0);
@@ -258,6 +324,20 @@ static void combatStyles(void){
     check(ggChron.hp==97&&ggChron.focus==focus-13&&ggChron.combatNotice==GG_COMBAT_WARD,
           "ward did not trade focus for protection");
 
+    combatFixture(GG_CHRON_EMBER,1);
+    ggChronStep(GG_3DS_ZL);
+    ggChronStep(KEY_A|GG_3DS_ZL);
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==88&&ggChron.focus==100,"charging ember still allowed a ward");
+    ggChronStep(GG_3DS_ZL);
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==85&&ggChron.focus==75&&ggChron.combatNotice==GG_COMBAT_WARD,
+          "holding ZL through a cast did not resume warding");
+    ggChron.focus=12;
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==73&&ggChron.focus==12&&ggChron.combatNotice==GG_COMBAT_FOCUS,
+          "an exhausted ward did not report the failed defense");
+
     combatFixture(GG_CHRON_BLADE,1);
     ggChron.guardTicks=1;
     ggChronIncomingHit(0,12);
@@ -269,10 +349,34 @@ static void combatStyles(void){
     ggChronCombatStow();
     ggChronCombatStep(GG_3DS_ZL,0);
     check(!ggChron.guardTicks,"held overlay key rearmed a fresh parry");
+
+    combatFixture(GG_CHRON_BLADE,1);
+    ggChronStep(GG_3DS_ZL);
+    ggChronStep(KEY_A|GG_3DS_ZL);
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==88,"blade charge still allowed a parry");
+    ggChronStep(GG_3DS_ZL);
+    for(int i=0;i<3;i++)ggChronStep(GG_3DS_ZL);
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==84&&ggChron.combatNotice==GG_COMBAT_BLOCK,
+          "holding ZL through a swing did not resume a steady block");
+    ggChron.stamina=8;
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==72&&ggChron.stamina==8&&ggChron.combatNotice==GG_COMBAT_STAMINA,
+          "an exhausted shield did not report the failed defense");
     ggExplore.angle=0;
     ggExplore.px=21*256-6;
     ggChronStep(KEY_UP);
     check(ggExplore.px==21*256-6,"player movement entered a living foe's tile");
+    combatFixture(GG_CHRON_BLADE,5);
+    bld[20][21]=B_TEMPLE;
+    ggExplore.px=21*256-40;ggExplore.py=20*256+66;
+    ggChronStep(KEY_UP);
+    check(ggExplore.px==21*256-40,"player walked inside a visible temple column");
+    ggExplore.py=20*256+128;
+    ggChronStep(KEY_UP);
+    check(ggExplore.px>21*256-40,"column collision also closed the open temple aisle");
+    bld[20][21]=0;
 
     for(int y=0;y<5;y++)for(int x=0;x<13;x++){
         world[y+18][x+18]=terrain[y][x];
@@ -332,6 +436,26 @@ int main(void){
           "objective marker did not render a centered crosshair");
     check(!ggMapPinDraw(guarded.img,0,0,244,204,82),
           "off-screen map pin tried to draw outside map");
+    ggChron.px[0]=100;ggChron.py[0]=64;
+    memset(guarded.img,0,320*240*3);
+    ggMapObjectivesDraw(guarded.img);
+    int edgeInk=0;
+    for(int y=112;y<137;y++)for(int x=277;x<288;x++)
+        edgeInk+=guarded.img[(y*320+x)*3]==244;
+    check(edgeInk>=3,"off-screen objective has no bottom-map direction cue");
+    ggChron.px[0]=64;ggChron.py[0]=100;
+    testToolbarY=136;
+    memset(guarded.img,0,320*240*3);
+    ggMapObjectivesDraw(guarded.img);
+    int southInk=0,toolbarInk=0;
+    for(int y=140;y<216;y++)for(int x=145;x<175;x++){
+        int bright=guarded.img[(y*320+x)*3]==244;
+        if(y<24+testToolbarY)southInk+=bright;
+        else toolbarInk+=bright;
+    }
+    check(southInk>=3&&!toolbarInk,"south objective cue draws on the toolbar");
+    testToolbarY=160;
+    ggChron.px[0]=ggChron.py[0]=64;
     check(guarded.first[0]==0x5a&&guarded.last[0]==0xc3,
           "objective pin overflowed 3DS map buffer");
     ggChron.active=0;
@@ -620,7 +744,10 @@ int main(void){
     check(ggChronBegin(60,60,0)==1&&ggChron.act==1,
           "completed original story cannot access the next campaign act");
     ggExpRender(guarded.img);
-    ggChronDraw(guarded.img);
+    memset(guarded.img,0,sizeof guarded.img);
+    ggChronDraw(guarded.img,NULL,0);
+    check(guarded.img[(26*400+10)*3]==0,
+          "Reign HUD still covers space below its objective strip");
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "campaign banners or HUD overran the shared 3DS framebuffer");
     // First entry should be an ordinary childhood and the age-22
@@ -899,7 +1026,7 @@ int main(void){
     check(ggReignSceneDrawn<=GG_REIGN_SCENE_CAP,
           "busy city bypassed the bounded 3DS scene-decoration budget");
     for(int yy=57;yy<65;yy++)for(int xx=60;xx<68;xx++)bld[yy][xx]=0;
-    ggChronDraw(guarded.img);
+    ggChronDraw(guarded.img,NULL,0);
     ggReignDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "new 3DS civic HUD overflowed its sole allocated frame buffer");

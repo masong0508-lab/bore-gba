@@ -123,18 +123,20 @@ static int ggSagaChooseEnding(void){
 // the player has genuinely built civic trust (or offers scarce rations).
 // X first attempts diplomacy; otherwise it retains the normal fight and
 // secure-post action. No extra pathfinder, actor list, or per-frame work.
-static int ggSagaParley(int post){
+static int ggSagaParleyCost(int post){
     if(ggChron.act==GG_CHRON_ACTS-1&&post==GG_CHRON_POSTS-1)
         return 0; // the final captain must be confronted
-    int pacify=0;
-    if(ggChron.act==0&&post==0&&ggChron.rations>=2){
-        ggChron.rations--;pacify=1;
-    }else if((ggChron.act==1||ggChron.act==2||ggChron.act==3)&&
+    if(ggChron.act==0&&post==0&&ggChron.rations>=2)return 1;
+    if(ggChron.act>0&&
              post<2&&ggReign.influence>=18&&ggReign.legitimacy>=20&&
-             ggReign.infamy<ggReign.legitimacy+20){
-        ggReign.influence-=8;pacify=1;
-    }
-    if(!pacify)return 0;
+             ggReign.infamy<ggReign.legitimacy+20)return 2;
+    return 0;
+}
+static int ggSagaParley(int post){
+    int cost=ggSagaParleyCost(post);
+    if(!cost)return 0;
+    if(cost==1)ggChron.rations--;
+    else ggReign.influence-=8;
     for(int j=0;j<ggChron.foeN;j++)if(ggChron.foe[j].post==post&&
                                       ggChron.foe[j].hp>0)
         ggChron.foe[j].hp=0; // guards surrender instead of being killed

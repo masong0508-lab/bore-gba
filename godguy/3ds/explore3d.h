@@ -1141,22 +1141,15 @@ mesh_world_ready:
     ggExpRect(top,196,122,3,1,240,216,164);
     ggExpRect(top,201,122,3,1,240,216,164);
     ggExpRect(top,199,118,2,3,233,213,161);
-    // One coherent, readable scene UI shared with the film captions:
-    // warm brass keylines, cool slate panels and short grouped controls.
+    // The bottom screen carries the control guide and map shortcuts.
     ggExpFilmDrawDepth=0;
-    ggExpRect(top,0,0,400,28,13,24,35);
-    ggExpRect(top,0,26,400,2,174,137,85);
-    ggExpRect(top,0,0,3,28,192,148,93);
+    ggExpRect(top,0,0,400,19,13,24,35);
+    ggExpRect(top,0,18,400,1,174,137,85);
     char buf[96];
-    if(ggExplore.actorId)snprintf(buf,sizeof buf,"CITIZEN: %.25s",ggExplore.actorName);
-    else snprintf(buf,sizeof buf,"GODGUY  /  EXPLORING");
-    ggExpText(top,9,5,buf,242,220,164);
+    if(ggExplore.actorId)snprintf(buf,sizeof buf,"FOLLOWING %.30s",ggExplore.actorName);
+    else snprintf(buf,sizeof buf,"WORLD WALK");
+    ggExpText(top,9,6,buf,242,220,164);
     static const char *const facing[8]={"E","SE","S","SW","W","NW","N","NE"};
-    snprintf(buf,sizeof buf,"FACING %s",facing[((ggExplore.angle+16)&255)/32]);
-    ggExpText(top,229,5,buf,181,203,204);
-    snprintf(buf,sizeof buf,"X:%d  Y:%d",
-             ggExplore.px>>8,ggExplore.py>>8);
-    ggExpText(top,287,5,buf,220,225,221);
     int localTerrain=world[ggExplore.py>>8][ggExplore.px>>8];
     const char *region=localTerrain==T_FOREST?"WOODLAND":
                  localTerrain==T_JUNGLE?"JUNGLE":
@@ -1167,49 +1160,28 @@ mesh_world_ready:
                  localTerrain==T_SWAMP?"MARSHLAND":
                  localTerrain<=T_WATER?"COAST":
                  localTerrain==T_DIRT?"ROADLAND":"GREEN COUNTRY";
-    snprintf(buf,sizeof buf,"REGION: %s",region);
-    ggExpText(top,9,17,buf,181,203,204);
+    snprintf(buf,sizeof buf,"%s  %s",region,facing[((ggExplore.angle+16)&255)/32]);
+    ggExpText(top,390-(int)strlen(buf)*6,6,buf,181,203,204);
     int buildMat=(unsigned)ggExplore.material<GG_EXP_MATERIALS?ggExplore.material:0;
-    snprintf(buf,sizeof buf,"BUILD: %s",ggExpMaterialNames[buildMat]);
-    ggExpText(top,223,17,buf,225,204,153);
-    ggExpRect(top,376,15,15,9,
+    ggExpRect(top,0,213,400,27,12,22,33);
+    ggExpRect(top,0,213,400,1,178,143,91);
+    snprintf(buf,sizeof buf,"X %s",ggExpMaterialNames[buildMat]);
+    ggExpText(top,368-(int)strlen(buf)*6,218,buf,225,204,153);
+    ggExpRect(top,376,217,15,8,
               ggExpClamp(terrCol[ggExpMaterials[buildMat]][0]*8,0,255),
               ggExpClamp(terrCol[ggExpMaterials[buildMat]][1]*8,0,255),
               ggExpClamp(terrCol[ggExpMaterials[buildMat]][2]*8,0,255));
-    ggExpRect(top,0,196,400,44,12,22,33);
-    ggExpRect(top,0,195,400,1,178,143,91);
-    ggExpRect(top,0,239,400,1,178,143,91);
-    // Controls are grouped by actual action rather than one long
-    // unexplained NES-style string of letters.
-    ggExpRect(top,8,199,92,12,29,42,53);
-    ggExpRect(top,105,199,92,12,29,42,53);
-    ggExpRect(top,202,199,92,12,29,42,53);
-    ggExpRect(top,299,199,92,12,29,42,53);
-    ggExpText(top,14,202,"A  PLACE",239,218,163);
-    ggExpText(top,111,202,"Y  CLEAR",239,218,163);
-    ggExpText(top,208,202,"X  MATERIAL",239,218,163);
-    ggExpText(top,305,202,"B  SPRINT",239,218,163);
-    const char *movement=ggExplore.actorId?
-        "PAD MOVE  L/R LOOK  TAP MAP: SWITCH":
-        "PAD MOVE  L/R LOOK  TAP MAP: TRAVEL";
-    ggExpText(top,9,216,movement,202,217,218);
-    ggExpText(top,250,216,"SELECT SAVE  START EXIT",171,197,206);
-    snprintf(buf,sizeof buf,"TARGET: %s",ggExpEditReason(targetStatus));
-    ggExpText(top,9,229,buf,targetStatus==GG_EDIT_READY?147:236,
-              targetStatus==GG_EDIT_READY?221:184,177);
+    const char *action=targetStatus==GG_EDIT_READY?"A PLACE   Y CLEAR":ggExpEditReason(targetStatus);
+    int r=202,g=217,b=218;
     if(ggExplore.feedbackT){
-        const char *msg=ggExplore.feedback==2?"TERRAIN CHANGED":
+        action=ggExplore.feedback==2?"TERRAIN CHANGED":
                         ggExplore.feedback==3?ggExpEditReason(ggExplore.editStatus):
                         ggExplore.feedback==4?"WORLD SAVED":
                         ggExplore.feedback==5?"SAVE FAILED: RETURN TO MAP":
                         "BUILDING MATERIAL SELECTED";
-        int warning=ggExplore.feedback==3||ggExplore.feedback==5;
-        ggExpRect(top,8,179,330,13,warning?69:44,
-                  warning?39:62,warning?38:58);
-        ggExpRect(top,8,179,3,13,warning?219:169,
-                  warning?115:185,warning?103:139);
-        ggExpText(top,16,182,msg,250,224,174);
+        r=250;g=224;b=174;
     }
+    ggExpText(top,9,218,action,r,g,b);
 }
 static void ggExpRender(u8 *top){
     ggExpRenderMode(top,0);

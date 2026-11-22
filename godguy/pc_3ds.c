@@ -4,6 +4,7 @@
 #include <3ds.h>
 #include <stdio.h>
 #include "3ds/platform_keys3d.h"
+extern void plat_setCinema(int);
 u8 stubFb[2][2][400*240*3]; int stubCur[2], stubShown[2], stubSwaps, stubFlushes, stubSpeedup, stubQueued, stubNextExpect; u32 stubKeys; touchPosition stubTouch; short*stubQueue[64]; ndspWaveBuf*stubWb[64];
 int stubAllocFailAt=-1,stubAllocCalls,stubAllocLive,stubAllocFreed;
 int stubDSPInitResult,stubDSPInits,stubDSPExits,stubDSPActive;
@@ -100,6 +101,27 @@ int main(int argc,char **argv){
     stubKeys=KEY_A|KEY_ZL|KEY_ZR;
     bad+=expect(plat_keys(&tx,&ty)==(KEY_A|GG_3DS_ZL|GG_3DS_ZR),
                 "New 3DS weapon and guard buttons did not reach the input shim");
+    stubKeys=KEY_TOUCH;stubTouch=(touchPosition){65,13};
+    int touch=plat_keys(&tx,&ty);
+    bad+=expect(touch==GG_3DS_SHORTCUT_TOUCH&&tx==65&&ty==13,
+                "top bezel touch did not reach native shortcut controls");
+    stubTouch=(touchPosition){65,40};
+    bad+=expect(plat_keys(&tx,&ty)==GG_3DS_SHORTCUT_TOUCH,
+                "shortcut drag leaked into the live map");
+    stubKeys=0;plat_keys(&tx,&ty);
+    stubKeys=KEY_TOUCH;stubTouch=(touchPosition){65,40};
+    touch=plat_keys(&tx,&ty);
+    bad+=expect(touch==(1<<12)&&tx==33&&ty==16,
+                "normal map touch lost its original coordinates");
+    plat_setCinema(1);stubTouch=(touchPosition){65,13};
+    bad+=expect(plat_keys(&tx,&ty)==0,"held map touch replayed on the film screen");
+    stubKeys=0;plat_keys(&tx,&ty);
+    stubKeys=KEY_TOUCH;
+    touch=plat_keys(&tx,&ty);
+    bad+=expect(touch==(1<<12)&&tx==52&&ty==10,
+                "film lost its full-screen touch coordinates");
+    plat_setCinema(0);
+    bad+=expect(plat_keys(&tx,&ty)==0,"held film touch replayed on the map shortcuts");
     stubKeys=0;
     // 1. the picture on both screens matches the plain copy after every frame, for a random run of changes and no-changes
     static u8 want[2][400*240*3]; int copies0=0, frames=400, shownBad=0;

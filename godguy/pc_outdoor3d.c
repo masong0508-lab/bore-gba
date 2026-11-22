@@ -2,9 +2,9 @@
 #define GG_TEST_NATIVE_ORIGIN
 #include "3ds/main3ds.c"
 
-static int physicalKeys,frame;
+static int physicalKeys,frame,touchPx,touchPy;
 void plat_setCinema(int on){ (void)on; }
-int plat_keys(int *x,int *y){ *x=*y=0; return physicalKeys; }
+int plat_keys(int *x,int *y){ *x=touchPx;*y=touchPy;return physicalKeys; }
 
 static void require(int ok,const char *message){
     if(!ok){ fprintf(stderr,"OUTDOOR FAIL: %s\n",message); exit(1); }
@@ -14,6 +14,10 @@ static int inputFrame(int keys){
     physicalKeys=keys;
     shimInput(frame++,&held,&x,&y);
     return held;
+}
+static void touchShortcut(int x){
+    touchPx=x;touchPy=12;
+    inputFrame(GG_3DS_SHORTCUT_TOUCH);inputFrame(0);
 }
 static void fieldAction(void){
     inputFrame(KEY_L|KEY_A);
@@ -73,8 +77,28 @@ int main(void){
     inputFrame(0);
     require(!ggExplore.active,"Start returns to the world map");
 
+    touchShortcut(60);
+    require(ggExplore.active&&!ggExplore.actorId,"touch shortcut opens 3D walking");
+    touchShortcut(160);
+    int before=ggExplore.frame,xBefore=ggExplore.px;
+    inputFrame(KEY_UP);inputFrame(0);
+    require(ggExplore.frame==before&&ggExplore.px==xBefore,
+            "controls pause the live 3D view");
+    inputFrame(KEY_B);inputFrame(0);
+    require(ggExplore.active&&ggExplore.frame>before,"back resumes the same view from controls");
+    touchShortcut(60);
+    require(!ggExplore.active,"touch shortcut returns to the world map");
+    touchShortcut(260);
+    require(!ggChron.active&&strstr(info,"CHAPTER 3"),"locked story shortcut explains how to unlock it");
+
     int person=addCr(0,20,20);
-    require(person>=0&&ggHybridBegin(person,0),"enter a real citizen");
+    require(person>=0,"spawn a real citizen");
+    touchShortcut(160);
+    require(ggHybridPicking,"follow shortcut opens the person picker");
+    touchPx=20*8+4-camX;touchPy=20*8+4-camY;
+    inputFrame(KEY_TOUCH);inputFrame(0);
+    require(ggExplore.active&&!ggHybridPicking&&ggHybridResolve()==person,
+            "tapping a citizen immediately opens their point of view");
     Cr *citizen=&cr[person];
     citizen->food=40;
     aimEast();
