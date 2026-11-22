@@ -43,8 +43,11 @@ def make():
         assert size>=4+(count+1)//2
         row=round(target_seconds(float(clip["start_s"]))/ROW_S)
         assert 0<=row<206*64 and (not cues or row>cues[-1][0])
-        # 112/256 baseline, preserving the recorded quieter voice lines.
-        gain=max(28,min(112,round(112*min(1.,float(clip["vol_peak"])/.80))))
+        # Keep the live Koala shuffle audible under the singing. The isolated
+        # ADPCM vocals are individually normalized, so a full 112/256 mix
+        # sounds unnaturally louder than the author's original master.
+        # Use a moderate 48/256 center overlay with source dynamics intact.
+        gain=max(12,min(48,round(48*min(1.,float(clip["vol_peak"])/.80))))
         cues.append((row,gain,off))
     text=[
         "// GENERATED from tools/corporations/digital.json by tools/winner_voice.py\n",
