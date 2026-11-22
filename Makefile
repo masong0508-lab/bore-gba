@@ -16,7 +16,7 @@ IWRAM_MAX ?= 32512   # 32768 minus the top 256 B the BIOS uses; .bss + .data + .
 
 all: $(TARGET).gba
 
-$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz
+$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz tools/winner_note_gate.py tools/winner_flute_gates.b64 tools/winner_voice.py tools/corporations/digital/vocals.adp tools/corporations/digital.json
 	python3 tools/install_winner_koala.py
 	python3 tools/make_packs.py ld   # the expansion packs' slots (source/packslots.h for the game, tools/packs.ld INCLUDEd by tools/bore.ld)
 	$(CC) $(CFLAGS) -c source/main.c -o main.o
@@ -37,7 +37,7 @@ $(TARGET).gba: $(TARGET).elf
 
 # THE CREATOR DEMO (source/ccdemo.h): the same game built with -DCC_DEMO, only the creature creator, a gallery and share codes
 creator: $(TARGET)-creator.gba
-$(TARGET)-creator.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz
+$(TARGET)-creator.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz tools/winner_note_gate.py tools/winner_flute_gates.b64 tools/winner_voice.py tools/corporations/digital/vocals.adp tools/corporations/digital.json
 	python3 tools/install_winner_koala.py
 	python3 tools/make_packs.py ld
 	$(CC) $(CFLAGS) -DCC_DEMO -c source/main.c -o main-cc.o
@@ -55,7 +55,7 @@ $(TARGET)-creator.gba: $(TARGET)-creator.elf
 # Use e.g. "make clean && make preview-missy CS_PREVIEW_SCENE=11" for Route 9.
 CS_PREVIEW_SCENE ?= 4
 preview-missy: bore-missy-preview.gba
-bore-missy-preview.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz
+bore-missy-preview.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz tools/winner_note_gate.py tools/winner_flute_gates.b64 tools/winner_voice.py tools/corporations/digital/vocals.adp tools/corporations/digital.json
 	python3 tools/install_winner_koala.py
 	python3 tools/make_packs.py ld
 	$(CC) $(CFLAGS) -DCS_PREVIEW=$(CS_PREVIEW_SCENE) -c source/main.c -o main-missy-preview.o
@@ -69,7 +69,7 @@ bore-missy-preview.gba: bore-missy-preview.elf
 
 # Direct-play awakening cutscene. The normal game is never built with this.
 preview-missy-awake: bore-missy-awake.gba
-bore-missy-awake.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz
+bore-missy-awake.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz) tools/install_winner_koala.py tools/winner_koala.xm.xz tools/winner_note_gate.py tools/winner_flute_gates.b64 tools/winner_voice.py tools/corporations/digital/vocals.adp tools/corporations/digital.json
 	python3 tools/install_winner_koala.py
 	python3 tools/make_packs.py ld
 	$(CC) $(CFLAGS) -DCS_PREVIEW=4 -DCS_PREVIEW_BEAT=16 -c source/main.c -o main-missy-awake.o

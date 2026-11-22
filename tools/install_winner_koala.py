@@ -31,8 +31,13 @@ def install():
     digest=hashlib.sha256(source).hexdigest()
     if digest!=EXPECTED_XM:
         raise SystemExit('Winner source checksum mismatch. Re-import and update EXPECTED_XM: '+digest)
-    if not XM.exists() or XM.read_bytes()!=source:
-        XM.write_bytes(source)
+    from winner_note_gate import install as add_note_releases
+    from winner_voice import make as make_vocal_cues
+    make_vocal_cues()
+    gated,gate_report=add_note_releases(source)
+    rebuild_digest=hashlib.sha256(gated).hexdigest()
+    if not XM.exists() or XM.read_bytes()!=gated:
+        XM.write_bytes(gated)
     old=HEADER.read_text(encoding='utf8')
     end=old.find(MARK)
     if end>=0:
@@ -40,7 +45,7 @@ def install():
         parts=line.split(' ')
         offset=int(next(s.split('=')[1] for s in parts if s.startswith('offset=')))
         old_digest=next(s.split('=')[1] for s in parts if s.startswith('sha256='))
-        if old_digest==digest and BANK.stat().st_size>=offset:
+        if old_digest==rebuild_digest and BANK.stat().st_size>=offset:
             print('Winner Koala XM bank is already prepared: '+digest[:12]); return
         old=old[:end]
         prior=BANK.read_bytes()
@@ -59,7 +64,7 @@ def install():
     base=BANK.stat().st_size
     blob=bytes(C.BLOB)
     if not blob:raise RuntimeError('Winner converter wrote an empty bank')
-    decl=['\n'+MARK+'offset='+str(base)+' sha256='+digest+'\n',
+    decl=['\n'+MARK+'offset='+str(base)+' sha256='+rebuild_digest+'\n',
           '// Uses the original Koala project note events and 23 embedded WAV pad samples.\n',
           '__asm__(".pushsection .rodata\\n"\n']
     for name,typ,pos,size in C.LABELS:
@@ -73,6 +78,6 @@ def install():
     output=old+''.join(decl)
     BANK.write_bytes(BANK.read_bytes()+blob)
     HEADER.write_text(output,encoding='utf8')
-    print('Installed Koala Winner: %d sample/event bytes at XM bank offset %d, sha256=%s' % (len(blob),base,digest[:16]))
+    print('Installed Koala Winner: %d sample/event bytes at XM bank offset %d, sha256=%s' % (len(blob),base,rebuild_digest[:16]))
 
 if __name__=='__main__':install()
