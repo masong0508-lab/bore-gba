@@ -280,10 +280,12 @@ static void ggFilmFloor(GgFilmCamera cam,int p,int t,int chapter,int winter){
                            i&1?14:12);
         }
         if(p==F_FORD){
-            ggFilmQuad(cam,ggV3(-extent,1,330),ggV3(-290,1,330),
-                           ggV3(-180,1,2200),ggV3(-extent,1,2200),winter?22:18);
-            ggFilmQuad(cam,ggV3(290,1,330),ggV3(extent,1,330),
-                           ggV3(extent,1,2200),ggV3(230,1,2200),winter?23:17);
+            // The near and far banks straddle the river along Z, so
+            // the bridge deck meets dry ground at both abutments.
+            ggFilmQuad(cam,ggV3(-extent,1,330),ggV3(extent,1,330),
+                           ggV3(extent,1,604),ggV3(-extent,1,628),winter?22:18);
+            ggFilmQuad(cam,ggV3(-extent,1,1156),ggV3(extent,1,1102),
+                           ggV3(extent,1,far),ggV3(-extent,1,far),winter?23:17);
             if(chapter<GG_FILM_BRIDGE_CHAPTER)
                 ggFilmQuad(cam,ggV3(-117,GG_FILM_FORD_TOP,465),ggV3(117,GG_FILM_FORD_TOP,465),
                                ggV3(102,GG_FILM_FORD_TOP,1210),ggV3(-102,GG_FILM_FORD_TOP,1210),21);
@@ -579,6 +581,25 @@ static void ggFilmWorldDraw(GgFilmCamera cam,const FilmBeat *beat,int scenic,
         ggFilmArch(cam,-170,1260,p==F_RUINS);
         ggFilmArch(cam,225,970,p==F_RUINS);
         ggFilmBox(cam,0,0,1610,650,140,80,21,20,26);
+        if(p==F_GATE&&chapter==9&&scenic<42*FMV_TICKS){
+            for(int i=0;i<3;i++){
+                int x=-390+(scenic*8+i*227)%780;
+                int y=115+(i*55+scenic)%170;
+                int z=1050+i*107;
+                ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+65,y+19,z),
+                               ggV3(x+65,y+24,z),ggV3(x,y+5,z),8);
+            }
+            if(scenic>=22*FMV_TICKS&&scenic<28*FMV_TICKS){
+                GgV3 impact=ggV3(-168,130,1233);
+                for(int i=0;i<4;i++){
+                    int dx=(i&1)?-50:50,dy=(i&2)?-40:45;
+                    ggFilmTri(cam.page,ggFilmProject(cam,impact),
+                        ggFilmProject(cam,ggV3(impact.x+dx,impact.y+dy,impact.z)),
+                        ggFilmProject(cam,ggV3(impact.x+dx/3,impact.y+dy/2-10,impact.z)),
+                        i&1?9:10);
+                }
+            }
+        }
     }else if(p==F_VILLAGE){
         // Persist the same village plan, but let the town actually GROW:
         // one founding shelter, then its first neighbor, then the hall.

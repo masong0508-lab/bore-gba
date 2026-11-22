@@ -190,10 +190,10 @@ static const char *const ggOriginHumanCel[24]={
     ".....bb..bb.....",
     "....bbb..bbb...."
 };
-static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame){
-    const u8 *skin=ggOriginSkinRGB[ggOrigin.skin];
-    const u8 *hair=ggOriginHairRGB[ggOrigin.hair];
-    const u8 *coat=ggOriginClothesRGB[ggOrigin.garment];
+static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame,int stranger){
+    const u8 *skin=ggOriginSkinRGB[(ggOrigin.skin+stranger)%GG_ORIGIN_SKINS];
+    const u8 *hair=ggOriginHairRGB[(ggOrigin.hair+stranger*3)%GG_ORIGIN_HAIRS];
+    const u8 *coat=ggOriginClothesRGB[(ggOrigin.garment+stranger*2)%GG_ORIGIN_GARMENTS];
     ggExpRect(out,x-8*scale,y-2,16*scale,3,30,38,40);
     for(int py=0;py<24;py++){
         const char *row=ggOriginHumanCel[py];
@@ -227,9 +227,9 @@ typedef struct { int x,feet,scale; } GgOriginMark;
 
 static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-    int birth=phase==GG_ORIGIN_BIRTH;
+    int birth=phase==GG_ORIGIN_BIRTH,awakening=phase==GG_ORIGIN_AWAKEN;
     FilmBeat take={0};
-    take.place=birth?F_PORCH:F_VILLAGE;
+    take.place=birth?F_PORCH:awakening?F_GATE:F_VILLAGE;
     take.camera=F_TRACK;
     take.lead=take.other=F_OFFSCREEN;
     take.prop=F_NO_PROP;
@@ -249,6 +249,25 @@ static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
         ggFilmBox(cam,-12,59,689,8,29,92,25,24,26);
         foot=ggV3(-62,70,676);
     }
+    if(awakening){
+        int falling=frame<54?frame:54;
+        foot=ggV3(36+falling,83-falling*83/54,770);
+        int caught=frame<38?frame:38;
+        int beamY=219-caught*105/38;
+        if(frame>84)beamY=114-(frame<122?frame-84:38)*108/38;
+        ggFilmBox(cam,-16,beamY,820,140,14,18,25,24,26);
+        // Wind passes between the traveler and the beam while it is held.
+        // The ribbons narrow in the distance through the same projection.
+        if(frame>=32&&frame<88){
+            int flow=frame-32;
+            for(int i=0;i<3;i++){
+                int x=-138+(flow*5+i*49)%205;
+                int y=76+i*16,z=748+i*30;
+                ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+56,y+10,z),
+                               ggV3(x+56,y+15,z),ggV3(x,y+4,z),i&1?14:15);
+            }
+        }
+    }
     ggExpRect(out,0,0,400,240,17,24,36);
     u8 rgb[256][3]={0};
     for(unsigned ink=0;ink<sizeof fmvSlots;ink++){
@@ -267,7 +286,7 @@ static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
     }
     GgS2 point=ggFilmProject(cam,foot);
     return (GgOriginMark){point.x*400/256,39+(point.y-FILM_TOP)*148/FILM_H,
-                         phase==GG_ORIGIN_YOUTH?2:1};
+                         phase==GG_ORIGIN_YOUTH||awakening?2:1};
 #else
     // The standalone exploration harness and diagnostic build can render
     // these shots with the existing first-person world camera.
@@ -309,7 +328,7 @@ static void ggOriginStrip(u8 *out,const char *headline,const char *lineA,
 static void ggOriginCreator(u8 *out){
     char value[80];
     ggOriginSet(out,GG_ORIGIN_CREATE,ggOrigin.frame);
-    ggOriginPortrait(out,300,177,4,(ggOrigin.frame/16)&1);
+    ggOriginPortrait(out,300,177,4,(ggOrigin.frame/16)&1,0);
     ggExpRect(out,0,0,218,240,18,30,42);
     ggExpRect(out,0,0,218,3,194,147,84);
     ggExpText(out,12,13,"YEAR 22 / YOUR ORDINARY LIFE",241,217,164);
@@ -334,10 +353,10 @@ static void ggOriginDraw(u8 *out){
     int f=ggOrigin.frame,p=ggOrigin.phase;
     if(p==GG_ORIGIN_CREATE){ggOriginCreator(out);return;}
     if(p>=GG_ORIGIN_AWAKEN){
-        int angle=ggExplore.angle;
-        if(p==GG_ORIGIN_AWAKEN)ggExplore.angle=(angle+f/12-6)&255;
-        ggExpRenderMode(out,1);
-        ggExplore.angle=angle;
+        if(p==GG_ORIGIN_AWAKEN){
+            GgOriginMark cast=ggOriginSet(out,p,f);
+            ggOriginPortrait(out,cast.x,cast.feet,cast.scale,f<54&&((f/8)&1),1);
+        }else ggExpRenderMode(out,1);
         ggExpRect(out,0,0,400,40,16,25,41);
         ggExpRect(out,0,39,400,2,193,147,90);
         ggExpText(out,12,11,"YEAR 22 / THE HIDDEN HALF",242,220,162);
@@ -360,12 +379,12 @@ static void ggOriginDraw(u8 *out){
             "A CHILD WAS BORN UNDER AN ORDINARY ROOF.",
             "NEITHER PARENT SPOKE OF GODS. THERE WAS NO OMEN.",f);
     }else if(p==GG_ORIGIN_CHILD){
-        ggOriginPortrait(out,cast.x,cast.feet,cast.scale,(f/12)&1);
+        ggOriginPortrait(out,cast.x,cast.feet,cast.scale,(f/12)&1,0);
         ggOriginStrip(out,"YEAR 8 / SMALL FOOTSTEPS",
             "YOU LEARNED THE FIELDS, THE WEATHER, AND THE ROAD.",
             "WHEN OTHERS CALLED YOU ORDINARY, YOU BELIEVED THEM.",f);
     }else{
-        ggOriginPortrait(out,cast.x,cast.feet,cast.scale,(f/10)&1);
+        ggOriginPortrait(out,cast.x,cast.feet,cast.scale,(f/10)&1,0);
         ggOriginStrip(out,"YEAR 16 / AN UNREMARKABLE FUTURE",
             "WORK, FRIENDS, AND SMALL AMBITIONS FILLED THE YEARS.",
             "NO ONE KNEW WHAT SLEPT IN YOUR BLOOD. NOT EVEN YOU.",f);

@@ -383,6 +383,10 @@ void shimPresent(void){
     plat_present(topBuf,botBuf,tc,bc,sndBuf,n,
                  ggExplore.active?0:(shimSwap?0:shimDepth));
 }
+#ifdef GG_TEST_NATIVE_ORIGIN
+#define main ggNativeFirmwareMain
+#endif
+
 int main(void){
     plat_init();
     int new3ds=plat_isNew3DS();
@@ -404,3 +408,7 @@ int main(void){
 #endif
     ds_main(); plat_exit(); return 0;
 }
+
+#ifdef GG_TEST_NATIVE_ORIGIN
+#undef main
+#endif

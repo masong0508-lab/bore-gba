@@ -455,6 +455,14 @@ static void checkChapterEntrances(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
         int end=clip->frames*FMV_TICKS;
+        int last=0,takes=1;
+        for(int t=1;t<4&&filmEntrances[i][t].first;t++){
+            int first=filmEntrances[i][t].first;
+            check(first>last&&first<clip->frames,"3DS entrance shot has an invalid start frame");
+            last=first;
+            takes++;
+        }
+        check(takes>=2,"3DS entrance dropped an authored scene");
         memset(uiBuf,0xcc,sizeof uiBuf);
         memset(uiNew,0x5a,sizeof uiNew);
         check(fmvRenderAt(clip,0),"3DS entrance missed its first frame");

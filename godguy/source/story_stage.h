@@ -935,6 +935,57 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
 #include "story_world3d.h"
 #endif
 
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+typedef struct { u8 first; FilmBeat beat; } FilmEntranceTake;
+#define EN(frame,set,cam,lead,other,prop,action) \
+    {frame,{F_##set,F_##cam,F_##lead,F_##other,F_##prop,0,0,NULL,F_ACT_##action}}
+static const FilmEntranceTake filmEntrances[][4]={
+    {EN(0,ORBIT,TRACK,OFFSCREEN,OFFSCREEN,NO_PROP,AUTO),
+     EN(38,SHORE,TRACK,WISP,OFFSCREEN,SEED,APPROACH),
+     EN(74,SHORE,NEAR,WISP,OFFSCREEN,LEAF,APPROACH)},
+    {EN(0,STORM,TRACK,MIRA,OFFSCREEN,CUP,AUTO),
+     EN(30,PORCH,NEAR,MIRA,WISP,CUP,PUT),
+     EN(55,PORCH,INSERT,OFFSCREEN,OFFSCREEN,CUP,AUTO)},
+    {EN(0,VILLAGE,TRACK,THORGRIM,MIRA,HAMMER,WORK),
+     EN(32,VILLAGE,HAND,THORGRIM,MIRA,HAMMER,WORK),
+     EN(54,VILLAGE,TRACK,MIRA,OFFSCREEN,LAMP,AUTO)},
+    {EN(0,FORD,TRACK,GRUUL,MIRA,NO_PROP,AUTO),
+     EN(38,FORD,HAND,MIRA,GRUUL,CUP,PASS),
+     EN(61,FORD,TRACK,WISP,GRUUL,NO_PROP,AUTO)},
+    {EN(0,STORM,TRACK,WISP,OFFSCREEN,NO_PROP,AUTO),
+     EN(29,THRONE,TRACK,HOLLOW,OFFSCREEN,NO_PROP,AUTO),
+     EN(53,THRONE,NEAR,HOLLOW,OFFSCREEN,MASK,AUTO)},
+    {EN(0,FORGE,TRACK,THORGRIM,OFFSCREEN,HAMMER,WORK),
+     EN(39,FORGE,INSERT,OFFSCREEN,OFFSCREEN,HAMMER,AUTO)},
+    {EN(0,GATE,TRACK,MIRA,THORGRIM,NO_PROP,AUTO),
+     EN(34,HALL,TRACK,MIRA,THORGRIM,NO_PROP,AUTO)},
+    {EN(0,ARCHIVE,TRACK,ELOWEN,OFFSCREEN,QUILL,WORK),
+     EN(47,ARCHIVE,INSERT,OFFSCREEN,OFFSCREEN,QUILL,AUTO)},
+    {EN(0,HEARTH,TRACK,MIRA,GRUUL,CUP,AUTO),
+     EN(29,HEARTH,HAND,MIRA,GRUUL,CUP,PASS),
+     EN(58,HEARTH,INSERT,OFFSCREEN,OFFSCREEN,CUP,AUTO)},
+    {EN(0,GATE,TRACK,THORGRIM,OFFSCREEN,HAMMER,AUTO),
+     EN(42,THRONE,TRACK,HOLLOW,WISP,CROWN,AUTO)},
+    {EN(0,VILLAGE,TRACK,OFFSCREEN,OFFSCREEN,LAMP,AUTO),
+     EN(32,PORCH,NEAR,ELDER,WISP,CUP,AUTO),
+     EN(66,PORCH,INSERT,OFFSCREEN,OFFSCREEN,CUP,AUTO)},
+    {EN(0,FORD,TRACK,ELOWEN,OFFSCREEN,QUILL,AUTO),
+     EN(32,ARCHIVE,TRACK,ELOWEN,OFFSCREEN,QUILL,WORK)},
+    {EN(0,RUINS,TRACK,HOLLOW,OFFSCREEN,CROWN,AUTO),
+     EN(31,COUCH,TRACK,DAVE,WISP,BREAD,AUTO),
+     EN(58,COUCH,HAND,DAVE,WISP,CRUMB,AUTO)},
+    {EN(0,THRONE,TRACK,HOLLOW,WISP,NO_PROP,AUTO),
+     EN(40,THRONE,NEAR,HOLLOW,WISP,CROWN,AUTO)},
+    {EN(0,STORM,TRACK,HOLLOW,WISP,NO_PROP,AUTO),
+     EN(36,PORCH,TRACK,ELDER,HOLLOW,CUP,AUTO),
+     EN(69,PORCH,INSERT,OFFSCREEN,OFFSCREEN,CUP,AUTO),
+     EN(87,ORBIT,TRACK,WISP,HOLLOW,NO_PROP,AUTO)},
+};
+#undef EN
+_Static_assert(sizeof filmEntrances/sizeof *filmEntrances==sizeof fmvClips/sizeof *fmvClips,
+               "Every 3DS chapter has a projected entrance");
+#endif
+
 // Sparse effects are synced to on-screen hand contact, not to unrelated
 // cuts. Use times divisible by both 3 (3DS) and 5 (DS) frame ticks.
 static int filmActionCue(const FilmBeat *beat,int elapsed){
@@ -959,7 +1010,7 @@ static int filmActionCue(const FilmBeat *beat,int elapsed){
     return -1;
 }
 
-static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,int move){
+static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,int move,int actionSound){
     static const char *const location[F_SET_N]={
         "THE WORLD","THE SHORE","THE STORM","THE VILLAGE","THE FORD",
         "THE WEST GATE","THE FORGE","THE GREAT HALL","THE ARCHIVE",
@@ -1000,13 +1051,14 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     int position=beat->lead<F_ACTOR_N?
                  32+block.leadX*64/256:64;
     gmFilmMixSet(1,captionOn,position);
-    int cue=filmActionCue(beat,elapsed);
+    int cue=actionSound?filmActionCue(beat,elapsed):-1;
     if(cue>=0)fxReq(cue);
     const FilmPoint *support=NULL,*goat=NULL;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     FilmPoint projectedSupport,projectedGoat;
     int roofFinished=1;
     if(clipIndex==2){
+        if(!actionSound&&ggFilmWorldClock<54*FMV_TICKS)roofFinished=0;
         for(int shot=0;shot<5;shot++)
             if(beat==roofBeats+shot)roofFinished=0;
     }
@@ -1099,7 +1151,7 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     filmCaption(beat,captionOn);
 }
 static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
-    filmDrawShot(clip,beat,elapsed,filmEase(elapsed,beat->seconds*FILM_SECOND));
+    filmDrawShot(clip,beat,elapsed,filmEase(elapsed,beat->seconds*FILM_SECOND),1);
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
     int baked=clip->frames*FMV_TICKS;
@@ -1110,16 +1162,20 @@ static int fmvRenderAt(const FmvClip *clip,int elapsed){
         if(elapsed%FMV_TICKS) return 0;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
         if(!elapsed)fmvSetPalette();
-        FilmBeat entrance=filmReels[clip-fmvClips].beats[0];
-        entrance.camera=F_TRACK;
-        entrance.prop=F_NO_PROP;
-        entrance.action=F_ACT_AUTO;
-        entrance.line=NULL;
-        entrance.sound=0;
-        entrance.seconds=(baked+FILM_SECOND-1)/FILM_SECOND;
+        int frame=elapsed/FMV_TICKS,end=clip->frames;
+        const FilmEntranceTake *takes=filmEntrances[clip-fmvClips];
+        int take=0;
+        for(int i=1;i<4&&takes[i].first;i++){
+            if(frame<takes[i].first){end=takes[i].first;break;}
+            take=i;
+        }
+        FilmBeat entrance=takes[take].beat;
+        int local=elapsed-takes[take].first*FMV_TICKS;
+        int length=(end-takes[take].first)*FMV_TICKS;
+        entrance.seconds=(length+FILM_SECOND-1)/FILM_SECOND;
         ggFilmWorldClock=elapsed;
-        filmDrawShot(clip,&entrance,elapsed,elapsed*256/baked);
-        fmvCueFrame(clip,elapsed/FMV_TICKS);
+        filmDrawShot(clip,&entrance,local,local*256/length,0);
+        fmvCueFrame(clip,frame);
 #else
         fmvDecode(clip,elapsed/FMV_TICKS);
 #endif

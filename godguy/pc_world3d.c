@@ -8,7 +8,7 @@
 #include <time.h>
 #include <stdlib.h>
 typedef uint8_t u8;
-enum { FILM_TOP=24, FILM_BOTTOM=168, FILM_H=144 };
+enum { FILM_TOP=24, FILM_BOTTOM=168, FILM_H=144, FMV_TICKS=5 };
 enum { F_ORBIT,F_SHORE,F_STORM,F_VILLAGE,F_FORD,F_GATE,F_FORGE,
        F_HALL,F_ARCHIVE,F_HEARTH,F_THRONE,F_COUCH,F_PORCH,F_RUINS,F_SET_N };
 enum { F_WIDE,F_NEAR,F_TRACK,F_HAND,F_INSERT };
@@ -114,6 +114,15 @@ int main(void){
     FilmBlocking onFord={0},onBridge={0};
     ggFilmWorldBlocking(fordCam,&ford,180,3,&onFord);
     ggFilmWorldBlocking(fordCam,&ford,180,9,&onBridge);
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmFloor(fordCam,F_FORD,0,9,0);
+    GgS2 nearBank=ggFilmProject(fordCam,ggV3(0,1,592));
+    GgS2 farBank=ggFilmProject(fordCam,ggV3(0,1,1310));
+    GgS2 channel=ggFilmProject(fordCam,ggV3(-200,0,780));
+    require(uiBuf[nearBank.y*256+nearBank.x]==fmvSlots[18]&&
+            uiBuf[farBank.y*256+farBank.x]==fmvSlots[17]&&
+            uiBuf[channel.y*256+channel.x]==fmvSlots[13],
+            "the projected crossing has to connect two dry banks across water");
     GgS2 deck=ggFilmProject(fordCam,ggV3(-65,GG_FILM_BRIDGE_TOP,690));
     require(onBridge.otherX==deck.x&&onBridge.otherFeet==deck.y&&
             onBridge.otherFeet<onFord.otherFeet,
@@ -204,8 +213,12 @@ int main(void){
             "walking actor never approaches in Z");
     unsigned long checksum=0;
     clock_t started=clock();
-    for(int t=0;t<480;t+=3)
-        checksum^=frame(t/30%F_SET_N,F_TRACK,t);
+    for(int t=0;t<480;t+=3){
+        FilmBeat heavy={t<160?F_FORD:t<320?F_VILLAGE:F_ARCHIVE,
+                        F_TRACK,F_ELDER,F_HOLLOW,F_NO_PROP,NULL};
+        drawWorld(&heavy,t,filmEase(t,480),t<160?9:14,1,0);
+        checksum^=hashFrame();
+    }
     double ms=1000.0*(clock()-started)/CLOCKS_PER_SEC/160.0;
     require(picture.before[17]==0xa6&&picture.after[17]==0x6d,"canaries damaged");
     printf("WORLD3D OK: %d populated sets, animated geometry, ground travel, "

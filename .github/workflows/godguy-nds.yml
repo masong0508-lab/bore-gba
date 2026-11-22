@@ -432,6 +432,8 @@ jobs:
         run: |
           gcc -O2 -std=c11 -D__3DS__ -Wall -Wextra -Icompat -Isource pc_world3d.c -o /tmp/gg-3ds-world
           /tmp/gg-3ds-world
+          gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -ffunction-sections -fdata-sections -Icompat -Isource -w -include unistd.h pc_origin_render.c -Wl,--gc-sections -lm -o /tmp/gg-3ds-origin
+          /tmp/gg-3ds-origin
           gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -w -include unistd.h pc_fmv.c -lm -o /tmp/gg-3ds-cinema
           /tmp/gg-3ds-cinema
       - name: Upload independent 3DS ROM for inspection
