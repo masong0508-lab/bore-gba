@@ -23,6 +23,12 @@ static void fmvSetPalette(void){
 
 static void filmBars(const char *title);
 
+static void fmvCueFrame(const FmvClip *clip,int frame){
+    for(int i=0;i<2;i++)
+        if(clip->cue[i].effect&&clip->cue[i].frame==frame)
+            fxReq(clip->cue[i].effect);
+}
+
 static void fmvDecode(const FmvClip *clip,int frame){
     if(frame==0){
         fmvSetPalette();
@@ -62,7 +68,7 @@ static void fmvDecode(const FmvClip *clip,int frame){
         }
     }
     fmvRead++;
-    for(int i=0;i<2;i++) if(clip->cue[i].effect&&clip->cue[i].frame==frame) fxReq(clip->cue[i].effect);
+    fmvCueFrame(clip,frame);
 }
 
 static void fmvPortrait(int x,int y,int who,int cel){

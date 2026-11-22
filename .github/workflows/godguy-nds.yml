@@ -85,18 +85,22 @@ jobs:
           gcc -O2 -w -Isource pc_save_hw_guard.c -lm -o /tmp/gg-save-hw-guard
           /tmp/gg-save-hw-guard
 
+      - name: Verify world generation and connected Riven March terrain
+        working-directory: godguy
+        run: |
+          for cfg in ds dsi16 big; do
+            flags=""
+            case "$cfg" in dsi16) flags="-DGG_DSI16";; big) flags="-DGG_BIG";; esac
+            gcc -O2 $flags -Icompat -Isource -w pc_gen.c -lm -o "/tmp/gg-gen-$cfg"
+            "/tmp/gg-gen-$cfg"
+          done
+
       # Film runtime and script sanity checks are fast and SDK-independent.
       # Prevent release packaging if story beats, titles, unlocks, or
       # captions drift below the 80+40 minute 3DS director's-cut contract.
       - name: Verify 80-minute 3DS campaign and 40-minute unlockable film archive
         working-directory: godguy
         run: /usr/bin/python3 tools/check_story_duration.py
-
-      - name: Verify player-world cinematic vistas on DS and 3DS
-        working-directory: godguy
-        run: |
-          gcc -O2 -std=c11 -Wall -Wextra -Icompat -Isource pc_vistas.c -o /tmp/godguy-vistas
-          /tmp/godguy-vistas
 
       # 1. Main DS target: no libnds/Calico. Real-ROM startup, gameplay,
       # audio and cartridge save/reload tested in DeSmuME; each flashcart
@@ -423,16 +427,13 @@ jobs:
           /tmp/godguy-vocal-preview 83 ../out/Duck_and_Cover_3DS_vocal_preview.wav 22
           test -s ../out/Corporations_3DS_vocal_preview.wav
           test -s ../out/Duck_and_Cover_3DS_vocal_preview.wav
-      - name: Host-test saved-world coastline and settlement capture
-        working-directory: godguy
-        run: |
-          gcc -O2 -std=c11 -Wall -Wextra -Icompat -Isource pc_vistas.c -o /tmp/gg-3ds-vistas
-          /tmp/gg-3ds-vistas
       - name: Host-test 3DS cast and world geometry
         working-directory: godguy
         run: |
           gcc -O2 -std=c11 -D__3DS__ -Wall -Wextra -Icompat -Isource pc_world3d.c -o /tmp/gg-3ds-world
           /tmp/gg-3ds-world
+          gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -ffunction-sections -fdata-sections -Icompat -Isource -w -include unistd.h pc_origin_render.c -Wl,--gc-sections -lm -o /tmp/gg-3ds-origin
+          /tmp/gg-3ds-origin
           gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -w -include unistd.h pc_fmv.c -lm -o /tmp/gg-3ds-cinema
           /tmp/gg-3ds-cinema
       - name: Upload independent 3DS ROM for inspection

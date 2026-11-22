@@ -308,7 +308,7 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
 }
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
 static int cCoast, cMtn;      // coasts (-1 smooth, 0 as it always was, 1 rugged) and mountains (-1 few, 0 as before, 1 many): 0 makes exactly the planet a seed always made
-static int cShape, cSea, cClim, cWet, cLife=2;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
+static int cShape, cSea, cClim, cWet, cLife=2;   // land shape, sea level, climate and wetness (all 0 = the classic planet), and starting life 0..3
 // ---- biomes: a second layer over the ground (0 none, 1 CORRUPTED, 2 INFERNAL, 3 ENCHANTED), two bits a tile. They spread, they act on whoever stands there, and they are painted with seed powers.
 static u8 biome2[MAXD*MAXD/4]; static int nBio[4];
 #define BIO_Q 8192
@@ -1673,7 +1673,17 @@ static void newWorld(void){
     int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
     for(int k=0;k<nAn;k++){ int a=8+(int)(rnd()%(ARCH_A-8)); int s=8+(a-8)*16+randomFamily(a); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; if(arch[a].diet==6&&(rnd()&7)) continue; addCr(s,x,y); }
     LOADING("RAISING THE FIRST VILLAGES",80);
-    for(int r=0;r<8&&cLife>0;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
+    for(int r=0;r<8&&cLife>0;r++){
+        if(r>=5&&(rnd()&1)) continue; // the restless peoples sometimes stay away
+        for(int k=0;k<80;k++){
+            int x,y;
+            if(cShape==GW_MARCH&&k==0) marchSite(r,&x,&y);
+            else { x=rnd()%WW; y=rnd()%WH; }
+            if(vilFound(r,x,y)<0) continue;
+            for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2);
+            break;
+        }
+    }
     info[0]=0; LOADING("READY",100); }
 // ---------------------------------------------------------------------------------------------- saving: the whole world, the villages and the story, to one file (the SD card on the DS)
 static int shape3;
@@ -2479,28 +2489,7 @@ static const char*const fieldDesc[FIELD_N]={
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static void sceneStartFmv(const char*const*t,const FmvClip*clip){
-    // Freeze recognizable views of the actual simulation world at the
-    // start of this chapter. Replays and the film archive use the current
-    // saved villages, coastline and topography; playback cannot change
-    // their content or scan the whole map every rendered frame.
-    filmCaptureWorld();
-    // Finish the real-map flight at the location the audience will
-    // recognize in the first screenplay scene. Exterior-to-interior
-    // cuts now arrive outside the same town, and shoreline scenes follow
-    // a route whose final waypoint is the actual coast.
-    int flightTarget=FILM_VISTA_TOWN;
-    int filmId=(int)(clip-fmvClips);
-    const FilmReel *landing=&filmReels[filmId];
-    for(int i=0;i<landing->count&&i<8;i++){
-        int place=landing->beats[i].place;
-        if(place==F_ORBIT)continue;
-        if(place==F_SHORE||place==F_FORD||place==F_STORM)
-            flightTarget=FILM_VISTA_COAST;
-        else if(place==F_RUINS)
-            flightTarget=FILM_VISTA_RIDGE;
-        break;
-    }
-    filmRouteEndAt(flightTarget);
+    filmCaptureTownName();
     sceneStart(t,0);
     sceneClip=clip;
     gmFilmMixSet(1,0,64);
@@ -2635,7 +2624,7 @@ static void uiLoadHook(const char*msg,int pct){
     uiText(6,182,"TAP THE KIT TO CHANGE POWERS",U_DIM,1); uiFlush(); }
 static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand; static const char*const cEdgeN[]={"WALLS","VANISH","WRAP"};
 static const char*const cCoastN[]={"SMOOTH","NORMAL","RUGGED"}, *const cMtnN[]={"FEW","NORMAL","MANY"};
-static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS","ARCHIPELAGO","TWO CONTINENTS","INLAND SEAS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
+static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS","ARCHIPELAGO","TWO CONTINENTS","INLAND SEAS",[GW_MARCH]="RIVEN MARCH"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
 static void previewWorld(void){ gW=gH=planetSize>256?256:planetSize;      // (the preview of a huge planet is drawn at 256: only its shape and climate matter)
     joyInvalidate(); vilIndexInvalidate(); nCr=0; idReset(); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
     int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(world[y][x]>T_WATER) l++; cLand=l*100/(WW*WH); cT=-1; }
@@ -2648,7 +2637,8 @@ static void createInput(int kd){
     if(d||(kd&KEY_A)){ if(!d) d=1; switch(cSel){
         case 0: setSize(sizeStep(planetSize,d>0?1:-1)); ch=1; break;
         case 1: storyOn^=1; break;
-        case 2: cShape=(cShape+6+d)%6; ch=1; break; case 3: cCoast=(cCoast+4+d)%3-1; ch=1; break; case 4: cMtn=(cMtn+4+d)%3-1; ch=1; break;
+        case 2: { int n=sizeof cShapeN/sizeof cShapeN[0]; cShape=(cShape+n+d)%n; ch=1; break; }
+        case 3: cCoast=(cCoast+4+d)%3-1; ch=1; break; case 4: cMtn=(cMtn+4+d)%3-1; ch=1; break;
         case 5: cSea=(cSea+7+d)%5-2; ch=1; break; case 6: cClim=(cClim+7+d)%5-2; ch=1; break; case 7: cWet=(cWet+4+d)%3-1; ch=1; break;
         case 8: cLife=(cLife+4+d)%4; break; case 9: diff=(diff+3+d)%3; break;
         case 10: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break;
@@ -2689,7 +2679,7 @@ static void uiCreate(void){
     siprintf(b,"%dX%d",planetSize,planetSize); uiTextC(208,138,b,U_DIM,1);
     uiTextC(208,149,storyOn?"STORY":"FREE PLAY",U_GOLD,1); uiTextC(208,159,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL",diff==0?U_GREEN:diff==2?U_RED:U_LGREY,1);
     uiRound(170,168,76,11,U_PANELHI,cT>=0?U_ORANGE:U_GREEN); uiTextC(208,170,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
-    gfxHint(cHelp[cSel],U_LGREY);
+    gfxHint(cSel==2&&cShape==GW_MARCH?"SNOWY PASSES, WOODS AND RIVER FORDS":cHelp[cSel],U_LGREY);
     uiFlush(); }
 enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON, MI_AUTOSAVE, MI_FILMS };
 static int fieldLedgerOpen;

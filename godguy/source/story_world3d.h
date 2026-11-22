@@ -10,7 +10,7 @@
 
 typedef struct { short x,y,z; } GgV3;
 typedef struct { int x,y; } GgS2;
-typedef struct { int x,z; } GgFilmCamera;
+typedef struct { int x,z,yaw; u8 *page; } GgFilmCamera;
 
 // The long movie has one continuous scenery clock per chapter. The stage
 // sets this from the complete clip position; direct geometry tests fall back
@@ -32,7 +32,7 @@ static GgFilmCamera ggFilmCameraAt(const FilmBeat *beat,int move){
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     int speakerLeft=paired?filmActorLeftOf(beat->lead,beat->other):
                     beat->lead==F_WISP;
-    GgFilmCamera c={0,0};
+    GgFilmCamera c={0,0,0,uiBuf};
     if(beat->camera==F_WIDE){
         // This is the audience's spatial anchor; return here regularly.
         c.z=-22;
@@ -46,9 +46,11 @@ static GgFilmCamera ggFilmCameraAt(const FilmBeat *beat,int move){
         // receives ONE repeatable three-quarter angle per conversation.
         c.x=speakerLeft?-29:29;
         c.z=17;
+        c.yaw=speakerLeft?-12:12;
     }else if(beat->camera==F_TRACK){
         c.x=(speakerLeft?-22:22)+(move-128)/3;
-        c.z=6+(move-128)/5;
+        c.z=-58+move*124/256;
+        c.yaw=(speakerLeft?-8:8)+(move-128)/11;
     }else if(beat->camera==F_HAND){
         // Shared insert/prop coverage returns to the same work surface.
         c.x=speakerLeft?-12:12;
@@ -59,18 +61,21 @@ static GgFilmCamera ggFilmCameraAt(const FilmBeat *beat,int move){
     return c;
 }
 static GgS2 ggFilmProject(GgFilmCamera cam,GgV3 p){
-    int depth=p.z-cam.z;
-    if(depth<120)depth=120;               // no division by zero or behind-eye flip
-    GgS2 q={128+((int)p.x-cam.x)*260/depth,
-            68+(220-(int)p.y)*260/depth};
+    int x=p.x-cam.x,z=p.z-cam.z;
+    int across=x-z*cam.yaw/256;
+    int depth=z+x*cam.yaw/256;
+    if(depth<120)depth=120;
+    GgS2 q={128+across*260/depth,68+(220-(int)p.y)*260/depth};
     return q;
 }
 // Integer scanline triangles with a per-row span; bounded to the film viewport.
 // No per-pixel division and no temporary framebuffer.
-static void ggFilmTri(GgS2 a,GgS2 b,GgS2 c,u8 ink){
+static void ggFilmTri(u8 *page,GgS2 a,GgS2 b,GgS2 c,u8 ink){
     int miny=a.y,maxy=a.y;
-    if(b.y<miny)miny=b.y; if(c.y<miny)miny=c.y;
-    if(b.y>maxy)maxy=b.y; if(c.y>maxy)maxy=c.y;
+    if(b.y<miny)miny=b.y;
+    if(c.y<miny)miny=c.y;
+    if(b.y>maxy)maxy=b.y;
+    if(c.y>maxy)maxy=c.y;
     if(miny<FILM_TOP)miny=FILM_TOP;
     if(maxy>=FILM_BOTTOM)maxy=FILM_BOTTOM-1;
     if(miny>maxy)return;
@@ -88,14 +93,14 @@ static void ggFilmTri(GgS2 a,GgS2 b,GgS2 c,u8 ink){
         if(l>r){int tmp=l;l=r;r=tmp;}
         if(l<0)l=0;
         if(r>255)r=255;
-        if(l<=r)memset(uiBuf+y*256+l,fmvSlots[ink],(size_t)(r-l+1));
+        if(l<=r)memset(page+y*256+l,fmvSlots[ink],(size_t)(r-l+1));
     }
 }
 static void ggFilmQuad(GgFilmCamera cam,GgV3 a,GgV3 b,GgV3 c,GgV3 d,u8 ink){
     GgS2 aa=ggFilmProject(cam,a),bb=ggFilmProject(cam,b);
     GgS2 cc=ggFilmProject(cam,c),dd=ggFilmProject(cam,d);
-    ggFilmTri(aa,bb,cc,ink);
-    ggFilmTri(aa,cc,dd,ink);
+    ggFilmTri(cam.page,aa,bb,cc,ink);
+    ggFilmTri(cam.page,aa,cc,dd,ink);
 }
 static void ggFilmBox(GgFilmCamera cam,int x,int y,int z,int w,int h,int d,
                       u8 front,u8 side,u8 roof){
@@ -123,7 +128,7 @@ static void ggFilmHouse(GgFilmCamera cam,int x,int z,int w,int height,int lit,
     GgS2 l=ggFilmProject(cam,ggV3(x-w/2-8,top,f-7));
     GgS2 m=ggFilmProject(cam,ggV3(x,top+45,f-7));
     GgS2 r=ggFilmProject(cam,ggV3(x+w/2+8,top,f-7));
-    ggFilmTri(l,m,r,20);
+    ggFilmTri(cam.page,l,m,r,20);
     // Eaves, braces and roof tile rows are world-space, obey camera dolly.
     for(int i=1;i<=3;i++){
         int tileZ=f-7+i*13;
@@ -178,7 +183,7 @@ static void ggFilmTree(GgFilmCamera cam,int x,int z,int size,int t,int n){
         GgV3 a=ggV3(x-spread/2,y,z-14);
         GgV3 b=ggV3(x+spread/2,y,z-14);
         GgV3 peak=ggV3(x+sway*(tier+1),y+size/3,z+6);
-        ggFilmTri(ggFilmProject(cam,a),ggFilmProject(cam,b),
+        ggFilmTri(cam.page,ggFilmProject(cam,a),ggFilmProject(cam,b),
                   ggFilmProject(cam,peak),tier&1?17:18);
         ggFilmQuad(cam,a,peak,ggV3(x+sway*(tier+1),y+size/3,z+24),
                    ggV3(x-spread/2,y,z+24),16);
@@ -199,58 +204,125 @@ static void ggFilmArch(GgFilmCamera cam,int x,int z,int broken){
         ggFilmBox(cam,x,h-12,z-25,28,32,7,24,25,26);
     }
 }
-static void ggFilmFloor(GgFilmCamera cam,int p,int t,int winter){
-    int wet=(p==F_FORD||p==F_SHORE||p==F_STORM);
-    int room=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
-              p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
-    u8 base=wet?13:room?21:winter?22:p==F_VILLAGE?17:20;
-    ggFilmQuad(cam,ggV3(-850,0,330),ggV3(850,0,330),
-                   ggV3(850,0,1800),ggV3(-850,0,1800),base);
-    if(room){
-        // Actual wooden floorboards on a room plane. Narrow, warm seams
-        // replace the old universal dark checker grid from the preview.
-        for(int x=-540;x<=540;x+=180){
-            ggFilmQuad(cam,ggV3(x,1,400),ggV3(x+3,1,400),
-                           ggV3(x+3,1,1700),ggV3(x,1,1700),24);
+static int ggFilmRoom(int p){
+    return p==F_FORGE||p==F_ARCHIVE||p==F_HALL||p==F_THRONE||
+           p==F_COUCH||p==F_PORCH||p==F_HEARTH;
+}
+static void ggFilmBackdrop(GgFilmCamera cam,int place){
+    int room=ggFilmRoom(place),storm=place==F_STORM;
+    int evening=place==F_SHORE||place==F_GATE||place==F_RUINS;
+    for(int y=FILM_TOP;y<FILM_BOTTOM;y++){
+        int ink;
+        if(room) ink=20;
+        else if(storm) ink=y<46?2:y<70?3:21;
+        else if(evening) ink=y<40?2:y<54?4:y<71?5:8;
+        else ink=y<48?31:y<65?14:22;
+        memset(cam.page+y*256,fmvSlots[ink],256);
+    }
+    if(room)return;
+    // Connected silhouettes at two distances. These ridges share the
+    // camera transform with doors, roads, and the cast.
+    static const short crest[]={290,420,305,507,394,270,447,312,365,265,400};
+    for(int band=0;band<2;band++){
+        int z=3420-band*690;
+        int shift=band?220:0;
+        int ink=storm?(band?3:21):evening?(band?3:4):(band?16:31);
+        for(unsigned i=0;i+1<sizeof crest/sizeof *crest;i++){
+            int x=-2700+(int)i*540+shift;
+            int left=crest[i]-(band?120:0);
+            int right=crest[i+1]-(band?120:0);
+            ggFilmQuad(cam,ggV3(x,0,z),ggV3(x+540,0,z),
+                          ggV3(x+540,right,z),ggV3(x,left,z),(u8)ink);
         }
-        for(int z=585;z<1630;z+=380)
-            ggFilmQuad(cam,ggV3(-640,1,z),ggV3(640,1,z),
-                           ggV3(640,1,z+2),ggV3(-640,1,z+2),20);
+    }
+}
+enum { GG_FILM_BRIDGE_CHAPTER=8, GG_FILM_BRIDGE_TOP=34, GG_FILM_FORD_TOP=3 };
+static int ggFilmStandingHeight(int place,int chapter){
+    if(place!=F_FORD)return place==F_SHORE||place==F_STORM?3:0;
+    return chapter>=GG_FILM_BRIDGE_CHAPTER?GG_FILM_BRIDGE_TOP:GG_FILM_FORD_TOP;
+}
+static void ggFilmFloor(GgFilmCamera cam,int p,int t,int chapter,int winter){
+    int wet=p==F_FORD||p==F_SHORE||p==F_STORM;
+    int room=ggFilmRoom(p);
+    u8 base=wet?13:room?21:winter?22:p==F_VILLAGE||p==F_ORBIT?17:20;
+    int extent=room?850:1900, far=room?1800:3220;
+    ggFilmQuad(cam,ggV3(-extent,0,330),ggV3(extent,0,330),
+                   ggV3(extent,0,far),ggV3(-extent,0,far),base);
+    if(room){
+        if(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||p==F_THRONE){
+            // Slate courses break the floor into material, not a decal
+            // above it. Alternate the joint offset each time a row turns.
+            for(int z=480,row=0;z<1720;z+=175,row++){
+                ggFilmQuad(cam,ggV3(-720,1,z),ggV3(720,1,z),
+                               ggV3(720,1,z+4),ggV3(-720,1,z+4),20);
+                for(int x=-720+(row&1)*88;x<720;x+=176)
+                    ggFilmQuad(cam,ggV3(x,1,z),ggV3(x+4,1,z),
+                                   ggV3(x+4,1,z+175),ggV3(x,1,z+175),20);
+            }
+        }else{
+            for(int x=-720;x<=720;x+=113){
+                ggFilmQuad(cam,ggV3(x,1,400),ggV3(x+4,1,400),
+                               ggV3(x+4,1,1700),ggV3(x,1,1700),24);
+                int z=660+((x+720)/113%3)*190;
+                ggFilmQuad(cam,ggV3(x,1,z),ggV3(x+113,1,z),
+                               ggV3(x+113,1,z+4),ggV3(x,1,z+4),24);
+            }
+        }
         return;
     }
     if(wet){
-        // Natural banks, not a graph-paper sea. Waves live at y=2 on
-        // the water plane, so distance really changes their size.
-        if(!filmVista[FILM_VISTA_COAST].valid){
-            // Early scripted scenes without a sampled coast still have
-            // the established banks; a real saved coast supersedes them.
-            ggFilmQuad(cam,ggV3(-850,1,400),ggV3(-600,1,400),
-                           ggV3(-455,1,1800),ggV3(-850,1,1800),winter?22:21);
-            ggFilmQuad(cam,ggV3(615,1,400),ggV3(850,1,400),
-                           ggV3(850,1,1800),ggV3(460,1,1800),winter?23:20);
-        }
         for(int i=0;i<16;i++){
-            int z=460+(i*113)%1180;
-            int x=((i*257+t/5)%850)-425;
+            int z=520+(i*113)%1450;
+            int x=((i*257+t/5)%1150)-575;
             int w=21+(i*17)%53;
             ggFilmQuad(cam,ggV3(x,2,z),ggV3(x+w,2,z),
                            ggV3(x+w+5,2,z+4),ggV3(x+7,2,z+4),
                            i&1?14:12);
+        }
+        if(p==F_FORD){
+            // The near and far banks straddle the river along Z, so
+            // the bridge deck meets dry ground at both abutments.
+            ggFilmQuad(cam,ggV3(-extent,1,330),ggV3(extent,1,330),
+                           ggV3(extent,1,604),ggV3(-extent,1,628),winter?22:18);
+            ggFilmQuad(cam,ggV3(-extent,1,1156),ggV3(extent,1,1102),
+                           ggV3(extent,1,far),ggV3(-extent,1,far),winter?23:17);
+            if(chapter<GG_FILM_BRIDGE_CHAPTER)
+                ggFilmQuad(cam,ggV3(-117,GG_FILM_FORD_TOP,465),ggV3(117,GG_FILM_FORD_TOP,465),
+                               ggV3(102,GG_FILM_FORD_TOP,1210),ggV3(-102,GG_FILM_FORD_TOP,1210),21);
+        }else{
+            static const short shore[]={765,920,1040,1210,1195};
+            for(int i=0;i<4;i++){
+                int x=-extent+i*950, left=shore[i],right=shore[i+1];
+                ggFilmQuad(cam,ggV3(x,3,330),ggV3(x+950,3,330),
+                               ggV3(x+950,3,right-45),ggV3(x,3,left-45),
+                               p==F_STORM?20:18);
+                ggFilmQuad(cam,ggV3(x,3,left-45),ggV3(x+950,3,right-45),
+                               ggV3(x+950,3,right),ggV3(x,3,left),p==F_STORM?21:26);
+            }
+            for(int i=0;i<19;i++){
+                int x=-690+(i*317)%1390;
+                int z=450+(i*211)%440;
+                if((x<-450&&z>755)||(x<-90&&z>880))continue;
+                ggFilmQuad(cam,ggV3(x,4,z),ggV3(x+22,4,z+2),
+                               ggV3(x+8,4,z+25),ggV3(x-8,4,z+17),
+                               p==F_STORM?21:i%3?17:19);
+            }
         }
         return;
     }
     // The village and the ruined gate have uneven natural ground, with
     // a continuous walkable lane. Scattered triangular soil/grass/stone
     // facets are genuinely on the ground plane; no uniform grid.
-    if(p==F_VILLAGE)
+    if(p==F_VILLAGE||p==F_ORBIT)
         ggFilmQuad(cam,ggV3(-108,1,400),ggV3(108,1,400),
-                       ggV3(70,1,1750),ggV3(-76,1,1750),winter?20:21);
-    for(int i=0;i<18;i++){
+                       ggV3(185,1,1750),ggV3(110,1,1750),winter?20:25);
+    for(int i=0;i<24;i++){
         int x=((i*293+73)%1450)-725;
         int z=450+(i*173)%1300;
         int w=23+(i*13)%71;
-        if(p==F_VILLAGE&&x>-106&&x<106)continue;
-        u8 tone=winter?(i&1?23:22):p==F_VILLAGE?(i%3?16:18):(i&1?24:25);
+        int grassy=p==F_VILLAGE||p==F_ORBIT;
+        if(grassy&&x>-106&&x<195)continue;
+        u8 tone=winter?(i&1?23:22):grassy?(i%3?16:18):(i&1?24:25);
         ggFilmQuad(cam,ggV3(x,1,z),ggV3(x+w,1,z+3),
                        ggV3(x+w-7,1,z+19),ggV3(x+6,1,z+13),tone);
     }
@@ -297,7 +369,8 @@ static void ggFilmBackgroundWorker(GgFilmCamera cam,int x,int z,int t,int id){
     int who=id==1?F_THORGRIM:F_NESSA;
     int pose=walking?((t/18)&1?1:2):((t/42)&1?11:0);
     GgS2 foot=ggFilmProject(cam,ggV3(x+travel,0,z));
-    int h=130*260/(z-cam.z);
+    GgS2 head=ggFilmProject(cam,ggV3(x+travel,130,z));
+    int h=foot.y-head.y;
     if(h<16)h=16;
     if(h>46)h=46;
     // World-anchored feet and a real 2D walk/work pose, never a block mesh.
@@ -322,13 +395,23 @@ static void ggFilmMarketCart(GgFilmCamera cam,int t){
 }
 static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
     // Walls, cornice and corridor all converge on the same perspective.
+    int timber=p==F_PORCH||p==F_COUCH;
     ggFilmQuad(cam,ggV3(-700,0,1600),ggV3(700,0,1600),
-                   ggV3(700,390,1600),ggV3(-700,390,1600),22);
+                   ggV3(700,390,1600),ggV3(-700,390,1600),timber?26:21);
     ggFilmQuad(cam,ggV3(-700,0,350),ggV3(-700,0,1600),
                    ggV3(-700,390,1600),ggV3(-700,390,350),20);
     ggFilmQuad(cam,ggV3(700,0,1600),ggV3(700,0,350),
                    ggV3(700,390,350),ggV3(700,390,1600),21);
-    ggFilmFloor(cam,p,t,winter);
+    ggFilmFloor(cam,p,t,chapter,winter);
+    if(p!=F_PORCH&&p!=F_COUCH){
+        for(int y=37;y<370;y+=51){
+            ggFilmQuad(cam,ggV3(-697,y,1598),ggV3(697,y,1598),
+                           ggV3(697,y+4,1598),ggV3(-697,y+4,1598),21);
+            for(int x=-590+((y/51)&1)*65;x<640;x+=140)
+                ggFilmQuad(cam,ggV3(x,y,1598),ggV3(x+4,y,1598),
+                               ggV3(x+4,y+51,1598),ggV3(x,y+51,1598),20);
+        }
+    }
     if(p==F_PORCH){
         // A real shelter, not the generic palace corridor that the first
         // rain scene previously inherited. The same window, sill, roof,
@@ -433,7 +516,7 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         GgS2 tip=ggFilmProject(cam,ggV3(-253,80,797));
         GgS2 a=ggFilmProject(cam,ggV3(-220,72,797));
         GgS2 b=ggFilmProject(cam,ggV3(-219,93,797));
-        ggFilmTri(tip,a,b,25);
+        ggFilmTri(cam.page,tip,a,b,25);
         // Bellows work beside the furnace, attached to a fixed stand.
         int compression=(t/23)%9;
         ggFilmBox(cam,370,0,1340,43,44,28,24,20,25);
@@ -478,203 +561,61 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         }
     }
 }
-// The skyline is a view *of the current playable world*: each contour
-// follows sampled live hill, mountain, shore and forest tiles. 3DS pixels
-// are projected from true distant Z geometry; no still image swapping.
-static int ggFilmVistaHeight(int terr){
-    return terr==T_MOUNT?255:terr==T_HILL?158:
-           terr==T_SNOW?144:terr==T_FOREST?92:
-           terr==T_JUNGLE?105:terr==T_SWAMP?42:
-           terr==T_GRASS?51:terr==T_SAND?24:
-           terr==T_DESERT?35:terr==T_DIRT?31:10;
+static GgS2 ggFilmPropSupport(GgFilmCamera camera,int place,int chapter){
+    GgV3 point=ggV3(0,ggFilmStandingHeight(place,chapter),675);
+    if(place==F_PORCH)point=ggV3(0,36,583);
+    else if(place==F_ARCHIVE)point=ggV3(57,55,815);
+    else if(place==F_FORGE)point=ggV3(-155,93,820);
+    return ggFilmProject(camera,point);
 }
-static int ggFilmVistaPeak(const FilmVista *v,int col,int *tone){
-    int high=6;*tone=13;
-    for(int j=1;j<FILM_VISTA_H-1;j++){
-        int terr=filmVistaRead(v,col,j,0);
-        int h=ggFilmVistaHeight(terr);
-        if(h>high){
-            high=h;
-            *tone=terr==T_MOUNT?20:terr==T_HILL?21:
-                  terr==T_SNOW?22:terr==T_FOREST?16:
-                  terr==T_JUNGLE?17:terr==T_SAND?26:
-                  terr==T_DESERT?25:terr==T_SWAMP?13:18;
-        }
-    }
-    return high;
-}
-static void ggFilmRealHorizon(GgFilmCamera cam,int place){
-    int kind=filmVistaPlace(place);
-    if(kind<0||!filmVista[kind].valid)return;
-    const FilmVista *v=&filmVista[kind];
-    for(int i=0;i<FILM_VISTA_W-1;i++){
-        int color=13,nextColor=13;
-        int lh=ggFilmVistaPeak(v,i,&color);
-        int rh=ggFilmVistaPeak(v,i+1,&nextColor);
-        int x=(i-FILM_VISTA_W/2)*84;
-        int z=1970; // beyond the walkable lane, always behind the cast
-        ggFilmQuad(cam,ggV3(x,0,z),ggV3(x+84,0,z),
-                       ggV3(x+84,rh,z),ggV3(x,lh,z),(u8)color);
-    }
-}
-// Draw only constructions that exist at these exact sampled cells.
-// Their relative positions are maintained from the game-world map.
-// This replaces placeholder town backdrops when the player has built a
-// settlement; the original founding-worksite remains as a story fallback.
-static int ggFilmRealTown(GgFilmCamera cam){
-    const FilmVista *v=&filmVista[FILM_VISTA_TOWN];
-    if(!v->valid)return 0;
-    int count=0;
-    // Priority: the player's fortified halls and towers, then a few
-    // houses and docks. Cap models for Old 3DS triangle/frame budgets.
-    for(int pass=0;pass<2&&count<5;pass++)
-    for(int j=1;j<FILM_VISTA_H-1&&count<5;j++)
-    for(int i=1;i<FILM_VISTA_W-1&&count<5;i++){
-        int b=filmVistaRead(v,i,j,1);
-        if(pass==0&&b!=B_HALL&&b!=B_TOWER)continue;
-        if(pass==1&&b!=B_HOUSE&&b!=B_HUT&&b!=B_DOCK)continue;
-        int x=(i-FILM_VISTA_W/2)*56;
-        int z=1430+(FILM_VISTA_H/2-j)*104;
-        if(z<790)z=790;
-        if(b==B_TOWER){
-            ggFilmBox(cam,x,0,z,52,201,57,21,20,26);
-            ggFilmBox(cam,x,195,z,76,20,70,25,24,26);
-            ggFilmQuad(cam,ggV3(x-12,93,z-30),ggV3(x+12,93,z-30),
-                           ggV3(x+12,128,z-30),ggV3(x-12,128,z-30),2);
-        }else if(b==B_HALL){
-            ggFilmHouse(cam,x,z,174,179,1,1);
-            ggFilmBox(cam,x,173,z,47,35,35,24,25,26);
-        }else if(b==B_DOCK){
-            ggFilmBox(cam,x,17,z,93,11,89,24,20,25);
-            ggFilmBeam(cam,x-35,0,z,10,52,12,25);
-            ggFilmBeam(cam,x+35,0,z,10,52,12,25);
-        }else{
-            ggFilmHouse(cam,x,z,b==B_HUT?105:136,
-                        b==B_HUT?110:142,1,1);
-        }
-        count++;
-    }
-    return count;
-}
-// Low-poly terrain from the *same 25x9 game-world snapshot* used for the
-// 2D film skyline. This is no longer only a static distant backdrop: coast,
-// cliffs and mountains now occupy projected world-space planes. Only the
-// 3DS gets this geometric depth; DS keeps its cheap illustrated shoreline.
-// 3 rows x 11 columns, <=33 top faces; 0 heap/framebuffers and bounded CPU.
-// Cels remain detailed 2D art instead of being replaced by polygon heads.
-static int ggFilmTerrainHeight(int t){
-    return t==T_MOUNT?165:t==T_HILL?72:t==T_SNOW?42:
-           t==T_FOREST?23:t==T_JUNGLE?26:
-           t==T_GRASS?12:t==T_SWAMP?6:
-           t==T_SAND?3:t==T_DESERT?9:t==T_DIRT?8:0;
-}
-static u8 ggFilmTerrainInk(int t,int side){
-    return t==T_MOUNT?(side?20:21):t==T_HILL?(side?20:24):
-           t==T_SNOW?(side?21:23):t==T_FOREST?16:
-           t==T_JUNGLE?17:t==T_SWAMP?13:t==T_SAND?26:
-           t==T_DESERT?25:t==T_DIRT?24:18;
-}
-static void ggFilmLandmarkTerrain(GgFilmCamera cam,int place,int t){
-    int kind=filmVistaPlace(place);
-    if(kind!=FILM_VISTA_COAST&&kind!=FILM_VISTA_RIDGE)return;
-    const FilmVista *v=&filmVista[kind];
-    if(!v->valid)return;
-    int seenTrees=0,seenRock=0;
-    // Painter's order: far samples first, near samples last. That gives
-    // plausible cliff/shore occlusion without a depth buffer.
-    for(int row=0;row<3;row++){
-        int my=2+row*2;
-        int z=1790-row*275;
-        for(int col=0;col<11;col++){
-            int mx=2+col*2;
-            int terr=filmVistaRead(v,mx,my,0);
-            int h=ggFilmTerrainHeight(terr);
-            if(!h)continue; // actual sea stays sea; never build fake shore
-            int x=(col-5)*145;
-            int w=144,d=279;
-            // Land-tops follow the sampled biome. Slopes are capped per
-            // tile and terraces form natural, legible beach and cliff faces.
-            ggFilmQuad(cam,ggV3(x-w/2,h,z-d/2),
-                           ggV3(x+w/2,h,z-d/2),
-                           ggV3(x+w/2,h,z+d/2),
-                           ggV3(x-w/2,h,z+d/2),
-                           ggFilmTerrainInk(terr,0));
-            int front=filmVistaRead(v,mx,my+1,0);
-            int frontH=ggFilmTerrainHeight(front);
-            if(h>frontH+8){
-                ggFilmQuad(cam,ggV3(x-w/2,frontH,z-d/2),
-                               ggV3(x+w/2,frontH,z-d/2),
-                               ggV3(x+w/2,h,z-d/2),
-                               ggV3(x-w/2,h,z-d/2),
-                               ggFilmTerrainInk(terr,1));
-            }
-            // Surging foam follows *real* sand/water boundaries only.
-            // The animated line is anchored to tile coordinates, not
-            // randomized screen pixels that change with dialogue cuts.
-            if(kind==FILM_VISTA_COAST&&filmVistaIsWater(front)&&
-               (terr==T_SAND||terr==T_GRASS||terr==T_DIRT)){
-                int surf=1+(t/18+col*3+row)%4;
-                ggFilmQuad(cam,ggV3(x-w/2+7,2,z-d/2-surf),
-                               ggV3(x+w/2-7,2,z-d/2-surf),
-                               ggV3(x+w/2-7,2,z-d/2-surf-4),
-                               ggV3(x-w/2+7,2,z-d/2-surf-4),15);
-            }
-            // Only a few fixed landmarks are outlined in full. Foliage
-            // sways at its real cell position and keeps background legible.
-            if((terr==T_FOREST||terr==T_JUNGLE)&&seenTrees<2){
-                ggFilmTree(cam,x,z,82,t,col+row);
-                seenTrees++;
-            }else if((terr==T_MOUNT||terr==T_HILL)&&seenRock<3){
-                ggFilmBox(cam,x,0,z,35,h/2+14,39,21,20,24);
-                seenRock++;
-            }
-        }
-    }
-}
-static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
+static void ggFilmWorldDraw(GgFilmCamera cam,const FilmBeat *beat,int scenic,
                             int chapter,int roofFinished,int winter){
     int p=beat->place;
-    if(p==F_ORBIT)return; // globe remains the spherical dedicated renderer
-    int scenic=ggFilmSceneTime(elapsed);
-    GgFilmCamera cam=ggFilmCameraAt(beat,move);
-    // Hearth is an actual interior. Formerly it incorrectly received the
-    // outdoor village set (houses and trees), breaking cuts from the room.
-    int inside=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
-                p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
-    if(inside){ggFilmInterior(cam,p,scenic,chapter,winter);return;}
-    ggFilmFloor(cam,p,scenic,winter);
-    ggFilmRealHorizon(cam,p);
-    ggFilmLandmarkTerrain(cam,p,scenic);
+    ggFilmBackdrop(cam,p);
+    if(ggFilmRoom(p)){
+        ggFilmInterior(cam,p,scenic,chapter,winter);
+        return;
+    }
+    ggFilmFloor(cam,p,scenic,chapter,winter);
     if(p==F_GATE||p==F_RUINS){
-        if(p==F_GATE)ggFilmRealTown(cam);
         ggFilmArch(cam,-170,1260,p==F_RUINS);
         ggFilmArch(cam,225,970,p==F_RUINS);
         ggFilmBox(cam,0,0,1610,650,140,80,21,20,26);
+        if(p==F_GATE&&chapter==9&&scenic<42*FMV_TICKS){
+            for(int i=0;i<3;i++){
+                int x=-390+(scenic*8+i*227)%780;
+                int y=115+(i*55+scenic)%170;
+                int z=1050+i*107;
+                ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+65,y+19,z),
+                               ggV3(x+65,y+24,z),ggV3(x,y+5,z),8);
+            }
+            if(scenic>=22*FMV_TICKS&&scenic<28*FMV_TICKS){
+                GgV3 impact=ggV3(-168,130,1233);
+                for(int i=0;i<4;i++){
+                    int dx=(i&1)?-50:50,dy=(i&2)?-40:45;
+                    ggFilmTri(cam.page,ggFilmProject(cam,impact),
+                        ggFilmProject(cam,ggV3(impact.x+dx,impact.y+dy,impact.z)),
+                        ggFilmProject(cam,ggV3(impact.x+dx/3,impact.y+dy/2-10,impact.z)),
+                        i&1?9:10);
+                }
+            }
+        }
     }else if(p==F_VILLAGE){
         // Persist the same village plan, but let the town actually GROW:
         // one founding shelter, then its first neighbor, then the hall.
         // Later stories never jump back to a vanished building.
-        int actualTown=ggFilmRealTown(cam);
-        if(!actualTown){
-            // Before settlements exist, the directed founding sequence
-            // still needs its first shelter and construction scaffolding.
-            ggFilmHouse(cam,-340,1190,158,138,1,1);
-            if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1,roofFinished);
-            if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0,1);
-            if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
-        }else if(chapter==2&&!roofFinished){
-            // During the roof-building chapter the focal worksite has
-            // real unfinished rafters, even with homes behind it.
-            ggFilmHouse(cam,325,1040,155,155,1,0);
-        }
+        ggFilmHouse(cam,-340,1190,158,138,1,1);
+        if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1,roofFinished);
+        if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0,1);
+        if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
         ggFilmTree(cam,-530,910,158,scenic,0);
         ggFilmTree(cam,515,1180,190,scenic,2);
         // One physical character cannot work in the distance and speak
         // in the foreground simultaneously. Keep the 2D performers
         // distinct across every cut, even during large ensemble shots.
-        if(chapter>=2&&beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM)
+        if(cam.page==uiBuf&&chapter>=2&&beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM)
             ggFilmBackgroundWorker(cam,-175,1070,scenic,1);
-        if(chapter>=10&&beat->lead!=F_NESSA&&beat->other!=F_NESSA)
+        if(cam.page==uiBuf&&chapter>=10&&beat->lead!=F_NESSA&&beat->other!=F_NESSA)
             ggFilmBackgroundWorker(cam,140,1280,scenic,0);
         // Roads become active as the village grows. The moving cart and
         // its cargo share the same world transform over all dialogue cuts.
@@ -687,9 +628,9 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         ggFilmTree(cam,-385,1220,144,scenic,0);
         ggFilmTree(cam,425,1160,151,scenic,1);
         if(p==F_FORD){
-            if(chapter>=8){
+            if(chapter>=GG_FILM_BRIDGE_CHAPTER){
                 ggFilmBridge(cam,chapter==9,scenic);
-                if(chapter>=10&&beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM)
+                if(cam.page==uiBuf&&chapter>=10&&beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM)
                     ggFilmBackgroundWorker(cam,172,1120,scenic,1);
             }else{
                 for(int k=0;k<5;k++){
@@ -700,6 +641,14 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
                 }
             }
         }
+    }else if(p==F_ORBIT){
+        // A low stone observation wall and a real path give the open
+        // lookout a foreground and a destination for the walking camera.
+        ggFilmBox(cam,-275,0,775,270,38,43,21,20,22);
+        ggFilmBox(cam,310,0,780,238,38,43,21,20,22);
+        ggFilmTree(cam,-410,1080,180,scenic,0);
+        ggFilmTree(cam,450,1350,160,scenic,2);
+        ggFilmTree(cam,-575,1560,128,scenic,3);
     }
     if(winter){
         // Both unlockable winter reels have snow at scene depth rather than
@@ -727,16 +676,12 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
 // This gives genuine traversal behind door posts, bridge rails and trees,
 // without allocating a full-depth buffer on the 3DS. The supporting geometry
 // is authored at nearer Z than character feet (normally around 690).
-static void ggFilmWorldForeground(const FilmBeat *beat,int move,int chapter){
+static void ggFilmWorldForeground(GgFilmCamera cam,const FilmBeat *beat,int move,int chapter){
     int p=beat->place;
-    if(p==F_ORBIT||beat->camera==F_INSERT)return;
-    GgFilmCamera cam=ggFilmCameraAt(beat,move);
-    if(p==F_FORD&&chapter>=8){
-        // Near timber handrail, diagonal braces and a physical end post.
-        ggFilmBox(cam,-160,75,515,13,10,136,25,24,26);
-        ggFilmBox(cam,-160,0,515,19,91,23,20,24,25);
-        ggFilmQuad(cam,ggV3(-169,15,531),ggV3(-151,70,531),
-                       ggV3(-151,77,537),ggV3(-169,21,537),24);
+    if(beat->camera==F_INSERT)return;
+    if(p==F_FORD&&chapter>=GG_FILM_BRIDGE_CHAPTER){
+        ggFilmBox(cam,-95,73,565,12,9,128,25,24,26);
+        ggFilmBox(cam,-103,0,510,28,82,21,21,20,25);
     }else if(p==F_PORCH||p==F_HALL||p==F_ARCHIVE||p==F_FORGE){
         // Local architecture stays at fixed world coordinates during cuts.
         ggFilmBox(cam,-335,0,510,30,276,37,20,24,26);
@@ -754,16 +699,19 @@ static void ggFilmWorldForeground(const FilmBeat *beat,int move,int chapter){
 // approaching the foreground, and crossing the frame changes perspective
 // rather than just dragging/zooming a flat sprite. Attachment and prop
 // choreography still uses FilmBlocking's projected screen-space hand points.
-static void ggFilmWorldBlocking(const FilmBeat *beat,int elapsed,int move,
-                                FilmBlocking *b){
-    if(beat->camera==F_INSERT||beat->place==F_ORBIT)return;
-    GgFilmCamera cam=ggFilmCameraAt(beat,move);
+static void ggFilmWorldBlocking(GgFilmCamera cam,const FilmBeat *beat,int elapsed,
+                                int chapter,FilmBlocking *b){
+    if(beat->camera==F_INSERT)return;
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     int leadLeft=paired&&filmActorLeftOf(beat->lead,beat->other);
     int compact=beat->camera==F_HAND&&paired&&beat->prop<F_PROP_N;
     int lx=paired?(leadLeft?-125:125):b->leadX<128?-125:125;
     int ox=paired?(leadLeft?125:-125):0;
-    if(compact){lx=leadLeft?-74:74;ox=-lx;}
+    if(compact||beat->place==F_FORD){
+        int halfWidth=beat->place==F_FORD?65:74;
+        lx=paired?(leadLeft?-halfWidth:halfWidth):0;
+        ox=-lx;
+    }
     int active=beat->lead<F_ACTOR_N;
     int journey=active&&(beat->camera==F_TRACK||
                          (beat->camera==F_WIDE&&beat->prop>=F_PROP_N));
@@ -772,18 +720,24 @@ static void ggFilmWorldBlocking(const FilmBeat *beat,int elapsed,int move,
     int lz=690+away*165/256;
     int oz=690;
     int stride=journey&&elapsed<180?((elapsed/18)&1)*5:0;
+    int ground=ggFilmStandingHeight(beat->place,chapter);
     if(active){
-        int drift=journey?(lx<0?-1:1)*away*66/256:0;
-        GgS2 pt=ggFilmProject(cam,ggV3(lx+drift,stride,lz));
+        int travel=beat->place==F_FORD?16:66;
+        int drift=journey?(lx<0?-1:1)*away*travel/256:0;
+        GgV3 foot=ggV3(lx+drift,ground+stride+(beat->lead==F_WISP?84:0),lz);
+        GgS2 pt=ggFilmProject(cam,foot);
+        GgS2 head=ggFilmProject(cam,ggV3(foot.x,foot.y+(beat->lead==F_WISP?58:130),foot.z));
         b->leadX=pt.x;
-        b->leadFeet=pt.y-(beat->lead==F_WISP?33:0);
-        b->leadHeight=beat->lead==F_WISP?22:130*260/(lz-cam.z);
+        b->leadFeet=pt.y;
+        b->leadHeight=pt.y-head.y;
     }
     if(paired){
-        GgS2 pt=ggFilmProject(cam,ggV3(ox,0,oz));
+        GgV3 foot=ggV3(ox,ground+(beat->other==F_WISP?84:0),oz);
+        GgS2 pt=ggFilmProject(cam,foot);
+        GgS2 head=ggFilmProject(cam,ggV3(foot.x,foot.y+(beat->other==F_WISP?58:130),foot.z));
         b->otherX=pt.x;
-        b->otherFeet=pt.y-(beat->other==F_WISP?33:0);
-        b->otherHeight=beat->other==F_WISP?22:130*260/(oz-cam.z);
+        b->otherFeet=pt.y;
+        b->otherHeight=pt.y-head.y;
     }
     if(beat->place==F_COUCH){
         // Seated actors and sofa share a specific Z plane. Their hips

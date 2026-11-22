@@ -242,7 +242,7 @@ static void checkCinematicActingAndMix(void){
           "Dave does not sit and speak in the couch scene");
 #ifndef GG_FILM_2D_FALLBACK
     FilmBlocking sitter=filmBlocking(couchBeats+3,170);
-    ggFilmWorldBlocking(couchBeats+3,170,128,&sitter);
+    ggFilmWorldBlocking(ggFilmCameraAt(couchBeats+3,128),couchBeats+3,170,12,&sitter);
     check(sitter.leadHeight>=30&&sitter.leadHeight<=48,
           "seated actor is not at its couch's world-space depth");
     check(sitter.leadFeet>=115&&sitter.leadFeet<=150,
@@ -277,8 +277,8 @@ static void checkCinematicActingAndMix(void){
           "3DS camera movement does not transform geometry");
     FilmBlocking nearCast=filmBlocking(roofBeats+0,0);
     FilmBlocking finalCast=filmBlocking(roofBeats+0,180);
-    ggFilmWorldBlocking(roofBeats+0,0,0,&nearCast);
-    ggFilmWorldBlocking(roofBeats+0,180,256,&finalCast);
+    ggFilmWorldBlocking(ggFilmCameraAt(roofBeats,0),roofBeats,0,2,&nearCast);
+    ggFilmWorldBlocking(ggFilmCameraAt(roofBeats,256),roofBeats,180,2,&finalCast);
     check(finalCast.leadHeight>nearCast.leadHeight,
           "3DS stage action has no approach depth");
     int ness=0,serin=0;
@@ -397,6 +397,22 @@ static u32 stageViewportHash(void){
     return hash;
 }
 
+static void checkStageIgnoresMapTerrain(void){
+    const FmvClip *opening=&fmvClips[0];
+    const FilmBeat *shore=firstLightBeats+2;
+    for(int y=0;y<WH;y++) memset(world[y],T_WATER,WW);
+    filmCaptureTownName();
+    filmDrawBeat(opening,shore,0);
+    u32 coast=stageViewportHash();
+
+    for(int y=0;y<WH;y++)
+        for(int x=WW/2;x<WW;x++)
+            world[y][x]=(x+y)%3?T_MOUNT:T_HILL;
+    filmCaptureTownName();
+    filmDrawBeat(opening,shore,0);
+    check(stageViewportHash()==coast,
+          "map terrain takes over the staged shoreline");
+}
 static void checkStoryEditorial(void){
     for(int ch=0;ch<=CHAP_N;ch++){
         if(ch<CHAP_N) check(uiTextW(chap[ch].goal,1)<=226,
@@ -432,104 +448,52 @@ static void checkStoryEditorial(void){
     filmDrawBeat(opening,firstLightBeats,0);
     check(uiBuf[FILM_TOP*256]==fmvSlots[17],"DS/DSi staged opening must also show the flat map");
 
-    const FilmBeat *shore=firstLightBeats+2;
-    int coast=filmVistaPlace(F_SHORE);
-    FilmVista before=filmVista[coast];
-    filmVista[coast].valid=0;
-    filmDrawBeat(opening,shore,0);
-    u32 paintedShore=stageViewportHash();
-    filmVista[coast].valid=1;
-    filmDrawBeat(opening,shore,0);
-    check(paintedShore==stageViewportHash(),
-          "sampled terrain blocks cover the illustrated DS/DSi shoreline");
-    filmVista[coast]=before;
 #endif
 }
-static void checkWorldFlightPlayback(void){
-    // Exercise the actual film renderer on a mapped city, shoreline and
-    // ridge. This is more stringent than just testing route arithmetic:
-    // it checks that DS/DSi and 3DS draw the journey in their own film page
-    // and return to the unchanged screenplay at the exact frame.
-    FilmRoute before=filmRoute;
-    filmRoute.count=2;
-    filmRoute.total=24;
-    filmRoute.duration=600;
-    filmRoute.x[0]=30;filmRoute.y[0]=30;
-    filmRoute.x[1]=54;filmRoute.y[1]=30;
-    filmRoute.length[0]=24;
-    filmRoute.kind[0]=FILM_VISTA_TOWN;
-    filmRoute.kind[1]=FILM_VISTA_COAST;
-    for(int y=20;y<41;y++)for(int x=20;x<65;x++){
-        world[y][x]=(x<44?T_GRASS:x<50?T_SAND:T_WATER);
-        bld[y][x]=0;
+static void checkChapterEntrances(void){
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
+        const FmvClip *clip=&fmvClips[i];
+        int end=clip->frames*FMV_TICKS;
+        int last=0,takes=1;
+        for(int t=1;t<4&&filmEntrances[i][t].first;t++){
+            int first=filmEntrances[i][t].first;
+            check(first>last&&first<clip->frames,"3DS entrance shot has an invalid start frame");
+            last=first;
+            takes++;
+        }
+        check(takes>=2,"3DS entrance dropped an authored scene");
+        memset(uiBuf,0xcc,sizeof uiBuf);
+        memset(uiNew,0x5a,sizeof uiNew);
+        check(fmvRenderAt(clip,0),"3DS entrance missed its first frame");
+        check(uiNew[0]==0x5a&&uiNew[sizeof uiNew-1]==0x5a,
+              "3DS entrance unpacks footage over the projected set");
+        u32 first=stageViewportHash();
+        for(int t=FMV_TICKS;t<end;t+=FMV_TICKS){
+            fxQ=-1;
+            check(fmvRenderAt(clip,t),"3DS entrance dropped a frame");
+            int cue=-1;
+            for(int k=0;k<2;k++)
+                if(clip->cue[k].effect&&clip->cue[k].frame==t/FMV_TICKS)
+                    cue=clip->cue[k].effect;
+            check(fxQ==cue,"3DS entrance missed an authored sound cue");
+        }
+        check(first!=stageViewportHash(),"3DS entrance camera does not move through its set");
+        check(fmvRenderAt(clip,end),"3DS entrance failed to cut into its chapter");
     }
-    bld[30][33]=B_TOWER;
-    bld[29][36]=B_HALL;
-    world[31][40]=T_MOUNT;
-    const FmvClip *clip=&fmvClips[0];
-    int baked=clip->frames*FMV_TICKS;
-    check(fmvLength(clip)==baked+filmRoute.duration+
-          filmReelTicks(&filmReels[0])
-#ifdef __3DS__
-          +filmReelTicks(&filmExtraReels[0])+
-          filmReelTicks(&filmFeatureReels[0])
 #endif
-          ,"route duration corrupted the existing movie length");
-    check(fmvRenderAt(clip,baked),
-          "continuous geographical flight missed its first frame");
-#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
-    check(uiBuf[FILM_TOP*256+128]==fmvSlots[filmFlightInk(T_GRASS)],
-          "DS/DSi flight must show continuous map terrain at the top of the frame");
-    check(uiBuf[(FILM_TOP+FILM_H/2)*256+128]==fmvSlots[filmFlightInk(T_GRASS)],
-          "the center of the top-down shot must track the route's first tile");
-    check(uiBuf[(FILM_TOP+FILM_H/2+3)*256+128+3*8+3]==fmvSlots[25],
-          "the tower on the route must have a recognizable overhead footprint");
-#endif
-    u32 first=pictureHash();
-    check(fmvRenderAt(clip,baked+300),
-          "flight dropped its midpoint frame");
-    u32 middle=pictureHash();
-    check(first!=middle,
-          "the cinematic journey did not show its moving world");
-    check(fmvRenderAt(clip,baked+filmRoute.duration- FILM_STAGE_TICKS),
-          "continuous route lost its last displayed frame");
-    check(fmvRenderAt(clip,baked+filmRoute.duration),
-          "flight failed to hand over to the original first story beat");
-    int local=0;
-    check(filmBeatAt(clip,&local)==filmReels[0].beats,
-          "flight rewrote or skipped the original screenplay");
-#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
-    filmRoute.x[0]=4;filmRoute.y[0]=4;
-    filmRoute.x[1]=12;filmRoute.y[1]=4;
-    filmRoute.length[0]=filmRoute.total=8;
-    for(int y=0;y<14;y++)for(int x=0;x<30;x++){
-        world[y][x]=T_GRASS;
-        bld[y][x]=0;
-    }
-    check(fmvRenderAt(clip,baked),"flat corner flight lost its first frame");
-    u32 corner=stageViewportHash();
-    check(fmvRenderAt(clip,baked+300)&&corner!=stageViewportHash(),
-          "flat corner flight froze before reaching the edge of the map");
-#endif
-    filmRoute=before;
-    puts("WORLD FLIGHT OK: continuous real-map camera, 2D/3D frames, "
-         "original beat timeline, safe handoff");
 }
 static void checkDirectedPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
         int length=fmvLength(clip), baked=clip->frames*FMV_TICKS;
-        // The step-four prelude is one uninterrupted geographical
-        // journey BEFORE the existing screenplay. The original actor,
-        // dialogue and sound-cue timeline must remain identical.
-        int route=filmRoute.duration;
         int spotlight=i==9||i==13||i==14;
         check(length>=60*FILM_SECOND,"a chapter film is shorter than one minute");
         if(spotlight) check(length>180*FILM_SECOND,"a centerpiece runs three minutes or less");
         unsigned previous=0;
         int same=0, shots=0, frames=0;
-        for(int t=baked+route;t<length;t+=FILM_STAGE_TICKS){
-            int elapsed=t-baked-route;
+        for(int t=baked;t<length;t+=FILM_STAGE_TICKS){
+            int elapsed=t-baked;
             const FilmBeat *beat=filmBeatAt(clip,&elapsed);
             check(beat!=NULL,"directed timeline has a gap");
             if(!elapsed){
@@ -568,7 +532,7 @@ static void checkDirectedPlayback(void){
         check(frames>=shots*3,"a 3DS campaign take was not sampled");
 #else
         check(shots>=8&&
-              frames==(length-baked-route)/FILM_STAGE_TICKS,
+              frames==(length-baked)/FILM_STAGE_TICKS,
               "the DS edit skipped a take or a frame");
 #endif
         printf("%-27s %6.2fs  %2d directed takes\n",clip->title,length/60.0,shots);
@@ -597,7 +561,8 @@ void shimInput(int frame,int *held,int *tx,int *ty){
             checkFeatureFilmAndArchive();
 #endif
             checkStoryEditorial();
-            checkWorldFlightPlayback();
+            checkStageIgnoresMapTerrain();
+            checkChapterEntrances();
             checkDirectedPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
