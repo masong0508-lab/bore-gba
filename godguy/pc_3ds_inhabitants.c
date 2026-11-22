@@ -42,13 +42,55 @@ static void inhabitantFooting(void){
     }
     world[64][65]=T_GRASS;
 }
+typedef struct {int top,bottom;} InhabitantProfile;
+static InhabitantProfile inhabitantProfile(int shape,int heading,int phase,
+                                           int ground,int left,int right){
+    int x=66*256+128,y=64*256+128;
+    ggMeshBegin(&ggMeshContext,guarded.img,2,x-384,y,ground+13,
+                4096,0,55,77,99);
+    ggMeshActorSpecies(&ggMeshContext,x,y,ground,heading,phase,0,
+                       shape,famCol[0],2);
+    InhabitantProfile profile={240,-1};
+    for(int row=0;row<240;row++)
+        for(int col=left;col<right;col++)
+            if(ggMeshContext.depth[row*400+col]){
+                if(row<profile.top)profile.top=row;
+                if(row>profile.bottom)profile.bottom=row;
+            }
+    inhabitantGuard();
+    return profile;
+}
+static void inhabitantAnatomy(void){
+    InhabitantProfile wolf=inhabitantProfile(20,64,0,5,150,250);
+    InhabitantProfile rabbit=inhabitantProfile(10,64,0,5,150,250);
+    InhabitantProfile deer=inhabitantProfile(9,64,0,5,150,250);
+    inhabitantRequire(wolf.top+4<rabbit.top&&deer.top+4<wolf.top,
+                      "rabbit, wolf and deer lack a distinct adult height hierarchy");
+
+    // Nose-on, the bat's outer membrane should have vertical thickness
+    // even with the wings near horizontal, and lift visibly with the stroke.
+    InhabitantProfile bat=inhabitantProfile(14,128,0,5,216,240);
+    InhabitantProfile up=inhabitantProfile(14,128,64,5,216,240);
+    inhabitantRequire(bat.bottom-bat.top>=11&&up.top+13<bat.top,
+                      "bat wing collapsed to a flat sheet or lost its upstroke");
+
+    // Same nominal base and camera. Only a real water surface should
+    // displace the swimmer below its dry-land profile.
+    InhabitantProfile dry=inhabitantProfile(2,64,0,1,185,215);
+    world[64][66]=T_WATER;
+    InhabitantProfile wet=inhabitantProfile(2,64,0,1,185,215);
+    world[64][66]=T_GRASS;
+    inhabitantRequire(dry.top+4<wet.top&&wet.bottom>dry.bottom,
+                      "fish hull does not sit into the water when swimming");
+}
 int main(int argc,char**argv){
-    // Numeric shapes come from the authored source/main.c SHAPE table:
-    // wolf, bird, fish, spider, snake, blob, butterfly, rabbit, turtle,
-    // bat and the authored skeleton/printer/finger fallback fixtures.
+    // Numeric shapes come from the authored source/main.c SHAPE table.
+    // Include the largest (deer, scorpion, whale) as well as the
+    // smallest models, and the skeleton/printer/finger sprite fallbacks.
     // Same palette/identity/camera for all, so geometry must distinguish
     // them. These records run through ggExpRenderCreatures, not a mock.
-    static const int shapes[]={20,1,2,12,3,6,63,10,15,14,16,78,79};
+    static const int shapes[]={20,1,2,12,3,6,63,10,15,14,9,37,13,50,
+                               51,53,60,61,16,78,79};
     enum {CASES=sizeof shapes/sizeof shapes[0]};
     unsigned long picture[CASES];
     static u8 empty[400*240*3];
@@ -59,6 +101,7 @@ int main(int argc,char**argv){
     memset(guarded.last,0xc3,sizeof guarded.last);
     ggExpBegin(64,64,0);
     inhabitantFooting();
+    inhabitantAnatomy();
     ggExpMeshEnabled=1;ggExpScenicQuality=2;ggExpSceneryEnabled=0;ggExpBuildPreview=0;
     ggExplore.angle=0;ggExplore.px=64*256+128;
     ggExplore.py=64*256+128;ggExplore.frame=52;ggExplore.actorId=0;
@@ -147,7 +190,7 @@ int main(int argc,char**argv){
                                "distant citizen ignores physical scene haze");
         inhabitantGuard();
     }
-    printf("3DS INHABITANTS OK: 13 source species x 8 headings, %d minimum visible pixels, %d maximum added triangles, wall/near clipping and shared haze\n",
-           least,mostTriangles);
+    printf("3DS INHABITANTS OK: %d source species x 8 headings, %d minimum visible pixels, %d maximum added triangles, anatomy, footing, wall/near clipping and shared haze\n",
+           CASES,least,mostTriangles);
     return 0;
 }

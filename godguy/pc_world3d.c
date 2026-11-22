@@ -54,7 +54,9 @@ static unsigned long hashFrame(void){
     return h;
 }
 static void drawWorld(const FilmBeat *beat,int t,int move,int chapter,int roof,int winter){
-    ggFilmWorldDraw(ggFilmCameraAt(beat,move),beat,ggFilmSceneTime(t),chapter,roof,winter);
+    GgFilmCamera cam=ggFilmBeginOcclusion(ggFilmCameraAt(beat,move));
+    ggFilmWorldDraw(cam,beat,ggFilmSceneTime(t),chapter,roof,winter);
+    ggFilmWorldForeground(cam,beat,move,chapter);
 }
 static unsigned long frame(int place,int camera,int t){
     FilmBeat b={place,camera,F_MIRA,F_THORGRIM,F_NO_PROP};
@@ -69,11 +71,47 @@ static int materialColors(const u8 *page){
     for(int i=0;i<GG_FILM_MATERIALS;i++) colors+=used[ggFilmMaterialSlots[i]];
     return colors;
 }
+static void checkSlopingForeground(GgFilmCamera camera){
+    memset(uiBuf,0,sizeof picture.page);
+    camera=ggFilmBeginOcclusion(camera);
+    // A wall slants away across the image. A performer at Z=650 can be
+    // behind its left edge and in front of its right edge in the same shot.
+    ggFilmQuad(camera,ggV3(-100,70,460),ggV3(180,70,860),
+                ggV3(180,160,860),ggV3(-100,160,460),GG_STONE);
+    const int y=105,left=91,right=165;
+    require(uiBuf[y*256+left]==ggFilmInk(GG_STONE)&&
+            uiBuf[y*256+right]==ggFilmInk(GG_STONE),"the sloping wall missed the test pixels");
+    ggFilmCelDepth=ggFilmReciprocalDepth(650);
+    ggFilmCelPixel(uiBuf+y*256,left,y,253);
+    ggFilmCelPixel(uiBuf+y*256,right,y,253);
+    ggFilmCelDepth=0;
+    require(uiBuf[y*256+left]==ggFilmInk(GG_STONE)&&uiBuf[y*256+right]==253,
+            "occlusion must distinguish the near and far edges of a sloping wall");
+}
 int main(void){
     memset(picture.before,0xa6,sizeof picture.before);
     memset(picture.after,0x6d,sizeof picture.after);
     for(int i=0;i<32;i++)fmvSlots[i]=(u8)(i+1);
-    GgFilmCamera center={0,0,0,uiBuf},moved={64,20,18,uiBuf};
+    GgFilmCamera center={.page=uiBuf},moved={.x=64,.z=20,.yaw=18,.page=uiBuf};
+    checkSlopingForeground(center);
+    require(ggFilmSurfaceHeight(F_HALL,11,0,690)==5&&
+            ggFilmSurfaceHeight(F_HALL,11,-246,690)==1,
+            "actors must stand on the rug pile in the aisle and the tile beyond it");
+    require(ggFilmSurfaceHeight(F_FORD,9,0,1240)>7&&
+            ggFilmSurfaceHeight(F_FORD,9,0,1360)==1&&
+            ggFilmSurfaceHeight(F_FORD,9,128,1240)==1,
+            "the long bridge ramp must taper down to the bank without lifting the river margins");
+    GgS2 hallProp=ggFilmPropSupport(center,F_HALL,6);
+    GgS2 hallFloor=ggFilmProject(center,ggV3(0,5,760));
+    require(hallProp.y<hallFloor.y-8,"the hall's props sit on the floor instead of a work table");
+    FilmBeat forgeTrack={F_FORGE,F_TRACK,F_NESSA,F_THORGRIM,F_HAMMER,NULL};
+    FilmBlocking smithStart={0},smithEnd={0};
+    GgFilmCamera smithCam=ggFilmCameraAt(&forgeTrack,0);
+    GgFilmFootprints smithAtStart=ggFilmWorldBlocking(smithCam,&forgeTrack,0,5,&smithStart);
+    GgFilmFootprints smithAtEnd=ggFilmWorldBlocking(smithCam,&forgeTrack,180,5,&smithEnd);
+    require(smithAtStart.lead.z<GG_FILM_ANVIL_Z-GG_FILM_ANVIL_D/2&&
+            smithAtEnd.lead.z<smithAtStart.lead.z,
+            "a smith tracking with a hammer must stay on the front side of the anvil");
     GgS2 near=ggFilmProject(center,ggV3(120,0,560));
     GgS2 far=ggFilmProject(center,ggV3(120,0,1450));
     require(near.x>far.x&&far.x>128,"perspective does not reduce far displacement");
@@ -198,12 +236,14 @@ int main(void){
     GgFilmCamera porchCam=ggFilmCameraAt(&porchHand,128);
     FilmBlocking reach={0};
     GgFilmFootprints stand=ggFilmWorldBlocking(porchCam,&porchHand,120,2,&reach);
-    require(ggFilmFurnitureFront(F_PORCH)<stand.otherDepth,
-            "the porch table must be staged in front of the actor");
+    porchCam=ggFilmBeginOcclusion(porchCam);
+    ggFilmWorldDraw(porchCam,&porchHand,120,2,1,0);
     GgS2 top=ggFilmProject(porchCam,ggV3(-37,36,588));
-    uiBuf[top.y*256+top.x]=253;
-    ggFilmFurnitureForeground(porchCam,F_PORCH,120);
-    require(uiBuf[top.y*256+top.x]==ggFilmInk(GG_PLASTER),
+    u8 wood=uiBuf[top.y*256+top.x];
+    ggFilmCelDepth=ggFilmReciprocalDepth(stand.otherDepth);
+    ggFilmCelPixel(uiBuf+top.y*256,top.x,top.y,253);
+    ggFilmCelDepth=0;
+    require(wood==ggFilmInk(GG_PLASTER)&&uiBuf[top.y*256+top.x]==wood,
             "an actor pixel can overwrite the porch tabletop");
     FilmBeat couch={F_COUCH,F_NEAR,F_DAVE,F_MIRA,F_NO_PROP,NULL};
     GgFilmCamera couchCam=ggFilmCameraAt(&couch,128);
@@ -216,9 +256,12 @@ int main(void){
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
             "world-space rain did not animate");
+    fordCam=ggFilmBeginOcclusion(fordCam);
+    ggFilmWorldDraw(fordCam,&ford,120,9,1,0);
     GgS2 post=ggFilmProject(fordCam,ggV3(-103,50,500));
-    uiBuf[post.y*256+post.x]=253;
-    ggFilmWorldForeground(fordCam,&ford,128,9);
+    ggFilmCelDepth=ggFilmReciprocalDepth(690);
+    ggFilmCelPixel(uiBuf+post.y*256,post.x,post.y,253);
+    ggFilmCelDepth=0;
     require(uiBuf[post.y*256+post.x]!=253,
             "the near bridge post cannot occlude a sprite behind it");
 
@@ -226,6 +269,7 @@ int main(void){
     memset(uiBuf,0x9b,sizeof picture.page);
     memset(alternate,0,sizeof alternate);
     fordCam.page=alternate;
+    fordCam.depth=NULL;
     ggFilmWorldDraw(fordCam,&ford,40,9,1,0);
     require(alternate[FILM_TOP*256]!=0&&materialColors(alternate)>=3&&
             uiBuf[FILM_TOP*256]==0x9b,

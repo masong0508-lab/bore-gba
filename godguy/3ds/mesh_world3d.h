@@ -24,33 +24,92 @@ static inline int ggMeshCornerHeight(int x,int y){
         }
     return n?sum/n:8;
 }
-// Exact height on the four triangle sectors around a world-cell
-// center. Road markings, plants, and later actor contacts can use this
-// same surface instead of hovering at a whole-tile average altitude.
+static inline int ggMeshGroundCross(GgMeshVertex a,GgMeshVertex b,GgMeshVertex p){
+    return (b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x);
+}
+
+enum { GG_GROUND_PLANE, GG_GROUND_SHOULDER, GG_GROUND_SHELF };
+static const unsigned char ggMeshGroundFaceCount[]={1,3,5};
+static const unsigned char ggMeshGroundFaces[][5][3]={
+    {{0,1,2}},
+    {{0,1,3},{1,2,3},{2,0,3}},
+    {{0,1,3},{0,3,4},{0,4,2},{1,2,4},{1,4,3}}
+};
+static const unsigned char ggMeshGroundCornerX[4]={0,1,1,0};
+static const unsigned char ggMeshGroundCornerY[4]={0,0,1,1};
+static const unsigned char ggMeshGroundSide[4]={2,1,3,0};
+
+static inline GgMeshVertex ggMeshGroundCorner(int tx,int ty,int corner){
+    int x=tx+ggMeshGroundCornerX[corner],y=ty+ggMeshGroundCornerY[corner];
+    return ggMeshV(x*256,y*256,ggMeshCornerHeight(x,y));
+}
+// Detail stays strictly inside the old centre-to-edge triangle, so any
+// flat, cut-bank or mountain sector can meet its neighbours without seams.
+// Point zero is the cell centre and points one and two are shared corners.
+static inline int ggMeshGroundDetail(int tx,int ty,int sector,int type,
+                                      GgMeshVertex point[5]){
+    if(type<=T_WATER)return GG_GROUND_PLANE;
+    int z=point[0].z,a=point[1].z,b=point[2].z;
+    int delta=z-(a+b)/2;
+    int side=ggMeshGroundSide[sector];
+    int shelf=a==ggExpGround(T_WATER)&&b==a&&type!=T_LAVA&&
+        ggMeshTerrainAt(tx+ggOutdoorSideX[side],ty+ggOutdoorSideY[side])<=T_WATER;
+    if(!shelf&&delta<12)return GG_GROUND_PLANE;
+    int dx=(point[2].x-point[1].x)/256,dy=(point[2].y-point[1].y)/256;
+    uint32_t key=ggFilmScenicHash(tx,ty,113+sector);
+    if(shelf){
+        for(int i=0;i<2;i++){
+            int inset=20+(int)((key>>(i*9))&15u);
+            int along=48+(int)((key>>(i*9+4))&31u);
+            if(i)along=256-along;
+            point[3+i]=ggMeshV(point[1].x+dx*along-dy*inset,
+                               point[1].y+dy*along+dx*inset,a);
+        }
+        return GG_GROUND_SHELF;
+    }
+    // Break the grade near the toe so the upper facets stay visible
+    // when viewed from the foot of a mountain or raised bank.
+    int inset=40,along=112+(int)(key&31u);
+    int shoulder=((a+b)*(128-inset)+2*z*inset+128)/256+
+                 ggMeshClamp(delta/4,0,6);
+    point[3]=ggMeshV(point[1].x+dx*along-dy*inset,
+                     point[1].y+dy*along+dx*inset,shoulder);
+    return GG_GROUND_SHOULDER;
+}
+
+// Contacts and camera sample the actual rendered planes, including the
+// bank's submerged shelf and the gentler transition onto a steep summit.
 static inline int ggMeshGroundAtQ8(int wx,int wy){
     int tx=wx>>8,ty=wy>>8;
     if((unsigned)tx>=WW||(unsigned)ty>=WH)return 8;
-    int a=ggMeshCornerHeight(tx,ty);
-    int b=ggMeshCornerHeight(tx+1,ty);
-    int cc=ggMeshCornerHeight(tx+1,ty+1);
-    int d=ggMeshCornerHeight(tx,ty+1);
-    int center=ggMeshGroundCenter(ggMeshTerrainAt(tx,ty));
+    int type=ggMeshTerrainAt(tx,ty);
+    int z=ggMeshGroundCenter(type);
+    if(type<=T_WATER)return z;
     int u=(wx&255)-128,v=(wy&255)-128;
     int au=u<0?-u:u,av=v<0?-v:v;
-    if(au>=av){
-        if(u>=0)
-            return (center*(128-u)*2+
-                    b*(u-v)+cc*(u+v)+128)/256;
-        int n=-u;
-        return (center*(128-n)*2+
-                a*(n-v)+d*(n+v)+128)/256;
+    int sector=au>=av?(u>=0?1:3):(v>=0?2:0);
+    GgMeshVertex point[5]={ggMeshV(tx*256+128,ty*256+128,z),
+        ggMeshGroundCorner(tx,ty,sector),ggMeshGroundCorner(tx,ty,(sector+1)&3)};
+    if(point[1].z==z&&point[2].z==z)return z;
+    int detail=ggMeshGroundDetail(tx,ty,sector,type,point);
+    if(detail==GG_GROUND_PLANE){
+        int dist=au>=av?au:av;
+        int along=sector==0?u:sector==1?v:sector==2?-u:-v;
+        return (z*(128-dist)*2+point[1].z*(dist-along)+
+                point[2].z*(dist+along)+128)/256;
     }
-    if(v>=0)
-        return (center*(128-v)*2+
-                d*(v-u)+cc*(v+u)+128)/256;
-    int n=-v;
-    return (center*(128-n)*2+
-            a*(n-u)+b*(n+u)+128)/256;
+    GgMeshVertex p=ggMeshV(wx,wy,0);
+    for(int i=0;i<ggMeshGroundFaceCount[detail];i++){
+        const unsigned char *face=ggMeshGroundFaces[detail][i];
+        GgMeshVertex a=point[face[0]],b=point[face[1]],c=point[face[2]];
+        int wa=ggMeshGroundCross(b,c,p),wb=ggMeshGroundCross(c,a,p);
+        int wc=ggMeshGroundCross(a,b,p);
+        if(wa>=0&&wb>=0&&wc>=0){
+            int area=wa+wb+wc;
+            return (a.z*wa+b.z*wb+c.z*wc+area/2)/area;
+        }
+    }
+    return z;
 }
 // Anchor the foundation to the lowest physical ground under its
 // footprint. A building keeps its intended roof height but the walls
@@ -118,40 +177,30 @@ static void ggMeshGroundLife(GgMeshContext*m,int tx,int ty,int type,
     }
 }
 static GgMeshVertex ggMeshShorePoint(int tx,int ty,int side,
-                                     int along,int inset,int water){
+                                     int along,int inset){
     int x=tx*256+(side<2?(side==0?inset:255-inset):along);
     int y=ty*256+(side>=2?(side==2?inset:255-inset):along);
-    int z=water?ggMeshGroundCenter(T_WATER):ggMeshGroundAtQ8(x,y);
-    return ggMeshV(x,y,z);
+    return ggMeshV(x,y,ggMeshGroundCenter(T_WATER));
 }
-// Grounded dark wet sediment and broken moving lines of foam share
-// the actual shoreline depth. World position fixes gaps in the foam,
-// while wind advances the thin crest across the water.
-static void ggMeshShore(GgMeshContext*m,int tx,int ty,int side,int water,
-                        uint32_t key){
+// Shallower water and broken crests both sit on the level water plane.
+static void ggMeshShore(GgMeshContext*m,int tx,int ty,int side,uint32_t key){
     int material=m->material,opacity=m->opacity,bias=m->depthBias;
     m->material=GG_MAT_NONE;m->depthBias=1;
-    m->opacity=108;
-    int r=water?190:92,g=water?224:102,b=water?213:77;
-    int run=water?2:1;
     int surge=1+ggMatWave(ggExplore.frame/5,15);
-    if(water){
-        m->opacity=62;
-        ggMeshQuad(m,ggMeshShorePoint(tx,ty,side,0,0,1),
-            ggMeshShorePoint(tx,ty,side,255,0,1),
-            ggMeshShorePoint(tx,ty,side,255,36,1),
-            ggMeshShorePoint(tx,ty,side,0,36,1),93,169,153);
-        m->opacity=91;
-    }
-    for(int piece=0;piece<run;piece++){
-        int a=water?16+piece*116+(int)((key>>(piece*5))&15u):0;
-        int c=water?a+52+(int)((key>>(piece*6+10))&47u):255;
-        int inner=water?5+surge+piece*7:0;
-        int outer=water?inner+5:20+(int)((key>>16)&15u);
-        ggMeshQuad(m,ggMeshShorePoint(tx,ty,side,a,inner,water),
-            ggMeshShorePoint(tx,ty,side,c,inner+(water?4:0),water),
-            ggMeshShorePoint(tx,ty,side,c,outer+4,water),
-            ggMeshShorePoint(tx,ty,side,a,outer,water),r,g,b);
+    m->opacity=62;
+    ggMeshQuad(m,ggMeshShorePoint(tx,ty,side,0,0),
+        ggMeshShorePoint(tx,ty,side,255,0),
+        ggMeshShorePoint(tx,ty,side,255,36),
+        ggMeshShorePoint(tx,ty,side,0,36),93,169,153);
+    m->opacity=91;
+    for(int piece=0;piece<2;piece++){
+        int a=16+piece*116+(int)((key>>(piece*5))&15u);
+        int b=a+52+(int)((key>>(piece*6+10))&47u);
+        int inner=5+surge+piece*7;
+        ggMeshQuad(m,ggMeshShorePoint(tx,ty,side,a,inner),
+            ggMeshShorePoint(tx,ty,side,b,inner+4),
+            ggMeshShorePoint(tx,ty,side,b,inner+9),
+            ggMeshShorePoint(tx,ty,side,a,inner+5),190,224,213);
     }
     m->material=material;m->opacity=opacity;m->depthBias=bias;
 }
@@ -168,31 +217,34 @@ static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
     // neighbouring meadow tiles visibly reset their colour and grain.
     m->materialSeed=(int)ggOutdoorGroundSeed(type,ggExplore.frame);
     m->groundUV=1;
-    int left=tx*256,right=left+256,top=ty*256,bottom=top+256;
-    int center=ggMeshGroundCenter(type);
-    int a=ggMeshCornerHeight(tx,ty);
-    int b=ggMeshCornerHeight(tx+1,ty);
-    int c=ggMeshCornerHeight(tx+1,ty+1);
-    int d=ggMeshCornerHeight(tx,ty+1);
-    GgMeshVertex V=ggMeshV(left+128,top+128,center);
-    GgMeshVertex corners[4]={
-        ggMeshV(left,top,a),ggMeshV(right,top,b),
-        ggMeshV(right,bottom,c),ggMeshV(left,bottom,d)
-    };
+    GgMeshVertex center=ggMeshV(tx*256+128,ty*256+128,ggMeshGroundCenter(type));
+    GgMeshVertex corners[4];
+    for(int i=0;i<4;i++)corners[i]=ggMeshGroundCorner(tx,ty,i);
     int r,g,bl;
     ggOutdoorGroundColor(type,&r,&g,&bl);
-    for(int i=0;i<4;i++){
-        // Sunlight is already evaluated from each actual 3D normal by
-        // the rasterizer. A second four-sector shade creates a pinwheel
-        // on perfectly flat ground and makes every cell a fake pyramid.
-        ggMeshTriangle(m,V,corners[i],corners[(i+1)&3],
-            r,g,bl);
+    for(int sector=0;sector<4;sector++){
+        GgMeshVertex point[5]={center,corners[sector],corners[(sector+1)&3]};
+        int detail=ggMeshGroundDetail(tx,ty,sector,type,point);
+        int dry=detail==GG_GROUND_SHELF?3:ggMeshGroundFaceCount[detail];
+        for(int i=0;i<dry;i++){
+            const unsigned char *face=ggMeshGroundFaces[detail][i];
+            ggMeshTriangle(m,point[face[0]],point[face[1]],point[face[2]],r,g,bl);
+        }
+        if(detail==GG_GROUND_SHELF){
+            int land=m->material,seed=m->materialSeed;
+            m->material=GG_MAT_WATER;
+            m->materialSeed=(int)ggOutdoorGroundSeed(T_WATER,ggExplore.frame);
+            for(int i=dry;i<ggMeshGroundFaceCount[detail];i++){
+                const unsigned char *face=ggMeshGroundFaces[detail][i];
+                ggMeshTriangle(m,point[face[0]],point[face[1]],point[face[2]],58,124,124);
+            }
+            m->material=land;m->materialSeed=seed;
+        }
     }
-    if(type!=T_LAVA){
-        int water=type<=T_WATER;
-        unsigned shore=ggOutdoorShoreSides(tx,ty,water);
+    if(type<=T_WATER){
+        unsigned shore=ggOutdoorShoreSides(tx,ty,1);
         for(int side=0;shore;side++,shore>>=1)
-            if(shore&1u)ggMeshShore(m,tx,ty,side,water,key);
+            if(shore&1u)ggMeshShore(m,tx,ty,side,key);
     }
     m->material=prior;m->materialSeed=priorSeed;m->groundUV=priorUV;
     m->near=priorNear;
@@ -201,53 +253,82 @@ static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
 static void ggMeshRoof(GgMeshContext*m,int build,
                        int x0,int y0,int x1,int y1,int wallTop){
     int prior=m->material;
-    m->material=GG_MAT_ROOF;
-    int ridgeY=(y0+y1)/2;
-    int roofRise=build==B_TEMPLE?9:
-                 build==B_HALL?12:build==B_TOWER?3:11;
-    int roofR=build==B_HOUSE||build==B_HUT?157:
-              build==B_TEMPLE?177:78;
-    int roofG=build==B_HOUSE||build==B_HUT?89:
-              build==B_TEMPLE?135:108;
-    int roofB=build==B_HOUSE||build==B_HUT?65:
-              build==B_TEMPLE?95:121;
-    ggMeshQuad(m,ggMeshV(x0-10,y0-10,wallTop),
-               ggMeshV(x1+10,y0-10,wallTop),
-               ggMeshV(x1+10,ridgeY,wallTop+roofRise),
-               ggMeshV(x0-10,ridgeY,wallTop+roofRise),
-               roofR,roofG,roofB);
-    ggMeshQuad(m,ggMeshV(x0-10,ridgeY,wallTop+roofRise),
-               ggMeshV(x1+10,ridgeY,wallTop+roofRise),
-               ggMeshV(x1+10,y1+10,wallTop),
-               ggMeshV(x0-10,y1+10,wallTop),
-               roofR*3/4,roofG*3/4,roofB*3/4);
-    // Actual closed gables, with triangular geometry rather than a
-    // 2D roof sticker floating above an otherwise flat cube.
-    ggMeshTriangle(m,ggMeshV(x0,y0,wallTop),
-                   ggMeshV(x0,ridgeY,wallTop+roofRise),
-                   ggMeshV(x0,y1,wallTop),
-                   188,171,143);
-    ggMeshTriangle(m,ggMeshV(x1,y0,wallTop),
-                   ggMeshV(x1,y1,wallTop),
-                   ggMeshV(x1,ridgeY,wallTop+roofRise),
-                   151,150,143);
-    // A strong ridge, and a thin verge on the two actual gable faces,
-    // turn the previous unadorned triangular cap into a legible roof.
-    m->material=GG_MAT_WOOD;
-    ggMeshBox(m,x0-12,ridgeY-4,x1+12,ridgeY+4,
-              wallTop+roofRise-1,wallTop+roofRise+1,
-              roofR*4/5,roofG*4/5,roofB*4/5);
-    for(int end=0;end<2;end++){
-        int xx=end?x1+2:x0-2;
-        ggMeshQuad(m,ggMeshV(xx,y0,wallTop),
-            ggMeshV(xx,y0+7,wallTop),
-            ggMeshV(xx,ridgeY+4,wallTop+roofRise),
-            ggMeshV(xx,ridgeY-4,wallTop+roofRise),87,73,59);
-        ggMeshQuad(m,ggMeshV(xx,ridgeY-4,wallTop+roofRise),
-            ggMeshV(xx,ridgeY+4,wallTop+roofRise),
-            ggMeshV(xx,y1-7,wallTop),
-            ggMeshV(xx,y1,wallTop),87,73,59);
+    int overhang=build==B_TEMPLE?17:14;
+    int hip=build==B_HALL?50:build==B_LIBRARY?32:0;
+    int rise=build==B_HOUSE?19:build==B_HUT?16:build==B_FARM?21:
+              build==B_HALL?15:build==B_LIBRARY?17:9;
+    int r=164,g=85,b=57;
+    if(build==B_FARM){r=120;g=67;b=54;}
+    if(build==B_TEMPLE){r=109;g=130;b=107;}
+    if(build==B_HALL){r=110;g=119;b=91;}
+    if(build==B_LIBRARY){r=78;g=105;b=123;}
+    int count=3;
+    int y[5]={y0-overhang,(y0+y1)/2,y1+overhang};
+    int z[5]={wallTop-2,wallTop+rise,wallTop-2};
+    if(build==B_FARM){
+        // The steep lower pitch gives the barn a full-height loft.
+        count=5;
+        y[2]=y[1];y[1]=y0+24;
+        y[3]=y1-24;y[4]=y1+overhang;
+        z[2]=z[1];z[1]=z[3]=wallTop+16;z[4]=z[0];
     }
+    int left=x0-overhang,right=x1+overhang;
+    m->material=GG_MAT_ROOF;
+    for(int i=0;i<count-1;i++){
+        int a=hip&&i==1?hip:0,bias=hip&&i==0?hip:0;
+        GgMeshVertex a0=ggMeshV(left+a,y[i],z[i]);
+        GgMeshVertex a1=ggMeshV(right-a,y[i],z[i]);
+        GgMeshVertex b0=ggMeshV(left+bias,y[i+1],z[i+1]);
+        GgMeshVertex b1=ggMeshV(right-bias,y[i+1],z[i+1]);
+        ggMeshQuad(m,a0,a1,b1,b0,r,g,b);
+        if(!hip){
+            // The timber fascia closes the visible thickness along
+            // each verge. The pale gable sits inside that overhang.
+            GgMeshVertex aBottom=a0,bBottom=b0;
+            aBottom.z-=3;bBottom.z-=3;
+            GgMeshVertex aInner=aBottom,bInner=bBottom;
+            aInner.x=x0;bInner.x=x0;
+            if(m->cx<=x0){
+                ggMeshQuad(m,aBottom,a0,b0,bBottom,93,61,45);
+                ggMeshQuad(m,aBottom,bBottom,bInner,aInner,85,64,49);
+            }
+            aBottom.x=a1.x;bBottom.x=b1.x;
+            aInner.x=x1;bInner.x=x1;
+            if(m->cx>=x1){
+                ggMeshQuad(m,aBottom,bBottom,b1,a1,93,61,45);
+                ggMeshQuad(m,aInner,bInner,bBottom,aBottom,85,64,49);
+            }
+            a0.x=b0.x=x0;
+            aBottom.x=bBottom.x=x0;
+            aBottom.z=bBottom.z=wallTop-3;
+            if(m->cx<=x0)ggMeshQuad(m,aBottom,a0,b0,bBottom,172,148,113);
+            a0.x=b0.x=x1;
+            aBottom.x=bBottom.x=x1;
+            if(m->cx>=x1)ggMeshQuad(m,aBottom,bBottom,b0,a0,172,148,113);
+        }
+    }
+    if(hip){
+        ggMeshTriangle(m,ggMeshV(left,y[0],z[0]),
+                       ggMeshV(left+hip,y[1],z[1]),
+                       ggMeshV(left,y[2],z[2]),r,g,b);
+        ggMeshTriangle(m,ggMeshV(right,y[0],z[0]),
+                       ggMeshV(right,y[2],z[2]),
+                       ggMeshV(right-hip,y[1],z[1]),r,g,b);
+        ggMeshQuad(m,ggMeshV(left,y[0],z[0]-3),ggMeshV(left,y[0],z[0]),
+                     ggMeshV(left,y[2],z[0]),ggMeshV(left,y[2],z[0]-3),96,66,48);
+        ggMeshQuad(m,ggMeshV(right,y[2],z[0]-3),ggMeshV(right,y[2],z[0]),
+                     ggMeshV(right,y[0],z[0]),ggMeshV(right,y[0],z[0]-3),96,66,48);
+    }
+    m->material=GG_MAT_WOOD;
+    ggMeshQuad(m,ggMeshV(left,y[0],z[0]-3),ggMeshV(right,y[0],z[0]-3),
+                 ggMeshV(right,y[0],z[0]),ggMeshV(left,y[0],z[0]),96,66,48);
+    ggMeshQuad(m,ggMeshV(right,y[count-1],z[0]-3),ggMeshV(left,y[count-1],z[0]-3),
+                 ggMeshV(left,y[count-1],z[0]),ggMeshV(right,y[count-1],z[0]),96,66,48);
+    ggMeshQuad(m,ggMeshV(right,y[0],z[0]-3),ggMeshV(left,y[0],z[0]-3),
+                 ggMeshV(left,y[count-1],z[0]-3),ggMeshV(right,y[count-1],z[0]-3),79,59,48);
+    int ridge=y[count/2];
+    ggMeshBox(m,left+hip,ridge-4,right-hip,ridge+4,wallTop+rise-1,
+              wallTop+rise+1,r*3/4,g*3/4,b*3/4);
     m->material=prior;
 }
 enum { GG_MESH_DOOR_OFFSET=9 };
@@ -266,20 +347,30 @@ static int ggMeshDoorFloor(int plane,int alongX,int facing,int start,int end){
 static void ggMeshDoorway(GgMeshContext*m,int plane,int alongX,int facing,
                            int middle,int half,int base){
     int width=ggMeshDoorHalfWidth(half);
-    // The threshold and lintel share the building's floor and the
-    // inhabitant's world units. Keep the jambs proud of the wall trim.
-    for(int trim=1;trim>=0;trim--){
-        int panel=plane-facing*(GG_MESH_DOOR_OFFSET-trim);
-        int a=middle-width-trim*4,b=middle+width+trim*4;
-        int top=base+GG_WORLD_DOOR_HEIGHT+trim*2;
-        ggMeshQuad(m,ggMeshV(alongX?a:panel,alongX?panel:a,base),
-                     ggMeshV(alongX?b:panel,alongX?panel:b,base),
-                     ggMeshV(alongX?b:panel,alongX?panel:b,top),
-                     ggMeshV(alongX?a:panel,alongX?panel:a,top),
-                     trim?102:alongX?42:46,
-                     trim?79:alongX?45:51,
-                     trim?56:alongX?53:58);
-    }
+    // Thick jambs and a lintel surround the recessed door. The opening
+    // uses the same floor, depth and height as the walking residents.
+    int panel=plane-facing*GG_MESH_DOOR_OFFSET;
+    int front=panel-facing*6,a=middle-width,b=middle+width;
+    int top=base+GG_WORLD_DOOR_HEIGHT;
+    GgMeshVertex al=ggMeshV(alongX?a:panel,alongX?panel:a,base);
+    GgMeshVertex bl=ggMeshV(alongX?b:panel,alongX?panel:b,base);
+    GgMeshVertex at=al,bt=bl;at.z=bt.z=top;
+    GgMeshVertex afl=al,bfl=bl,aft=at,bft=bt;
+    if(alongX)afl.y=bfl.y=aft.y=bft.y=front;
+    else afl.x=bfl.x=aft.x=bft.x=front;
+    ggMeshQuad(m,al,bl,bt,at,alongX?42:46,alongX?45:51,alongX?53:58);
+    ggMeshQuad(m,al,afl,aft,at,91,70,52);
+    ggMeshQuad(m,bfl,bl,bt,bft,106,80,58);
+    ggMeshQuad(m,aft,bft,bt,at,82,61,48);
+    GgMeshVertex outsideLeft=afl,outsideRight=bfl;
+    if(alongX){outsideLeft.x-=5;outsideRight.x+=5;}
+    else{outsideLeft.y-=5;outsideRight.y+=5;}
+    GgMeshVertex upperLeft=outsideLeft,upperRight=outsideRight;
+    GgMeshVertex lintelLeft=aft,lintelRight=bft;
+    upperLeft.z=lintelLeft.z=upperRight.z=lintelRight.z=top+2;
+    ggMeshQuad(m,outsideLeft,afl,lintelLeft,upperLeft,120,89,62);
+    ggMeshQuad(m,bfl,outsideRight,upperRight,lintelRight,120,89,62);
+    ggMeshQuad(m,aft,bft,lintelRight,lintelLeft,133,102,70);
 }
 static void ggMeshWindow(GgMeshContext*m,int x0,int x1,
                           int frontY,int facing,int ground,int height){
@@ -431,11 +522,8 @@ static void ggMeshBuildingLanding(GgMeshContext*m,int x0,int y0,
                    tile&1?128:136,tile&1?116:121);
     }
 }
-static inline int ggMeshGroundCross(GgMeshVertex a,GgMeshVertex b,GgMeshVertex pt){
-    return (b.x-a.x)*(pt.y-a.y)-(b.y-a.y)*(pt.x-a.x);
-}
-// Clip a shadow footprint to one of the same four sectors used by the
-// ground renderer. Allow room for quantized 2D intersections.
+// Clip a shadow footprint to one of the actual rendered ground faces.
+// Allow room for quantized 2D intersections.
 static void ggMeshShadowSector(GgMeshContext*m,const GgMeshVertex edge[6],
                                  const GgMeshVertex ground[3]){
     GgMeshVertex from[20],to[20];
@@ -474,17 +562,18 @@ static void ggMeshShadowDrape(GgMeshContext*m,const GgMeshVertex edge[6],
                               int left,int right,int top,int bottom){
     for(int ty=top;ty<=bottom;ty++)for(int tx=left;tx<=right;tx++){
         if((unsigned)tx>=WW||(unsigned)ty>=WH)continue;
-        int x=tx*256,y=ty*256;
-        GgMeshVertex vertex[4]={
-            ggMeshV(x,y,ggMeshCornerHeight(tx,ty)),
-            ggMeshV(x+256,y,ggMeshCornerHeight(tx+1,ty)),
-            ggMeshV(x+256,y+256,ggMeshCornerHeight(tx+1,ty+1)),
-            ggMeshV(x,y+256,ggMeshCornerHeight(tx,ty+1))
-        };
-        GgMeshVertex center=ggMeshV(x+128,y+128,ggMeshGroundCenter(ggMeshTerrainAt(tx,ty)));
-        for(int i=0;i<4;i++){
-            GgMeshVertex sector[3]={center,vertex[i],vertex[(i+1)&3]};
-            ggMeshShadowSector(m,edge,sector);
+        int type=ggMeshTerrainAt(tx,ty);
+        GgMeshVertex center=ggMeshV(tx*256+128,ty*256+128,ggMeshGroundCenter(type));
+        GgMeshVertex corner[4];
+        for(int i=0;i<4;i++)corner[i]=ggMeshGroundCorner(tx,ty,i);
+        for(int sector=0;sector<4;sector++){
+            GgMeshVertex point[5]={center,corner[sector],corner[(sector+1)&3]};
+            int detail=ggMeshGroundDetail(tx,ty,sector,type,point);
+            for(int i=0;i<ggMeshGroundFaceCount[detail];i++){
+                const unsigned char *face=ggMeshGroundFaces[detail][i];
+                GgMeshVertex triangle[3]={point[face[0]],point[face[1]],point[face[2]]};
+                ggMeshShadowSector(m,edge,triangle);
+            }
         }
     }
 }
@@ -532,6 +621,15 @@ static void ggMeshContactShadow(GgMeshContext*m,int cx,int cy,
     }
     m->opacity=keepOpacity;m->material=keepMat;m->depthBias=keepBias;
 }
+#include "mesh_architecture3d.h"
+static void ggMeshDockBox(GgMeshContext*m,int x,int y,int dx,int dy,
+                          int p0,int p1,int u0,int u1,int z0,int z1,
+                          int r,int g,int b){
+    int a=x+p0*dx+u0*dy,bx=x+p1*dx+u1*dy;
+    int c=y+p0*dy+u0*dx,d=y+p1*dy+u1*dx;
+    ggMeshArchitectureBlock(m,a<bx?a:bx,c<d?c:d,a>bx?a:bx,c>d?c:d,
+                            z0,z1,r,g,b);
+}
 static void ggMeshDock(GgMeshContext*m,int tx,int ty,int ground,int detailed){
     unsigned shores=ggOutdoorShoreSides(tx,ty,0);
     int side=2;
@@ -541,39 +639,49 @@ static void ggMeshDock(GgMeshContext*m,int tx,int ty,int ground,int detailed){
     }
     int dx=ggOutdoorSideX[side],dy=ggOutdoorSideY[side];
     int x=tx*256+128,y=ty*256+128;
-    int end=shores?205:70;
-    int deck=ground+3;
-    for(int row=0;row<3;row++)for(int edge=-1;edge<=1;edge+=2){
-        int along=-62+(end+42)*row/2;
-        int px=x+along*dx+edge*48*dy;
-        int py=y+along*dy+edge*48*dx;
-        ggMeshGroundBox(m,px-8,py-8,px+8,py+8,deck,105,81,57);
-        if(detailed&&row==2)
-            ggMeshBox(m,px-9,py-9,px+9,py+9,deck,deck+4,121,93,67);
+    int end=shores?205:82,deck=ground+6,start=-83,join=end-66;
+    int width=shores?96:71;
+    int material=m->material;
+    m->material=GG_MAT_WOOD;
+    for(int row=0;row<4;row++)for(int edge=-1;edge<=1;edge+=2){
+        int along=row<2?start+19+(join-start-28)*row:end-49+35*(row-2);
+        int across=edge*(row<2?33:width-14);
+        int px=x+along*dx+across*dy,py=y+along*dy+across*dx;
+        int top=deck+(row>=2?4:0);
+        ggMeshArchitectureSupport(m,px-8,py-8,px+8,py+8,top,114,85,58);
+        if(detailed&&row>=2)
+            ggMeshArchitectureBlock(m,px-10,py-10,px+10,py+10,top-1,top+1,166,127,84);
     }
-    int start=-83;
-    int endX=x+end*dx,startX=x+start*dx;
-    int endY=y+end*dy,startY=y+start*dy;
-    int x0=(endX<startX?endX:startX)-62*abs(dy);
-    int x1=(endX>startX?endX:startX)+62*abs(dy);
-    int y0=(endY<startY?endY:startY)-62*abs(dx);
-    int y1=(endY>startY?endY:startY)+62*abs(dx);
-    ggMeshBox(m,x0,y0,x1,y1,deck-2,deck,158,123,82);
+    ggMeshDockBox(m,x,y,dx,dy,start,join,-49,49,deck-4,deck,160,119,78);
+    ggMeshDockBox(m,x,y,dx,dy,join,end,-width,width,deck-4,deck,174,132,87);
     if(detailed){
-        int previous=m->material,priorBias=m->depthBias;
+        int priorBias=m->depthBias;
+        for(int edge=-1;edge<=1;edge+=2){
+            int u=edge*31;
+            ggMeshDockBox(m,x,y,dx,dy,start,join,u-5,u+5,
+                          deck-6,deck-4,105,78,58);
+        }
         m->material=GG_MAT_NONE;m->depthBias=1;
         for(int along=start+14;along<end-7;along+=22){
             int px=x+along*dx,py=y+along*dy;
-            ggMeshQuad(m,ggMeshV(px-61*dy,py-61*dx,deck),
-                ggMeshV(px+61*dy,py+61*dx,deck),
-                ggMeshV(px+61*dy+2*dx,py+61*dx+2*dy,deck),
-                ggMeshV(px-61*dy+2*dx,py-61*dx+2*dy,deck),105,78,58);
+            int half=(along>=join?width:49)-2;
+            ggMeshQuad(m,ggMeshV(px-half*dy,py-half*dx,deck),
+                ggMeshV(px+half*dy,py+half*dx,deck),
+                ggMeshV(px+half*dy+2*dx,py+half*dx+2*dy,deck),
+                ggMeshV(px-half*dy+2*dx,py-half*dx+2*dy,deck),105,78,58);
         }
-        m->material=previous;m->depthBias=priorBias;
+        m->depthBias=priorBias;
     }
+    m->material=material;
 }
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
+    if(build<=B_NONE||build>=B_N)return;
+    if(build==B_BORDER){
+        ggMeshBorderMarker(m,tx*256+128,ty*256+128,ground);
+        ggMeshBuildingsDrawn++;
+        return;
+    }
     if(build==B_DOCK){
         ggMeshDock(m,tx,ty,ground,nearDetail);
         ggMeshBuildingsDrawn++;
@@ -589,7 +697,7 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     if(build==B_FARM){y0+=33;y1-=35;}
     if(build==B_STATUE){x0+=42;x1-=42;y0+=38;y1-=38;}
     int baseGround=ggMeshFoundationGround(x0-14,y0-14,x1+14,y1+14,ground);
-    int wallTop=ground+ggExpBuilding(build);
+    int wallTop=ground+ggExpBuilding(build)+(build==B_FARM?6:0);
     int doorFloor[4]={ground,ground,ground,ground};
     if(wallTop-ground>=GG_WORLD_DOOR_HEIGHT+2&&build!=B_STATUE&&
        !ggMeshShadowFlat(tx,tx,ty,ty,ground)){
@@ -610,55 +718,24 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     if(build==B_HUT){r=171;g=143;bl=104;}
     if(build==B_TEMPLE){r=209;g=197;bl=174;}
     if(build==B_LIBRARY){r=173;g=187;bl=174;}
-    if(build==B_RUIN){r=107;g=109;bl=108;}
-    if(build==B_STATUE){r=156;g=152;bl=140;}
+    if(build==B_FARM){r=164;g=122;bl=87;}
+    int cx=(x0+x1)/2,cy=(y0+y1)/2;
     if(build==B_STATUE){
-        // Stone plinth, tapering waist and an actual angular sculpture
-        // create a readable monument instead of an enormous solid cube.
-        ggMeshBox(m,x0-14,y0-14,x1+14,y1+14,
-                  baseGround,ground+6,134,134,127);
-        ggMeshBox(m,x0+8,y0+8,x1-8,y1-8,
-                  ground+6,ground+13,174,166,148);
-        int cx=(x0+x1)/2,cy=(y0+y1)/2;
-        ggMeshTriangle(m,ggMeshV(x0+8,y0+8,ground+13),
-            ggMeshV(x1-8,y0+8,ground+13),
-            ggMeshV(cx,cy,wallTop+3),192,181,159);
-        ggMeshTriangle(m,ggMeshV(x1-8,y0+8,ground+13),
-            ggMeshV(x1-8,y1-8,ground+13),
-            ggMeshV(cx,cy,wallTop+3),143,138,135);
-        ggMeshTriangle(m,ggMeshV(x1-8,y1-8,ground+13),
-            ggMeshV(x0+8,y1-8,ground+13),
-            ggMeshV(cx,cy,wallTop+3),127,126,124);
-        ggMeshTriangle(m,ggMeshV(x0+8,y1-8,ground+13),
-            ggMeshV(x0+8,y0+8,ground+13),
-            ggMeshV(cx,cy,wallTop+3),164,159,145);
+        ggMeshStatue(m,cx,cy,baseGround,ground);
         ggMeshBuildingsDrawn++;return;
     }
     if(build==B_RUIN){
-        // Deliberately incomplete, hollow ruin. Walking past the wall
-        // reveals true spatial gaps instead of a tinted complete house.
-        ggMeshBox(m,x0,y0,x0+23,y1,baseGround,wallTop,
-                  130,129,121);
-        ggMeshBox(m,x0,y1-24,x1,y1,baseGround,wallTop-4,
-                  104,108,104);
-        ggMeshBox(m,x1-30,y0,x1,y0+27,baseGround,wallTop+5,
-                  148,145,132);
-        ggMeshBox(m,x1-35,y1-29,x1,y1,baseGround,wallTop-5,
-                  112,112,108);
+        ggMeshRuin(m,x0,y0,x1,y1,ground,wallTop,baseGround,nearDetail);
         ggMeshBuildingsDrawn++;return;
     }
-    ggMeshBox(m,x0,y0,x1,y1,baseGround,wallTop,r,g,bl);
-    if(build==B_HOUSE||build==B_HUT||build==B_HALL||
-       build==B_TEMPLE||build==B_LIBRARY||build==B_FARM)
+    ggMeshArchitectureBlock(m,x0,y0,x1,y1,baseGround,wallTop,r,g,bl);
+    if(build==B_TOWER)ggMeshWatchtower(m,x0,y0,x1,y1,wallTop,nearDetail);
+    if(build==B_HOUSE||build==B_HUT||build==B_FARM||
+       build==B_HALL||build==B_TEMPLE||build==B_LIBRARY)
         ggMeshRoof(m,build,x0,y0,x1,y1,wallTop);
-    if(build==B_TOWER){
-        // Four real corner parapets, not a one-pixel tower trim stripe.
-        int h=wallTop;
-        ggMeshBox(m,x0,y0,x0+34,y0+34,h,h+5,164,163,154);
-        ggMeshBox(m,x1-34,y0,x1,y0+34,h,h+5,164,163,154);
-        ggMeshBox(m,x0,y1-34,x0+34,y1,h,h+5,164,163,154);
-        ggMeshBox(m,x1-34,y1-34,x1,y1,h,h+5,164,163,154);
-    }
+    if(build==B_HOUSE||build==B_HUT)ggMeshChimney(m,x0,y0,x1,y1,wallTop,build);
+    if(build==B_TEMPLE)ggMeshPortico(m,0,x0,cy,doorFloor[0],wallTop-8,1);
+    if(build==B_HALL)ggMeshPortico(m,1,y0,cx,doorFloor[2],wallTop-12,0);
     int h=wallTop-ground;
     // Even the medium distance silhouette keeps its entrances and
     // windows. The old LOD switched whole buildings into blank cubes.
@@ -667,69 +744,41 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         if(m->cy>=y1)ggMeshWindow(m,x0,x1,y1,-1,doorFloor[3],wallTop-doorFloor[3]);
         if(m->cx<=x0)ggMeshSideFacade(m,x0,1,y0,y1,doorFloor[0],wallTop-doorFloor[0]);
         if(m->cx>=x1)ggMeshSideFacade(m,x1,-1,y0,y1,doorFloor[1],wallTop-doorFloor[1]);
+    }else{
+        if(m->cx<=x0)ggMeshBarnGate(m,0,x0,1,cy,doorFloor[0]);
+        if(m->cx>=x1)ggMeshBarnGate(m,0,x1,-1,cy,doorFloor[1]);
+        if(m->cy<=y0)ggMeshBarnGate(m,1,y0,1,cx,doorFloor[2]);
+        if(m->cy>=y1)ggMeshBarnGate(m,1,y1,-1,cx,doorFloor[3]);
     }
     if(nearDetail){
         // Ground-contact plinth and roof cornice extend beyond every
         // wall face, showing real parallax, height and shade.
-        ggMeshBox(m,x0-5,y0-5,x1+5,y1+5,
+        ggMeshArchitectureBlock(m,x0-5,y0-5,x1+5,y1+5,
                   baseGround,ground+2,107,105,98);
-        ggMeshBox(m,x0-6,y0-6,x1+6,y1+6,
+        ggMeshArchitectureBlock(m,x0-6,y0-6,x1+6,y1+6,
                   wallTop-3,wallTop-1,177,164,137);
-        ggMeshWallFinish(m,x0,y0,x1,y1,ground,h,wood);
+        if(build==B_HALL||build==B_LIBRARY)
+            ggMeshWallFinish(m,x0,y0,x1,y1,ground,h,wood);
         if(m->cy<=y0)ggMeshFacadeDetail(m,y0-7,1,x0,x1,ground,h,wood);
         if(m->cy>=y1)ggMeshFacadeDetail(m,y1+7,1,x0,x1,ground,h,wood);
         if(m->cx<=x0)ggMeshFacadeDetail(m,x0-7,0,y0,y1,ground,h,wood);
         if(m->cx>=x1)ggMeshFacadeDetail(m,x1+7,0,y0,y1,ground,h,wood);
-        if(build==B_HOUSE||build==B_HUT||build==B_HALL||
-           build==B_TEMPLE||build==B_LIBRARY)
+        if(build==B_HOUSE||build==B_HUT||build==B_LIBRARY)
             ggMeshBuildingLanding(m,x0,y0,y1);
         // Vertical corner quoins or timber beams connect floor to
         // eaves and keep every view from looking like a plain cube.
         int trimR=wood?102:181,trimG=wood?77:170,trimB=wood?58:149;
-        ggMeshBox(m,x0-7,y0-7,x0+10,y0+10,baseGround,wallTop,
+        ggMeshArchitectureBlock(m,x0-7,y0-7,x0+10,y0+10,baseGround,wallTop,
                   trimR,trimG,trimB);
-        ggMeshBox(m,x1-10,y0-7,x1+7,y0+10,baseGround,wallTop,
+        ggMeshArchitectureBlock(m,x1-10,y0-7,x1+7,y0+10,baseGround,wallTop,
                   trimR,trimG,trimB);
-        ggMeshBox(m,x0-7,y1-10,x0+10,y1+7,baseGround,wallTop,
+        ggMeshArchitectureBlock(m,x0-7,y1-10,x0+10,y1+7,baseGround,wallTop,
                   trimR,trimG,trimB);
-        ggMeshBox(m,x1-10,y1-10,x1+7,y1+7,baseGround,wallTop,
+        ggMeshArchitectureBlock(m,x1-10,y1-10,x1+7,y1+7,baseGround,wallTop,
                   trimR,trimG,trimB);
-        if(build==B_TEMPLE){
-            // A broad stone stair procession toward the portico.
-            for(int stair=0;stair<3;stair++){
-                ggMeshGroundBox(m,x0+20+stair*5,
-                           y0-58+stair*13,
-                           x1-20-stair*5,y0-45+stair*13,
-                           ground+2+stair,
-                           160+stair*7,157+stair*4,146);
-            }
-        }
         if(build==B_FARM){
-            // True depth barn braces and stocked crates by the door.
-            ggMeshGroundBox(m,x0+9,y0-20,x0+24,y0-2,wallTop+2,114,84,58);
-            ggMeshGroundBox(m,x1-24,y0-20,x1-9,y0-2,wallTop+2,114,84,58);
-            ggMeshGroundBox(m,x0+35,y0-38,x0+75,y0-13,ground+6,142,100,68);
-        }
-        if(build==B_TEMPLE||build==B_HALL){
-            // Real colonnade projecting ahead of the wall, with an
-            // enclosed upper lintel that receives perspective shading.
-            int lintel=doorFloor[2]+GG_WORLD_DOOR_HEIGHT+3;
-            for(int side=-1;side<=1;side+=2){
-                int x=(x0+x1)/2+side*57;
-                ggMeshGroundBox(m,x-8,y0-25,x+8,y0-10,lintel,181,173,155);
-            }
-            ggMeshBox(m,x0+26,y0-30,x1-26,y0-6,
-                      lintel,lintel+3,182,170,145);
-        }
-        if(build==B_HOUSE||build==B_HUT){
-            // A small masonry chimney gives every cottage a readable
-            // domestic roofline; it shares the building's fixed volume.
-            int cx=x0+(x1-x0)*3/4,cy=(y0+y1)/2;
-            int chimney=wallTop+(build==B_HUT?10:12);
-            ggMeshBox(m,cx-13,cy-13,cx+13,cy+13,
-                      wallTop+2,chimney+4,142,120,99);
-            ggMeshBox(m,cx-17,cy-17,cx+17,cy+17,
-                      chimney+3,chimney+5,186,161,126);
+            ggMeshArchitectureSupport(m,x0-28,y1-28,x0-4,y1-4,ground+4,129,95,59);
+            ggMeshArchitectureSupport(m,x0-23,y1-21,x0-8,y1-9,ground+7,144,105,67);
         }
     }
     ggMeshBuildingsDrawn++;
@@ -780,18 +829,40 @@ static void ggMeshBough(GgMeshContext*m,int x,int y,int z,int top,
     }
 }
 static void ggMeshTrunk(GgMeshContext*m,int x,int y,int z,
-                        int dx,int dy,int height,int width){
-    GgMeshVertex foot[5],crown[5];
+                        int dx,int dy,int height,int width,int curved){
+    GgMeshVertex foot[5],bend[5],crown[5];
     for(int i=0;i<5;i++){
         int a=i*256/5;
         int wx=ggExpCos[a]*width/4096,wy=ggExpSin[a]*width/4096;
         int rootX=x+wx+wx/3,rootY=y+wy+wy/3;
         foot[i]=ggMeshV(rootX,rootY,ggMeshGroundAtQ8(rootX,rootY)-1);
         crown[i]=ggMeshV(x+dx+wx/2,y+dy+wy/2,z+height);
+        if(curved)bend[i]=ggMeshV(x+dx*2/3+wx*3/4,
+                                   y+dy*2/3+wy*3/4,z+height/2);
     }
     for(int i=0;i<5;i++){
         int next=(i+1)%5;
-        ggMeshQuad(m,foot[i],foot[next],crown[next],crown[i],113,84,58);
+        if(curved){
+            ggMeshQuad(m,foot[i],foot[next],bend[next],bend[i],111,85,60);
+            ggMeshQuad(m,bend[i],bend[next],crown[next],crown[i],123,96,65);
+        }else ggMeshQuad(m,foot[i],foot[next],crown[next],crown[i],113,84,58);
+    }
+}
+static void ggMeshTreeRoots(GgMeshContext*m,int x,int y,int ground,
+                            int width,int turn){
+    for(int i=0;i<3;i++){
+        int a=(turn+i*85)&255;
+        int dx=ggExpCos[a],dy=ggExpSin[a];
+        int span=width*2+4+(i&1)*5;
+        int tipX=x+dx*span/4096,tipY=y+dy*span/4096;
+        int leftX=x-dy*width/6144,leftY=y+dx*width/6144;
+        int rightX=x+dy*width/6144,rightY=y-dx*width/6144;
+        GgMeshVertex left=ggMeshV(leftX,leftY,ggMeshGroundAtQ8(leftX,leftY)-1);
+        GgMeshVertex right=ggMeshV(rightX,rightY,ggMeshGroundAtQ8(rightX,rightY)-1);
+        GgMeshVertex tip=ggMeshV(tipX,tipY,ggMeshGroundAtQ8(tipX,tipY)-1);
+        GgMeshVertex shoulder=ggMeshV(x+dx*width/6144,y+dy*width/6144,ground+5);
+        ggMeshTriangle(m,right,tip,shoulder,105,80,53);
+        ggMeshTriangle(m,tip,left,shoulder,122,90,59);
     }
 }
 static void ggMeshBranch(GgMeshContext*m,int x,int y,int z,
@@ -807,36 +878,61 @@ static void ggMeshBranch(GgMeshContext*m,int x,int y,int z,
     ggMeshTriangle(m,b,ggMeshV(x,y,z-1),c,91,69,49);
     ggMeshTriangle(m,ggMeshV(x,y,z-1),a,c,101,77,52);
 }
+static void ggMeshPalmCrown(GgMeshContext*m,int x,int y,int z,int sway,
+                            uint32_t key,int quality){
+    int count=quality>=2?7:5;
+    int turn=(int)((key>>17)&255u);
+    GgMeshVertex stem=ggMeshV(x,y,z-1);
+    for(int i=0;i<count;i++){
+        int a=(turn+i*256/count)&255;
+        int dx=ggExpCos[a],dy=ggExpSin[a];
+        int span=75+(int)((key>>(i*4))&23u);
+        int bx=x+sway/2+dx*span/8192,by=y+dy*span/8192;
+        int width=10+(i%3)*3;
+        GgMeshVertex right=ggMeshV(bx+dy*width/4096,by-dx*width/4096,z+1);
+        GgMeshVertex left=ggMeshV(bx-dy*width/4096,by+dx*width/4096,z+1);
+        GgMeshVertex bend=ggMeshV(bx,by,z+5+(i&1)*2);
+        GgMeshVertex tip=ggMeshV(x+sway+dx*span/4096,y+dy*span/4096,
+                                 z-4-(i%3)*2);
+        ggMeshTriangle(m,stem,right,bend,52,113,62);
+        ggMeshTriangle(m,bend,right,tip,60,126,69);
+        ggMeshTriangle(m,stem,bend,left,70,132,70);
+        ggMeshTriangle(m,bend,tip,left,76,141,74);
+    }
+    ggMeshLeafCrown(m,x,y,z-5,19,12,key,5,65,116,65);
+}
 static void ggMeshFoliage(GgMeshContext*m,int x,int y,int ground,
                            int form,uint32_t key,int quality){
     int pine=form==1,tropical=form==2;
     int keep=m->material;
     int age=(int)((key>>5)&7u),turn=(int)((key>>9)&255u);
-    int leanX=ggExpCos[turn]*(4+age)/4096;
-    int leanY=ggExpSin[turn]*(4+age)/4096;
-    int trunkH=(pine?12:tropical?25:17)+age/2;
+    int lean=tropical?18+age:4+age;
+    int leanX=ggExpCos[turn]*lean/4096,leanY=ggExpSin[turn]*lean/4096;
+    int trunkH=(pine?12:tropical?36:18)+age/2;
+    int width=(tropical?8:9)+age/2;
     m->material=GG_MAT_BARK;
-    ggMeshTrunk(m,x,y,ground,leanX,leanY,trunkH,9+age/2);
+    ggMeshTrunk(m,x,y,ground,leanX,leanY,trunkH,width,tropical&&quality>=2);
+    if(quality>=2)ggMeshTreeRoots(m,x,y,ground,width,turn);
     m->material=GG_MAT_LEAVES;
     int sway=ggFilmScenicWind(key,ggExplore.frame)*3;
     int hue=(int)((key>>15)&7u)-3;
     int cx=x+leanX,cy=y+leanY;
     if(pine){
         for(int tier=0;tier<3;tier++){
-            int low=ground+9+tier*(7+age/2);
+            int low=ground+9+tier*(8+age/2);
             ggMeshBough(m,cx+sway*tier/3,cy,low,low+15+age/2,
-                75+age*2-tier*18,quality>=2?3:1,sway,
+                76+age*2-tier*19,quality>=2?3+tier:1,sway,
                 key+(uint32_t)tier*37u,
                 48+hue+tier*3,86+hue+tier*5,72+hue+tier*3);
         }
+    }else if(tropical){
+        ggMeshPalmCrown(m,cx,cy,ground+trunkH,sway,key,quality);
     }else{
-        int limb=38+age*3;
+        int limb=43+age*3;
         int spread=ggExpCos[turn]*limb/4096;
         int stand=ggExpSin[turn]*limb/4096;
         int base=ground+trunkH-5;
-        int r=(tropical?57:86)+hue;
-        int g=(tropical?105:123)+hue;
-        int b=(tropical?65:53)+hue;
+        int r=86+hue,g=123+hue,b=53+hue;
         ggMeshLeafCrown(m,cx+sway,cy,base,70+age*2,16+age,
                         key,6,r,g,b);
         if(quality>=2){
@@ -883,30 +979,37 @@ static void ggMeshShrub(GgMeshContext*m,int x,int y,int ground,
 }
 static void ggMeshRock(GgMeshContext*m,int x,int y,int z,int type,
                        uint32_t key,int quality){
-    int crag=(type==T_MOUNT||type==T_HILL)&&(key&7u)==0u;
+    int crag=(type==T_MOUNT||type==T_HILL)&&(key&7u)<3u;
+    int slab=type==T_SAND||type==T_DESERT;
     int height=crag?14+(int)((key>>14)&7u):5+(int)((key>>18)&3u);
     int radius=31+(int)((key>>14)&15u);
     int rotation=(int)((key>>22)&255u);
-    int warm=type==T_SAND||type==T_DESERT;
-    int r=warm?143:123,g=warm?121:124,b=warm?84:119;
+    int r=slab?143:123,g=slab?121:124,b=slab?84:119;
     int rim=quality>=2?6:5;
-    GgMeshVertex peak=ggMeshV(x+radius/4,y-radius/6,z+height);
+    int split=rim/2;
+    int dx=ggExpCos[(rotation+64)&255]*radius/15360;
+    int dy=ggExpSin[(rotation+64)&255]*radius/15360;
+    GgMeshVertex crest[2]={ggMeshV(x+dx,y+dy,z+height),
+        ggMeshV(x-dx,y-dy,z+height-(crag?3:1))};
+    GgMeshVertex foot[6],shoulder[6];
+    for(int i=0;i<rim;i++){
+        int a=(rotation+i*256/rim)&255;
+        int u=radius+(int)((key>>(i*4))&7u);
+        int ux=ggExpCos[a]*u/4096,uy=ggExpSin[a]*u*(slab?2:3)/(4096*4);
+        int base=ggMeshGroundAtQ8(x+ux,y+uy)-1;
+        int ledge=height*(slab?4:3)/5-(crag?i%3:0);
+        foot[i]=ggMeshV(x+ux,y+uy,base<z-2?base:z-2);
+        shoulder[i]=ggMeshV(x+ux*(slab?5:4)/6,y+uy*(slab?5:4)/6,z+ledge);
+    }
     for(int i=0;i<rim;i++){
         int n=(i+1)%rim;
-        int a=(rotation+i*256/rim)&255,c=(rotation+n*256/rim)&255;
-        int u=radius+(int)((key>>(i*4))&7u);
-        int v=radius+(int)((key>>(n*4))&7u);
-        int ux=ggExpCos[a]*u/4096,uy=ggExpSin[a]*u*3/(4096*4);
-        int vx=ggExpCos[c]*v/4096,vy=ggExpSin[c]*v*3/(4096*4);
-        int footU=ggMeshGroundAtQ8(x+ux,y+uy)-1;
-        int footV=ggMeshGroundAtQ8(x+vx,y+vy)-1;
-        GgMeshVertex lowU=ggMeshV(x+ux,y+uy,footU<z-2?footU:z-2);
-        GgMeshVertex lowV=ggMeshV(x+vx,y+vy,footV<z-2?footV:z-2);
-        GgMeshVertex highU=ggMeshV(x+ux*2/3,y+uy*2/3,z+height*2/3+(i&1));
-        GgMeshVertex highV=ggMeshV(x+vx*2/3,y+vy*2/3,z+height*2/3+(n&1));
-        ggMeshQuad(m,lowU,lowV,highV,highU,r-18,g-14,b-12);
-        ggMeshTriangle(m,highU,highV,peak,r,g,b);
+        int tone=(int)((key>>(i*4))&7u)-3;
+        ggMeshQuad(m,foot[i],foot[n],shoulder[n],shoulder[i],
+                   r-18+tone,g-14+tone,b-12+tone);
+        ggMeshTriangle(m,shoulder[i],shoulder[n],crest[i>=split],r+tone,g+tone,b+tone);
     }
+    ggMeshTriangle(m,shoulder[0],crest[0],crest[1],r,g,b);
+    ggMeshTriangle(m,shoulder[split],crest[1],crest[0],r,g,b);
 }
 static void ggMeshFence(GgMeshContext*m,int x,int y){
     int left=x-54,right=x+54;
@@ -926,45 +1029,87 @@ static void ggMeshFence(GgMeshContext*m,int x,int y){
             ggMeshV(left,y+4,low+rail-1),backD,backC,132,100,72);
     }
 }
-static void ggMeshCart(GgMeshContext*m,int x,int y,int ground){
-    // A two-wheeled handcart with a resting foot. The axle is linked to
-    // the raised bed even when one wheel is on the downhill side.
-    int bed=ground+6;
-    ggMeshBox(m,x-44,y-24,x+42,y+24,bed-2,bed+3,150,106,71);
-    ggMeshGroundBox(m,x-40,y-5,x-33,y+5,bed,108,83,61);
-    ggMeshBox(m,x-57,y-20,x-33,y-13,bed,bed+1,133,95,68);
-    ggMeshBox(m,x-57,y+13,x-33,y+20,bed,bed+1,133,95,68);
-    int wheelX=x+17;
-    for(int edge=-1;edge<=1;edge+=2){
-        int wheelY=y+edge*28;
-        int hubZ=ggMeshGroundAtQ8(wheelX,wheelY)+2;
-        ggMeshGroundBox(m,wheelX-5,wheelY-4,wheelX+5,wheelY+4,
-                         hubZ>bed?hubZ+1:bed,100,75,53);
-        GgMeshVertex hub=ggMeshV(wheelX,wheelY+edge*5,hubZ);
-        GgMeshVertex edgeV[6];
-        for(int i=0;i<6;i++){
-            int a=(192+i*256/6)&255;
-            int wx=wheelX+ggExpCos[a]*16/4096;
-            int z=hubZ+ggExpSin[a]*3/4096;
-            edgeV[i]=ggMeshV(wx,hub.y,z);
-        }
-        for(int i=0;i<6;i++){
-            GgMeshVertex v=edgeV[i],next=edgeV[(i+1)%6];
-            int lv=57+(i&1)*19;
-            ggMeshTriangle(m,hub,edge>0?next:v,edge>0?v:next,lv,lv-6,lv-12);
-            ggMeshQuad(m,v,next,ggMeshV(next.x,wheelY-edge*4,next.z),
-                ggMeshV(v.x,wheelY-edge*4,v.z),61,54,47);
-        }
-        ggMeshBox(m,wheelX-4,wheelY-6,wheelX+4,wheelY+6,
-                  hubZ,hubZ+1,144,108,73);
+static void ggMeshCartWheel(GgMeshContext*m,int x,int y,int z,int edge,int quality){
+    int sides=quality>=2?8:6;
+    GgMeshVertex rim[8],inner[8],back[8];
+    for(int i=0;i<sides;i++){
+        int a=(192+i*256/sides)&255;
+        int dx=ggExpCos[a],dz=ggExpSin[a];
+        int wx=x+dx*23/4096,wz=z+dz*4/4096;
+        rim[i]=ggMeshV(wx,y+edge*4,wz);
+        back[i]=ggMeshV(wx,y-edge*3,wz);
+        inner[i]=ggMeshV(x+dx*16/4096,rim[i].y,z+dz*3/4096);
     }
+    for(int i=0;i<sides;i++){
+        int n=(i+1)%sides;
+        int a=edge>0?n:i,b=edge>0?i:n;
+        ggMeshQuad(m,rim[a],rim[b],inner[b],inner[a],113,85,61);
+        ggMeshQuad(m,rim[b],rim[a],back[a],back[b],75,62,49);
+        if((i&1)==0){
+            GgMeshVertex tip=inner[i],tipEdge=ggMeshV(
+                tip.x+(inner[n].x-tip.x)/3,tip.y,tip.z+(inner[n].z-tip.z)/2);
+            GgMeshVertex hub=ggMeshV(x,tip.y,z);
+            ggMeshTriangle(m,hub,edge>0?tipEdge:tip,edge>0?tip:tipEdge,151,111,72);
+        }
+    }
+    ggMeshBox(m,x-5,y-6,x+5,y+6,z-1,z+1,118,88,56);
+}
+typedef struct {int x,y,front,rear,bank;} GgMeshCartFrame;
+static void ggMeshCartTimber(GgMeshContext*m,const GgMeshCartFrame*p,
+                            int x0,int y0,int x1,int y1,int z,int h,
+                            int r,int g,int b){
+    int left=p->front+(p->rear-p->front)*(x0+37)/54;
+    int right=p->front+(p->rear-p->front)*(x1+37)/54;
+    int near=p->bank*y0/64,far=p->bank*y1/64;
+    GgMeshVertex a=ggMeshV(p->x+x0,p->y+y0,left+near+z);
+    GgMeshVertex c=ggMeshV(p->x+x1,p->y+y0,right+near+z);
+    GgMeshVertex d=ggMeshV(p->x+x1,p->y+y1,right+far+z);
+    GgMeshVertex e=ggMeshV(p->x+x0,p->y+y1,left+far+z);
+    GgMeshVertex A=a,C=c,D=d,E=e;
+    A.z+=h;C.z+=h;D.z+=h;E.z+=h;
+    ggMeshQuad(m,a,c,C,A,r,g,b);
+    ggMeshQuad(m,c,d,D,C,r-12,g-12,b-8);
+    ggMeshQuad(m,d,e,E,D,r-7,g-7,b-5);
+    ggMeshQuad(m,e,a,A,E,r,g,b);
+    ggMeshQuad(m,A,C,D,E,r+10,g+9,b+7);
+}
+static void ggMeshCart(GgMeshContext*m,int x,int y,int quality){
+    int axleX=x+17,front=ggMeshGroundAtQ8(x-37,y)+7;
+    int nearZ=ggMeshGroundAtQ8(axleX,y-32)+4;
+    int farZ=ggMeshGroundAtQ8(axleX,y+32)+4;
+    // A sloped chassis meets the axle and the third contact at the stand.
+    GgMeshCartFrame frame={x,y,front,(nearZ+farZ)/2+3,farZ-nearZ};
+    ggMeshCartTimber(m,&frame,-44,-25,41,25,-2,2,150,106,71);
+    ggMeshGroundBox(m,x-40,y-7,x-33,y+7,front,108,83,61);
+    for(int edge=-1;edge<=1;edge+=2){
+        int railY=edge*21;
+        ggMeshCartTimber(m,&frame,-57,railY-3,41,railY+3,-1,3,139,101,64);
+        int z=edge<0?nearZ:farZ;
+        ggMeshCartTimber(m,&frame,13,railY-4,21,railY+4,-4,3,111,86,61);
+        ggMeshCartWheel(m,axleX,y+edge*32,z,edge,quality);
+    }
+    GgMeshVertex a=ggMeshV(axleX-4,y-32,nearZ+1),b=ggMeshV(axleX+4,y-32,nearZ+1);
+    GgMeshVertex c=ggMeshV(axleX+4,y+32,farZ+1),d=ggMeshV(axleX-4,y+32,farZ+1);
+    GgMeshVertex A=a,B=b,C=c,D=d;
+    A.z-=2;B.z-=2;C.z-=2;D.z-=2;
+    ggMeshQuad(m,a,b,c,d,111,82,56);
+    ggMeshQuad(m,A,a,d,D,102,73,51);
+    ggMeshQuad(m,b,B,C,c,115,85,57);
+    ggMeshQuad(m,D,C,B,A,95,71,51);
 }
 static void ggMeshStall(GgMeshContext*m,int x,int y,int ground,int quality){
     int eave=ground+GG_WORLD_DOOR_HEIGHT+1;
     for(int dx=-44;dx<=44;dx+=88)for(int dy=-24;dy<=24;dy+=48)
         ggMeshGroundBox(m,x+dx-4,y+dy-4,x+dx+4,y+dy+4,
                          eave+1+(dy>0),108,81,59);
-    ggMeshBox(m,x-47,y-28,x+47,y+28,ground+5,ground+7,146,102,67);
+    ggMeshBox(m,x-47,y-26,x+47,y-7,ground+7,ground+9,146,102,67);
+    ggMeshGroundBox(m,x-39,y-25,x-31,y-12,ground+8,119,85,53);
+    ggMeshGroundBox(m,x+31,y-25,x+39,y-12,ground+8,119,85,53);
+    for(int dx=-44;dx<=44;dx+=88){
+        GgMeshVertex a=ggMeshV(x+dx,y-24,eave),b=ggMeshV(x+dx,y+24,eave+1);
+        ggMeshTriangle(m,a,b,ggMeshV(x+dx,y+5,eave+6),151,108,75);
+    }
+    ggMeshBox(m,x-46,y+3,x+46,y+7,eave+5,eave+6,141,102,70);
     int previous=m->material;
     m->material=GG_MAT_FABRIC;
     int strips=quality>=2?4:1;
@@ -973,9 +1118,11 @@ static void ggMeshStall(GgMeshContext*m,int x,int y,int ground,int quality){
         int r=i&1?206:158,g=i&1?164:82,b=i&1?115:71;
         GgMeshVertex a=ggMeshV(left,y-33,eave);
         GgMeshVertex b0=ggMeshV(right,y-33,eave);
-        GgMeshVertex c=ggMeshV(right,y+33,eave+2);
-        GgMeshVertex d=ggMeshV(left,y+33,eave+2);
+        GgMeshVertex c=ggMeshV(right,y+5,eave+7);
+        GgMeshVertex d=ggMeshV(left,y+5,eave+7);
         ggMeshQuad(m,a,b0,c,d,r,g,b);
+        ggMeshQuad(m,d,c,ggMeshV(right,y+33,eave+1),
+            ggMeshV(left,y+33,eave+1),r-5,g-4,b-4);
         ggMeshQuad(m,ggMeshV(left,y-33,eave-2),
             ggMeshV(right,y-33,eave-2),b0,a,r-12,g-10,b-8);
     }
@@ -1084,7 +1231,7 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
             ggMeshBox(m,x-34,y-20,x-5,y+19,z+7,z+11,172,129,88);
         break;
     case GG_SCENE_CART:
-        ggMeshCart(m,x,y,z);
+        ggMeshCart(m,x,y,quality);
         break;
     case GG_SCENE_STALL:
         ggMeshStall(m,x,y,z,quality);
@@ -1281,7 +1428,7 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
         m->material=(build==B_HOUSE||build==B_HUT||
                      build==B_DOCK||build==B_FARM)?GG_MAT_WOOD:GG_MAT_STONE;
         m->materialSeed=(int)ggFilmScenicHash(tx,ty,17);
-        if(detailed&&forward>128&&build!=B_DOCK)
+        if(detailed&&forward>128&&build!=B_DOCK&&build!=B_BORDER)
             ggMeshContactShadow(m,tx*256+128,ty*256+128,105,
                                 ggExpBuilding(build));
         ggMeshBuilding(m,tx,ty,build,ggExpGround(ggMeshTerrainAt(tx,ty)),detailed);
