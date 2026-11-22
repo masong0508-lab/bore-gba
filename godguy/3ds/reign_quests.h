@@ -235,6 +235,9 @@ static int ggQuestStep(int raw){
     if(!ggChron.active||ggChron.won||ggChron.lost||ggReign.menu||
        ggChron.briefTime||!(down&KEY_A)||ggQuestThreatNear())
         return 0;
+    if((raw&GG_3DS_ZL)||(ggChron.style!=GG_CHRON_BLADE&&
+       ggChronCombatTarget((ggChron.style==GG_CHRON_BOW?8:6)*256,0,NULL)>=0))
+        return 0;
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
     int town=ggReignVillage(px,py,6);
     int person=ggQuestCitizenNear();

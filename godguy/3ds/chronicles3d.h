@@ -6,9 +6,17 @@
 #ifndef GG_CHRONICLES3D_H
 #define GG_CHRONICLES3D_H
 
+#include "platform_keys3d.h"
+
 enum { GG_CHRON_ACTS=4, GG_CHRON_POSTS=3, GG_CHRON_FOES=9,
        GG_CHRON_GRID=33, GG_CHRON_CELLS=GG_CHRON_GRID*GG_CHRON_GRID };
+enum { GG_CHRON_BLADE, GG_CHRON_BOW, GG_CHRON_EMBER, GG_CHRON_STYLES };
+enum { GG_CHRON_SHOTS=4 };
 typedef struct { short x,y; signed char hp,post,wait; } GgChronFoe;
+typedef struct {
+    int x,y,z,vx,vy,vz;
+    unsigned char life,style,damage,stagger;
+} GgChronShot;
 typedef struct {
     int active,loaded,act,cleared,frame,lastKeys;
     int hp,stamina,food,rations,morale,score,attackWait,attackFlash;
@@ -16,6 +24,11 @@ typedef struct {
     int routeOx,routeOy; // mission's already-validated 33x33 walking region
     short px[GG_CHRON_POSTS],py[GG_CHRON_POSTS];
     GgChronFoe foe[GG_CHRON_FOES];
+    unsigned char foeWindup[GG_CHRON_FOES],foeAlert[GG_CHRON_FOES];
+    signed char foeGuard[GG_CHRON_FOES];
+    GgChronShot shots[GG_CHRON_SHOTS];
+    int style,focus,charge,swing,heavy,guardTicks;
+    int combatNotice,combatNoticeT;
     int foeN;
 } GgChronicles;
 static GgChronicles ggChron;
@@ -41,7 +54,9 @@ static const int ggChronRequires[GG_CHRON_ACTS]={3,5,8,14};
 static void ggSagaStartChoice(void);
 static int ggSagaParley(int post);
 static int ggReignNearestGuard(int x,int y,int *gx,int *gy);
+static int ggReignGuardPosition(int index,int *x,int *y);
 static void ggReignGuardDamage(int index,int damage);
+static void ggReignBlockGuardCells(unsigned char *dist,int width,int ox,int oy);
 static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
@@ -242,6 +257,13 @@ static int ggChronBegin(int x,int y,int oldPause){
     ggChron.rations=3;ggChron.morale=70;ggChron.score=0;
     ggChron.post=0;ggChron.won=ggChron.lost=0;
     ggChron.attackWait=ggChron.attackFlash=0;
+    ggChron.style=GG_CHRON_BLADE;ggChron.focus=100;
+    ggChron.charge=ggChron.swing=ggChron.heavy=ggChron.guardTicks=0;
+    ggChron.combatNotice=ggChron.combatNoticeT=0;
+    memset(ggChron.foeWindup,0,sizeof ggChron.foeWindup);
+    memset(ggChron.foeAlert,0,sizeof ggChron.foeAlert);
+    memset(ggChron.foeGuard,-1,sizeof ggChron.foeGuard);
+    memset(ggChron.shots,0,sizeof ggChron.shots);
     ggChron.briefTime=165;ggChron.day=0;ggChron.dirty=1;
     // The 3D role is the expedition's commander, NOT possession of a
     // random sapient citizen from the original story.
@@ -262,39 +284,38 @@ static int ggChronEnemiesAt(int post){
         if(ggChron.foe[i].hp>0&&ggChron.foe[i].post==post)n++;
     return n;
 }
-static void ggChronHit(void){
-    int px=ggExplore.px>>8,py=ggExplore.py>>8;
-    int a=ggExplore.angle&255;
-    int found=-1,nearest=9000;
+#include "chronicle_combat3d.h"
+
+static int ggChronFoeAt(int x,int y){
     for(int i=0;i<ggChron.foeN;i++){
         const GgChronFoe *f=&ggChron.foe[i];
-        if(f->hp<=0)continue;
-        int vx=((int)f->x<<8)+128-ggExplore.px;
-        int vy=((int)f->y<<8)+128-ggExplore.py;
-        int forward=(vx*ggExpCos[a]+vy*ggExpSin[a])/4096;
-        int side=(-vx*ggExpSin[a]+vy*ggExpCos[a])/4096;
-        if(forward<10||forward>720||abs(side)>forward/2+70 ||
-           !ggExpLineClear(px,py,f->x,f->y))continue;
-        if(forward<nearest){found=i;nearest=forward;}
+        if(f->hp>0&&f->x==x&&f->y==y)return 1;
     }
-    ggChron.attackWait=11;
-    ggChron.attackFlash=5;
-    if(found<0)return;
-    GgChronFoe *f=&ggChron.foe[found];
-    int damage=12+(ggChron.morale>=75?3:0);
-    f->hp-=damage;
-    ggChron.score+=5;
-    if(f->hp<=0){ggChron.morale=ggExpClamp(ggChron.morale+3,0,100);
-                 ggChron.score+=20;}
-    ggChron.dirty=1;
+    return 0;
 }
-
+static void ggChronRouteBlockCell(unsigned char *dist,int width,int ox,int oy,
+                                  int x,int y){
+    int lx=x-ox,ly=y-oy;
+    // Reserve the cell without queueing it. A real route is shorter than 254.
+    if((unsigned)lx<(unsigned)width&&(unsigned)ly<(unsigned)width)
+        dist[ly*width+lx]=254;
+}
+static void ggChronRouteBlockActors(unsigned char *dist,int width,int ox,int oy){
+    ggChronRouteBlockCell(dist,width,ox,oy,ggExplore.px>>8,ggExplore.py>>8);
+    for(int i=0;i<ggChron.foeN;i++){
+        const GgChronFoe *f=&ggChron.foe[i];
+        if(f->hp>0)ggChronRouteBlockCell(dist,width,ox,oy,f->x,f->y);
+    }
+    ggReignBlockGuardCells(dist,width,ox,oy);
+}
 static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
     // Bounded 9x9 pursuit flood fill. Runs only after enemy cooldown,
     // never per render; respects existing terrain and occupants.
     enum { R=4,W=9,N=81 };
     unsigned char dist[N],first[N],queue[N];
     memset(dist,255,sizeof dist);
+    ggChronRouteBlockActors(dist,W,fx-R,fy-R);
+    ggChronRouteBlockCell(dist,W,fx-R,fy-R,tx,ty);
     dist[R*W+R]=0;first[R*W+R]=255;
     int head=0,tail=0,best=R*W+R;
     int bestCost=ggChronNear(fx,fy,tx,ty)*20;
@@ -309,17 +330,9 @@ static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
             int nx=lx+dx[k],ny=ly+dy[k];
             if((unsigned)nx>=W||(unsigned)ny>=W)continue;
             int q=ny*W+nx,wx=fx+nx-R,wy=fy+ny-R;
-            if(dist[q]!=255||!ggChronLand(wx,wy)||
-               (wx==tx&&wy==ty))continue;
+            if(dist[q]!=255||!ggChronLand(wx,wy))continue;
             if(ggExpGround(world[wy][wx])-
                ggExpGround(world[y][x])>19)continue;
-            int occupied=0;
-            for(int i=0;i<ggChron.foeN;i++)if(
-                ggChron.foe[i].hp>0&&
-                (ggChron.foe[i].x!=fx||ggChron.foe[i].y!=fy)&&
-                ggChron.foe[i].x==wx&&ggChron.foe[i].y==wy)
-                occupied=1;
-            if(occupied)continue;
             dist[q]=dist[p]+1;
             first[q]=dist[p]?first[p]:(unsigned char)q;
             queue[tail++]=(unsigned char)q;
@@ -330,29 +343,59 @@ static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
     *outX=fx+p%W-R;*outY=fy+p/W-R;
     return *outX!=fx||*outY!=fy;
 }
+static int ggChronEnemyCanHit(const GgChronFoe *f,int x,int y){
+    int tx=x>>8,ty=y>>8;
+    if(ggChronNear(f->x,f->y,tx,ty)>2)return 0;
+    int fx=ggChronFoeX(f),fy=ggChronFoeY(f);
+    int dx=x-fx,dy=y-fy;
+    if(dx*dx+dy*dy>512*512||!ggExpLineClear(f->x,f->y,tx,ty))return 0;
+    // A centered diagonal ray can pass exactly between two solid tiles.
+    if(tx!=f->x&&ty!=f->y&&bld[f->y][tx]&&bld[ty][f->x])return 0;
+    int fz=ggMeshGroundAtQ8(fx,fy)+GG_WORLD_EYE_HEIGHT;
+    int z=ggMeshGroundAtQ8(x,y)+GG_WORLD_EYE_HEIGHT;
+    return abs(z-fz)<=8&&ggChronCombatLine(fx,fy,fz,x,y,z);
+}
 static void ggChronEnemiesStep(void){
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
     for(int i=0;i<ggChron.foeN;i++){
         GgChronFoe *f=&ggChron.foe[i];
-        if(f->hp<=0)continue;
+        if(f->hp<=0){
+            if(ggChron.foeWindup[i]){
+                ggChron.foeWindup[i]=0;
+                ggChron.foeGuard[i]=-1;
+            }
+            continue;
+        }
+        if(ggChron.foeAlert[i])ggChron.foeAlert[i]--;
         if(f->wait>0){f->wait--;continue;}
+        if(ggChron.foeWindup[i]){
+            if(--ggChron.foeWindup[i])continue;
+            int guard=ggChron.foeGuard[i],damage=4+ggChron.act;
+            ggChron.foeGuard[i]=-1;
+            f->wait=(signed char)(33+(i&3)*5);
+            ggChron.dirty=1;
+            // A committed attack can miss if its target moves or takes cover.
+            if(guard>=0){
+                int x,y;
+                if(ggReignGuardPosition(guard,&x,&y)&&
+                   ggChronEnemyCanHit(f,x*256+128,y*256+128))
+                    ggReignGuardDamage(guard,damage);
+            }else if(ggChronEnemyCanHit(f,ggExplore.px,ggExplore.py))
+                ggChronIncomingHit(i,damage);
+            continue;
+        }
         int distance=ggChronNear(f->x,f->y,px,py);
         int guardX=px,guardY=py;
         int guard=ggReignNearestGuard(f->x,f->y,&guardX,&guardY);
         int toGuard=guard<0?999:ggChronNear(f->x,f->y,guardX,guardY);
-        // Recruited allies can screen the player and genuinely die
-        // protecting a settlement. A foe prefers the nearest opponent,
-        // rather than unrealistically hitting only the protagonist.
-        if(guard>=0&&toGuard<=2&&toGuard<distance){
-            ggReignGuardDamage(guard,4+ggChron.act);
-            f->wait=(signed char)(33+(i&3)*5);
+        // A closer guard can screen the commander when the attack begins.
+        int atGuard=guard>=0&&toGuard<distance&&
+            ggChronEnemyCanHit(f,guardX*256+128,guardY*256+128);
+        if(atGuard||ggChronEnemyCanHit(f,ggExplore.px,ggExplore.py)){
+            ggChron.foeGuard[i]=(signed char)(atGuard?guard:-1);
+            ggChron.foeWindup[i]=4; // 20 game frames before impact
             ggChron.dirty=1;
-        }else if(distance<=2){
-            ggChron.hp-=4+ggChron.act;
-            ggChron.morale=ggExpClamp(ggChron.morale-1,0,100);
-            f->wait=(signed char)(33+(i&3)*5);
-            ggChron.dirty=1;
-        }else if(distance<8||toGuard<8){
+        }else if(distance<8||toGuard<8||(distance<16&&ggChron.foeAlert[i])){
             int tx=px,ty=py,nx=f->x,ny=f->y;
             if(toGuard<distance){tx=guardX;ty=guardY;}
             if(ggChronEnemyRoute(f->x,f->y,tx,ty,&nx,&ny)){
@@ -379,14 +422,26 @@ static int ggChronStep(int raw){
     // All existing movement and collision rules are reused, but terrain
     // placement, deletion, warping and quicksave are not combat actions.
     int moving=raw&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_L|KEY_R|KEY_B);
-    if(ggChron.stamina<8)moving&=~KEY_B;
-    ggExpStep(moving,0,0);
+    if(ggChron.stamina<8||ggChron.charge||ggChron.guardTicks||ggChron.swing||
+       (raw&GG_3DS_ZL))moving&=~KEY_B;
+    int oldX=ggExplore.px,oldY=ggExplore.py;
+    ggExpAdvance(moving,0,0,0);
+    if((oldX>>8)!=(ggExplore.px>>8)||(oldY>>8)!=(ggExplore.py>>8)){
+        for(int i=0;i<ggChron.foeN;i++){
+            const GgChronFoe*f=&ggChron.foe[i];
+            if(f->hp>0&&f->x==(ggExplore.px>>8)&&f->y==(ggExplore.py>>8)){
+                ggExplore.px=oldX;ggExplore.py=oldY;ggExplore.stepPhase=0;
+                break;
+            }
+        }
+    }
     if((moving&KEY_B)&&(moving&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT))){
         ggChron.stamina=ggExpClamp(ggChron.stamina-2,0,100);
-    }else if((ggChron.frame&1)==0)
+    }else if((ggChron.frame&1)==0&&!ggChron.charge&&!ggChron.guardTicks&&
+             !ggChron.swing&&!(raw&GG_3DS_ZL))
         ggChron.stamina=ggExpClamp(ggChron.stamina+1,0,100);
     if(ggChron.briefTime==0){
-        if((down&KEY_A)&&!ggChron.attackWait)ggChronHit();
+        ggChronCombatStep(raw,down);
         if((down&KEY_Y)&&ggChron.rations>0){
             ggChron.rations--;
             ggChron.hp=ggExpClamp(ggChron.hp+25,0,100);
@@ -406,6 +461,9 @@ static int ggChronStep(int raw){
                 ggChron.hp=ggExpClamp(ggChron.hp+12,0,100);
                 ggChron.score+=100;
                 ggChron.briefTime=120;
+                ggChronCombatStow();
+                memset(ggChron.shots,0,sizeof ggChron.shots);
+                memset(ggChron.foeWindup,0,sizeof ggChron.foeWindup);
                 ggChron.dirty=1;
                 if(ggChron.post==GG_CHRON_POSTS){
                     // A chapter ends with a decision, not an automatic
@@ -423,6 +481,7 @@ static int ggChronStep(int raw){
     if(ggChron.frame%5==0&&ggChron.briefTime==0)ggChronEnemiesStep();
     if(ggChron.hp<=0){
         ggChron.hp=0;ggChron.lost=1;ggChron.dirty=1;
+        ggChronCombatStow();
     }
     return 0;
 }
@@ -440,43 +499,138 @@ static int ggChronProject(int x,int y,int *sx,int *foot,int *scale){
     *scale=ggExpClamp(2300/(d+5),6,38);
     return *sx>-50&&*sx<450&&*foot>=0&&*foot<270;
 }
+#include "chronicle_combat_art3d.h"
+
+static int ggChronProjectFoe(const GgChronFoe*f,int *sx,int *foot,int *height,int *width){
+    if(!ggExpMeshActive){
+        int size;
+        if(!ggChronProject(f->x,f->y,sx,foot,&size))return 0;
+        *height=ggExpClamp(size/4,1,9)*8;
+        *width=*height*5/8;
+        return 1;
+    }
+    GgMeshContext*m=&ggMeshContext;
+    int x=ggChronFoeX(f),y=ggChronFoeY(f),z=ggMeshGroundAtQ8(x,y);
+    GgMeshCameraVertex a=ggMeshCameraPoint(m,ggMeshV(x,y,z));
+    if(a.f<m->near||a.f>15*256||abs(a.s)*5>a.f*6)return 0;
+    GgMeshProjected base=ggMeshProject(m,a);
+    a.z+=GG_CHRON_BODY;
+    GgMeshProjected head=ggMeshProject(m,a);
+    *sx=base.x*m->scale;*foot=base.y*m->scale;
+    *height=(base.y-head.y)*m->scale;
+    *width=*height*5/8;
+    return a.f;
+}
+static void ggChronDrawShots(u8*out){
+    if(!ggExpMeshActive)return;
+    GgMeshContext*m=&ggMeshContext;
+    for(int i=0;i<GG_CHRON_SHOTS;i++){
+        const GgChronShot*p=&ggChron.shots[i];
+        if(!p->life)continue;
+        GgMeshCameraVertex c=ggMeshCameraPoint(m,ggMeshV(p->x,p->y,p->z>>8));
+        if(c.f<m->near)continue;
+        GgMeshProjected q=ggMeshProject(m,c);
+        int x=q.x*m->scale,y=q.y*m->scale;
+        ggExpFilmDrawDepth=c.f;
+        if(p->style==GG_CHRON_BOW){
+            ggExpRect(out,x-2,y-1,5,2,218,179,113);
+            ggExpRect(out,x-1,y-2,2,3,249,238,200);
+        }else{
+            ggExpRect(out,x-3,y-2,7,5,207,103,47);
+            ggExpRect(out,x-1,y-3,3,7,241,157,62);
+            ggExpRect(out,x-1,y-1,3,3,255,232,131);
+        }
+    }
+    ggExpFilmDrawDepth=0;
+}
+static void ggChronDrawCombat(u8*out){
+    if(ggChron.lost||ggChron.won||ggChron.briefTime)return;
+    int style=ggChron.style,phase=0,progress=0;
+    if(ggChron.attackFlash){phase=2;progress=(5-ggChron.attackFlash)*51;}
+    else if(ggChron.swing){phase=2;progress=(6-ggChron.swing)*42;}
+    else if(ggChron.charge){
+        phase=1;progress=ggExpClamp(ggChron.charge*255/36,0,255);
+    }else if(ggChron.guardTicks){
+        phase=3;progress=ggExpClamp(ggChron.guardTicks*38,0,255);
+    }else if(ggChron.attackWait){
+        phase=4;progress=ggExpClamp(255-ggChron.attackWait*8,0,255);
+    }
+    ggChronCombatWeaponDraw(out,style,phase,progress,ggChron.frame);
+    int hit=ggChron.combatNoticeT>33&&ggChron.combatNotice==GG_COMBAT_HIT;
+    ggChronCombatReticle(out,style,hit,ggChron.charge*255/36);
+    static const char *const response[]={
+        "","HIT","STOPPED BY COVER","OUT OF REACH","HOLD A LONGER",
+        "LOW STAMINA","LOW FOCUS","BLOCKED","PARRY","WARDED"
+    };
+    if(ggChron.combatNoticeT>0&&ggChron.combatNotice>GG_COMBAT_NONE){
+        const char *line=response[ggChron.combatNotice];
+        ggExpRect(out,7,178,(int)strlen(line)*6+8,13,16,25,32);
+        ggExpText(out,11,181,line,248,219,152);
+    }
+}
 static void ggChronDraw(u8 *out){
     if(!ggChron.active)return;
-    // Native-resolution heraldic billboards instead of Minecraft
-    // blocks: guards, shields, banner cloth and grounded shadows.
-    for(int i=ggChron.foeN-1;i>=0;i--){
-        const GgChronFoe *f=&ggChron.foe[i];
+    // Draw the bounded encounter from far to near.
+    int order[GG_CHRON_FOES],depth[GG_CHRON_FOES],count=0;
+    for(int i=0;i<ggChron.foeN;i++){
+        const GgChronFoe*f=&ggChron.foe[i];
         if(f->hp<=0)continue;
-        int x,y,s;
-        if(!ggChronProject(f->x,f->y,&x,&y,&s))continue;
-        int scale=ggExpClamp(s/4,1,9);
-        int bob=(ggChron.frame/12+i)&1;
-        int shape=(ggChron.act==3&&(i&1))?16:(i&1)?26:5;
-        // Original GodGuy animated creature cels, not block-built men.
-        // The enemy army retains a silhouette and regional uniform.
-        static const u8 enemyInk[4][3]={
-            {91,47,55},{174,120,68},{45,49,64},{244,204,149}
-        };
-        ggExpRect(out,x-4*scale,y-2,8*scale,2,29,34,33);
-        for(int py=0;py<8;py++){
-            const char *row=shpRow(shape,bob,py);
-            for(int px=0;px<8;px++){
-                int color=row[px]=='b'?0:row[px]=='a'?1:
-                          row[px]=='d'?2:row[px]=='e'?3:-1;
-                if(color<0)continue;
-                ggExpRect(out,x+(px-4)*scale,
-                          y-(8-py)*scale+bob,scale,scale,
-                          enemyInk[color][0],enemyInk[color][1],
-                          enemyInk[color][2]);
+        int aim=ggExplore.angle&255;
+        int d=(ggChronFoeX(f)-ggExplore.px)*ggExpCos[aim]+
+              (ggChronFoeY(f)-ggExplore.py)*ggExpSin[aim];
+        int at=count++;
+        while(at>0&&depth[at-1]<d){
+            order[at]=order[at-1];depth[at]=depth[at-1];at--;
+        }
+        depth[at]=d;order[at]=i;
+    }
+    for(int n=0;n<count;n++){
+        int i=order[n];
+        const GgChronFoe *f=&ggChron.foe[i];
+        int x,y,h,w,forward=ggChronProjectFoe(f,&x,&y,&h,&w);
+        if(!forward||(ggExpMeshActive&&forward>11*256))continue;
+        int bob=ggChron.foeWindup[i]>0;
+        if(ggExpMeshActive){
+            static const u8 coat[3][3]={{22,7,9},{13,6,9},{28,20,11}};
+            int wx=ggChronFoeX(f),wy=ggChronFoeY(f),ground=ggMeshGroundAtQ8(wx,wy);
+            GgMeshContext*m=&ggMeshContext;
+            int dx=ggExplore.px-wx,dy=ggExplore.py-wy;
+            int heading=abs(dx)>abs(dy)*2?(dx>0?0:128):
+                        abs(dy)>abs(dx)*2?(dy>0?64:192):
+                        dy>0?(dx>0?32:96):(dx>0?224:160);
+            GgMeshCameraVertex view=ggMeshCameraPoint(m,ggMeshV(wx,wy,ground));
+            ggMeshPersonDraw(m,wx,wy,ground,view.f,view.s,
+                0xc5000000u+(unsigned)(ggChron.act*32+i),i&7,heading,
+                ggChron.frame,bob,coat);
+            ggExpFilmDrawDepth=forward;
+        }else{
+            int shape=(ggChron.act==3&&(i&1))?16:(i&1)?26:5;
+            static const u8 enemyInk[4][3]={
+                {91,47,55},{174,120,68},{45,49,64},{244,204,149}
+            };
+            for(int py=0;py<8;py++){
+                const char *row=shpRow(shape,bob,py);
+                for(int px=0;px<8;px++){
+                    int color=row[px]=='b'?0:row[px]=='a'?1:
+                              row[px]=='d'?2:row[px]=='e'?3:-1;
+                    if(color<0)continue;
+                    int left=x-w/2+px*w/8,top=y-h+py*h/8;
+                    int right=x-w/2+(px+1)*w/8,bottom=y-h+(py+1)*h/8;
+                    ggExpRect(out,left,top,right-left,bottom-top,
+                              enemyInk[color][0],enemyInk[color][1],enemyInk[color][2]);
+                }
             }
         }
-        // Readable banner and shield, including a distinguishable
-        // opposing-faction palette at all render distances.
-        ggExpRect(out,x+4*scale,y-7*scale,2,7*scale,117,130,139);
-        ggExpRect(out,x+4*scale+2,y-7*scale,4*scale,2*scale,
-                  124,44,55);
-        int bar=ggExpClamp(14*scale,16,60);
-        ggExpRect(out,x-bar/2,y-9*scale-3,bar,3,34,29,35);
+        int bar=ggExpClamp(w,10,46),barY=y-h-7;
+        if(ggExpFilmPixelHidden(x,y-h/2)){ggExpFilmDrawDepth=0;continue;}
+        int blade=x+w/3,grip=y-h/3;
+        if(bob)grip-=h/4;
+        int bladeHeight=ggExpClamp(h/3,4,29);
+        ggExpRect(out,blade,grip-bladeHeight,2,bladeHeight,183,200,207);
+        ggExpRect(out,blade-2,grip,6,2,147,121,72);
+        ggExpRect(out,x-w/3,y-h/2,ggExpClamp(w/5,3,10),
+                  ggExpClamp(h/5,3,14),120,51,62);
+        ggExpRect(out,x-bar/2,barY,bar,3,34,29,35);
         // Spawn places the chapter's single captain first at the last
         // post. The captain is distinctly tougher; its bar must show
         // actual damage from the first hit, not only after 65 HP vanish.
@@ -486,19 +640,30 @@ static void ggChronDraw(u8 *out){
                     (i==0||ggChron.foe[i-1].post!=f->post);
         int maxHp=captain?105:20+ggChron.act*6+f->post*3;
         if(maxHp<1)maxHp=40;
-        ggExpRect(out,x-bar/2,y-9*scale-3,
+        ggExpRect(out,x-bar/2,barY,
                   bar*ggExpClamp(f->hp,0,maxHp)/maxHp,3,196,76,64);
+        if(bob)ggExpRect(out,x-2,barY-6,5,4,247,175,68);
+        ggExpFilmDrawDepth=0;
     }
     if(!ggChron.won){
-        int p=ggChron.post,x,y,s;
-        if(p<GG_CHRON_POSTS&&ggChronProject(ggChron.px[p],ggChron.py[p],
-                                            &x,&y,&s)){
-            int h=ggExpClamp(s*3,28,86);
-            ggExpRect(out,x,y-h,3,h,225,201,126);
-            ggExpRect(out,x+3,y-h,ggExpClamp(s,12,26),12,168,116,49);
-            ggExpRect(out,x+5,y-h+3,9,3,244,218,142);
+        int p=ggChron.post;
+        if(p<GG_CHRON_POSTS){
+            int x,y,h,w;
+            GgChronFoe banner={.x=ggChron.px[p],.y=ggChron.py[p]};
+            int forward=ggChronProjectFoe(&banner,&x,&y,&h,&w);
+            if(forward){
+                if(ggExpMeshActive)ggExpFilmDrawDepth=forward;
+                h=ggExpClamp(h*3/2,8,105);
+                int cloth=ggExpClamp(w/2,4,24),drop=ggExpClamp(h/4,3,12);
+                ggExpRect(out,x,y-h,2,h,225,201,126);
+                ggExpRect(out,x+2,y-h,cloth,drop,168,116,49);
+                ggExpRect(out,x+3,y-h+1,cloth*2/3,1,244,218,142);
+                ggExpFilmDrawDepth=0;
+            }
         }
     }
+    ggChronDrawShots(out);
+    ggChronDrawCombat(out);
     // Replace the free-build UI completely. A commander must read the
     // tactical situation, not a block inventory.
     ggExpRect(out,0,0,400,37,13,23,34);
@@ -507,8 +672,10 @@ static void ggChronDraw(u8 *out){
     snprintf(line,sizeof line,"UNWRITTEN REIGN %d/4  %.24s",
              ggChron.act+1,ggChronActName[ggChron.act]);
     ggExpText(out,9,5,line,248,220,165);
-    snprintf(line,sizeof line,"HEALTH %3d   STAMINA %3d   FOOD %3d   RATIONS %d   MORALE %d",
-             ggChron.hp,ggChron.stamina,ggChron.food,ggChron.rations,ggChron.morale);
+    const char *styleName=ggChron.style==GG_CHRON_BOW?"BOW":
+                          ggChron.style==GG_CHRON_EMBER?"EMBER":"BLADE";
+    snprintf(line,sizeof line,"HP %d  STA %d  FOCUS %d  FOOD %d  RATIONS %d  %s",
+             ggChron.hp,ggChron.stamina,ggChron.focus,ggChron.food,ggChron.rations,styleName);
     ggExpText(out,9,20,line,211,222,216);
     ggExpRect(out,0,195,400,45,12,22,34);
     ggExpRect(out,0,195,400,2,177,128,71);
@@ -552,8 +719,10 @@ static void ggChronDraw(u8 *out){
                        ggChronEnemiesAt(p));
         ggExpText(out,9,203,line,247,216,155);
     }
-    ggExpText(out,9,221,"A ACTION  X SECURE  Y RATION  B RUN  SELECT COUNCIL  START 2D",
-              201,214,224);
+    const char *controls=ggChron.style==GG_CHRON_BOW?"HOLD A DRAW  ZL AIM":
+                         ggChron.style==GG_CHRON_EMBER?"HOLD A CAST  ZL WARD":"A SWING  HOLD HEAVY  ZL GUARD";
+    ggExpText(out,9,217,controls,226,216,185);
+    ggExpText(out,9,229,"ZR GEAR  X SECURE  Y RATION  B RUN  SELECT COUNCIL  START 2D",201,214,224);
     if(ggChron.briefTime>0){
         ggExpRect(out,22,69,356,65,17,31,44);
         ggExpRect(out,22,69,356,2,187,139,79);
@@ -563,11 +732,9 @@ static void ggChronDraw(u8 *out){
             ggChron.post==2?"THE WATCH HOLDS. THE LAST BANNER WAITS.":
                              "THE THREE STANDARDS STAND TOGETHER.",
             243,214,166);
-        ggExpText(out,38,105,"YOUR WORLD. YOUR CLASS. YOUR CROWN. NO BUILDING MENU.",
+        ggExpText(out,38,105,"ZR CHANGES GEAR. ZL GUARDS, AIMS, OR WARDS.",
                   180,207,225);
     }
-    if(ggChron.attackFlash)
-        ggExpRect(out,194,114,12,2,245,217,150);
     ggChron.dirty=0;
 }
 #endif

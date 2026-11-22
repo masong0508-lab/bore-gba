@@ -62,11 +62,15 @@ static int ggAmbientTick(void){
        ggOrigin.active||ggSaga.mode||ggQuest.talk||ggReign.menu||
        ggChron.briefTime>0)return 0;
     if((ggChron.frame&31)!=0||ggAmbient.cooldown)return 0;
+    if(ggChron.charge||ggChron.swing||ggChron.guardTicks)return 0;
+    for(int i=0;i<GG_CHRON_SHOTS;i++)if(ggChron.shots[i].life)return 0;
     const int x=ggExplore.px>>8,y=ggExplore.py>>8;
     if((unsigned)x>=WW||(unsigned)y>=WH)return 0;
-    for(int k=0;k<ggChron.foeN;k++)if(ggChron.foe[k].hp>0&&
-       ggChronNear(x,y,ggChron.foe[k].x,ggChron.foe[k].y)<=7)
-        return 0; // combat is never interrupted by sightseeing
+    for(int k=0;k<ggChron.foeN;k++)if(ggChron.foe[k].hp>0){
+        int dx=ggChron.foe[k].x-x,dy=ggChron.foe[k].y-y;
+        if((abs(dx)<=8&&abs(dy)<=8&&dx*dx+dy*dy<=64)||
+           ggChron.foeWindup[k]||ggChron.foeAlert[k])return 0;
+    }
     int signature=ggQuest.completed*3+ggReign.role*7+
                   ggReign.office*31+ggReign.squadN*11;
     if(x==ggAmbient.lastX&&y==ggAmbient.lastY&&

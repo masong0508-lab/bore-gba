@@ -3,6 +3,7 @@
 //   gcc -O2 -I3ds/stub -o pc_3ds pc_3ds.c 3ds/platform3ds.c -lm && ./pc_3ds
 #include <3ds.h>
 #include <stdio.h>
+#include "3ds/platform_keys3d.h"
 u8 stubFb[2][2][400*240*3]; int stubCur[2], stubShown[2], stubSwaps, stubFlushes, stubSpeedup, stubQueued, stubNextExpect; u32 stubKeys; touchPosition stubTouch; short*stubQueue[64]; ndspWaveBuf*stubWb[64];
 int stubAllocFailAt=-1,stubAllocCalls,stubAllocLive,stubAllocFreed;
 int stubDSPInitResult,stubDSPInits,stubDSPExits,stubDSPActive;
@@ -95,6 +96,11 @@ int main(int argc,char **argv){
         return stubAllocLive||stubQueued||stubDSPActive;
     }
     int bad=0; plat_init(); if(!stubSpeedup){ printf("FAIL: the New 3DS speed-up was not switched on\n"); bad++; }
+    int tx=0,ty=0;
+    stubKeys=KEY_A|KEY_ZL|KEY_ZR;
+    bad+=expect(plat_keys(&tx,&ty)==(KEY_A|GG_3DS_ZL|GG_3DS_ZR),
+                "New 3DS weapon and guard buttons did not reach the input shim");
+    stubKeys=0;
     // 1. the picture on both screens matches the plain copy after every frame, for a random run of changes and no-changes
     static u8 want[2][400*240*3]; int copies0=0, frames=400, shownBad=0;
     scribble(top,sizeof top,200000); scribble(bot,sizeof bot,150000); plat_present(top,bot,1,1,snd,546,0); plat_present(top,bot,0,0,snd,546,0);

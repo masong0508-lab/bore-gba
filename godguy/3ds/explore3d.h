@@ -201,7 +201,7 @@ static int ggExpEdit(int tx,int ty,int material,int removing){
     ggExplore.edits++;
     return 1;
 }
-static int ggExpStep(int held,int touchX,int touchY){
+static int ggExpAdvance(int held,int touchX,int touchY,int build){
     if(!ggExplore.active)return 0;
     int down=held&~ggExplore.lastHeld;
     ggExplore.lastHeld=held;
@@ -233,6 +233,7 @@ static int ggExpStep(int held,int touchX,int touchY){
         if(ggExplore.px!=oldX||ggExplore.py!=oldY)ggExplore.stepPhase++;
         else ggExplore.stepPhase=0;
     }else ggExplore.stepPhase=0;
+    if(!build)return 0;
     // The full 256x192 lower-screen map is interactive. A previous
     // 160px cutoff made the bottom 32px silently dead on real 3DS
     // touchscreens (including DraStic-equivalent coordinate mapping).
@@ -255,6 +256,9 @@ static int ggExpStep(int held,int touchX,int touchY){
         if(changed)return GG_EXP_CHANGE;
     }
     return 0;
+}
+static int ggExpStep(int held,int touchX,int touchY){
+    return ggExpAdvance(held,touchX,touchY,1);
 }
 // Write a 2x2 low-res pixel into the existing top LCD's 400x240 RGB.
 // A single function limits memory traffic on Old 3DS; no temp surface.
@@ -1110,11 +1114,13 @@ mesh_world_ready:
     // whole creature list or allocating skeletal 3D models.
     if(cinematic)return; // no first-person crosshair, build HUD or 2x
                         // creature cels pasted over filmed cast
-    int targetX,targetY;
-    ggExpTarget(&targetX,&targetY);
-    int targetStatus=ggExpEditStatus(targetX,targetY,ggExplore.material,0);
-    if(ggExpMeshActive&&ggExpBuildPreview)
-        ggExpTargetOutline(targetX,targetY,targetStatus);
+    int targetStatus=GG_EDIT_READY;
+    if(ggExpBuildPreview){
+        int targetX,targetY;
+        ggExpTarget(&targetX,&targetY);
+        targetStatus=ggExpEditStatus(targetX,targetY,ggExplore.material,0);
+        if(ggExpMeshActive)ggExpTargetOutline(targetX,targetY,targetStatus);
+    }
     ggExpRenderCreatures(top);
     // Nearby foliage can pass in FRONT of actual world-depth citizens.
     // Reuse the existing POV scenery selection, no second tile scan.
@@ -1125,6 +1131,7 @@ mesh_world_ready:
     }
     // Smaller brass-bracketed aim marker; it communicates the true
     // editable world target without a huge retro-computer cross.
+    if(!ggExpBuildPreview)return;
     ggExpRect(top,195,115,4,1,34,41,47);
     ggExpRect(top,201,115,4,1,34,41,47);
     ggExpRect(top,195,123,4,1,34,41,47);
@@ -1182,17 +1189,14 @@ mesh_world_ready:
     ggExpText(top,111,202,"Y  CLEAR",239,218,163);
     ggExpText(top,208,202,"X  MATERIAL",239,218,163);
     ggExpText(top,305,202,"B  SPRINT",239,218,163);
-    const char *movement=ggExpBuildPreview?(ggExplore.actorId?
+    const char *movement=ggExplore.actorId?
         "PAD MOVE  L/R LOOK  TAP MAP: SWITCH":
-        "PAD MOVE  L/R LOOK  TAP MAP: TRAVEL"):"PAD MOVE   L/R LOOK";
+        "PAD MOVE  L/R LOOK  TAP MAP: TRAVEL";
     ggExpText(top,9,216,movement,202,217,218);
     ggExpText(top,250,216,"SELECT SAVE  START EXIT",171,197,206);
     snprintf(buf,sizeof buf,"TARGET: %s",ggExpEditReason(targetStatus));
     ggExpText(top,9,229,buf,targetStatus==GG_EDIT_READY?147:236,
               targetStatus==GG_EDIT_READY?221:184,177);
-    if(!ggExpBuildPreview)
-        ggExpText(top,250,229,ggExplore.actorId?"TAP MAP: SWITCH PERSON":
-                                              "TAP MAP: TRAVEL",171,197,206);
     if(ggExplore.feedbackT){
         const char *msg=ggExplore.feedback==2?"TERRAIN CHANGED":
                         ggExplore.feedback==3?ggExpEditReason(ggExplore.editStatus):
