@@ -2003,7 +2003,7 @@ __attribute__((noinline,long_call)) static void winnerRoomMix(s8*outL,s8*outR){
     for(int i=0;i<MUS_N;i++){
         u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16);
         int d=(l+r)>>3;
-        low+=(d-low)>>7;  // ~23 Hz high-pass on room send
+        low+=(d-low)>>4;  // ~185 Hz high-pass: keep bass/kick out of ambience
         int eL=winnerRoom[(rp-1567u)&WINNER_ROOM_MASK]; // ~86ms
         int eR=winnerRoom[(rp-3181u)&WINNER_ROOM_MASK]; // ~175ms
         int feed=((d-low)*3+eL+eR)>>3;
