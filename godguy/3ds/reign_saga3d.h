@@ -440,7 +440,7 @@ static const GgSagaBeat *ggSagaCurrentBeat(int n){
 typedef struct {
     int mode,act,beat,eventX,eventY,anchorX,anchorY;
     int landmarkX,landmarkY,angle,distance,valid;
-    int approachX,approachY; // prevalidated entry tile, fixed for two beats
+    int entryX,entryY; // prevalidated Q8 entry mark, fixed for two beats
     GgFilmCameraTrack camera; // camera corridor also solved once per shot
     int sidesResolved,plusValid,minusValid;
     int pairResolved,pairKind,pairSourceHero;
@@ -452,6 +452,75 @@ static int ggSagaCameraFloor(int x,int y,int elevation,void *user){
     const GgSagaCameraContext *c=(const GgSagaCameraContext*)user;
     return ggChronLand(x,y)&&ggExpGround(world[y][x])==elevation&&
            ggExpLineClear(x,y,c->stageX,c->stageY);
+}
+
+static void ggSagaMeshViewAt(GgMeshContext *camera,int x,int y,int fx,int fy){
+    int eye=ggMeshGroundAtQ8(x,y)+GG_WORLD_EYE_HEIGHT+
+            ((ggExplore.stepPhase/5)&1);
+    ggMeshSetCamera(camera,ggExpScenicQuality,x,y,eye,fx,fy);
+}
+static int ggSagaMeshProject(const GgMeshContext *camera,int wx,int wy,
+                             int *sx,int *feet,int *height){
+    GgMeshCameraVertex base=ggMeshCameraPoint(camera,
+        ggMeshV(wx,wy,ggMeshGroundAtQ8(wx,wy)));
+    if(base.f<camera->near||base.f>16*256)return 0;
+    GgMeshProjected foot=ggMeshProject(camera,base);
+    base.z+=GG_WORLD_PERSON_HEIGHT;
+    GgMeshProjected crown=ggMeshProject(camera,base);
+    *sx=foot.x*camera->scale;
+    *feet=foot.y*camera->scale;
+    *height=(foot.y-crown.y)*camera->scale;
+    int half=(*height*10+31)/32;
+    return *height>=8&&*sx>=half+6&&*sx<400-half-6&&
+           *feet>=34+*height&&*feet<=184;
+}
+static int ggSagaSubjectFits(int cx,int cy,int fx,int fy,int cameraGround,
+                              GgFilmCameraSubject subject,int scale){
+    if(!ggExpMeshEnabled)
+        return ggFilmCameraSubjectFits(cx,cy,fx,fy,cameraGround,subject,scale);
+    GgMeshContext camera;
+    int x,y,height;
+    ggSagaMeshViewAt(&camera,cx,cy,fx,fy);
+    return ggSagaMeshProject(&camera,subject.x,subject.y,&x,&y,&height);
+}
+static void ggSagaKeepCastInFrame(GgFilmCameraTrack *track,
+                                  const GgFilmCameraSubject *cast,
+                                  int count,int fx,int fy,int ground,int scale){
+    if(!ggExpMeshEnabled){
+        ggFilmCameraKeepCastInFrame(track,cast,count,fx,fy,ground,scale);
+        return;
+    }
+    int fullX=track->toX,fullY=track->toY;
+    track->toX=track->fromX;track->toY=track->fromY;
+    // A rounded slope sample can move the boots across the captions
+    // between quarter points even if both endpoints fit.
+    for(int step=1;step<=16;step++){
+        int x=track->fromX+(fullX-track->fromX)*step/16;
+        int y=track->fromY+(fullY-track->fromY)*step/16;
+        GgMeshContext camera;
+        ggSagaMeshViewAt(&camera,x,y,fx,fy);
+        for(int i=0;i<count;i++){
+            int sx,feet,height;
+            if(!ggSagaMeshProject(&camera,cast[i].x,cast[i].y,
+                                   &sx,&feet,&height))return;
+        }
+        track->toX=x;track->toY=y;
+    }
+}
+static int ggSagaMeshEntranceFits(int stageX,int stageY,int entryX,int entryY){
+    int angle=ggSagaShot.angle;
+    for(int local=0;local<=GG_SAGA_BEAT_TICKS/2;local+=6){
+        int x,y;
+        ggFilmCameraTrackAt(&ggSagaShot.camera,0,local,GG_SAGA_BEAT_TICKS,&x,&y);
+        GgMeshContext camera;
+        ggSagaMeshViewAt(&camera,x,y,ggExpCos[angle],ggExpSin[angle]);
+        int remaining=256-ggFilmWalkProgress(0,local,GG_SAGA_BEAT_TICKS);
+        int wx=stageX+(entryX-stageX)*remaining/256;
+        int wy=stageY+(entryY-stageY)*remaining/256;
+        int sx,feet,height;
+        if(!ggSagaMeshProject(&camera,wx,wy,&sx,&feet,&height))return 0;
+    }
+    return 1;
 }
 
 // Paired dialogue lines are one establishing shot, not two unrelated
@@ -544,7 +613,7 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 GgFilmCameraSubject hero={
                     tx*256+128,ty*256+128,ggExpGround(world[ty][tx])
                 };
-                if(!ggFilmCameraSubjectFits(cx,cy,fx,fy,
+                if(!ggSagaSubjectFits(cx,cy,fx,fy,
                          ggExpGround(world[gy][gx]),hero,
                          ggFilmShotScale(d)))continue;
                 int sx=-fy,sy=fx,dx=0,dy=0;
@@ -641,18 +710,27 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                     };
                 }
             }
-            ggFilmCameraKeepCastInFrame(&ggSagaShot.camera,cast,
+            ggSagaKeepCastInFrame(&ggSagaShot.camera,cast,
                   castCount,fx,fy,cameraGround,
                   ggFilmShotScale(ggSagaShot.distance));
         }
         // Instead of walking a few pixels in place, enter from a real
         // neighboring tile toward the camera. One lookup per TWO dialogue
         // beats; no new world or collision checks in the frame renderer.
-        ggSagaShot.approachX=tx;
-        ggSagaShot.approachY=ty;
+        int stageX=tx*256+128,stageY=ty*256+128;
+        int a=ggSagaShot.angle,fx=ggExpCos[a],fy=ggExpSin[a];
+        ggSagaShot.entryX=stageX;
+        ggSagaShot.entryY=stageY;
+        // If the adjacent tile is blocked, use a shorter walk-in on
+        // the stage tile. Tight shots can begin with the hero planted.
+        for(int inset=64;inset>0;inset/=2){
+            int ex=stageX-fx*inset/4096,ey=stageY-fy*inset/4096;
+            if(!ggExpMeshEnabled||ggSagaMeshEntranceFits(stageX,stageY,ex,ey)){
+                ggSagaShot.entryX=ex;ggSagaShot.entryY=ey;
+                break;
+            }
+        }
         if(found&&ggChronLand(tx,ty)){
-            int a=ggSagaShot.angle;
-            int fx=ggExpCos[a],fy=ggExpSin[a];
             int dx=abs(fx)>=abs(fy)?(fx>=0?1:-1):0;
             int dy=dx?0:(fy>=0?1:-1);
             int sx=tx-dx,sy=ty-dy;
@@ -673,14 +751,17 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 GgFilmCameraSubject entrance={
                     sx*256+128,sy*256+128,ggExpGround(world[sy][sx])
                 };
-                if(ggFilmCameraSubjectFits(ggSagaShot.camera.fromX,
+                int fits=ggExpMeshEnabled?
+                    ggSagaMeshEntranceFits(stageX,stageY,entrance.x,entrance.y):
+                    ggSagaSubjectFits(ggSagaShot.camera.fromX,
                        ggSagaShot.camera.fromY,
                        ggExpCos[a],ggExpSin[a],
                        ggExpGround(world[ggSagaShot.camera.fromY>>8]
                                          [ggSagaShot.camera.fromX>>8]),
-                       entrance,ggFilmShotScale(ggSagaShot.distance))){
-                    ggSagaShot.approachX=sx;
-                    ggSagaShot.approachY=sy;
+                       entrance,ggFilmShotScale(ggSagaShot.distance));
+                if(fits){
+                    ggSagaShot.entryX=entrance.x;
+                    ggSagaShot.entryY=entrance.y;
                 }
             }
         }
@@ -700,38 +781,35 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
 // A character's actual Q8 location is projected from the FILM camera,
 // not from the player's temporarily parked first-person camera.
 static int ggSagaProjectActor(int worldX,int worldY,
-                              int *sx,int *feet,int *scale){
+                              int *sx,int *feet,int *height){
     int tx=worldX>>8,ty=worldY>>8;
     if((unsigned)tx>=WW||(unsigned)ty>=WH)return 0;
-    int vx=worldX-ggExplore.px,vy=worldY-ggExplore.py;
-    int a=ggExplore.angle&255;
-    int forward=(vx*ggExpCos[a]+vy*ggExpSin[a])/4096;
-    int side=(-vx*ggExpSin[a]+vy*ggExpCos[a])/4096;
-    if(forward<=80||forward>16*256||
-       abs(side)*4>forward*5||
-       !ggExpLineClear(ggExplore.px>>8,ggExplore.py>>8,tx,ty))
-        return 0;
-    *sx=ggFilmProjectScreenX(side,forward);
+    int cx=ggExplore.px,cy=ggExplore.py;
+    int a=ggExplore.angle&255,fx=ggExpCos[a],fy=ggExpSin[a];
+    if(!ggExpLineClear(cx>>8,cy>>8,tx,ty))return 0;
     if(ggExpMeshEnabled){
-        // Match the actual new polygon camera's vertical perspective;
-        // the legacy inverse ray-column projection floats above sloped
-        // mesh ground, especially near walls and during camera dollies.
-        int quality=ggExpScenicQuality>=2?1:2;
-        int vertical=quality==1?7:4;
-        int horizon=quality==1?116:58;
-        int viewGround=ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]);
-        int personGround=ggExpGround(world[ty][tx]);
-        *feet=(horizon+(viewGround+13-personGround)*
-               vertical*256/forward)*quality;
-    }else{
-        *feet=ggFilmProjectFootY(forward,
-                                ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]),
-                                ggExpGround(world[ty][tx]));
+        // Playback already has the exact rendered view. The pre-render
+        // director and handoff rehearsal also project from a proposed view.
+        const GgMeshContext *camera=&ggMeshContext;
+        GgMeshContext planned;
+        if(!ggExpMeshActive||camera->cx!=cx||camera->cy!=cy||
+           camera->cosine!=fx||camera->sine!=fy){
+            ggSagaMeshViewAt(&planned,cx,cy,fx,fy);
+            camera=&planned;
+        }
+        return ggSagaMeshProject(camera,worldX,worldY,sx,feet,height);
     }
-    // A take, not an individual sprite or per-frame depth rounding,
-    // owns cast scale. All actors share their actual feet plane.
-    *scale=ggFilmShotScale(ggSagaShot.distance);
-    return ggFilmFootSafe(*sx,*feet,*scale);
+    int vx=worldX-ggExplore.px,vy=worldY-ggExplore.py;
+    int forward=(vx*fx+vy*fy)/4096;
+    int side=(-vx*fy+vy*fx)/4096;
+    if(forward<=80||forward>16*256||
+       abs(side)*4>forward*5)return 0;
+    *sx=ggFilmProjectScreenX(side,forward);
+    *feet=ggFilmProjectFootY(forward,ggExpGround(world[cy>>8][cx>>8]),
+                                      ggExpGround(world[ty][tx]));
+    int scale=ggFilmShotScale(ggSagaShot.distance);
+    *height=32*scale;
+    return ggFilmFootSafe(*sx,*feet,scale);
 }
 static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
                                 int *worldX,int *worldY){
@@ -739,11 +817,10 @@ static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
     // then settles at the same world-space mark for the entire response.
     // A blocked lane gets a small same-tile movement instead of
     // clipping through cliffs, houses or other residents.
-    int a=ggSagaShot.angle;
-    ggFilmWalkWorldPosition(stageX,stageY,
-                            ggSagaShot.approachX,ggSagaShot.approachY,
-                            ggExpCos[a],ggExpSin[a],beat,local,
-                            GG_SAGA_BEAT_TICKS,worldX,worldY);
+    int remaining=256-ggFilmWalkProgress(beat,local,GG_SAGA_BEAT_TICKS);
+    int x=stageX*256+128,y=stageY*256+128;
+    *worldX=x+(ggSagaShot.entryX-x)*remaining/256;
+    *worldY=y+(ggSagaShot.entryY-y)*remaining/256;
 }
 // Small, recurring film cast drawn using the same 16x24 authored human
 // cel as the playable adult. Named speakers have stable clothes/hair;
@@ -834,10 +911,43 @@ static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
 static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
     return ggSagaSideTile(tx,ty,1,1,guestX,guestY);
 }
+// Draw the existing poses in their authored coordinates and convert the
+// rectangle edges directly to screen pixels around the same foot anchor.
+// There is no intermediate cel surface or integer zoom change.
+enum { GG_SAGA_ART_SCALE=2, GG_SAGA_ART_HEIGHT=32*GG_SAGA_ART_SCALE };
+static struct {int x,y,height;} ggSagaArt;
+static int ggSagaArtOffset(int pixels,int height){
+    return pixels*height/GG_SAGA_ART_HEIGHT;
+}
+static int ggSagaArtBegin(int x,int y,int height){
+    if(!ggExpMeshEnabled)return height/32;
+    ggSagaArt.x=x;ggSagaArt.y=y;ggSagaArt.height=height;
+    return GG_SAGA_ART_SCALE;
+}
+static void ggSagaArtRect(u8 *out,int x,int y,int w,int h,int r,int g,int b){
+    if(ggSagaArt.height&&w>0&&h>0){
+        int left=ggSagaArtOffset(x-ggSagaArt.x,ggSagaArt.height);
+        int top=ggSagaArtOffset(y-ggSagaArt.y,ggSagaArt.height);
+        w=ggSagaArtOffset(x+w-ggSagaArt.x,ggSagaArt.height)-left;
+        h=ggSagaArtOffset(y+h-ggSagaArt.y,ggSagaArt.height)-top;
+        x=ggSagaArt.x+left;y=ggSagaArt.y+top;
+        // Hair strands, eyes and buckles can still occupy one pixel.
+        if(w<1)w=1;
+        if(h<1)h=1;
+    }
+    ggExpRect(out,x,y,w,h,r,g,b);
+}
+static int ggSagaShadowSize(int pixels){
+    return ggSagaArt.height?
+           ggExpClamp(ggSagaArtOffset(pixels,ggSagaArt.height),1,pixels*3):pixels;
+}
 // Use the same foreground span test for the direct RGB shadow blend.
 #define GG_FILM_SHADOW_MASKED(x,y) ggExpFilmPixelHidden((x),(y))
+#define GG_FILM_SHADOW_SIZE(pixels) ggSagaShadowSize(pixels)
+#define ggExpRect ggSagaArtRect
 #include "film_acting3d.h"
 #undef GG_FILM_SHADOW_MASKED
+#undef GG_FILM_SHADOW_SIZE
 static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
                                 int style,int talking){
     static const u8 palette[6][3][3]={
@@ -943,6 +1053,30 @@ static void ggSagaPropDraw(u8*out,int cx,int feet,int scale,int kind){
         ggExpRect(out,cx-5*s,y-s,10*s,s,79,77,71);
     }
 }
+#undef ggExpRect
+static void ggSagaPairHandAt(int x,int feet,int height,int targetX,
+                             const GgFilmPose *pose,int *hx,int *hy){
+    if(!ggExpMeshEnabled){
+        ggFilmPairHandAt(x,feet,height/32,targetX,pose,hx,hy);
+        return;
+    }
+    int target=x+(targetX-x)*GG_SAGA_ART_HEIGHT/height;
+    ggFilmPairHandAt(x,feet,GG_SAGA_ART_SCALE,target,pose,hx,hy);
+    *hx=x+ggSagaArtOffset(*hx-x,height);
+    *hy=feet+ggSagaArtOffset(*hy-feet,height);
+}
+static int ggSagaPairProjectedContact(int ax,int ay,int ah,int bx,int by,int bh){
+    if(!ggExpMeshEnabled)
+        return ggFilmPairProjectedContact(ax,ay,ah/32,bx,by,bh/32);
+    if(abs(ax-bx)<(ah+bh)/8)return 0;
+    GgFilmPose a={0},b={0};
+    ggFilmPairActPose(&a,ggFilmPairDirection(ax,bx),96);
+    ggFilmPairActPose(&b,ggFilmPairDirection(bx,ax),96);
+    int ahx,ahy,bhx,bhy;
+    ggSagaPairHandAt(ax,ay,ah,bx,&a,&ahx,&ahy);
+    ggSagaPairHandAt(bx,by,bh,ax,&b,&bhx,&bhy);
+    return ggFilmPairTouch(ahx,ahy,bhx,bhy);
+}
 static void ggSagaDraw(u8 *out){
     if(!ggSaga.mode)return;
     int index=ggSaga.mode==GG_SAGA_CHOICE?5:
@@ -1014,7 +1148,7 @@ static void ggSagaDraw(u8 *out){
                 int visibleGuest=ggSagaProjectActor(gwx,gwy,&gx2,&gy2,&gs);
                 ggExplore.px=saveX;ggExplore.py=saveY;
                 if(visibleHero&&visibleGuest&&
-                   ggFilmPairProjectedContact(hx,hy,
+                   ggSagaPairProjectedContact(hx,hy,
                        hs,gx2,gy2,gs)){
                     ggSagaShot.pairKind=cue;
                     ggSagaShot.pairSourceHero=!strcmp(a->voice,"YOU");
@@ -1099,11 +1233,13 @@ static void ggSagaDraw(u8 *out){
         // Hardware-style depth rejection only for the foreground actor
         // primitives, using raycast wall spans already rendered this frame.
         ggExpFilmDrawDepth=item->depth;
+        int scale=ggSagaArtBegin(item->x,item->feet,item->size);
         if(item->kind==GG_STAGE_PROP){
-            ggSagaPropDraw(out,item->x,item->feet,item->size,propKind);
+            ggSagaPropDraw(out,item->x,item->feet,scale,propKind);
         }else if(item->kind==GG_STAGE_HERO){
             int walking=ggSaga.mode!=GG_SAGA_CHOICE&&
-                        !(index&1)&&local<GG_SAGA_BEAT_TICKS/2;
+                        !(index&1)&&local<GG_SAGA_BEAT_TICKS/2&&
+                        (ggSagaShot.entryX!=stageWX||ggSagaShot.entryY!=stageWY);
             GgFilmPose performance=ggFilmPoseFor(spoken?spoken->line:"",
                       index,local,1,
                       spoken&&!strcmp(spoken->voice,"YOU"),walking,propKind);
@@ -1122,13 +1258,13 @@ static void ggSagaDraw(u8 *out){
             if(pairVisible){
                 int toward=ggFilmPairDirection(item->x,partnerItem->x);
                 ggFilmPairActPose(&performance,toward,pairInset);
-                ggFilmPairHandAt(item->x,item->feet,item->size,
+                ggSagaPairHandAt(item->x,item->feet,item->size,
                                  partnerItem->x,&performance,
                                  &heroHandX,&heroHandY);
                 // The object is owned by one partner, not both cels.
                 if(pairKind>=GG_FILM_PAIR_BOOK)performance.holdProp=0;
             }
-            ggFilmDrawActor(out,item->x,item->feet,item->size,
+            ggFilmDrawActor(out,item->x,item->feet,scale,
                             ggOriginHairRGB[ggOrigin.hair],
                             ggOriginSkinRGB[ggOrigin.skin],
                             ggOriginClothesRGB[ggOrigin.garment],
@@ -1155,17 +1291,18 @@ static void ggSagaDraw(u8 *out){
             if(pairVisible&&item->kind==GG_STAGE_GUEST_ONE){
                 int toward=ggFilmPairDirection(item->x,heroItem->x);
                 ggFilmPairActPose(&performance,toward,pairInset);
-                ggFilmPairHandAt(item->x,item->feet,item->size,
+                ggSagaPairHandAt(item->x,item->feet,item->size,
                                  heroItem->x,&performance,
                                  &guestHandX,&guestHandY);
                 if(pairKind>=GG_FILM_PAIR_BOOK)performance.holdProp=0;
             }
-            ggFilmDrawGuestActor(out,item->x,item->feet,item->size,
+            ggFilmDrawGuestActor(out,item->x,item->feet,scale,
                                  ggFilmGuestPalette[style][0],
                                  ggFilmGuestPalette[style][1],
                                  ggFilmGuestPalette[style][2],
                                  &performance,style);
         }
+        ggSagaArt.height=0;
     }
     ggExpFilmDrawDepth=0;
     if(pairVisible){
@@ -1191,12 +1328,14 @@ static void ggSagaDraw(u8 *out){
             int holderHero=ggSagaShot.pairSourceHero!=owner;
             int hx=holderHero?heroHandX:guestHandX;
             int hy=holderHero?heroHandY:guestHandY;
-            int size=holderHero?heroItem->size:partnerItem->size;
+            int height=holderHero?heroItem->size:partnerItem->size;
             const u8 *skin=holderHero?
                  ggOriginSkinRGB[ggOrigin.skin]:
                  ggFilmGuestPalette[primaryGuest][1];
-            ggFilmDrawHeldObject(out,hx,hy,size,
+            int scale=ggSagaArtBegin(hx,hy,height);
+            ggFilmDrawHeldObject(out,hx,hy,scale,
                     pairKind==GG_FILM_PAIR_BOOK?3:4,skin);
+            ggSagaArt.height=0;
         }
     }
     ggExpFilmDrawDepth=0;

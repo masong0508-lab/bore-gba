@@ -11,6 +11,33 @@ static void verify(int ok,const char *name){
 static unsigned char *pixel(int x,int y){
     return image.rgb+(y*400+x)*3;
 }
+static void daylightWall(int cover,int facesSun,unsigned char color[3]){
+    GgMeshContext *m=&ggMeshContext;
+    ggMeshBeginDaylight(m,image.rgb,1,0,0,10,4096,0,49,78,108,cover);
+    verify(!memcmp(pixel(200,m->horizon*m->scale),
+                   (unsigned char[]){m->fogR,m->fogG,m->fogB},3),
+           "distant haze and the sky horizon are different colors");
+    m->material=GG_MAT_STONE;
+    GgMeshVertex a=ggMeshV(512,-96,0),b=ggMeshV(512,96,0),
+                 c=ggMeshV(512,96,20),d=ggMeshV(512,-96,20);
+    if(facesSun)ggMeshQuad(m,a,d,c,b,156,156,156);
+    else ggMeshQuad(m,a,b,c,d,156,156,156);
+    memcpy(color,pixel(200,m->horizon*m->scale),3);
+}
+static void verifyDaylight(void){
+    unsigned char sunny[3],shady[3],overcast[3],overcastShade[3];
+    daylightWall(0,1,sunny);
+    daylightWall(0,0,shady);
+    daylightWall(3,1,overcast);
+    daylightWall(3,0,overcastShade);
+    verify(sunny[0]>shady[0]+60&&sunny[0]>sunny[2]+10,
+           "clear daylight does not bring strong warm light to sun-facing geometry");
+    verify(shady[0]>76&&shady[2]>shady[0]+10,
+           "sky fill does not leave cool readable color on shaded geometry");
+    verify(overcast[0]-overcastShade[0]<sunny[0]-shady[0]-25&&
+           overcastShade[0]>shady[0],
+           "overcast weather does not soften sun and lift shaded surfaces");
+}
 int main(void){
     memset(image.before,0x5a,32);
     memset(image.after,0x6c,32);
@@ -114,11 +141,11 @@ int main(void){
         memset(image.rgb,120,sizeof image.rgb);
         m->opacity=128;
         if(winding){
-            ggMeshRasterProjected(m,shadow[0],shadow[3],shadow[2],28,28,28);
-            ggMeshRasterProjected(m,shadow[0],shadow[2],shadow[1],28,28,28);
+            ggMeshRasterProjected(m,shadow[0],shadow[3],shadow[2],28,28,28,256);
+            ggMeshRasterProjected(m,shadow[0],shadow[2],shadow[1],28,28,28,256);
         }else{
-            ggMeshRasterProjected(m,shadow[0],shadow[1],shadow[2],28,28,28);
-            ggMeshRasterProjected(m,shadow[0],shadow[2],shadow[3],28,28,28);
+            ggMeshRasterProjected(m,shadow[0],shadow[1],shadow[2],28,28,28,256);
+            ggMeshRasterProjected(m,shadow[0],shadow[2],shadow[3],28,28,28,256);
         }
         for(int y=91;y<150;y++)for(int x=151;x<250;x++)
             verify(pixel(x,y)[0]==74&&pixel(x,y)[1]==74&&pixel(x,y)[2]==74,
@@ -135,6 +162,7 @@ int main(void){
     verify(!ggMeshHidden(m,401,100,300)&&
            !ggMeshHidden(m,200,240,300),
            "world-depth mask reads outside viewport");
+    verifyDaylight();
     puts("3DS MESH OK: perspective, near-plane clipping, stable z depth, stereo-ready RGB and 2x low-cost output");
     return 0;
 }

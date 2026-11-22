@@ -2,6 +2,7 @@
 #define GG_STORY_WORLD3D_INTERIOR_H
 
 enum {
+    GG_FILM_PORCH_WINDOW_X=331, GG_FILM_PORCH_WINDOW_Z=1535,
     GG_FILM_PORCH_TABLE_Z=583, GG_FILM_PORCH_TABLE_TOP=36, GG_FILM_PORCH_TABLE_D=74,
     GG_FILM_ARCHIVE_DESK_TOP=55, GG_FILM_ARCHIVE_DESK_Z=840, GG_FILM_ARCHIVE_DESK_D=106,
     GG_FILM_ANVIL_TOP=93, GG_FILM_ANVIL_Z=820, GG_FILM_ANVIL_D=57,
@@ -210,7 +211,7 @@ static void ggFilmPorch(GgFilmCamera cam,int t,int chapter,int winter){
             ggFilmPanel(cam,x,x+(winter?7:3),y,y+(winter?7:15),1550,
                         winter?23:GG_WATER_CREST);
         }
-    ggFilmBox(cam,331,108,1535,333,12,34,24,25,26);
+    ggFilmBox(cam,GG_FILM_PORCH_WINDOW_X,108,GG_FILM_PORCH_WINDOW_Z,333,12,34,24,25,26);
     ggFilmPanel(cam,168,501,250,262,1532,25);
     for(int x=180;x<=492;x+=78)ggFilmPanel(cam,x-4,x+4,112,252,1531,25);
     ggFilmPanel(cam,174,498,182,189,1530,25);

@@ -34,10 +34,11 @@ int main(void){
           hallGlassHeight>=3&&hallGlassHeight<=7,
           "glowing window panel grew into an implausibly large billboard");
     check(ggFilmFacadeFeature(B_HOUSE,125,6)==GG_FACADE_DOOR&&
-          ggFilmFacadeFeature(B_HOUSE,125,11)==GG_FACADE_FRAME,
+          ggFilmFacadeFeature(B_HOUSE,125,GG_WORLD_PERSON_HEIGHT)==GG_FACADE_DOOR&&
+          ggFilmFacadeFeature(B_HOUSE,125,GG_WORLD_DOOR_HEIGHT)==GG_FACADE_FRAME,
           "central wood doorway and lintel not physically separated");
-    check(ggFilmFacadeFeature(B_HALL,125,14)==GG_FACADE_PORTAL&&
-          ggFilmFacadeFeature(B_HALL,125,17)==GG_FACADE_TRIM,
+    check(ggFilmFacadeFeature(B_HALL,125,GG_WORLD_DOOR_HEIGHT+2)==GG_FACADE_PORTAL&&
+          ggFilmFacadeFeature(B_HALL,125,GG_WORLD_DOOR_HEIGHT+4)==GG_FACADE_TRIM,
           "stone entry arch is not a recognizable curved portal");
     check(ggFilmFacadeFeature(B_HOUSE,125,20)==GG_FACADE_BEAM&&
           ggFilmFacadeFeature(B_HALL,100,24)==GG_FACADE_COURSE,

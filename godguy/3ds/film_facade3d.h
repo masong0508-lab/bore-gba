@@ -5,6 +5,7 @@
 // No sprite overlays, heap, textures, or extra world passes.
 #ifndef GG_FILM_FACADE3D_H
 #define GG_FILM_FACADE3D_H
+#include "world_scale3d.h"
 enum { GG_FACADE_WALL,GG_FACADE_COURSE,GG_FACADE_BEAM,
        GG_FACADE_FRAME,GG_FACADE_GLASS,GG_FACADE_DOOR,
        GG_FACADE_TRIM,GG_FACADE_PORTAL,GG_FACADE_SILL,
@@ -48,13 +49,13 @@ static inline int ggFilmFacadeFeature(int build,int u,int height){
     }
     // Tall central door is recessed in actual building wall and
     // capped by an arch/lintel; walls still mask it at other heights.
-    int nearCenter=u>=105&&u<=151;
-    if(nearCenter&&height<=12){
-        if(u<111||u>145||height>=10)return GG_FACADE_FRAME;
+    int nearCenter=u>=88&&u<=168;
+    if(nearCenter&&height<=GG_WORLD_DOOR_HEIGHT){
+        if(u<94||u>162||height>=GG_WORLD_DOOR_HEIGHT-1)return GG_FACADE_FRAME;
         return GG_FACADE_DOOR;
     }
-    if(stone&&nearCenter&&height>=13&&height<=18)
-        return (u>115&&u<141&&height<=15)?
+    if(stone&&nearCenter&&height<=GG_WORLD_DOOR_HEIGHT+5)
+        return (u>115&&u<141&&height<=GG_WORLD_DOOR_HEIGHT+2)?
                   GG_FACADE_PORTAL:GG_FACADE_TRIM;
     // Individual building types have their own architectural identity,
     // rather than treating temples, libraries, towers and timber homes

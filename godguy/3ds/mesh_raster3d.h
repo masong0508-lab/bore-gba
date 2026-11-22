@@ -9,18 +9,26 @@
 #include <string.h>
 #include "mesh_material3d.h"
 enum { GG_MESH_MAX_W=400,GG_MESH_MAX_H=240,GG_MESH_NEAR=96 };
+enum {
+    GG_MESH_SUN_X=-70,GG_MESH_SUN_Y=42,GG_MESH_SUN_Z=30,
+    GG_MESH_NORMAL_HEIGHT=24,GG_MESH_LIGHT_HEIGHT=8
+};
 typedef struct { int x,y,z; } GgMeshVertex;
 typedef struct { int64_t x,y,z; } GgMeshNormal;
-// GodGuy material-lighting contract. Geometry is real 3D and the
-// directional sunlight is computed ONCE PER TRIANGLE, never per pixel.
-// Height is expressed in smaller game-world units than XY; scale it for
-// meaningful architectural, hillside and roof normal response.
+typedef struct { int r,g,b; } GgMeshRgb;
+typedef struct {
+    int cover,sun;
+    GgMeshRgb sky,ground;
+    GgMeshRgb axis[3][2];
+} GgMeshDaylight;
+// The wide cross product supplies polygon lighting and material UVs.
+// Height uses separate game-world units from the Q8 horizontal axes.
 static inline GgMeshNormal ggMeshFaceNormal(GgMeshVertex a,GgMeshVertex b,
                                            GgMeshVertex c){
     int64_t ux=(int64_t)b.x-a.x,uy=(int64_t)b.y-a.y,
-            uz=((int64_t)b.z-a.z)*24;
+            uz=((int64_t)b.z-a.z)*GG_MESH_NORMAL_HEIGHT;
     int64_t vx=(int64_t)c.x-a.x,vy=(int64_t)c.y-a.y,
-            vz=((int64_t)c.z-a.z)*24;
+            vz=((int64_t)c.z-a.z)*GG_MESH_NORMAL_HEIGHT;
     return (GgMeshNormal){uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx};
 }
 static inline int64_t ggMeshNormalAbs(int64_t n){return n<0?-n:n;}
@@ -28,9 +36,8 @@ static inline int ggMeshNormalLight(GgMeshNormal n,int ambient){
     int64_t den=ggMeshNormalAbs(n.x)+ggMeshNormalAbs(n.y)+
                 ggMeshNormalAbs(n.z);
     if(den==0)return ambient;
-    // Stable south-west sun. High, low and unlit faces keep distinct
-    // values even with all textures disabled on an Old 3DS.
-    int directional=(int)((n.x*(-70)+n.y*42+n.z*112)/den);
+    // Neutral lighting used by mesh callers without outdoor daylight.
+    int directional=(int)((n.x*GG_MESH_SUN_X+n.y*GG_MESH_SUN_Y+n.z*112)/den);
     int shade=ambient+directional*3/5;
     return shade<124?124:shade>285?285:shade;
 }
@@ -49,7 +56,7 @@ typedef struct {
     int skyR,skyG,skyB;
     int material,materialSeed,textureSamples;
     int ambientLight;
-    int sunTint; // live daylight colors; neutral by default for other scenes
+    GgMeshDaylight daylight;
     int opacity,blendedFragments;
     int depthBias; // scoped decal tolerance; depth storage remains physical
     int fogR,fogG,fogB,fogMax;
@@ -61,6 +68,7 @@ static GgMeshContext ggMeshContext;
 static inline int ggMeshClamp(int v,int a,int b){
     return v<a?a:v>b?b:v;
 }
+#include "mesh_lighting3d.h"
 #include "mesh_sky3d.h"
 // Distance haze is computed per actual polygon using camera-space
 // forward depth, never as a flat tinted rectangle on top of the HUD.
@@ -70,10 +78,8 @@ static inline int ggMeshFogAmount(int forward,int maxHaze){
     int v=d*maxHaze/(8*256);
     return v>maxHaze?maxHaze:v;
 }
-static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
-                        int quality,int px,int py,int eye,int cosine,int sine,
-                        int skyR,int skyG,int skyB){
-    m->rgb=rgb;m->depth=ggMeshDepthStorage;
+static inline void ggMeshSetCamera(GgMeshContext*m,int quality,int px,int py,
+                                   int eye,int cosine,int sine){
 #ifdef GG_NEW3DS_ONLY
     // Preserve a 400x240 optical camera on New-series hardware even
     // when frame-clock pressure reduces vegetation/material detail.
@@ -93,16 +99,30 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
     m->vertical=quality>=2?7:4;
 #endif
     m->horizon=m->h*29/60;
+}
+static inline void ggMeshBeginDaylight(GgMeshContext*m,unsigned char *rgb,
+                                       int quality,int px,int py,int eye,
+                                       int cosine,int sine,
+                                       int skyR,int skyG,int skyB,int cover){
+    m->rgb=rgb;m->depth=ggMeshDepthStorage;
+    ggMeshSetCamera(m,quality,px,py,eye,cosine,sine);
     m->skyR=skyR;m->skyG=skyG;m->skyB=skyB;
     m->triangles=0;m->fragments=0;m->textureSamples=0;
     m->material=GG_MAT_NONE;m->materialSeed=0;
-    m->ambientLight=212;m->sunTint=0;
+    m->ambientLight=212;
     m->opacity=256;m->blendedFragments=0;m->depthBias=0;
     m->fogR=skyR;m->fogG=skyG;m->fogB=skyB;
     m->fogMax=150;
     m->texBaseU=m->texBaseV=m->groundUV=0;
+    m->daylight.cover=-1;
+    if(cover>=0)ggMeshPrepareDaylight(m,ggMeshClamp(cover,0,3));
     memset(m->depth,0,(size_t)m->w*m->h*sizeof(uint16_t));
     ggMeshSkyFill(m);
+}
+static inline void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
+                               int quality,int px,int py,int eye,int cosine,int sine,
+                               int skyR,int skyG,int skyB){
+    ggMeshBeginDaylight(m,rgb,quality,px,py,eye,cosine,sine,skyR,skyG,skyB,-1);
 }
 static inline GgMeshCameraVertex ggMeshCameraPoint(const GgMeshContext*m,
                                                     GgMeshVertex v){
@@ -142,7 +162,7 @@ static inline GgMeshCameraVertex ggMeshIntersectNear(GgMeshCameraVertex a,
 }
 static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                                   GgMeshProjected b,GgMeshProjected c,
-                                  int r,int g,int bl){
+                                  int r,int g,int bl,int detailGain){
     int x0=a.x,y0=a.y,x1=b.x,y1=b.y,x2=c.x,y2=c.y;
     int area=(x1-x0)*(y2-y0)-(y1-y0)*(x2-x0);
     if(!area)return;
@@ -230,9 +250,9 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                         // not move mortar joints or wood grain.
                         int u=((uvX>>8)/inverse)+m->texBaseU;
                         int v=((uvY>>8)/inverse)+m->texBaseV;
-                        ggMatSample(m->material,u,v,
-                                    (uint32_t)m->materialSeed,
-                                    &tr,&tg,&tb);
+                        ggMatSampleLit(m->material,u,v,
+                                       (uint32_t)m->materialSeed,detailGain,
+                                       &tr,&tg,&tb);
                         m->textureSamples++;
                     }
                     int scale=m->scale,index=((y*scale)*400+x*scale)*3;
@@ -266,19 +286,29 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
 static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
                            GgMeshVertex b,GgMeshVertex c,
                            int r,int g,int bl){
-    GgMeshNormal normal={0,0,0};
-    if(m->material!=GG_MAT_NONE){
-        normal=ggMeshFaceNormal(a,b,c);
-        int sun=ggMeshNormalLight(normal,m->ambientLight);
-        int tint=m->sunTint?(sun-m->ambientLight)/8:0;
-        r=ggMeshClamp(r*sun/256+tint,0,255);
-        g=ggMeshClamp(g*sun/256+tint/3,0,255);
-        bl=ggMeshClamp(bl*sun/256-tint,0,255);
-    }
     GgMeshCameraVertex points[3]={
         ggMeshCameraPoint(m,a),ggMeshCameraPoint(m,b),
         ggMeshCameraPoint(m,c)
     };
+    if(points[0].f<m->near&&points[1].f<m->near&&points[2].f<m->near)return;
+    GgMeshNormal normal={0,0,0};
+    int detailGain=256;
+    int daylight=m->daylight.cover>=0;
+    if(m->material!=GG_MAT_NONE){
+        normal=ggMeshFaceNormal(a,b,c);
+        if(daylight){
+            GgMeshRgb gain=ggMeshDaylightGain(m,normal);
+            r=ggMeshClamp(r*gain.r/256,0,255);
+            g=ggMeshClamp(g*gain.g/256,0,255);
+            bl=ggMeshClamp(bl*gain.b/256,0,255);
+            detailGain=ggMeshClamp(gain.g,110,256);
+        }else{
+            int sun=ggMeshNormalLight(normal,m->ambientLight);
+            r=ggMeshClamp(r*sun/256,0,255);
+            g=ggMeshClamp(g*sun/256,0,255);
+            bl=ggMeshClamp(bl*sun/256,0,255);
+        }
+    }
     if(m->material!=GG_MAT_NONE&&m->scale==1&&
        m->detailQuality>=2){
         // Project the two halves of a plane from the same axes, even
@@ -323,6 +353,7 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
             r=(r*(256-haze)+m->fogR*haze)/256;
             g=(g*(256-haze)+m->fogG*haze)/256;
             bl=(bl*(256-haze)+m->fogB*haze)/256;
+            if(daylight)detailGain=detailGain*(256-haze)/256;
         }
     }
     GgMeshCameraVertex clipped[5];
@@ -341,7 +372,7 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
             ggMeshProject(m,clipped[i]),
             ggMeshProject(m,clipped[i+1]),
             ggMeshClamp(r,0,255),ggMeshClamp(g,0,255),
-            ggMeshClamp(bl,0,255));
+            ggMeshClamp(bl,0,255),detailGain);
 }
 static inline GgMeshVertex ggMeshV(int x,int y,int z){
     GgMeshVertex v={x,y,z};return v;

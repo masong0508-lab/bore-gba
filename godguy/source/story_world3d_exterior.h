@@ -52,10 +52,13 @@ static void ggFilmHouse(GgFilmCamera cam,int x,int z,int w,int h,int lit,int fin
         }
     }
     ggFilmBox(cam,x,h-6,f-8,w+27,9,15,24,25,26);
-    ggFilmPanel(cam,x-21,x+21,5,81,f-5,24);
-    ggFilmPanel(cam,x-16,x+16,9,76,f-6,25);
-    ggFilmPanel(cam,x+12,x+15,36,43,f-7,10);
-    ggFilmBox(cam,x,0,f-15,56,9,30,GG_STONE,20,GG_LIMESTONE);
+    // The 130-unit adult cast can use this doorway at the same depth.
+    ggFilmPanel(cam,x-42,x+42,5,156,f-5,24);
+    ggFilmPanel(cam,x-36,x+36,9,150,f-6,25);
+    ggFilmPanel(cam,x-19,x-17,10,148,f-7,24);
+    ggFilmPanel(cam,x+14,x+16,10,148,f-7,24);
+    ggFilmPanel(cam,x+27,x+32,70,79,f-7,10);
+    ggFilmBox(cam,x,0,f-15,98,9,30,GG_STONE,20,GG_LIMESTONE);
     for(int side=-1;side<=1;side+=2){
         int wx=x+side*w/3;
         ggFilmPanel(cam,wx-20,wx+20,83,128,f-6,24);

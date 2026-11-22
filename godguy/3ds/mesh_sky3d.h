@@ -24,14 +24,23 @@ static inline void ggMeshSkySpan(GgMeshContext *m,int y,int x0,int x1,
 }
 
 static inline void ggMeshSkyFill(GgMeshContext *m){
-    // A broad blue zenith opens into a pale warm horizon. Compute the
-    // curve once per scanline, rather than repeating a shader per pixel.
+    // Atmospheric haze shares the sky's horizon color. Let weather
+    // soften the zenith before the scanline blend, with one RGB pass.
+    int cover=m->daylight.cover;
+    int zenithR=m->skyR+11,zenithG=m->skyG+28,zenithB=m->skyB+45;
+    int horizonR=zenithR+110,horizonG=zenithG+79,horizonB=zenithB+43;
+    if(cover>=0){
+        zenithR=m->skyR+8+cover*12;
+        zenithG=m->skyG+34+cover*8;
+        zenithB=m->skyB+61+cover*3;
+        horizonR=m->fogR;horizonG=m->fogG;horizonB=m->fogB;
+    }
     for(int y=0;y<m->h;y++){
         int t=ggMeshClamp(y*256/m->horizon,0,256);
         int air=t*(512-t)/256;
-        int r=ggMeshClamp(m->skyR+11+110*air/256,0,255);
-        int g=ggMeshClamp(m->skyG+28+79*air/256,0,255);
-        int b=ggMeshClamp(m->skyB+45+43*air/256,0,255);
+        int r=ggMeshClamp(zenithR+(horizonR-zenithR)*air/256,0,255);
+        int g=ggMeshClamp(zenithG+(horizonG-zenithG)*air/256,0,255);
+        int b=ggMeshClamp(zenithB+(horizonB-zenithB)*air/256,0,255);
         unsigned char *p=m->rgb+y*m->scale*400*3;
         for(int x=0;x<400;x++){
             p[x*3]=(unsigned char)r;p[x*3+1]=(unsigned char)g;
@@ -58,20 +67,22 @@ static inline void ggMeshSkyOval(GgMeshContext *m,int cx,int cy,
     }
 }
 
-static inline void ggMeshSkyWeather(GgMeshContext *m,int frame,int cover){
-    // Sun direction matches the physical polygon light (-70,+42,+112).
-    // It moves across the image when the player turns, not with the HUD.
-    int forward=(-70*m->cosine+42*m->sine)/4096;
-    int side=(70*m->sine+42*m->cosine)/4096;
+static inline void ggMeshSkyWeather(GgMeshContext *m,int frame){
+    // The sun and the direct light use the same world-space direction.
+    int cover=m->daylight.cover;
+    int sun=m->daylight.sun;
+    int forward=(GG_MESH_SUN_X*m->cosine+GG_MESH_SUN_Y*m->sine)/4096;
+    int side=(-GG_MESH_SUN_X*m->sine+GG_MESH_SUN_Y*m->cosine)/4096;
     if(forward>20&&cover<3){
         int x=m->w/2+side*m->focal/forward;
-        int y=m->horizon-(m->h*11/60)*82/forward;
+        int rise=m->vertical*256*GG_MESH_SUN_Z/GG_MESH_LIGHT_HEIGHT;
+        int y=m->horizon-rise/forward;
         int radius=7/m->scale;
         if(radius<2)radius=2;
-        ggMeshSkyOval(m,x,y,radius*5,radius*5,242,211,157,13);
-        ggMeshSkyOval(m,x,y,radius*3,radius*3,255,226,171,24);
-        ggMeshSkyOval(m,x,y,radius+2,radius+2,255,232,184,68);
-        ggMeshSkyOval(m,x,y,radius,radius,255,245,212,244);
+        ggMeshSkyOval(m,x,y,radius*5,radius*5,246,216,171,20*sun/256);
+        ggMeshSkyOval(m,x,y,radius*3,radius*3,255,228,182,36*sun/256);
+        ggMeshSkyOval(m,x,y,radius+2,radius+2,255,237,190,80*sun/256);
+        ggMeshSkyOval(m,x,y,radius,radius,255,247,216,244*sun/256);
     }
     // Sixteen directions describe one continuous sky dome. Interpolated
     // angular wind wraps without a reset/pop; no camera-position grid
@@ -83,7 +94,6 @@ static inline void ggMeshSkyWeather(GgMeshContext *m,int frame,int cover){
         {0,-4096},{1567,-3784},{2896,-2896},{3784,-1567}
     };
     int wind=(int)(((uint32_t)frame/32u)&4095u);
-    cover=ggMeshClamp(cover,0,3);
     for(int bank=0;bank<16;bank++){
         if(cover==0&&(bank&1))continue;
         int phase=(bank*256+wind)&4095;
@@ -99,9 +109,11 @@ static inline void ggMeshSkyWeather(GgMeshContext *m,int frame,int cover){
         int height=(7+(bank*7)%6)/m->scale;
         if(height<2)height=2;
         int tint=cover*4;
-        int cr=223-tint+(m->skyR-49)/3;
-        int cg=227-tint+(m->skyG-78)/3;
-        int cb=222-tint/2+(m->skyB-108)/3;
+        int sunward=(wx*GG_MESH_SUN_X+wy*GG_MESH_SUN_Y)/4096;
+        int flare=ggMeshClamp(sunward,0,82)*sun/1024;
+        int cr=223-tint+(m->skyR-49)/3+flare;
+        int cg=227-tint+(m->skyG-78)/3+flare/2;
+        int cb=222-tint/2+(m->skyB-108)/3-flare/3;
         int opacity=cover==3?230:206;
         // Cool, wide undersides support overlapping warm lit shoulders.
         // Each bank has only five small clipped ovals at either quality.

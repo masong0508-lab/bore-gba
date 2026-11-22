@@ -5,6 +5,84 @@
 static void meshRequire(int good,const char*why){
     if(!good){fprintf(stderr,"3DS WORLD MESH FAIL: %s\n",why);exit(1);}
 }
+static void meshHumanPerspective(unsigned char *pixels){
+    GgMeshContext*m=&ggMeshContext;
+    static const unsigned char coat[3][3]={{14,12,9},{5,5,6},{21,16,12}};
+    for(int axis=0;axis<2;axis++)for(int forward=384;forward<=1536;forward*=2){
+        int cos=axis?0:4096,sin=axis?4096:0;
+        ggMeshBegin(m,pixels,2,0,0,13,cos,sin,42,65,89);
+        m->fogMax=0;
+        if(axis)ggMeshWindow(m,-100,100,forward,1,0,25);
+        else ggMeshSideFacade(m,forward,1,-100,100,0,25);
+        int door=0;
+        for(int y=0;y<240;y++){
+            const unsigned char *ink=pixels+((y*400+200)*3);
+            if(ink[0]==(axis?42:46)&&ink[1]==(axis?45:51)&&ink[2]==(axis?53:58))door++;
+        }
+        ggMeshBegin(m,pixels,2,0,0,13,cos,sin,42,65,89);
+        m->fogMax=0;
+        ggMeshPersonDraw(m,axis?0:forward,axis?forward:0,0,forward,0,
+                         1001,4,128+axis*64,60,0,coat);
+        int first=240,last=-1;
+        for(int y=0;y<240;y++)for(int x=120;x<280;x++)if(m->depth[y*400+x]){
+            if(y<first)first=y;
+            if(y>last)last=y;
+        }
+        int person=last-first+1;
+        if(door<12||person*100<door*70||person*100>door*96)
+            fprintf(stderr,"Facade axis %d at %d: adult %d px, door %d px\n",
+                    axis,forward,person,door);
+        meshRequire(door>=12&&person*100>=door*70&&person*100<=door*96,
+                    "resident and doorway do not share realistic proportions at equal depth");
+        GgMeshProjected foot=ggMeshProject(m,(GgMeshCameraVertex){forward,0,0,0,0});
+        meshRequire(last>=foot.y-2&&last<foot.y,
+                    "perspective scaling lifted the resident's shoes off their ground point");
+    }
+    int near=ggMeshPersonHeight(m,192,0),far=ggMeshPersonHeight(m,384,0);
+    meshRequire(abs(near-2*far)<=3,
+                "a hard close-up size cap changes the resident's perspective");
+    int frontRed=0;
+    for(int turn=0;turn<2;turn++){
+        int facing=turn?4096:-4096;
+        ggExpScenicQuality=2;
+        ggExplore.angle=turn?0:128;
+        ggMeshBeginDaylight(m,pixels,2,0,0,13,facing,0,64,98,141,1);
+        ggMeshPersonDraw(m,turn?600:-600,0,0,600,0,
+                         1001,4,turn?128:0,60,0,coat);
+        int red=ggMeshPersonCel.palette[GG_P_COAT_M][0];
+        if(turn)meshRequire(red>frontRed,"resident colors ignore the world's sunlight direction");
+        else frontRed=red;
+    }
+}
+static void meshEntrances(unsigned char *pixels){
+    GgMeshContext*m=&ggMeshContext;
+    int x=65*256,y=64*256;
+    for(int ty=63;ty<=65;ty++)world[ty][64]=T_HILL;
+    int floor=ggMeshGroundAtQ8(x+19,y+128);
+    int nominal=ggExpGround(T_GRASS);
+    meshRequire(floor>nominal+3,"door test needs an uphill threshold");
+    ggMeshBegin(m,pixels,2,x+19-384,y+128,floor+13,4096,0,42,65,89);
+    m->fogMax=0;
+    ggMeshBuilding(m,65,64,B_HOUSE,nominal,1);
+    int last=-1;
+    for(int line=0;line<240;line++){
+        const unsigned char *p=pixels+((line*400+200)*3);
+        if(p[0]==46&&p[1]==51&&p[2]==58)last=line;
+    }
+    GgMeshProjected step=ggMeshProject(m,(GgMeshCameraVertex){384,0,floor,0,0});
+    meshRequire(last>=step.y-2&&last<=step.y+2,
+                "sloped ground buries part of the intended doorway");
+    for(int ty=63;ty<=65;ty++)world[ty][64]=T_GRASS;
+    ggMeshBegin(m,pixels,2,x+128,y+19-384,nominal+13,0,4096,42,65,89);
+    m->fogMax=0;
+    ggMeshBuilding(m,65,64,B_TEMPLE,nominal,1);
+    int open=0;
+    for(int line=0;line<240;line++){
+        const unsigned char *p=pixels+((line*400+200)*3);
+        if(p[0]==42&&p[1]==45&&p[2]==53)open++;
+    }
+    meshRequire(open>65,"the central portico post blocks the temple entrance");
+}
 static void meshRoundGeometryRegression(unsigned char *pixels){
     // Exercise the real final facet of every circular world primitive.
     // In particular, the six/eight-sided closing vertex used to read
@@ -52,6 +130,8 @@ int main(void){
     bld[64][67]=B_HALL;bld[66][69]=B_HOUSE;
     bld[63][70]=B_TEMPLE;
     static unsigned char pixels[400*240*3];
+    meshHumanPerspective(pixels);
+    meshEntrances(pixels);
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
                 "cinema is still a raycast image, not 3D mesh geometry");
@@ -138,7 +218,7 @@ int main(void){
                 "world-anchored procedural people have incorrect turn directions");
     meshRequire(ggMeshPersonWidth(48)==32&&
                 ggMeshPersonWidth(96)==64&&
-                ggMeshPersonWidth(152)==96,
+                ggMeshPersonWidth(192)==128,
                 "3DS citizens have horizontally squashed faces and body sprites");
     occ[64][66]=0;nCr=0;
     // Replace one cell with a steep mountain while its neighbors remain

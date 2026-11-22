@@ -36,7 +36,7 @@ static int ggExpLineClear(int fromX,int fromY,int x,int y){
     int dx=x-fromX,dy=y-fromY;
     int n=abs(dx)>abs(dy)?abs(dx):abs(dy);
     if(n<=1)return 1;
-    int here=ggExpGround(world[fromY][fromX])+13;
+    int here=ggExpGround(world[fromY][fromX])+GG_WORLD_EYE_HEIGHT;
     int there=ggExpGround(world[y][x])+19;
     for(int q=1;q<n;q++){
         int tx=fromX+dx*q/n,ty=fromY+dy*q/n;
@@ -119,7 +119,7 @@ static void ggExpRenderCreatures(u8 *top){
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
     int yaw=ggExplore.angle&255;
     int forwardX=ggExpCos[yaw],forwardY=ggExpSin[yaw];
-    int eye=ggExpGround(world[py][px])+13;
+    int eye=ggExpGround(world[py][px])+GG_WORLD_EYE_HEIGHT;
     GgExpNPC draw[GG_EXP_MAX_VISIBLE];
     int count=0;
     ggExpNpcsDrawn=0;
@@ -171,11 +171,6 @@ static void ggExpRenderCreatures(u8 *top){
         int shape=arch[si].shape;
         if(shape<0||shape>=SHAPE_N)continue;
         int fam=creatureFamily(c)&15;
-        int size=160*256/(npc.forward+256);
-        if(size>72)size=72;
-        int scale=size/8;
-        if(scale<1)scale=1;
-        int sx,feet;
         int ground=ggExpGround(world[c->y][c->x]);
         if(ggExpMeshActive){
             // Person: authored 32x48 procedural anatomical sprite with
@@ -226,20 +221,24 @@ static void ggExpRenderCreatures(u8 *top){
             ggExpNpcsDrawn++;
             continue;
         }
+        int scale=ggExpClamp(20*256/(npc.forward+256),1,9);
+        int height=scale*8,width=height;
+        if(arch[si].diet==4){
+            height=ggFilmProjectHeight(npc.forward,GG_WORLD_PERSON_HEIGHT);
+            // The legacy 8x8 figure fills more of its canvas than the
+            // native 32x48 cel, so its projected panel is narrower.
+            width=height/2;
+        }
         int walkBob=ggExplore.stepPhase?
                     ((ggExplore.stepPhase/5)&1):0;
-        ggExpNpcProject(npc.forward,npc.side,eye-13,ground,
-                        walkBob,scale,&sx,&feet);
-        if(ggExpMeshActive){
-            GgMeshCameraVertex point={npc.forward,npc.side,ground};
-            GgMeshProjected projected=ggMeshProject(&ggMeshContext,point);
-            sx=projected.x*ggMeshContext.scale-4*scale;
-            feet=projected.y*ggMeshContext.scale+walkBob*2;
-        }
-        if(sx>=400||sx+8*scale<0||feet-8*scale>=240||feet<0)
+        int sx,feet;
+        ggExpNpcProject(npc.forward,npc.side,eye-GG_WORLD_EYE_HEIGHT,
+                        ground,walkBob,0,&sx,&feet);
+        sx-=width/2;
+        if(width<3||height<5||sx>=400||sx+width<0||feet-height>=240||feet<0)
             continue;
         ggExpFilmDrawDepth=npc.forward;
-        ggExpNpcContactShade(top,sx+4*scale,feet,scale*6);
+        ggExpNpcContactShade(top,sx+width/2,feet,width*3/4);
         int pose=((ggExplore.frame>>4)+npc.index)&1;
         for(int y=0;y<8;y++){
             const char *row=shpRow(shape,pose,y);
@@ -250,15 +249,17 @@ static void ggExpRenderCreatures(u8 *top){
                 int r=col==3?246:famCol[fam][col][0]*8;
                 int g=col==3?244:famCol[fam][col][1]*8;
                 int b=col==3?225:famCol[fam][col][2]*8;
-                int xx=sx+x*scale,yy=feet-(8-y)*scale;
-                ggExpRect(top,xx,yy,scale,scale,r,g,b);
+                int xx=sx+x*width/8,yy=feet-height+y*height/8;
+                int w=sx+(x+1)*width/8-xx,h=feet-height+(y+1)*height/8-yy;
+                if(!w||!h)continue;
+                ggExpRect(top,xx,yy,w,h,r,g,b);
                 // Two subtle world-light edges at high magnification,
                 // preserving the source game's real 8x8 creature shape
                 // without ballooning it into a featureless colored cube.
-                if(scale>=4&&col!=3){
-                    ggExpRect(top,xx,yy,1,scale,
+                if(w>=4&&h>=4&&col!=3){
+                    ggExpRect(top,xx,yy,1,h,
                               r*5/6,g*5/6,b*5/6);
-                    ggExpRect(top,xx+scale-1,yy,1,scale,
+                    ggExpRect(top,xx+w-1,yy,1,h,
                               r*3/4,g*3/4,b*3/4);
                 }
             }
