@@ -41,6 +41,7 @@ typedef struct {
     int material,materialSeed,textureSamples;
     int ambientLight;
     int opacity,blendedFragments;
+    int depthBias; // scoped decal tolerance; depth storage remains physical
     int fogR,fogG,fogB,fogMax;
     int texBaseU,texBaseV;
     int detailQuality; // independent of native 400x240 pixel geometry
@@ -50,6 +51,7 @@ static GgMeshContext ggMeshContext;
 static inline int ggMeshClamp(int v,int a,int b){
     return v<a?a:v>b?b:v;
 }
+#include "mesh_sky3d.h"
 // Distance haze is computed per actual polygon using camera-space
 // forward depth, never as a flat tinted rectangle on top of the HUD.
 static inline int ggMeshFogAmount(int forward,int maxHaze){
@@ -85,30 +87,12 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
     m->triangles=0;m->fragments=0;m->textureSamples=0;
     m->material=GG_MAT_NONE;m->materialSeed=0;
     m->ambientLight=212;
-    m->opacity=256;m->blendedFragments=0;
+    m->opacity=256;m->blendedFragments=0;m->depthBias=0;
     m->fogR=skyR;m->fogG=skyG;m->fogB=skyB;
     m->fogMax=150;
     m->texBaseU=m->texBaseV=0;
     memset(m->depth,0,(size_t)m->w*m->h*sizeof(uint16_t));
-    // At low quality, directly write 2x2 pixels to the sole RGB screen.
-    // Sky grading reuses the climate palette; no per-pixel atmosphere LUT.
-    for(int y=0;y<m->h;y++){
-        int r=ggMeshClamp(skyR+y/8,0,255);
-        int g=ggMeshClamp(skyG+y/6,0,255);
-        int b=ggMeshClamp(skyB+y/5,0,255);
-        for(int x=0;x<m->w;x++){
-            int stride=m->w==400?1:2;
-            int index=((y*stride)*400+x*stride)*3;
-            for(int dy=0;dy<stride;dy++){
-                unsigned char *line=m->rgb+index+dy*400*3;
-                for(int dx=0;dx<stride;dx++){
-                    line[dx*3]=(unsigned char)r;
-                    line[dx*3+1]=(unsigned char)g;
-                    line[dx*3+2]=(unsigned char)b;
-                }
-            }
-        }
-    }
+    ggMeshSkyFill(m);
 }
 static inline GgMeshCameraVertex ggMeshCameraPoint(const GgMeshContext*m,
                                                     GgMeshVertex v){
@@ -219,7 +203,12 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
             if(w0>=edge0&&w1>=edge1&&w2>=edge2){
                 int inverse=(iz+2048)>>12;
                 int slot=y*m->w+x;
-                if(inverse>0&&inverse>m->depth[slot]){
+                // Facade layers separated by a few world units can
+                // round to the same 16-bit inverse depth. A bounded
+                // one-unit comparison tolerance permits that equality;
+                // it never passes a genuinely nearer depth value, and
+                // stored depth remains unbiased for actors and scenery.
+                if(inverse>0&&inverse+(m->depthBias>0?1:0)>m->depth[slot]){
                     // A translucent contact decal shades geometry but
                     // is not itself solid occluding geometry. Writing its
                     // depth made subsequently drawn walls and people clip

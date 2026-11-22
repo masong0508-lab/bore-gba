@@ -30,13 +30,16 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
     int shade=0;
     switch(mat){
     case GG_MAT_MEADOW:{
-        int patch=(int)((block>>8)&7u);
-        shade=patch<2?-14:patch>5?8:grain/2;
-        // Individual blades and wildseed highlights, anchored to land.
-        if(((u*5+v*13+(int)(seed&31u))&31)<2 &&
-           ((v+(int)(block&7u))&15)<8){
-            rr+=9;gg+=21;bb+=4;
-        }
+        // Broad low-contrast growth bands cross tile boundaries. Tiny
+        // clustered blades sit over that coherent colour, so distant
+        // meadows read as land instead of random square paving slabs.
+        int wave=(u+v/3+(int)(seed&63u))&127;
+        wave=wave<64?wave:127-wave;
+        shade=(wave-32)/7+grain/3;
+        int tuftU=(u+(int)((block>>12)&7u))&15;
+        int tuftV=(v+(int)((block>>17)&7u))&15;
+        if(tuftU<2&&tuftV<5){rr-=4;gg+=8;bb-=3;}
+        if(tuftU==2&&tuftV==1){rr+=7;gg+=12;bb+=2;}
         break;
     }
     case GG_MAT_STONE:{
@@ -45,17 +48,17 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
         int uu=u+stagger;
         int mortar=(v%22+22)%22<2||
                    (uu%49+49)%49<2;
-        shade=mortar?-38:grain/2;
+        shade=mortar?-24:grain/3;
         if(!mortar&&((block>>13)&15u)<2u){
-            rr-=10;gg-=11;bb-=9; // age, veins and stone discoloration
+            rr-=6;gg-=7;bb-=5; // softly weathered masonry, not black pockmarks
         }
         break;
     }
     case GG_MAT_WOOD:{
         int plank=(u%29+29)%29;
-        shade=plank<2?-42:grain/2;
+        shade=plank<2?-24:grain/3;
         if(!((v*7+u*3+(int)(seed&15u))&31))
-            shade-=16; // longitudinal fibres
+            shade-=8; // longitudinal fibres
         int knotU=plank-13;
         int knotV=(v%41+41)%41-21;
         if(knotU*knotU*2+knotV*knotV<28)
@@ -67,13 +70,15 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
         int row=(v%19+19)%19;
         int course=(v/19)&1;
         int edge=(u+(course?13:0))%31;
-        shade=row<2?-32:edge<2?-17:grain;
+        shade=row<2?-22:edge<2?-12:grain/2;
         if(row<4){rr+=6;gg+=3;}
         break;
     }
     case GG_MAT_SAND:{
-        shade=grain/2;
-        if(((u+v/4)&31)<2)shade+=8;
+        int dune=(u+v/3)&63;
+        dune=dune<32?dune:63-dune;
+        shade=(dune-16)/4+grain/3;
+        if(((u+v/4)&31)<2)shade+=5;
         rr+=4;gg+=2;bb-=3;
         break;
     }
@@ -85,21 +90,23 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
     }
     case GG_MAT_ROCK:{
         int strata=(v+u/7)&31;
-        shade=strata<3?-25:grain;
-        if(((block>>11)&7u)==0u)shade-=13;
+        shade=strata<3?-12:grain/2;
+        if(((block>>11)&7u)==0u)shade-=6;
         break;
     }
     case GG_MAT_WATER:{
-        int ripple=(u+v/3+(int)(seed&15u))&63;
-        shade=ripple<4?18:grain/4;
-        if(ripple<3){gg+=8;bb+=19;}
+        int bend=(v>>3)&15;
+        bend=bend<8?bend:15-bend;
+        int ripple=(u+v/4+bend+(int)(seed&15u))&63;
+        shade=ripple<3?12:grain/4;
+        if(ripple<2&&((v>>4)&3)!=0){gg+=8;bb+=12;}
         break;
     }
     case GG_MAT_LEAVES:{
         int pocket=(int)((block>>10)&7u);
-        shade=pocket==0?-25:pocket>=6?13:grain/2;
-        if(((u+v*3+(int)(seed&7u))&31)<4)
-            gg+=10;
+        shade=pocket==0?-13:pocket>=6?9:grain/3;
+        if(((u+v*3+(int)(seed&7u))&31)<3)
+            {rr+=5;gg+=9;bb+=2;}
         break;
     }
     case GG_MAT_FABRIC:

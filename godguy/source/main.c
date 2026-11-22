@@ -340,7 +340,8 @@ static void genWorldOld(u32 seed){   // (the old generator, replaced by worldgen
 }
 
 // ---------------------------------------------------------------------------------------------- tiles (generated), palette
-static const u8 terrCol[T_N+3][3]={ {2,5,16},{4,12,26},{28,25,14},{8,22,6},{3,13,4},{16,14,8},{15,15,17},{28,30,31},{31,9,2},{29,22,11},{7,14,10},{3,17,9},{18,12,6} ,{14,4,18},{30,11,2},{22,13,29} };
+#include "terrain_palette.h"
+static const u8 terrCol[T_N+3][3]=GG_TERRAIN_COLORS;
 static int tilePixOld(int t,int v,int x,int y){   // (the old ground art, replaced by gfx2.h)
     int n=(int)(hsh(x+v*8,y+t*16,t)&7); int c=3+(n>>1)-(n==0); if(c<0) c=0; if(c>7) c=7; int pix=t*8+c;
     if(t==T_WATER||t==T_DEEP){ int w=((x+v*2)&7)==(y&7)||((x+v*2+4)&7)==((y+3)&7); if(w&&t==T_WATER) pix=t*8+6; else if(w) pix=t*8+4; }
@@ -353,14 +354,27 @@ static int tilePixOld(int t,int v,int x,int y){   // (the old ground art, replac
     if(t==T_SWAMP&&n>5) pix=T_WATER*8+3;
     return pix;
 }
-static void shadeRGB(int idx,int*r,int*g,int*b){ int t=idx/8,k=idx%8,f=60+k*20; *r=terrCol[t][0]*f/160; *g=terrCol[t][1]*f/160; *b=terrCol[t][2]*f/160; if(*r>31)*r=31; if(*g>31)*g=31; if(*b>31)*b=31; }
+static void shadeRGB(int idx,int*r,int*g,int*b){
+    int t=idx/8,k=idx%8;
+    // Deliberate RGB ramps retain color in shadows. The sea uses narrow
+    // crest steps so palette animation reads as ripples, not flashing noise.
+    static const u8 sea[2][8][3]={
+        {{2,6,11},{2,8,13},{3,10,16},{4,12,18},{5,13,19},{6,14,20},{7,15,21},{9,17,22}},
+        {{4,12,16},{5,15,19},{6,17,21},{7,19,22},{9,21,24},{14,24,26},{18,27,28},{24,30,29}}
+    };
+    if(t<=T_WATER){*r=sea[t][k][0];*g=sea[t][k][1];*b=sea[t][k][2];return;}
+    int f=86+k*18;
+    *r=terrCol[t][0]*f/158;*g=terrCol[t][1]*f/158;*b=terrCol[t][2]*f/158;
+    if(k<3)*b+=(3-k)/2;else if(k>4){*r+=(k-4)/2;*g+=(k-4)/3;}
+    if(*r>31)*r=31;if(*g>31)*g=31;if(*b>31)*b=31;
+}
 // buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
 enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_TEMPLE, B_STATUE, B_LIBRARY, B_BORDER, B_N };
 #define BT0 (T_N*4)
 #define BT1 124      // the tiles of the later buildings (dock .. library, 8 a type: 124..155), after the meadow tiles at 108..123
 #define BTILE(b,r) ((b)<B_DOCK?BT0+(b)*8+(r):BT1+((b)-B_DOCK)*8+(r))
-static const u8 roofCol[8][3]={ {27,4,4},{6,22,8},{8,14,26},{14,3,3},{28,24,4},{29,15,3},{20,8,26},{14,9,4} };   // human elf dwarf orc goblin halfling gnome ogre
-static const u8 bldCol[8][3]={ {27,22,14},{14,10,5},{16,16,19},{20,20,22},{4,24,6},{12,8,3},{10,10,12},{31,31,31} };   // wall, dark wood, door, stone, crop, soil, ruin, flag
+static const u8 roofCol[8][3]={ {25,11,8},{11,21,15},{12,17,25},{16,11,10},{25,23,12},{27,17,10},{20,14,25},{18,14,10} };   // human elf dwarf orc goblin halfling gnome ogre
+static const u8 bldCol[8][3]={ {29,26,19},{12,9,7},{14,12,12},{23,24,24},{14,25,11},{15,11,8},{13,15,15},{31,30,24} };   // wall, dark wood, door, stone, crop, soil, ruin, flag
 #include "gfx2.h"
 static int bldPixOld(int type,int race,int x,int y){   // (the old building art)
     int bg=tilePix(T_GRASS,(x+y)&3,x,y), roof=128+race, wall=136, dark=137, door=138, stone=139, crop=140, soil=141, ruin=142, flag=143;
@@ -412,9 +426,20 @@ static inline int bioPix(int p,int b){ return (b&&p<T_N*8)?BIO_PAL+(b-1)*8+(p&7)
 static int edgePix(int t,int n,int mask,int v,int foam,int x,int y){   // one pixel of a transition tile: ground t with a dithered fringe of n along the sides in mask (or a foam line on a shore)
     int px=tilePix(t,v,x,y); int d=9;
     if(mask&1) if(y<d) d=y; if(mask&2) if(7-x<d) d=7-x; if(mask&4) if(7-y<d) d=7-y; if(mask&8) if(x<d) d=x;
-    int h=(int)(hsh(x+v*8,y+t*3+n*7,21)&7);
-    if(foam){ if(d==0&&h<5) px=T_WATER*8+7; else if(d==1&&h<2) px=T_WATER*8+7; }
-    else if(d<4&&h<(4-d)*2-(d==0?0:1)+(d==0?1:0)) px=tilePix(n,(x+y+v)&3,x,y);
+    int along=(mask&5)?x:y;
+    // Continuous contour with occasional two-pixel breaks. A darker wet
+    // band separates surf from open sea; no glittering random white dots.
+    if(foam){
+        if(d==0)px=SH(T_WATER,7);
+        else if(d==1)px=SH(T_WATER,((along+v)&7)<5?6:4);
+        else if(d==2)px=SH(T_WATER,2);
+    }else if(n<T_N){
+        // Clustered feathering preserves each biome's authored motif,
+        // rather than choosing a new tree/rock variant for every pixel.
+        int fringe=((along+v*3)&7)<3?2:1;
+        if(d<fringe)px=tilePix(n,v,x,y);
+        else if(d==fringe&&((along+v)&3)==0)px=tilePix(n,v,x,y);
+    }
     return px; }
 static int cellEdge(int x,int y,int*mask,int*foam){   // the ground that bleeds into the cell (x,y) (-1: none), which sides it touches, and whether it is a shore
     int t=world[y][x]; int nb[4]; nb[0]=y>0?world[y-1][x]:t; nb[1]=x<WW-1?world[y][x+1]:t; nb[2]=y<WH-1?world[y+1][x]:t; nb[3]=x>0?world[y][x-1]:t;
@@ -431,7 +456,7 @@ static int trTile(int t,int n,int mask,int v,int foam,int b){
 #ifndef PCTEST
     vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64);
 #endif
-    trKey[hi]=(u16)(key+1); trVal[hi]=(u16)slot; return slot; }
+    trKey[hi]=key+1; trVal[hi]=(u16)slot; return slot; }
 static int zl=3;          // the zoom level (Z_* below): 0 planet .. 5 micro, 3 = the normal view
 static int zBmp=0;       // 1 while the background holds the zoom picture (a bitmap in tiles) instead of the map's own tiles
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
@@ -2013,11 +2038,13 @@ static void zScale(void){ int W=gW; switch(zl){ case Z_VFAR: if(W<=256){ zS_=2; 
 static const char* const zNm[6]={"PLANET","VERY FAR","FAR","NORMAL","CLOSE","MICRO"};
 #define ZH 168                                    // rows above the toolbar
 typedef struct { u32 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
-static const u8 zPool[9]={144,147,150,153,156,192,195,248,251};  // palette slots for creature colours (3 each); 12 families at a time, the rest share
+// All 16 families have private colors. 200..247 is unused by terrain,
+// roof shades, biomes and the toolbar, so zoom never recolors a building.
+#define Z_FAM_PAL0 200
 #ifdef GG_ZOOM_TEST
 static int zArtLookups;
 #endif
-static inline int zFamPal(int fam){ return zPool[fam%9]; }
+static inline int zFamPal(int fam){ return Z_FAM_PAL0+(fam&15)*3; }
 static int zCol(int fam,int k){ return zFamPal(fam)+k; }
 static const u8* zArtOf(int x,int y){
 #ifdef GG_ZOOM_TEST
@@ -2026,8 +2053,8 @@ static const u8* zArtOf(int x,int y){
     ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam); int bb=(bld_||t<=T_WATER||t==T_LAVA)?0:bioAt(x,y);
     u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u32 xy=(u32)(x|(y<<16));
     if(z->sig==sig&&z->xy==xy) return z->px;
-    int v=(int)(hsh(x,y,3)&3);
-    for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):bioPix(best>=0?edgePix(t,best,mask,v,foam,i,j):tilePix(t,v,i,j),bb));
+    int v=tileVar(t,x,y);
+    for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):bioPix(best>=0?edgePix(t,best,mask,v,foam,i,j):(!bb&&t==T_GRASS&&v==2?pxMeadow((int)(hsh(x,y,5)&15),i,j):tilePix(t,v,i,j)),bb));
     z->sig=sig; z->xy=xy; return z->px; }
 static inline void zPut(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<ZH) gbuf[y*256+x]=(u8)c; }
 static void zRect(int x,int y,int w,int h,int c){
@@ -2048,10 +2075,24 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
     int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=0; if(!mv) fr=0;
     int gx=c->ox*S/8, gy=c->oy*S/8; px+=gx; py+=gy;
-    u8 g[64]; for(int y=0;y<8;y++){ const char*row=shpRow(A->shape,fr,y); for(int x=0;x<8;x++){ char ch=row[flip?7-x:x]; g[y*8+x]=(u8)(ch=='b'?zCol(fam,0):ch=='d'?zCol(fam,1):ch=='a'?zCol(fam,2):ch=='e'?UIP(U_WHITE):0); } }
+    u8 g[64]; for(int y=0;y<8;y++)for(int x=0;x<8;x++){
+        int p=gfxSprIdx(A->shape,fr,flip?7-x:x,y);
+        g[y*8+x]=(u8)(p==4?UIP(U_WHITE):p==7?UIP(U_SHADOW):
+            p==2||p==6?zCol(fam,1):p==3?zCol(fam,2):p?zCol(fam,0):0);
+    }
     if(S>=16){ int sh=S/8; for(int r=0;r<sh;r++){ int yy=py+S-sh+r; for(int xx=px+S/8+r;xx<px+S-S/8-r;xx++){ if((unsigned)xx<256&&(unsigned)yy<ZH){ u8 v=gbuf[yy*256+xx]; if(v<128) gbuf[yy*256+xx]=(u8)((v&~7)|((v&7)>2?(v&7)-3:0)); } } } }   // a shadow: the ground under its feet darkened
-    if(S>=16&&mv&&((tick>>1)&1)) py-=S/16;      // a hop while it walks
+    if(S>=16&&mv&&((tick>>1)&1)&&gfxCitizenRace(A->shape)<0) py-=S/16; // animals hop; citizen boots stay grounded
     if(S==4){ for(int dy=0;dy<4;dy++) for(int dx=0;dx<4;dx++){ int c2=g[(dy*2)*8+dx*2]; if(!c2) c2=g[(dy*2)*8+dx*2+1]; if(!c2) c2=g[(dy*2+1)*8+dx*2]; if(!c2) c2=g[(dy*2+1)*8+dx*2+1]; if(c2) zPut(px+dx,py+dy,c2); } }
+    else if(S>=16&&gfxCitizenRace(A->shape)>=0){
+        int race=gfxCitizenRace(A->shape),k=S/16;
+        for(int y=0;y<16;y++)for(int x=0;x<16;x++){
+            int p=gfxCitizenPix(race,fr,(int)(crId[i]&3u),x,y);if(!p)continue;
+            int c2=p==4?UIP(U_WHITE):p==7?UIP(U_SHADOW):p==2?zCol(fam,1):
+                p==3?128+race:p==8?PX_ROOFL+race:p==9?PX_ROOFD+race:
+                p==6?zCol(fam,1):zCol(fam,0);
+            zRect(px+x*k,py+y*k,k,k,c2);
+        }
+    }
     else { int k=S/8; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int c2=g[y*8+x]; if(c2) zRect(px+x*k,py+y*k,k,k,c2); } }
     if((c->rk||(crFl[i]&FL_EVOLVED))&&S>=16){ int cc=c->rk==2?UIP(U_RED):c->rk?UIP(U_GOLD):UIP(U_CYAN); zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
     if((DISEASE(&cr[i])==1||DISEASE(&cr[i])==3)&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UIP(DISEASE(&cr[i])==3?U_PURPLE:U_GREEN));     // the plague's flicker
@@ -2137,7 +2178,7 @@ static void zFlush(void){
     }
     zTileHashValid=1;
 }
-static void zPalette(void){ for(int f=0;f<9;f++) for(int k=0;k<3;k++) BG_PALETTE[zPool[f]+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
+static void zPalette(void){ for(int f=0;f<16;f++) for(int k=0;k<3;k++) BG_PALETTE[zFamPal(f)+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
 static void zEnterBmp(void){
     zPalette(); for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     zBmp=1; bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<ZH/8?my*32+mx:0);

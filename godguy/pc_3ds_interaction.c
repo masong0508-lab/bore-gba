@@ -66,6 +66,10 @@ int main(int argc,char **argv){
         "walking into a wall still shakes the camera");
     bld[64][65]=0;ggExplore.px=64*256+128;
     ggExpMeshEnabled=1;ggExpScenicQuality=2;ggExpBuildPreview=0;
+    // Measure an unobstructed preview. Decorative trees legitimately
+    // hide a portion of this ground target; their placement is tested
+    // separately. Terrain, architecture and physical depth remain active.
+    int previousScenery=ggExpSceneryEnabled;ggExpSceneryEnabled=0;
     ggExplore.feedbackT=0;ggExplore.frame=0;
     ggExpRender(guarded.img);
     static u8 before[400*240*3];static uint16_t depth[400*240];
@@ -90,6 +94,7 @@ int main(int argc,char **argv){
     ggExpTargetOutline(67,64,GG_EDIT_READY);
     interactionRequire(!memcmp(before,guarded.img,sizeof before),
         "target outline ignores actual foreground occlusion");
+    ggExpSceneryEnabled=previousScenery;
     if(argc==2){
         ggExpRender(guarded.img);
         FILE *f=fopen(argv[1],"wb");if(!f)return 2;

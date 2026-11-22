@@ -10,7 +10,68 @@ static void require(int ok,const char*msg){
 static const unsigned char palette[3][3]={
     {19,14,10},{11,9,6},{25,20,15}
 };
+static void directionAndStrideRegression(void){
+    // These are runtime storage contracts: an art upgrade may not grow
+    // the sole cel, write its neighbors or insert uninitialized inks.
+    struct GuardedCel {
+        unsigned char before[32];
+        GgPersonCel cel;
+        unsigned char after[32];
+    } guarded;
+    require(sizeof(GgPersonCel)==1608,
+            "procedural person grew beyond its fixed 1,608-byte cel");
+    unsigned char basePalette[GG_PERSON_INKS][3];
+    int smallest=GG_PERSON_W*GG_PERSON_H,largest=0;
+    int distinctStrides=0;
+    GgPersonCel prior;
+    memset(&prior,0,sizeof prior);
+    for(uint32_t id=1001;id<1065;id++)
+      for(int turn=0;turn<8;turn++)
+        for(int gait=0;gait<9;gait++){
+            memset(&guarded,0xa7,sizeof guarded);
+            ggPersonGenerate(&guarded.cel,id,(int)(id&15u),turn,
+                             gait*4,gait!=8,palette);
+            for(unsigned int i=0;i<sizeof guarded.before;i++)
+                require(guarded.before[i]==0xa7&&guarded.after[i]==0xa7,
+                        "a hairstyle or stride wrote outside its source cel");
+            if(gait==0)memcpy(basePalette,guarded.cel.palette,
+                              sizeof basePalette);
+            else require(!memcmp(basePalette,guarded.cel.palette,
+                                  sizeof basePalette),
+                         "gait changed permanent clothing/skin identity");
+            int visible=0,sole=0,eyes=0;
+            for(int y=0;y<GG_PERSON_H;y++)
+              for(int x=0;x<GG_PERSON_W;x++){
+                int ink=guarded.cel.pixels[y*GG_PERSON_W+x];
+                require(ink<GG_PERSON_INKS,
+                        "body painter emitted an invalid palette index");
+                visible+=ink!=0;
+                if(y==47)sole+=ink!=0;
+                if(y<18&&(ink==GG_P_IRIS||ink==GG_P_WHITE||
+                          ink==GG_P_FACE))eyes++;
+            }
+            require(sole>=4,
+                    "walking lifted both feet off the physical anchor");
+            require(visible>=200&&visible<=900,
+                    "direction/gait collapsed anatomy or filled the cel");
+            if(turn>=3&&turn<=5)
+                require(eyes==0,
+                        "rear-facing citizen still displays a face/eyes");
+            if(visible<smallest)smallest=visible;
+            if(visible>largest)largest=visible;
+            if(id==1001&&turn==2&&gait<8){
+                if(gait&&memcmp(prior.pixels,guarded.cel.pixels,
+                                sizeof prior.pixels))distinctStrides++;
+                prior=guarded.cel;
+            }
+        }
+    require(distinctStrides>=6,
+            "eight-phase directional walk collapsed to two leg poses");
+    printf("PEOPLE DIRECTION/STRIDE OK: 4,608 guarded cels, %d..%d covered pixels, fixed 1,608 bytes\n",
+           smallest,largest);
+}
 int main(int argc,char**argv){
+    directionAndStrideRegression();
     GgPersonCel a,b,c;
     unsigned int fingerprints[40]={0};
     for(int i=0;i<40;i++){

@@ -1,7 +1,7 @@
-// GodGuy 3DS: project the existing *2D game creature sprites* into the
-// live first-person world. Keep pixel-art individuality and animation;
-// do not introduce block-headed replacement models, heap allocations or
-// full-map per-frame creature scans. First-person actor never duplicates.
+// GodGuy 3DS: the existing live population in the first-person world.
+// Directional citizen cels and species meshes share terrain and depth;
+// the legacy renderer retains its original 2D sprites. No population
+// duplication, heap allocations or full-map per-frame creature scans.
 #ifndef GG_POPULATION3D_H
 #define GG_POPULATION3D_H
 enum { GG_EXP_MAX_VISIBLE=12, GG_EXP_NEAR_RADIUS=11 };
@@ -46,6 +46,74 @@ static int ggExpLineClear(int fromX,int fromY,int x,int y){
             here+(there-here)*q/n+4)return 0;
     }
     return 1;
+}
+// Iconic creatures without an authored mesh keep the SAME source sprite
+// (skeleton, dragon, mage, finger, printer, etc.), projected into actual
+// world depth. Substituting a quadruped loses their identity. The bounded
+// 8x8 painter uses 12 bytes of graded inks, no cel/cache/extra framebuffer.
+static void ggMeshOriginalCreature(GgMeshContext*m,int x,int y,int ground,
+                                   int forward,int side,int shape,int frame,
+                                   const u8 colors[3][3]){
+    if(forward<m->near||forward>GG_EXP_NEAR_RADIUS*256)return;
+    GgMeshCameraVertex base={forward,side,ground,0,0};
+    GgMeshCameraVertex crown={forward,side,ground+25,0,0};
+    GgMeshProjected a=ggMeshProject(m,base),b=ggMeshProject(m,crown);
+    int size=ggMeshClamp((a.y-b.y)*m->scale,8,104);
+    int step=m->scale;
+    size=(size+step-1)/step*step;
+    // Some original icons have transparent bottom rows or off-center
+    // feet. Anchor their actual lowest ink to the physical ground point.
+    int soleRow=-1,soleFirst=0,soleLast=7;
+    for(int yy=7;yy>=0&&soleRow<0;yy--){
+        const char*row=shpRow(shape,frame,yy);
+        for(int xx=0;xx<8;xx++)if(row[xx]!='.'){
+            if(soleRow<0){soleRow=yy;soleFirst=xx;}
+            soleLast=xx;
+        }
+    }
+    if(soleRow<0)return;
+    int left=a.x*step-(soleFirst+soleLast+1)*size/16;
+    int top=a.y*step-((soleRow+1)*size/8)/step*step;
+    if(step>1){
+        left=left>=0?left/step*step:-((-left+step-1)/step)*step;
+        top=top>=0?top/step*step:-((-top+step-1)/step)*step;
+    }
+    if(left>=400||left+size<=0||top>=240||top+size<=0)return;
+    ggMeshContactShadow(m,x,y,32,4);
+    int light=ggMeshClamp(m->ambientLight+12,128,256);
+    int haze=ggMeshFogAmount(forward,m->fogMax);
+    u8 ink[4][3];
+    for(int k=0;k<4;k++)for(int channel=0;channel<3;channel++){
+        int color=k==3?236:colors[k][channel]*8;
+        int fog=channel==0?m->fogR:channel==1?m->fogG:m->fogB;
+        ink[k][channel]=(u8)((color*light/256*(256-haze)+fog*haze)/256);
+    }
+    int inverse=65535/forward;
+    for(int yy=0;yy<8;yy++){
+        const char*row=shpRow(shape,frame,yy);
+        int y0=top+(yy*size/8)/step*step;
+        int y1=top+((yy+1)*size/8)/step*step;
+        if(y0<0)y0=0;if(y1>240)y1=240;
+        for(int xx=0;xx<8;xx++){
+            int k=row[xx]=='b'?0:row[xx]=='d'?1:
+                  row[xx]=='a'?2:row[xx]=='e'?3:-1;
+            if(k<0)continue;
+            int x0=left+(xx*size/8)/step*step;
+            int x1=left+((xx+1)*size/8)/step*step;
+            if(x0<0)x0=0;if(x1>400)x1=400;
+            for(int py=y0;py<y1;py+=step)
+              for(int px=x0;px<x1;px+=step){
+                int z=(py/step)*m->w+px/step;
+                if(inverse+1<m->depth[z])continue;
+                for(int oy=0;oy<step;oy++)for(int ox=0;ox<step;ox++){
+                    u8*dst=m->rgb+((py+oy)*400+px+ox)*3;
+                    dst[0]=ink[k][0];dst[1]=ink[k][1];dst[2]=ink[k][2];
+                }
+                if(m->depth[z]<(uint16_t)inverse)
+                    m->depth[z]=(uint16_t)inverse;
+              }
+        }
+    }
 }
 static void ggExpRenderCreatures(u8 *top){
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
@@ -112,8 +180,8 @@ static void ggExpRenderCreatures(u8 *top){
         if(ggExpMeshActive){
             // Person: authored 32x48 procedural anatomical sprite with
             // stable clothing, complexion, facial features and eight
-            // facing directions. Other families preserve actual low-poly
-            // animal volumes. Both share real terrain, physical z depth.
+            // facing directions. Other species use their authored shape for closed
+            // bird, fish, crawler, serpent and mammal volumes. Both share real terrain, physical z depth.
             int wx=(c->x<<8)+128,wy=(c->y<<8)+128;
             uint32_t identity=(uint32_t)crId[npc.index];
             if(!identity)identity=(uint32_t)(npc.index+1);
@@ -137,9 +205,21 @@ static void ggExpRenderCreatures(u8 *top){
                                  movement.heading,ggExplore.frame,
                                  movement.walking,famCol[fam]);
             }else{
-                ggMeshActorCharacter(&ggMeshContext,
+                int kind=ggMeshCreatureKind(shape);
+                if(kind==GG_CREATURE_ORIGINAL){
+                    ggMeshOriginalCreature(&ggMeshContext,
+                        movement.x,movement.y,bodyGround,motionF,motionSide,
+                        shape,movement.walking?((ggExplore.frame>>3)&1):0,
+                        famCol[fam]);
+                    ggExpNpcsDrawn++;
+                    continue;
+                }
+                int animated=movement.walking||kind==GG_CREATURE_BIRD||
+                    kind==GG_CREATURE_FISH||kind==GG_CREATURE_WINGED||
+                    kind==GG_CREATURE_BLOB;
+                ggMeshActorSpecies(&ggMeshContext,
                                      movement.x,movement.y,bodyGround,
-                                     movement.heading,phase,fam,0,
+                                     movement.heading,animated?phase:0,fam,shape,
                                      famCol[fam],
                                      ggExpScenicQuality>=2?2:1);
             }

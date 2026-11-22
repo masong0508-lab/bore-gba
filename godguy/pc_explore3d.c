@@ -23,11 +23,8 @@ enum { KEY_A=1,KEY_B=2,KEY_SELECT=4,KEY_START=8,
 static u8 world[WH][WW],bld[WH][WW];
 static unsigned short occ[WH][WW];
 static int camX,camY,editCalls;
-static const u8 terrCol[T_N][3]={
-    {2,5,16},{4,12,26},{28,25,14},{8,22,6},{3,13,4},
-    {16,14,8},{15,15,17},{28,30,31},{31,9,2},{29,22,11},
-    {7,14,10},{3,17,9},{18,12,6}
-};
+#include "source/terrain_palette.h"
+static const u8 terrCol[T_N+3][3]=GG_TERRAIN_COLORS;
 static void setCell(int x,int y,u8 tile){
     if(x>=0&&y>=0&&x<WW&&y<WH){world[y][x]=tile;editCalls++;}
 }
@@ -72,6 +69,21 @@ static const u8 famCol[16][3][3]={
 };
 static int creatureFamily(const Cr *c){(void)c;return 0;}
 static const char *shpRow(int shape,int frame,int row){
+    // Exact authored source/main.c rows for iconic fallback regression.
+    // Keep this small SDK-free fixture distinct from the generic citizen
+    // below so species tests catch accidentally replacing every special
+    // creature with one common silhouette.
+    static const char *const iconic[3][8]={
+        {"..bbb...","..beb...","...b....",".bbbbb..",
+         "b.bbb.b.","..bbb...","..b.b...",".bb.bb.."}, // 16 skeleton
+        {"dddddddd","dbbbbbbd","dbaabbbd","dbbbbbbd",
+         "dddddddd","dbbbbbbd","dddddddd","........"}, // 78 printer
+        {"..b.....","..b.....","..bb....","bbbbb...",
+         "bbbbbb..","bbbbbb..",".bbbb...","..dd...."}  // 79 finger
+    };
+    if(shape==16)return iconic[0][row];
+    if(shape==78)return iconic[1][row];
+    if(shape==79)return iconic[2][row];
     static const char *const body[8]={
         "..bbbb..",".bbbbbb.",".beebbb.","..bbbb..",
         ".abbba..",".abbba..","..d..d..",".dd..dd."

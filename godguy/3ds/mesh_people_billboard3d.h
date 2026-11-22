@@ -62,7 +62,21 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     // cost and occlusion; the sprite body owns no fake screen shadow.
     if(m->scale==1&&forward<5*256)
         ggMeshContactShadow(m,worldX,worldY,24,4);
-    int shade=ggPersonClamp(m->ambientLight+20,160,256);
+    // The same air and ambient light as the surrounding geometry keep
+    // distant residents inside the scene instead of bright cutouts.
+    // Grade the 24 reusable inks ONCE, not three multiplies and a clamp
+    // for every covered pixel. The cel retains its painted local light.
+    int shade=ggPersonClamp(m->ambientLight+12,128,256);
+    int haze=ggMeshFogAmount(forward,m->fogMax);
+    for(int ink=1;ink<GG_PERSON_INKS;ink++){
+        unsigned char *color=ggMeshPersonCel.palette[ink];
+        int red=color[0]*shade/256;
+        int green=color[1]*shade/256;
+        int blue=color[2]*shade/256;
+        color[0]=(unsigned char)((red*(256-haze)+m->fogR*haze)/256);
+        color[1]=(unsigned char)((green*(256-haze)+m->fogG*haze)/256);
+        color[2]=(unsigned char)((blue*(256-haze)+m->fogB*haze)/256);
+    }
     int inverse=65535/forward;
     int drawn=0;
     // Closeup screen source remains 32x48 with stable wardrobe. Bilinear
@@ -84,17 +98,12 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
             if(inverse+1<m->depth[z])continue;
             const unsigned char *color=ggMeshPersonCel.palette[ink];
             int i=(y*400+x)*3;
-            int light=ggPersonClamp(shade+(sourceX<GG_PERSON_W/2?8:-9),
-                                    144,256);
-            unsigned char red=(unsigned char)(color[0]*light/256);
-            unsigned char green=(unsigned char)(color[1]*light/256);
-            unsigned char blue=(unsigned char)(color[2]*light/256);
             for(int oy=0;oy<pixelStep;oy++){
                 unsigned char*dst=m->rgb+i+oy*400*3;
                 for(int ox=0;ox<pixelStep;ox++){
-                    dst[ox*3]=red;
-                    dst[ox*3+1]=green;
-                    dst[ox*3+2]=blue;
+                    dst[ox*3]=color[0];
+                    dst[ox*3+1]=color[1];
+                    dst[ox*3+2]=color[2];
                 }
             }
             // Keep screen-space people in the physical depth hierarchy:

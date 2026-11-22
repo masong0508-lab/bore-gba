@@ -85,26 +85,33 @@ static void ggMeshGroundLife(GgMeshContext*m,int tx,int ty,int type,
                              int ground,uint32_t key){
     if(type<=T_WATER||type==T_LAVA)return;
     for(int i=0;i<3;i++){
-        int sx=tx*256+72+(int)((key>>(i*5))&95u);
-        int sy=ty*256+66+(int)((key>>(i*7+2))&111u);
+        int sx=tx*256+36+(int)((key>>(i*5))%184u);
+        int sy=ty*256+32+(int)((key>>(i*7+2))%192u);
         int z=ggMeshGroundAtQ8(sx,sy)+1;
         if(type==T_GRASS||type==T_FOREST||type==T_JUNGLE||
            type==T_SWAMP){
-            int height=type==T_JUNGLE?7:4+(int)((key>>(i*3))&3u);
+            int height=type==T_JUNGLE?3:1+(int)((key>>(i*3))&1u);
             ggMeshTriangle(m,
-                ggMeshV(sx-13,sy-8,
-                        ggMeshGroundAtQ8(sx-13,sy-8)+1),
-                ggMeshV(sx+11,sy+8,
-                        ggMeshGroundAtQ8(sx+11,sy+8)+1),
-                ggMeshV(sx+5,sy-5,z+height),
-                51+(i*7),103+(i*5),60+(i*3));
+                ggMeshV(sx-8,sy-4,
+                        ggMeshGroundAtQ8(sx-8,sy-4)+1),
+                ggMeshV(sx+7,sy+4,
+                        ggMeshGroundAtQ8(sx+7,sy+4)+1),
+                ggMeshV(sx+3,sy-3,z+height),
+                84+(i*7),121+(i*5),67+(i*3));
             if((key>>(i*6))&1u)
                 ggMeshTriangle(m,
-                    ggMeshV(sx-5,sy+12,
-                            ggMeshGroundAtQ8(sx-5,sy+12)+1),
-                    ggMeshV(sx+10,sy-8,
-                            ggMeshGroundAtQ8(sx+10,sy-8)+1),
-                    ggMeshV(sx-7,sy+3,z+height-1),70,116,71);
+                    ggMeshV(sx-3,sy+7,
+                            ggMeshGroundAtQ8(sx-3,sy+7)+1),
+                    ggMeshV(sx+6,sy-4,
+                            ggMeshGroundAtQ8(sx+6,sy-4)+1),
+                    ggMeshV(sx-4,sy+2,z+height),92,130,73);
+            if(type==T_GRASS&&(key&31u)==(unsigned)i){
+                // Rare low wildflowers, scaled to ankles rather than
+                // the former person-sized triangular grass blades.
+                ggMeshTriangle(m,ggMeshV(sx-5,sy-2,z+2),
+                    ggMeshV(sx+5,sy-2,z+2),
+                    ggMeshV(sx,sy+3,z+3),206,175,103);
+            }
         }else if(type==T_SAND||type==T_DESERT){
             ggMeshQuad(m,ggMeshV(sx-28,sy-5,z),
                 ggMeshV(sx+28,sy-5,z),
@@ -137,11 +144,39 @@ static inline int ggMeshGroundMaterial(int type){
     default:return GG_MAT_ROCK;
     }
 }
+// Narrow shoreline bands use the same triangular physical surface as
+// the water and land. Their two sampled ends follow a sloping bank;
+// there is no flat decal hovering above a coast, or screen-space foam.
+static void ggMeshShore(GgMeshContext*m,int tx,int ty,int side,int foam){
+    int left=tx*256,top=ty*256;
+    int keep=m->material,opacity=m->opacity;
+    m->material=GG_MAT_NONE;
+    for(int band=0;band<2;band++){
+        int inset=foam?5+band*12:8+band*17;
+        int width=foam?5:14;
+        int ax=left+inset,ay=top+14,bx=ax+width,by=top+242;
+        if(side==1){ax=left+256-inset-width;bx=ax+width;}
+        if(side>=2){
+            ax=left+14;bx=left+242;
+            ay=top+(side==2?inset:256-inset-width);by=ay+width;
+        }
+        m->opacity=foam?(band?42:105):(band?35:67);
+        int r=foam?197:101,g=foam?218:125,b=foam?209:103;
+        ggMeshQuad(m,
+            ggMeshV(ax,ay,ggMeshGroundAtQ8(ax,ay)+1),
+            ggMeshV(bx,ay,ggMeshGroundAtQ8(bx,ay)+1),
+            ggMeshV(bx,by,ggMeshGroundAtQ8(bx,by)+1),
+            ggMeshV(ax,by,ggMeshGroundAtQ8(ax,by)+1),r,g,b);
+    }
+    m->material=keep;m->opacity=opacity;
+}
 static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
                               int type,uint32_t key){
     int prior=m->material,priorSeed=m->materialSeed;
     m->material=ggMeshGroundMaterial(type);
-    m->materialSeed=(int)key;
+    // One material field per biome; using the cell hash here made
+    // neighbouring meadow tiles visibly reset their colour and grain.
+    m->materialSeed=type*733+17;
     int left=tx*256,right=left+256,top=ty*256,bottom=top+256;
     int center=ggExpGround(type);
     int a=ggMeshCornerHeight(tx,ty);
@@ -159,35 +194,33 @@ static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
     if(type==T_GRASS||type==T_FOREST||type==T_JUNGLE){
         g=(g*4+r)/5;bl=(bl*3+g)/4;
     }
-    int variation=(int)((key>>9)&15u)-7;
-    int light[4]={251,224,237,265};
     for(int i=0;i<4;i++){
-        int amount=light[i]+variation*2;
+        // Sunlight is already evaluated from each actual 3D normal by
+        // the rasterizer. A second four-sector shade creates a pinwheel
+        // on perfectly flat ground and makes every cell a fake pyramid.
         ggMeshTriangle(m,V,corners[i],corners[(i+1)&3],
-            ggMeshShade(r,amount),
-            ggMeshShade(g,amount),
-            ggMeshShade(bl,amount));
+            r,g,bl);
     }
-    // Sunlit earth tracks and paths are physical horizontal strips
-    // with correct perspective. They don't crawl when camera turns.
-    if(type==T_DIRT){
-        int trackR=ggMeshShade(r,198),trackG=ggMeshShade(g,198),
-            trackB=ggMeshShade(bl,188);
-        for(int lane=0;lane<2;lane++){
-            int x=left+(lane?175:70),z=center+1;
-            ggMeshQuad(m,ggMeshV(x,top+13,z),
-                       ggMeshV(x+8,top+13,z),
-                       ggMeshV(x+8,bottom-13,z),
-                       ggMeshV(x,bottom-13,z),
-                       trackR,trackG,trackB);
-        }
-    }else if(type==T_WATER||type==T_DEEP){
+    if(type==T_WATER||type==T_DEEP){
         int ripple=(int)((key>>17)&3u);
+        int priorOpacity=m->opacity;
+        m->opacity=80;
         ggMeshQuad(m,ggMeshV(left+28,top+64+24*ripple,center+1),
                    ggMeshV(left+109,top+64+24*ripple,center+1),
                    ggMeshV(left+105,top+68+24*ripple,center+1),
                    ggMeshV(left+26,top+68+24*ripple,center+1),
-                   80,130,154);
+                   147,188,196);
+        m->opacity=priorOpacity;
+    }
+    if(m->detailQuality>=2){
+        static const signed char dx[4]={-1,1,0,0},dy[4]={0,0,-1,1};
+        for(int side=0;side<4;side++){
+            int neighbor=ggMeshTerrainAt(tx+dx[side],ty+dy[side]);
+            if(type==T_WATER&&neighbor>T_WATER)
+                ggMeshShore(m,tx,ty,side,1);
+            else if(type>T_WATER&&type!=T_LAVA&&neighbor==T_WATER)
+                ggMeshShore(m,tx,ty,side,0);
+        }
     }
     m->material=prior;m->materialSeed=priorSeed;
     ggMeshTilesDrawn++;
@@ -197,14 +230,14 @@ static void ggMeshRoof(GgMeshContext*m,int build,
     int prior=m->material;
     m->material=GG_MAT_ROOF;
     int ridgeY=(y0+y1)/2;
-    int roofRise=build==B_TEMPLE?6:
-                 build==B_HALL?9:build==B_TOWER?3:7;
-    int roofR=build==B_HOUSE||build==B_HUT?129:
-              build==B_TEMPLE?172:89;
-    int roofG=build==B_HOUSE||build==B_HUT?79:
-              build==B_TEMPLE?143:91;
+    int roofRise=build==B_TEMPLE?9:
+                 build==B_HALL?12:build==B_TOWER?3:11;
+    int roofR=build==B_HOUSE||build==B_HUT?157:
+              build==B_TEMPLE?177:78;
+    int roofG=build==B_HOUSE||build==B_HUT?89:
+              build==B_TEMPLE?135:108;
     int roofB=build==B_HOUSE||build==B_HUT?65:
-              build==B_TEMPLE?110:103;
+              build==B_TEMPLE?95:121;
     ggMeshQuad(m,ggMeshV(x0-10,y0-10,wallTop),
                ggMeshV(x1+10,y0-10,wallTop),
                ggMeshV(x1+10,ridgeY,wallTop+roofRise),
@@ -215,22 +248,22 @@ static void ggMeshRoof(GgMeshContext*m,int build,
                ggMeshV(x1+10,y1+10,wallTop),
                ggMeshV(x0-10,y1+10,wallTop),
                roofR*3/4,roofG*3/4,roofB*3/4);
-    // Tile courses are real narrow roof geometry, not a vertical
-    // stripe on a ray column. They keep the pitched surface legible
-    // as the player walks around all four sides of a dwelling.
-    if(build==B_HOUSE||build==B_HUT||build==B_HALL||
-       build==B_LIBRARY){
+    // Narrow courses sit on the actual roof slope. Their far edge has
+    // its own height rather than a horizontal hovering strip.
+    if(m->detailQuality>=2&&(build==B_HOUSE||build==B_HUT||
+       build==B_HALL||build==B_LIBRARY)){
         for(int row=1;row<=3;row++){
             int yy=y0+(ridgeY-y0)*row/4;
-            int z=wallTop+roofRise*row/4+1;
+            int z=wallTop+roofRise*(yy-3-y0)/(ridgeY-y0)+1;
+            int z2=wallTop+roofRise*(yy+3-y0)/(ridgeY-y0)+1;
             ggMeshQuad(m,ggMeshV(x0-10,yy-3,z),
                 ggMeshV(x1+10,yy-3,z),
-                ggMeshV(x1+10,yy+3,z),
-                ggMeshV(x0-10,yy+3,z),
+                ggMeshV(x1+10,yy+3,z2),
+                ggMeshV(x0-10,yy+3,z2),
                 roofR*4/5,roofG*4/5,roofB*4/5);
             yy=y1-(y1-ridgeY)*row/4;
-            ggMeshQuad(m,ggMeshV(x0-10,yy-3,z),
-                ggMeshV(x1+10,yy-3,z),
+            ggMeshQuad(m,ggMeshV(x0-10,yy-3,z2),
+                ggMeshV(x1+10,yy-3,z2),
                 ggMeshV(x1+10,yy+3,z),
                 ggMeshV(x0-10,yy+3,z),
                 roofR*3/5,roofG*3/5,roofB*3/5);
@@ -241,16 +274,35 @@ static void ggMeshRoof(GgMeshContext*m,int build,
     ggMeshTriangle(m,ggMeshV(x0,y0,wallTop),
                    ggMeshV(x0,y1,wallTop),
                    ggMeshV(x0,ridgeY,wallTop+roofRise),
-                   124,109,96);
+                   188,171,143);
     ggMeshTriangle(m,ggMeshV(x1,y0,wallTop),
                    ggMeshV(x1,y1,wallTop),
                    ggMeshV(x1,ridgeY,wallTop+roofRise),
-                   88,88,97);
+                   151,150,143);
+    // A strong ridge, and a thin verge on the two actual gable faces,
+    // turn the previous unadorned triangular cap into a legible roof.
+    m->material=GG_MAT_WOOD;
+    ggMeshBox(m,x0-12,ridgeY-4,x1+12,ridgeY+4,
+              wallTop+roofRise,wallTop+roofRise+1,
+              roofR*4/5,roofG*4/5,roofB*4/5);
+    for(int end=0;end<2;end++){
+        int xx=end?x1+2:x0-2;
+        ggMeshQuad(m,ggMeshV(xx,y0,wallTop),
+            ggMeshV(xx,y0+7,wallTop),
+            ggMeshV(xx,ridgeY+4,wallTop+roofRise),
+            ggMeshV(xx,ridgeY-4,wallTop+roofRise),87,73,59);
+        ggMeshQuad(m,ggMeshV(xx,ridgeY-4,wallTop+roofRise),
+            ggMeshV(xx,ridgeY+4,wallTop+roofRise),
+            ggMeshV(xx,y1-7,wallTop),
+            ggMeshV(xx,y1,wallTop),87,73,59);
+    }
     m->material=prior;
 }
 static void ggMeshWindow(GgMeshContext*m,int x0,int x1,
                           int frontY,int facing,int ground,int height){
     if(height<15)return;
+    int oldBias=m->depthBias,oldMat=m->material;
+    m->depthBias=1;m->material=GG_MAT_NONE;
     int y=frontY-facing*3;
     int winBot=ground+height*2/5,winTop=winBot+7;
     int cx=(x0+x1)/2;
@@ -272,12 +324,17 @@ static void ggMeshWindow(GgMeshContext*m,int x0,int x1,
         ggMeshQuad(m,ggMeshV(a,paneY,winBot),
                    ggMeshV(b,paneY,winBot),
                    ggMeshV(b,paneY,winTop),
-                   ggMeshV(a,paneY,winTop),187,139,95);
+                   ggMeshV(a,paneY,winTop),91,132,143);
         ggMeshQuad(m,ggMeshV(center-2,paneY-facing,winBot),
                    ggMeshV(center+2,paneY-facing,winBot),
                    ggMeshV(center+2,paneY-facing,winTop),
-                   ggMeshV(center-2,paneY-facing,winTop),62,67,72);
+                   ggMeshV(center-2,paneY-facing,winTop),180,161,124);
+        ggMeshQuad(m,ggMeshV(a-5,paneY-facing*2,winBot-1),
+                   ggMeshV(b+5,paneY-facing*2,winBot-1),
+                   ggMeshV(b+5,paneY-facing*2,winBot),
+                   ggMeshV(a-5,paneY-facing*2,winBot),196,181,151);
     }
+    m->depthBias=oldBias;m->material=oldMat;
 }
 static void ggMeshSideFacade(GgMeshContext*m,int wallX,int facing,
                              int y0,int y1,int ground,int height){
@@ -285,6 +342,8 @@ static void ggMeshSideFacade(GgMeshContext*m,int wallX,int facing,
     // own x-plane. The original y-only windows left the wall directly
     // facing the default eastward camera completely blank.
     if(height<13)return;
+    int oldBias=m->depthBias,oldMat=m->material;
+    m->depthBias=1;m->material=GG_MAT_NONE;
     int face=wallX-facing*3,pane=face-facing*3;
     int cy=(y0+y1)/2;
     int low=ground+height*2/5,high=low+8;
@@ -301,12 +360,17 @@ static void ggMeshSideFacade(GgMeshContext*m,int wallX,int facing,
         ggMeshQuad(m,ggMeshV(pane,q-19,low),
             ggMeshV(pane,q+19,low),
             ggMeshV(pane,q+19,high),
-            ggMeshV(pane,q-19,high),177,145,104);
+            ggMeshV(pane,q-19,high),90,132,145);
         ggMeshQuad(m,ggMeshV(pane-facing,q-2,low),
             ggMeshV(pane-facing,q+2,low),
             ggMeshV(pane-facing,q+2,high),
-            ggMeshV(pane-facing,q-2,high),62,65,66);
+            ggMeshV(pane-facing,q-2,high),181,162,126);
+        ggMeshQuad(m,ggMeshV(pane-facing*2,q-24,low-1),
+            ggMeshV(pane-facing*2,q+24,low-1),
+            ggMeshV(pane-facing*2,q+24,low),
+            ggMeshV(pane-facing*2,q-24,low),197,182,151);
     }
+    m->depthBias=oldBias;m->material=oldMat;
 }
 // Geometric masonry/wood courses use real world height and wall
 // normals, so highlights, seams, and framing stay planted during
@@ -338,6 +402,37 @@ static void ggMeshWallFinish(GgMeshContext*m,int x0,int y0,
             ggMeshV(x1+4,y1-9,z+1),
             ggMeshV(x1+4,y0+9,z+1),r,g,b);
     }
+}
+// A second storey has its own window row, and timbered houses carry
+// diagonal braces. Only outward faces visible from this camera receive
+// these details; adding architecture does not quadruple hidden work.
+static void ggMeshFacadeDetail(GgMeshContext*m,int plane,int axis,
+                                int u0,int u1,int ground,int height,
+                                int wood){
+    int prior=m->material,bias=m->depthBias;
+    m->material=GG_MAT_NONE;m->depthBias=1;
+    for(int side=-1;side<=1;side+=2){
+        int u=(u0+u1)/2+side*(u1-u0)/3;
+        int low=ground+height-11,high=low+5;
+        if(height>=30){
+            GgMeshVertex a=ggMeshV(axis?u-17:plane,axis?plane:u-17,low);
+            GgMeshVertex b=ggMeshV(axis?u+17:plane,axis?plane:u+17,low);
+            GgMeshVertex c=b,d=a;c.z=d.z=high;
+            ggMeshQuad(m,a,b,c,d,65,95,108);
+            a.z=b.z=low-1;c.z=d.z=low;
+            ggMeshQuad(m,a,b,c,d,192,177,150);
+        }
+        if(wood&&height>=18){
+            int lo=ground+2,hi=ground+height/3;
+            int aa=u-28,bb=u+28;
+            GgMeshVertex a=ggMeshV(axis?aa:plane,axis?plane:aa,lo);
+            GgMeshVertex b=ggMeshV(axis?aa+8:plane,axis?plane:aa+8,lo);
+            GgMeshVertex c=ggMeshV(axis?bb:plane,axis?plane:bb,hi);
+            GgMeshVertex d=ggMeshV(axis?bb-8:plane,axis?plane:bb-8,hi);
+            ggMeshQuad(m,a,b,c,d,99,76,56);
+        }
+    }
+    m->material=prior;m->depthBias=bias;
 }
 static void ggMeshBuildingLanding(GgMeshContext*m,int x0,int y0,
                                    int y1,int ground){
@@ -408,8 +503,11 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
              build==B_DOCK||build==B_FARM;
     int stone=build==B_TEMPLE||build==B_HALL||
               build==B_TOWER||build==B_LIBRARY;
-    int r=wood?153:stone?147:111,g=wood?110:stone?140:113,
-        bl=wood?78:stone?130:111;
+    int r=wood?193:stone?181:126,g=wood?177:stone?177:128,
+        bl=wood?143:stone?162:117;
+    if(build==B_HUT){r=171;g=143;bl=104;}
+    if(build==B_TEMPLE){r=209;g=197;bl=174;}
+    if(build==B_LIBRARY){r=173;g=187;bl=174;}
     if(build==B_RUIN){r=107;g=109;bl=108;}
     if(build==B_STATUE){r=156;g=152;bl=140;}
     if(build==B_STATUE){
@@ -471,19 +569,27 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         ggMeshBox(m,x0,y1-34,x0+34,y1,h,h+5,164,163,154);
         ggMeshBox(m,x1-34,y1-34,x1,y1,h,h+5,164,163,154);
     }
+    int h=wallTop-ground;
+    // Even the medium distance silhouette keeps its entrances and
+    // windows. The old LOD switched whole buildings into blank cubes.
+    if(build!=B_DOCK&&build!=B_FARM){
+        if(m->cy<=y0)ggMeshWindow(m,x0,x1,y0,1,ground,h);
+        if(m->cy>=y1)ggMeshWindow(m,x0,x1,y1,-1,ground,h);
+        if(m->cx<=x0)ggMeshSideFacade(m,x0,1,y0,y1,ground,h);
+        if(m->cx>=x1)ggMeshSideFacade(m,x1,-1,y0,y1,ground,h);
+    }
     if(nearDetail){
-        int h=wallTop-ground;
         // Ground-contact plinth and roof cornice extend beyond every
         // wall face, showing real parallax, height and shade.
         ggMeshBox(m,x0-5,y0-5,x1+5,y1+5,
                   baseGround,ground+2,107,105,98);
         ggMeshBox(m,x0-6,y0-6,x1+6,y1+6,
                   wallTop-3,wallTop-1,177,164,137);
-        ggMeshWindow(m,x0,x1,y0,1,ground,h);
-        ggMeshWindow(m,x0,x1,y1,-1,ground,h);
-        ggMeshSideFacade(m,x0,1,y0,y1,ground,h);
-        ggMeshSideFacade(m,x1,-1,y0,y1,ground,h);
         ggMeshWallFinish(m,x0,y0,x1,y1,ground,h,wood);
+        if(m->cy<=y0)ggMeshFacadeDetail(m,y0-7,1,x0,x1,ground,h,wood);
+        if(m->cy>=y1)ggMeshFacadeDetail(m,y1+7,1,x0,x1,ground,h,wood);
+        if(m->cx<=x0)ggMeshFacadeDetail(m,x0-7,0,y0,y1,ground,h,wood);
+        if(m->cx>=x1)ggMeshFacadeDetail(m,x1+7,0,y0,y1,ground,h,wood);
         if(build==B_HOUSE||build==B_HUT||build==B_HALL||
            build==B_TEMPLE||build==B_LIBRARY)
             ggMeshBuildingLanding(m,x0,y0,y1,ground);
@@ -529,73 +635,115 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                       ground+20,ground+23,182,170,145);
         }
         if(build==B_HOUSE||build==B_HUT){
-            int cx=(x0+x1)/2;
-            ggMeshBox(m,cx-30,y0-13,cx-23,y0-3,
-                      ground+12,ground+22,89,65,53);
+            // A small masonry chimney gives every cottage a readable
+            // domestic roofline; it shares the building's fixed volume.
+            int cx=x0+(x1-x0)*3/4,cy=(y0+y1)/2;
+            int chimney=wallTop+(build==B_HUT?10:12);
+            ggMeshBox(m,cx-13,cy-13,cx+13,cy+13,
+                      wallTop+2,chimney+4,142,120,99);
+            ggMeshBox(m,cx-17,cy-17,cx+17,cy+17,
+                      chimney+3,chimney+5,186,161,126);
         }
     }
     ggMeshBuildingsDrawn++;
 }
+// Two irregular latitude rings give crowns a rounded, leafy silhouette.
+// At native detail the oak has three overlapping crowns; distant trees
+// keep one six-sided volume. The fixed prop queue still caps total work.
+static void ggMeshLeafCrown(GgMeshContext*m,int x,int y,int base,
+                             int radius,int height,uint32_t key,
+                             int sides,int pine,int r,int g,int b){
+    int lower=base+height/(pine?4:3),upper=base+height*(pine?3:2)/(pine?5:3);
+    for(int n=0;n<sides;n++){
+        int a=n*256/sides,c=((n+1)*256/sides)&255;
+        int ra=radius*(93+(int)((key>>(n*3%22))&15u))/100;
+        int rb=radius*(93+(int)((key>>(((n+1)*3)%22))&15u))/100;
+        int ax=x+ggExpCos[a]*ra/4096,ay=y+ggExpSin[a]*ra/4096;
+        int bx=x+ggExpCos[c]*rb/4096,by=y+ggExpSin[c]*rb/4096;
+        int taper=pine?45:82;
+        GgMeshVertex A=ggMeshV(ax,ay,lower),B=ggMeshV(bx,by,lower);
+        GgMeshVertex C=ggMeshV(x+(bx-x)*taper/100,
+                              y+(by-y)*taper/100,upper);
+        GgMeshVertex D=ggMeshV(x+(ax-x)*taper/100,
+                              y+(ay-y)*taper/100,upper);
+        int light=(int)((key>>(n%18))&3u);
+        ggMeshTriangle(m,ggMeshV(x+radius/9,y-radius/10,base+height),
+                        D,C,r+7+light*2,g+11+light*2,b+3+light);
+        ggMeshQuad(m,A,B,C,D,r+light*2,g+light*3,b+light);
+        ggMeshTriangle(m,B,A,ggMeshV(x,y,base+height/8),
+                        r+16,g+20,b+12);
+    }
+}
 static void ggMeshFoliage(GgMeshContext*m,int x,int y,int ground,
                            int pine,uint32_t key,int quality){
-    int size=pine?42:53;
-    int trunkH=pine?11:13;
-    ggMeshBox(m,x-12,y-12,x+12,y+12,ground,ground+trunkH,
-              99,74,58);
-    // Physical octagonal crown: upper and lower triangles converge
-    // around real 3D points, viewed from *any* camera heading.
-    int levels=pine?3:1;
-    // A tiny world-timed breeze bends upper branch geometry without
-    // moving the physical trunk or creating animated sprite billboards.
-    int sway=ggFilmScenicWind(key,ggExplore.frame)*7;
-    for(int tier=0;tier<levels;tier++){
-        int crownX=x+sway*(tier+1)/levels;
-        int base=ground+trunkH+tier*(pine?7:0);
-        int radius=pine?size-tier*9:size;
-        int mid=base+(pine?5:10),top=base+(pine?18:21);
-        int sides=quality>=2?8:6;
-        int rr=pine?54:63,gg=pine?105:118,bb=pine?76:83;
-        for(int n=0;n<sides;n++){
-            int aa=n*256/sides,ab=((n+1)*256/sides)&255;
-            int ax=crownX+ggExpCos[aa]*radius/4096,
-                ay=y+ggExpSin[aa]*radius/4096;
-            int bx=crownX+ggExpCos[ab]*radius/4096,
-                by=y+ggExpSin[ab]*radius/4096;
-            int light=(int)((key>>(n%18))&3u);
-            ggMeshTriangle(m,ggMeshV(crownX+sway/2,y,top),
-                ggMeshV(ax,ay,mid),ggMeshV(bx,by,mid),
-                rr+light*3,gg+light*5,bb+light*4);
-            ggMeshTriangle(m,ggMeshV(ax,ay,mid),
-                ggMeshV(crownX,y,base),ggMeshV(bx,by,mid),
-                rr*3/4,gg*3/4,bb*3/4);
+    int keep=m->material;
+    int trunkH=pine?13:17;
+    m->material=GG_MAT_WOOD;
+    ggMeshBox(m,x-10,y-10,x+10,y+10,ground,ground+trunkH,
+              118,91,65);
+    m->material=GG_MAT_LEAVES;
+    int sway=ggFilmScenicWind(key,ggExplore.frame)*4;
+    int sides=6;
+    int hue=(int)((key>>15)&7u)-3;
+    if(pine){
+        for(int tier=0;tier<3;tier++)
+            ggMeshLeafCrown(m,x+sway*(tier+1)/3,y,
+                ground+8+tier*7,75-tier*17,19-tier,
+                key+(uint32_t)tier*31u,sides,1,
+                63+hue,103+hue,77+hue);
+    }else{
+        ggMeshLeafCrown(m,x+sway,y,ground+10,77,20,
+                        key,sides,0,91+hue,130+hue,74+hue);
+        if(quality>=2){
+            int angle=(int)((key>>9)&255u);
+            int dx=ggExpCos[angle]*49/4096;
+            int dy=ggExpSin[angle]*49/4096;
+            // Individual crown axes rotate with the tree identity,
+            // preventing every grove from sharing one stamped shape.
+            ggMeshLeafCrown(m,x-dx+sway,y-dy,ground+9,63,15,
+                            key+733u,6,0,76+hue,119+hue,69+hue);
+            ggMeshLeafCrown(m,x+dy+sway,y-dx,ground+10,62,16,
+                            key+1471u,6,0,98+hue,137+hue,79+hue);
         }
     }
+    m->material=keep;
 }
 static void ggMeshShrub(GgMeshContext*m,int x,int y,int ground,
                           uint32_t key){
-    // Broad low foliage footprint, not a full-sized oak reused as a
-    // shrub. Eight actual side facets give recognizable small-scale
-    // understory without view-dependent sprite stretching.
-    int radius=32,base=ground+1,mid=ground+5,tip=ground+10;
-    for(int i=0;i<8;i++){
-        int a=i*32,b=((i+1)*32)&255;
-        int ax=x+ggExpCos[a]*radius/4096,
-            ay=y+ggExpSin[a]*radius/4096;
-        int bx=x+ggExpCos[b]*radius/4096,
-            by=y+ggExpSin[b]*radius/4096;
-        int shade=(int)((key>>(i+8))&3u);
-        ggMeshTriangle(m,ggMeshV(x,y,tip),
-            ggMeshV(ax,ay,mid),ggMeshV(bx,by,mid),
-            55+shade*4,95+shade*5,62+shade*3);
-        ggMeshTriangle(m,ggMeshV(ax,ay,mid),
-            ggMeshV(x,y,base),ggMeshV(bx,by,mid),
-            36+shade*3,77+shade*3,53+shade*2);
+    ggMeshLeafCrown(m,x,y,ground+1,44,9,key,6,0,77,115,65);
+    // Small warm seed heads break up the otherwise uniform green.
+    if((key&3u)==0u){
+        ggMeshTriangle(m,ggMeshV(x-7,y-4,ground+10),
+            ggMeshV(x+4,y-3,ground+10),
+            ggMeshV(x,y+7,ground+11),191,169,102);
     }
+}
+// People move between tile centres, including diagonal steps. Keep
+// rooted scenery away from those centres without looking at occupancy:
+// a walking citizen must never make a tree disappear or move. Narrow
+// trunks use unequal offsets to clear diagonal as well as cardinal
+// lanes; broad furniture clears the main cardinal lanes. This is visual
+// placement, not a new collision/navigation simulation.
+static inline void ggMeshPropAnchor(int tx,int ty,int kind,uint32_t key,
+                                    int *wx,int *wy){
+    int dx=(int)((key>>12)&63u)-32;
+    int dy=(int)((key>>20)&63u)-32;
+    if(kind!=GG_SCENE_NONE&&kind!=GG_SCENE_GRASS&&
+       kind!=GG_SCENE_CROPS&&kind!=GG_SCENE_REEDS){
+        int narrow=kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
+                   kind==GG_SCENE_LAMP||kind==GG_SCENE_BRAZIER||
+                   kind==GG_SCENE_BANNER;
+        dx=(narrow?96:84)+(int)(((key>>13)&7u)%(narrow?8u:5u));
+        dy=(narrow?40:84)+(int)(((key>>21)&7u)%(narrow?8u:5u));
+        if(narrow&&((key>>5)&1u)){int swap=dx;dx=dy;dy=swap;}
+        if((key>>8)&1u)dx=-dx;
+        if((key>>19)&1u)dy=-dy;
+    }
+    *wx=tx*256+128+dx;*wy=ty*256+128+dy;
 }
 static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
                        int ground,uint32_t key,int quality){
-    int x=tx*256+128+(int)((key>>12)&63u)-32;
-    int y=ty*256+128+(int)((key>>20)&63u)-32;
+    int x,y;ggMeshPropAnchor(tx,ty,kind,key,&x,&y);
     // Every prop is placed at its jittered Q8 position, not the flat
     // center height of the whole tile. This prevents trees, fences and
     // market furniture floating over a hillside or sinking into it.
@@ -669,11 +817,18 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
         for(int i=-1;i<=1;i++){
             int xx=x+i*19;
             int sway=ggFilmScenicWind(key+(uint32_t)i,
-                                      ggExplore.frame)*7;
-            ggMeshTriangle(m,ggMeshV(xx-8,y,z),
-                           ggMeshV(xx+8,y,z),
-                           ggMeshV(xx+4+sway,y+3,z+5+(i&1)),
-                           70,124,78);
+                                      ggExplore.frame)*3;
+            int height=kind==GG_SCENE_REEDS?5:
+                       kind==GG_SCENE_CROPS?3:2;
+            int width=kind==GG_SCENE_REEDS?2:5;
+            ggMeshTriangle(m,ggMeshV(xx-width,y,z),
+                           ggMeshV(xx+width,y,z),
+                           ggMeshV(xx+2+sway,y+2,z+height),
+                           93,131,75);
+            if(kind==GG_SCENE_REEDS)
+                ggMeshTriangle(m,ggMeshV(xx+sway-2,y,z+height-1),
+                    ggMeshV(xx+sway+3,y,z+height-1),
+                    ggMeshV(xx+sway,y,z+height+1),139,109,72);
         }
         break;
     default:break;
@@ -774,16 +929,20 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                 ggExpCos[angle],ggExpSin[angle],
                 49+atmosphere.skyR,78+atmosphere.skyG,
                 108+atmosphere.skyB);
-    m->fogR=atmosphere.hazeR;
-    m->fogG=atmosphere.hazeG;
-    m->fogB=atmosphere.hazeB;
+    ggMeshSkyWeather(m,ggExplore.frame,
+        terrain==T_SAND||terrain==T_DESERT?0:
+        terrain==T_SNOW?3:
+        terrain==T_SWAMP||terrain==T_FOREST||terrain==T_JUNGLE?2:1);
+    // Match the new bright horizon instead of fading distant buildings
+    // into the previous dark grey-blue strip above the ground.
+    m->fogR=ggMeshClamp(164+atmosphere.skyR/2,0,255);
+    m->fogG=ggMeshClamp(182+atmosphere.skyG/2,0,255);
+    m->fogB=ggMeshClamp(193+atmosphere.skyB/2,0,255);
     m->fogMax=(terrain==T_SWAMP||terrain==T_SNOW)?174:132;
     m->ambientLight=(terrain==T_SNOW||terrain==T_SAND||
                      terrain==T_DESERT)?236:
                     terrain==T_SWAMP||terrain==T_FOREST?198:218;
     ggMeshTilesDrawn=ggMeshBuildingsDrawn=ggMeshPropsDrawn=0;
-    ggMeshCloudBank(m,cx,cy,ggExplore.frame,atmosphere.hazeR,
-                    atmosphere.hazeG,atmosphere.hazeB);
     int radius=quality>=2?9:7;
     int propCap=ggFilmScenicBudget(ggExpScenicQuality,0);
     int sceneLimit=0;
@@ -803,7 +962,7 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
             int t=ggMeshTerrainAt(tx,ty);
             uint32_t key=ggFilmScenicHash(tx,ty,17);
             ggMeshGroundTile(m,tx,ty,t,key);
-            if(quality>=2&&forward>0&&forward<4*256)
+            if(ggExpSceneryEnabled&&quality>=2&&forward>0&&forward<4*256)
                 ggMeshGroundLife(m,tx,ty,t,ggExpGround(t),key);
             int build=bld[ty][tx];
             if(build){
@@ -819,14 +978,9 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                                          ggExpBuilding(build));
                 ggMeshBuilding(m,tx,ty,build,ggExpGround(t),detailed);
                 m->material=oldMaterial;m->materialSeed=oldSeed;
-            }else{
+            }else if(ggExpSceneryEnabled){
                 uint32_t scenic=ggFilmScenicHash(tx,ty,7);
                 if(((scenic>>24)&7u)>=5u)continue;
-                int propX=tx*256+128+(int)((scenic>>12)&63u)-32;
-                int propY=ty*256+128+(int)((scenic>>20)&63u)-32;
-                int propForward;
-                if(!ggMeshSceneryVisible(m,propX,propY,96,
-                                          &propForward))continue;
                 int near=0;
                 if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
                 else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
@@ -834,6 +988,10 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                 else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
                 int kind=ggFilmScenicKind(t,near,scenic);
                 if(!kind)continue;
+                int propX,propY,propForward;
+                ggMeshPropAnchor(tx,ty,kind,scenic,&propX,&propY);
+                if(!ggMeshSceneryVisible(m,propX,propY,136,
+                                          &propForward))continue;
                 GgMeshVisibleProp candidate={
                     tx,ty,kind,ggExpGround(t),propForward,scenic
                 };

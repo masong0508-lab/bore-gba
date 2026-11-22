@@ -21,7 +21,7 @@ static inline void uiRow(int x,int y,int w,int c){ if((unsigned)y>=192) return; 
 static void uiGrad(int x,int y,int w,int h,int g){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; uiRow(x,y+j,w,UI_GRAD0+g*8+k); } }
 static void uiGradRound(int x,int y,int w,int h,int g,int edge){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; int a=(j==0||j==h-1)?1:0; for(int i=a;i<w-a;i++) uiPx(x+i,y+j,c); }
     for(int i=1;i<w-1;i++){ uiPx(x+i,y,edge); uiPx(x+i,y+h-1,edge); } for(int j=1;j<h-1;j++){ uiPx(x,y+j,edge); uiPx(x+w-1,y+j,edge); } }
-// toolbar colours: 22 slots of the main palette that nothing else touches (applyLight skips UI_RESV; zoom's creature colours sit at 192..197 and 248..253)
+// Toolbar colors are reserved; zoom's 16 creature palettes use 200..247.
 #define UI_RESV(i) (((i)>=117&&(i)<=127)||((i)>=161&&(i)<=167))
 static const u8 tcSlot[22]={117,118,119,120,121,122,123,124,125,126,127,161,162,163,164,165,166,167,198,199,254,255};
 static const u8 tcRgb[22][3]={ {31,31,31},{31,26,6},{9,28,11},{31,10,10},{25,14,31},{31,17,4},{0,0,2},{31,31,8},{8,29,31},{24,14,6},{27,28,31},{13,14,18},   // the icon colours: white gold green red purple orange shadow yellow cyan brown light-grey grey
@@ -201,9 +201,11 @@ static const u8 tbIcoT[3]={10,20,24};
 #else
 static const u8 tbIcoT[3]={10,15,20};
 #endif
-// ground swatches use three shades per terrain: 100.. in the top palette, 200.. in the toolbar's
+// Ground swatches use three shades per terrain at 100.. in the top palette.
+// On the map toolbar they use the actual ground palette, leaving 200..247
+// for all 16 creature families in CLOSE/MICRO without overwriting roofs.
 static int uiSwatch(int t,int i,int j,int base){ if(t>=100) t=T_N+t-101; int p=tilePix(t,0,(i*8)/10,(j*8)/10); p=(p>=104&&p<128)?4:p%8; return base+t*3+(p<=2?0:p<=4?1:2); }
-static void uiShadePal(void){ for(int t=0;t<T_N+3;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
+static void uiShadePal(void){ for(int t=0;t<T_N+3;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); } }
 static void uiPowerIcon(int pwi,int x,int y){ const Pw*P=&pw[pwi];
     if(P->kind==PK_PAINT){ for(int j=0;j<10;j++) for(int i=0;i<10;i++) uiPx(x+i,y+j,uiSwatch(P->arg,i,j,100)); return; }
     uiIcon10(x,y,uiIconForKind(P->kind)); }
@@ -333,6 +335,8 @@ static void tbDraw(void){
                 c=uiSwatch(P->arg,i*10/IS,j*10/IS,200);
                 if(j==0||i==0) c+=(c-200)%3<2;
                 if(j==IS-1||i==IS-1) c-=(c-200)%3>0;
+                {int sw=c-200,t=sw/3,k=2+(sw%3)*2;
+                 c=(t<T_N?t*8:BIO_PAL+(t-T_N)*8)+k;}
             } else {
                 c=sprite[(j*spriteSize/IS)*spriteSize+i*spriteSize/IS];
                 if(!c) continue;
