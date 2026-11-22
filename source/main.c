@@ -1860,6 +1860,7 @@ typedef struct {            // one converted tracker song (generated into musicd
     int nord, loop, rowN, rfr;                                        // orders in the song, loop order, samples per row (+ fraction/256)
 } XmSong;
 #include "musicdata.h"
+#include "winner_vocals.h"
 #define R_DMA2SAD (*(volatile u32*)0x040000C8)
 #define R_DMA2DAD (*(volatile u32*)0x040000CC)
 #define R_DMA2CNT (*(volatile u32*)0x040000D0)
@@ -1870,6 +1871,11 @@ typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // 
 // ol / orr: DECLICK. A new note on a channel used to cut the old one mid-wave (a click). The jump between the old note's level and the new one's
 // first sample is kept as an offset (x32) that is added to the mix and fades out over ~2 ms, so the wave never steps.
 static MVoice mvc[MUS_VOICES];
+// Two independent original-vocal clips over the 16-channel Koala tracker.
+// They do NOT consume game SFX or ambience voices, or alter other songs.
+typedef struct { const u8*d; u32 n,pos; int pred,idx,gain; } WinnerSinger;
+static WinnerSinger winnerSinger[2] EWRAM_BSS;
+static u8 winnerNext;
 // STEMS: every tracker channel has its own gain (256 full) gliding to a target, so the menu music can drop and bring back its layers as you go through
 // menus and tools (musStemPick). A new song starts with every stem in (deckInit).
 static u8 mStemsOk; static u16 mChanSeen;   // mChanSeen: the channels the song has really played (the stems are picked among those)   // 1 while the main menus' song plays: only it changes its mix (a song in the game or the Toukebox always plays whole)
@@ -1901,8 +1907,50 @@ static u32 xmStep(const XmSong*s,int in,int nt){
 // Note events (tools/xm2gba.py): per pattern, row by row. A byte >=0x80 = that many (low 7 bits) empty rows; otherwise it is the number of events in
 // the row, each 3 bytes (24 bits, little endian): voice index low 8 bits | note<<8 (7 bits) | volume<<15 (7 bits) | voice index high 2 bits<<22.
 // The voice index picks a vt[] entry: channel(4) | instrument(5)<<4 | pan bus(3)<<9.
+// Vocal cue time is the Koala row clock, so the original singer remains in
+// sync even across loading pauses, song crossfades, and shuffled note attacks.
+// Each clip stays at its recorded pitch/speed; only the start row changes.
+static void winnerVocalStart(int row){
+    while(winnerNext<WINNER_VOCAL_CUES && winnerVocalCues[winnerNext].row==(u16)row){
+        const WinnerVocalCue*q=&winnerVocalCues[winnerNext];
+        WinnerSinger*v=&winnerSinger[winnerNext&1];
+        const u8*b=winnerVocalBlob+q->offset;
+        u32 size=*(const u32*)b;
+        v->d=b+4; v->n=size; v->pos=0; v->pred=0; v->idx=0; v->gain=q->gain;
+        winnerNext++;
+    }
+}
+// Decode only the currently singing source clips and blend them into the same
+// 32-bit stereo accumulator as the tracker (before final soft limiting).
+// This deliberately remains outside IWRAM to preserve the tight code budget.
+__attribute__((noinline)) static void winnerVocalMix(u32*a,int n){
+    for(int vi=0;vi<2;vi++){
+        WinnerSinger*v=&winnerSinger[vi];
+        if(!v->d) continue;
+        const u8*d=v->d; u32 p=v->pos,limit=v->n;
+        int pred=v->pred,idx=v->idx,gain=v->gain;
+        for(int i=0;i<n;i++){
+            if(p>=limit){ v->d=0; break; }
+            int code=d[p>>1]; code=(p&1)?code>>4:code&15; p++;
+            int step=stepT[idx], diff=step>>3;
+            if(code&1) diff+=step>>2;
+            if(code&2) diff+=step>>1;
+            if(code&4) diff+=step;
+            pred+=(code&8)?-diff:diff;
+            if(pred>32767) pred=32767;
+            if(pred< -32768) pred= -32768;
+            idx+=idxT[code&7];
+            if(idx<0) idx=0;
+            if(idx>88) idx=88;
+            int level=((pred>>8)*gain)>>6;  // center lead at ~44% full scale
+            a[i]+=((u32)(s32)level<<16)+(u32)(s32)level;
+        }
+        v->pos=p; v->pred=pred; v->idx=idx;
+    }
+}
 static void musTrigger(void){
     const XmSong*s=mSong; const u8*e=&s->ev[s->patOff[s->order[mOrd]]]; int r=mRow, n;
+    if(s==&xm_winner_koala) winnerVocalStart(mOrd*64+mRow);
     for(;;){ int h=*e++;
         if(h&0x80){ h&=0x7F; if(r<h){ n=0; break; } r-=h; }
         else if(r--==0){ n=h; break; }
@@ -1911,6 +1959,18 @@ static void musTrigger(void){
         u32 t=s->vt[(w&255)|((w>>22)<<8)]; int ch=t&15, in=(t>>4)&31, nt=(w>>8)&127, vol=(w>>15)&127;   // channel, instrument, note, voice volume
         int bus=(t>>9)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
         MVoice*v=&mvc[ch]; int vl=vol*s->busL[bus], vr=vol*s->busR[bus];
+        // Encoded XM key-off: note 97 was represented as note index 96 and
+        // zero volume. Stop the original sample at the score's actual release
+        // (rather than letting a nine-second flute play for every short hit).
+        if(nt==96 && vol==0){
+            if(v->d && (v->pos>>16)<v->len){
+                const s8*d=v->d; int ix=(int)(v->pos>>16);
+                int fr=(int)((v->pos>>8)&255);
+                int x=d[ix]*256+(d[ix+1]-d[ix])*fr;
+                v->ol+=((x*v->vl)>>21)*32; v->orr+=((x*v->vr)>>21)*32;
+            }
+            v->d=0; v->vl=v->vr=0; continue;  // existing 2ms declick fades offset
+        }
         { int oL=0, oR=0;   // where the old note is right now
           if(v->d&&(v->pos>>16)<v->len){ const s8*d=v->d; int ix=(int)(v->pos>>16), fr=(int)((v->pos>>8)&255), x=d[ix]*256+(d[ix+1]-d[ix])*fr; oL=(x*v->vl)>>21; oR=(x*v->vr)>>21; }
           int x0=s->data[in][0]*256; v->ol+=(oL-((x0*vl)>>21))<<5; v->orr+=(oR-((x0*vr)>>21))<<5; }
@@ -1931,7 +1991,7 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
     int done=0;
     while(done<MUS_N){
         if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
-            if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; } } }
+            if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; if(mSong==&xm_winner_koala){ winnerNext=0; winnerSinger[0].d=0; winnerSinger[1].d=0; } } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
         u32*a=macc+done;
         for(int i=0;i<n;i++) a[i]=0;
@@ -1957,6 +2017,7 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
             if(ol>-32&&ol<32) ol=0;
             if(orr>-32&&orr<32) orr=0;
             v->ol=ol; v->orr=orr; }
+        if(mSong==&xm_winner_koala && (winnerSinger[0].d||winnerSinger[1].d)) winnerVocalMix(a,n);
         mLeft-=n; done+=n;
     }
     for(int i=0;i<MUS_N;i++){ u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16); outL[i]=(s8)softClip(l>>2); outR[i]=(s8)softClip(r>>2); }
@@ -2133,6 +2194,7 @@ IWRAM_ARM static void chipMix(s8*out,s8*outR){   // in passes over maccL / maccR
 typedef struct {
     const XmSong*song; int ord,row,left,frac; MVoice vc[MUS_VOICES]; int kind,tail,laps,done,play;
     int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx,aLoop,aPred0,aIdx0; s8 dly[256]; int dp,lp; CSyn cs;
+    WinnerSinger singers[2]; u8 singerNext;
 } MDeck;
 static MDeck xdk EWRAM_BSS; static s8 xbufL[MUS_N] EWRAM_BSS, xbufR[MUS_N] EWRAM_BSS;
 static volatile int xfOn, xfT, xfN, xdkG=256;   // crossfade running, frames done, frames in all, the old song's gain when it was put aside (256 = full)
@@ -2146,6 +2208,9 @@ static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     { int t=mLaps; mLaps=d->laps; d->laps=t; t=mDone; mDone=d->done; d->done=t; t=mPlay; mPlay=d->play; d->play=t; }
     { u32*a=(u32*)mvc,*b=(u32*)d->vc; for(unsigned i=0;i<sizeof(mvc)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
     { u32*a=(u32*)mDly,*b=(u32*)d->dly; for(int i=0;i<64;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
+    { u32*a=(u32*)winnerSinger,*b=(u32*)d->singers;
+      for(unsigned i=0;i<sizeof(winnerSinger)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
+    XSW(u8,winnerNext,d->singerNext)
 }
 // TOUKEBOX VISUALIZER: the real sound. While the Toukebox is open (vzLive counts down from 30 frames, set by its screen), every buffer the mixer finishes is
 // split into 8 bands by a bank of one-pole low passes (x, then the difference of neighbouring low passes), every second sample. vzOut[b] = the average size
@@ -2269,6 +2334,7 @@ static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
     for(int i=0;i<MUS_VOICES;i++){ mvc[i].d=0; mvc[i].ol=mvc[i].orr=0; mStemT[i]=mStemG[i]=256; } mStemsOk=0; mChanSeen=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
+    winnerNext=0; for(int i=0;i<2;i++){ winnerSinger[i].d=0; winnerSinger[i].n=winnerSinger[i].pos=0; winnerSinger[i].pred=winnerSinger[i].idx=winnerSinger[i].gain=0; }
     aLoop=0; aPred0=0; aIdx0=0;
     if(kind==2) csInit(adp);
     else if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;

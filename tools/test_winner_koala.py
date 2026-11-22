@@ -51,6 +51,29 @@ def assert_project():
     assert notes == 8813, notes
     assert len(instruments) == 23, instruments
 
+    # Original pad-6 sample lasts 9 seconds, but its Koala note lengths are
+    # usually fractions of a beat. Playback must honor the ORIGINAL gate
+    # positions without ever releasing an already retriggered channel.
+    from winner_note_gate import install as add_note_releases, decode_patterns
+    gated, gate_stats=add_note_releases(raw)
+    assert gate_stats=={'original_notes':716,'inserted_releases':715,'preempted_by_retrigger':1},gate_stats
+    pats,_=decode_patterns(gated)
+    assert sum(cell[0]==97 for p in pats for row in p for cell in row)==715
+    assert sum(1<=cell[0]<=96 for p in pats for row in p for cell in row)==8813
+
+    # No artificial pitch or time-stretching of the isolated original singing.
+    from winner_voice import make as make_vocal_cues
+    cues=make_vocal_cues()
+    assert len(cues)==56 and cues[0][0]==54 and cues[-1][0]==10585, (cues[0],cues[-1])
+    assert all(cues[i][0]<cues[i+1][0] for i in range(55))
+    assert (ROOT/"source/winner_vocals.h").exists()
+    main=(ROOT/"source/main.c").read_text()
+    assert '#include "winner_vocals.h"' in main
+    assert 'if(nt==96 && vol==0)' in main
+    assert 'winnerVocalMix(a,n)' in main and 'winnerVocalStart(mOrd*64+mRow)' in main
+    assert 'XSW(u8,winnerNext,d->singerNext)' in main
+    assert 'winnerNext=0' in main
+
     songs = (ROOT / "source/songs.h").read_text(encoding="utf8")
     assert len(re.findall(r"^SONG_(?:XM|ADP)\(", songs, re.M)) <= 64
     assert 'SONG_XM(winner_koala,"CORPORATIONS (YOU\'RE WINNER)","tools/winner_koala.xm")' in songs
@@ -64,7 +87,7 @@ def assert_project():
     assert 'static int isDbgSong(int i)' in main
     assert 'const char orig[]=" (ORIGINAL)"' in main
     assert '!isDbgSong(i)&&!isLockedSong(i)' in main
-    print("Winner original Koala: 8813 notes, 206 bars, 23 sampled instruments, 16 channels, two secret predecessors: PASS")
+    print("Winner Koala: 8813 notes, 715 precise flute releases, 56 original vocal cues, two secret predecessors: PASS")
 
 if __name__ == "__main__":
     assert_project()

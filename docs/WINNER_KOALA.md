@@ -70,3 +70,38 @@ secret-versus-unlockable naming rules. Native ROM build, audio playthrough,
 RAM, ROM, and emulator checks must be accepted separately.
 
 Other games using a Winner recording are **not modified** in this milestone.
+
+## Vocal recovery and authentic synth releases — shuffle-timing pass
+
+The original song mix (131 BPM) and two user-sung timing demonstrations
+(normal 4.18 seconds, shuffle 4.22 seconds) guide vocal placement. The
+**existing isolated original vocal clips** in `tools/corporations/digital/`
+are restored alongside the Koala arrangement; all 56 phrases retain
+their original pitch, sample rate and intra-phrase phrasing. Only each
+line's *entrance* is placed on the Koala 127.565 BPM / 62% swing grid,
+with a modest 45ms pickup/lag. This intentionally avoids globally
+speeding/slowing the singer or slurring consonants. Check the audible
+phrases against the original mix: finer syllabic retiming, where needed,
+remains a listening decision, not blind quantization.
+
+Instrument 6 in the XM corresponds to original Koala pad 6
+(`voice-C2_hum_long.flac`), a ~9s sampled sustained tone played by
+**716 short note events**. Previously, BORE's tracker ignored note-off;
+the flute-like sound therefore kept ringing long after the score.
+`tools/winner_flute_gates.b64` is a tiny, LZMA-packed map of those
+**exact** note lengths from `Winner.koala`. The build inserts 715
+declicked note-off events; one is naturally preempted by the next note
+on its channel. The original 8,813 attacks, their pitches, original
+23 samples, 206 bars, and 16 playback channels are unchanged.
+
+The vocals use the already versioned 4-bit ADPCM isolated vocal data
+(~1.6MB) as a two-voice overlay synchronized to the XM's own row clock.
+Ordinary sound effects remain an independent voice and are not stolen
+for singing; the song's crossfade transports its vocal state with it.
+The old (ORIGINAL) songs remain debug-code-only secrets. The source
+Koala XM archive is preserved byte-for-byte: installer applies the
+releases only to its generated copy, then appends the rebuilt event
+bank. The 4-bit legacy vocal source cannot be magically restored to
+lossless quality; note entry placement and audio taste must still be
+reviewed at actual GBA audio output. No global song speed, song pitch,
+voice stretch, extra framebuffer, or large RAM allocation is introduced.

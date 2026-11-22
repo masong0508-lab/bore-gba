@@ -1130,7 +1130,7 @@ def convert(sid, path):
     if maxch >= 16: sys.exit("  ERROR: notes on channel %d, the player has channels 1-16" % (maxch + 1))
     if max(used, default=0) > 32: sys.exit("  ERROR: instrument numbers go up to 32")
     if eff: print("  WARNING: %d effect commands are ignored by the player" % eff)
-    if offs: print("  WARNING: %d note-off keys are ignored by the player" % offs)
+    if offs: print("  INFO: %d XM note-off keys (honored only for Winner Koala, preserved as before for other songs)" % offs)
     insts = convert_samples(S, used, sid)
     ninst = len(insts)
     panf = design_pan(S, used, insts, sid)
@@ -1145,15 +1145,19 @@ def convert(sid, path):
         for ri, r in enumerate(p):
             e = []
             for ch, (n, i, v, _, _) in enumerate(r):
-                if n and n < 97 and i - 1 < ninst and insts[i - 1]:
+                if n and (n<97 or (n==97 and sid=="winner_koala")) and i and i - 1 < ninst and insts[i - 1]:
                     I = insts[i - 1]
-                    rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0       # the volume column scales the sample's own volume
-                    vol = min(127, max(1, int(round(I['svol'] * I['pk'] * rel * GAIN.get(sid, 1.0)))))   # final voice volume: 64 = full sample level, up to 127 with GAIN
+                    if n == 97:   # XM key-off: stop this channel, no new sample
+                        vol, note_index = 0, 96
+                    else:
+                        rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
+                        vol = min(127, max(1, int(round(I['svol'] * I['pk'] * rel * GAIN.get(sid, 1.0)))))
+                        note_index = n - 1
                     key = (ch, i - 1, panf(pi, ri, ch, i, n))
                     if key not in vt:
                         vt[key] = len(vt)
                         if len(vt) > 1024: sys.exit("  ERROR: more than 1024 different channel/instrument/pan combinations in one song")
-                    vi = vt[key]; e.append((vi, n - 1, vol))
+                    vi = vt[key]; e.append((vi, note_index, vol))
             prow.append(e)
             if not e:
                 run += 1
