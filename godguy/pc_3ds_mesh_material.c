@@ -16,6 +16,14 @@ int main(void){
     int bevel=materialRed(GG_MAT_STONE,11,14);
     ok(bevel>stone+8&&stone>mortar+12,
        "stone courses lost their lit edge or recessed mortar");
+    int faint=136,green=136,blue=136;
+    ggMatSampleLit(GG_MAT_STONE,11,0,0x54b3d1a2u,128,&faint,&green,&blue);
+    ok(faint>mortar+5&&faint<131,
+       "mortar relief does not weaken in shaded or hazy air");
+    int hidden=136;green=136;blue=136;
+    ggMatSampleLit(GG_MAT_STONE,11,0,0x54b3d1a2u,0,&hidden,&green,&blue);
+    ok(hidden==136&&green==136&&blue==136,
+       "fully attenuated relief still overpaints atmospheric color");
     int differentTimber=0;
     for(int y=-16;y<49;y++)for(int x=-32;x<33;x++)
         differentTimber+=materialRed(GG_MAT_BARK,x,y)!=

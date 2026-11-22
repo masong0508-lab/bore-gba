@@ -25,8 +25,8 @@ static inline int ggMatWave(int v,int mask){
     int phase=v&mask;
     return phase<=mask/2?phase:mask-phase;
 }
-static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
-                                int *r,int *g,int *b){
+static inline void ggMatSampleLit(int mat,int u,int v,uint32_t seed,int detail,
+                                  int *r,int *g,int *b){
     if(mat<=GG_MAT_NONE||mat>=GG_MAT_COUNT)return;
     // Small low-frequency forms before high-frequency detail: avoid
     // turning the ground into television static at native 400x240.
@@ -199,8 +199,14 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
         break;
     }
     }
-    *r=ggMatClamp(rr+shade);
-    *g=ggMatClamp(gg+shade);
-    *b=ggMatClamp(bb+shade);
+    // The input already includes polygon illumination and haze. Let
+    // only the lit, visible share of pigment and relief modify it.
+    *r=ggMatClamp(*r+(rr+shade-*r)*detail/256);
+    *g=ggMatClamp(*g+(gg+shade-*g)*detail/256);
+    *b=ggMatClamp(*b+(bb+shade-*b)*detail/256);
+}
+static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
+                                int *r,int *g,int *b){
+    ggMatSampleLit(mat,u,v,seed,256,r,g,b);
 }
 #endif

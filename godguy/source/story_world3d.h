@@ -14,6 +14,7 @@ typedef struct { short x,y,z; } GgV3;
 typedef struct { int x,y; } GgS2;
 typedef struct { int x,z,yaw; u8 *page; } GgFilmCamera;
 typedef struct { GgV3 lead,other; int leadDepth,otherDepth; } GgFilmFootprints;
+enum { GG_FILM_DUSK_SUN_X=-1050, GG_FILM_DUSK_SUN_Z=3720 };
 
 // The long movie has one continuous scenery clock per chapter. The stage
 // sets this from the complete clip position; direct geometry tests fall back
@@ -143,7 +144,7 @@ static void ggFilmBackdrop(GgFilmCamera cam,int place,int t,int winter){
     if(room)return;
     ggFilmClouds(cam,storm,evening,t);
     if(!storm&&!winter){
-        if(evening)ggFilmSun(cam,-1050,454,3720,130,10);
+        if(evening)ggFilmSun(cam,GG_FILM_DUSK_SUN_X,454,GG_FILM_DUSK_SUN_Z,130,10);
         else if(place==F_ORBIT)ggFilmSun(cam,990,635,3660,105,11);
     }
     static const short first[]={415,610,355,755,502,366,635,498,655,455,486};
@@ -554,11 +555,20 @@ static void ggFilmCastShadow(GgFilmCamera cam,GgV3 mark,int place,int chapter){
     if(!mark.z)return;
     int x=mark.x,y=mark.y+1,z=mark.z;
     int indoor=ggFilmRoom(place);
-    int cast=place==F_PORCH?-45:50;
+    int castX=50,castZ=38;
+    // Keep the floor shadow's direction tied to the light visible in the set.
+    if(place==F_PORCH){
+        castX=(x-GG_FILM_PORCH_WINDOW_X)/9;
+        castZ=(z-GG_FILM_PORCH_WINDOW_Z)/9;
+    }else if(place==F_SHORE||place==F_GATE||place==F_RUINS){
+        castX=(x-GG_FILM_DUSK_SUN_X)/15;
+        castZ=(z-GG_FILM_DUSK_SUN_Z)/15;
+    }
     u8 shadow=place==F_SHORE?26:place==F_STORM?GG_SLATE:
               indoor||place==F_FORD?24:place==F_GATE||place==F_RUINS?20:GG_PINE;
     GgV3 nearL=ggV3(x-22,y,z-18),nearR=ggV3(x+20,y,z-15);
-    GgV3 farL=ggV3(x+cast-18,y,z+40),farR=ggV3(x+cast+18,y,z+36);
+    GgV3 farL=ggV3(x+castX-18,y,z+castZ+2);
+    GgV3 farR=ggV3(x+castX+18,y,z+castZ-2);
     int contact=24;
     if(place==F_FORD&&mark.y>1){
         // Neither the contact core nor the tail can spill across the

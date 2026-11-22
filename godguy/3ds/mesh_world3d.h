@@ -224,8 +224,8 @@ static void ggMeshRoof(GgMeshContext*m,int build,
     // Actual closed gables, with triangular geometry rather than a
     // 2D roof sticker floating above an otherwise flat cube.
     ggMeshTriangle(m,ggMeshV(x0,y0,wallTop),
-                   ggMeshV(x0,y1,wallTop),
                    ggMeshV(x0,ridgeY,wallTop+roofRise),
+                   ggMeshV(x0,y1,wallTop),
                    188,171,143);
     ggMeshTriangle(m,ggMeshV(x1,y0,wallTop),
                    ggMeshV(x1,y1,wallTop),
@@ -250,24 +250,51 @@ static void ggMeshRoof(GgMeshContext*m,int build,
     }
     m->material=prior;
 }
+enum { GG_MESH_DOOR_OFFSET=9 };
+static inline int ggMeshDoorHalfWidth(int half){ return half>=80?27:22; }
+static int ggMeshDoorFloor(int plane,int alongX,int facing,int start,int end){
+    int center=(start+end)/2,width=ggMeshDoorHalfWidth((end-start)/2);
+    plane-=facing*GG_MESH_DOOR_OFFSET;
+    // The sill is entirely on one straight sector of the terrain fan.
+    // Anchor it at the uphill end so the ground cannot bury the opening.
+    int left=ggMeshGroundAtQ8(alongX?center-width:plane,
+                             alongX?plane:center-width);
+    int right=ggMeshGroundAtQ8(alongX?center+width:plane,
+                              alongX?plane:center+width);
+    return left>right?left:right;
+}
+static void ggMeshDoorway(GgMeshContext*m,int plane,int alongX,int facing,
+                           int middle,int half,int base){
+    int width=ggMeshDoorHalfWidth(half);
+    // The threshold and lintel share the building's floor and the
+    // inhabitant's world units. Keep the jambs proud of the wall trim.
+    for(int trim=1;trim>=0;trim--){
+        int panel=plane-facing*(GG_MESH_DOOR_OFFSET-trim);
+        int a=middle-width-trim*4,b=middle+width+trim*4;
+        int top=base+GG_WORLD_DOOR_HEIGHT+trim*2;
+        ggMeshQuad(m,ggMeshV(alongX?a:panel,alongX?panel:a,base),
+                     ggMeshV(alongX?b:panel,alongX?panel:b,base),
+                     ggMeshV(alongX?b:panel,alongX?panel:b,top),
+                     ggMeshV(alongX?a:panel,alongX?panel:a,top),
+                     trim?102:alongX?42:46,
+                     trim?79:alongX?45:51,
+                     trim?56:alongX?53:58);
+    }
+}
 static void ggMeshWindow(GgMeshContext*m,int x0,int x1,
                           int frontY,int facing,int ground,int height){
-    if(height<15)return;
+    if(height<GG_WORLD_DOOR_HEIGHT+2)return;
     int oldBias=m->depthBias,oldMat=m->material;
     m->depthBias=1;m->material=GG_MAT_NONE;
     int y=frontY-facing*3;
-    int winBot=ground+height*2/5,winTop=winBot+7;
+    int winBot=ground+9+(height>=35)*2,winTop=winBot+7;
     int cx=(x0+x1)/2;
     int half=(x1-x0)/2;
-    // Black recessed door plus narrower framed amber windows. Their
-    // vertices are physically ahead of the wall: no shader overlays.
-    ggMeshQuad(m,ggMeshV(cx-21,y,ground+1),
-               ggMeshV(cx+21,y,ground+1),
-               ggMeshV(cx+21,y,ground+10),
-               ggMeshV(cx-21,y,ground+10),42,45,53);
+    int glassHalf=half>=90?20:10;
+    ggMeshDoorway(m,frontY,1,facing,cx,half,ground);
     for(int side=-1;side<=1;side+=2){
         int center=cx+side*half*2/3;
-        int a=center-20,b=center+20;
+        int a=center-glassHalf,b=center+glassHalf;
         ggMeshQuad(m,ggMeshV(a-4,y,winBot-1),
                    ggMeshV(b+4,y,winBot-1),
                    ggMeshV(b+4,y,winTop+1),
@@ -293,34 +320,33 @@ static void ggMeshSideFacade(GgMeshContext*m,int wallX,int facing,
     // A physically rotated version of the front glazing, with its
     // own x-plane. The original y-only windows left the wall directly
     // facing the default eastward camera completely blank.
-    if(height<13)return;
+    if(height<GG_WORLD_DOOR_HEIGHT+2)return;
     int oldBias=m->depthBias,oldMat=m->material;
     m->depthBias=1;m->material=GG_MAT_NONE;
     int face=wallX-facing*3,pane=face-facing*3;
     int cy=(y0+y1)/2;
-    int low=ground+height*2/5,high=low+8;
-    ggMeshQuad(m,ggMeshV(face,cy-22,ground+1),
-        ggMeshV(face,cy+22,ground+1),
-        ggMeshV(face,cy+22,ground+10),
-        ggMeshV(face,cy-22,ground+10),46,51,58);
+    int half=(y1-y0)/2,glassHalf=half>=90?19:10;
+    int low=ground+9+(height>=35)*2,high=low+7;
+    ggMeshDoorway(m,wallX,0,facing,cy,half,ground);
     for(int n=-1;n<=1;n+=2){
         int q=cy+n*(y1-y0)/3;
-        ggMeshQuad(m,ggMeshV(face,q-23,low-1),
-            ggMeshV(face,q+23,low-1),
-            ggMeshV(face,q+23,high+1),
-            ggMeshV(face,q-23,high+1),80,77,74);
-        ggMeshQuad(m,ggMeshV(pane,q-19,low),
-            ggMeshV(pane,q+19,low),
-            ggMeshV(pane,q+19,high),
-            ggMeshV(pane,q-19,high),90,132,145);
+        int a=q-glassHalf,b=q+glassHalf;
+        ggMeshQuad(m,ggMeshV(face,a-4,low-1),
+            ggMeshV(face,b+4,low-1),
+            ggMeshV(face,b+4,high+1),
+            ggMeshV(face,a-4,high+1),80,77,74);
+        ggMeshQuad(m,ggMeshV(pane,a,low),
+            ggMeshV(pane,b,low),
+            ggMeshV(pane,b,high),
+            ggMeshV(pane,a,high),90,132,145);
         ggMeshQuad(m,ggMeshV(pane-facing,q-2,low),
             ggMeshV(pane-facing,q+2,low),
             ggMeshV(pane-facing,q+2,high),
             ggMeshV(pane-facing,q-2,high),181,162,126);
-        ggMeshQuad(m,ggMeshV(pane-facing*2,q-24,low-1),
-            ggMeshV(pane-facing*2,q+24,low-1),
-            ggMeshV(pane-facing*2,q+24,low),
-            ggMeshV(pane-facing*2,q-24,low),197,182,151);
+        ggMeshQuad(m,ggMeshV(pane-facing*2,a-5,low-1),
+            ggMeshV(pane-facing*2,b+5,low-1),
+            ggMeshV(pane-facing*2,b+5,low),
+            ggMeshV(pane-facing*2,a-5,low),197,182,151);
     }
     m->depthBias=oldBias;m->material=oldMat;
 }
@@ -331,10 +357,8 @@ static void ggMeshWallFinish(GgMeshContext*m,int x0,int y0,
                              int x1,int y1,int ground,int height,
                              int wood){
     int spacing=wood?6:5;
-    int lower=ground+3,upper=ground+height-3;
-    int windowLow=ground+height*2/5;
+    int lower=ground+GG_WORLD_DOOR_HEIGHT+2,upper=ground+height-3;
     for(int z=lower;z<upper;z+=spacing){
-        if(z>=windowLow-2&&z<=windowLow+10)continue;
         int r=wood?104:126,g=wood?80:124,b=wood?63:117;
         if((z/spacing)&1){r+=10;g+=9;b+=8;}
         ggMeshQuad(m,ggMeshV(x0+9,y0-4,z),
@@ -566,6 +590,18 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     if(build==B_STATUE){x0+=42;x1-=42;y0+=38;y1-=38;}
     int baseGround=ggMeshFoundationGround(x0-14,y0-14,x1+14,y1+14,ground);
     int wallTop=ground+ggExpBuilding(build);
+    int doorFloor[4]={ground,ground,ground,ground};
+    if(wallTop-ground>=GG_WORLD_DOOR_HEIGHT+2&&build!=B_STATUE&&
+       !ggMeshShadowFlat(tx,tx,ty,ty,ground)){
+        doorFloor[0]=ggMeshDoorFloor(x0,0,1,y0,y1);
+        doorFloor[1]=ggMeshDoorFloor(x1,0,-1,y0,y1);
+        doorFloor[2]=ggMeshDoorFloor(y0,1,1,x0,x1);
+        doorFloor[3]=ggMeshDoorFloor(y1,1,-1,x0,x1);
+        for(int side=0;side<4;side++){
+            int top=doorFloor[side]+GG_WORLD_DOOR_HEIGHT+3;
+            if(top>wallTop)wallTop=top;
+        }
+    }
     int wood=build==B_HOUSE||build==B_HUT||build==B_FARM;
     int stone=build==B_TEMPLE||build==B_HALL||
               build==B_TOWER||build==B_LIBRARY;
@@ -627,10 +663,10 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     // Even the medium distance silhouette keeps its entrances and
     // windows. The old LOD switched whole buildings into blank cubes.
     if(build!=B_FARM){
-        if(m->cy<=y0)ggMeshWindow(m,x0,x1,y0,1,ground,h);
-        if(m->cy>=y1)ggMeshWindow(m,x0,x1,y1,-1,ground,h);
-        if(m->cx<=x0)ggMeshSideFacade(m,x0,1,y0,y1,ground,h);
-        if(m->cx>=x1)ggMeshSideFacade(m,x1,-1,y0,y1,ground,h);
+        if(m->cy<=y0)ggMeshWindow(m,x0,x1,y0,1,doorFloor[2],wallTop-doorFloor[2]);
+        if(m->cy>=y1)ggMeshWindow(m,x0,x1,y1,-1,doorFloor[3],wallTop-doorFloor[3]);
+        if(m->cx<=x0)ggMeshSideFacade(m,x0,1,y0,y1,doorFloor[0],wallTop-doorFloor[0]);
+        if(m->cx>=x1)ggMeshSideFacade(m,x1,-1,y0,y1,doorFloor[1],wallTop-doorFloor[1]);
     }
     if(nearDetail){
         // Ground-contact plinth and roof cornice extend beyond every
@@ -677,12 +713,13 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         if(build==B_TEMPLE||build==B_HALL){
             // Real colonnade projecting ahead of the wall, with an
             // enclosed upper lintel that receives perspective shading.
-            for(int i=0;i<3;i++){
-                int x=x0+43+i*57;
-                ggMeshGroundBox(m,x-8,y0-25,x+8,y0-10,ground+20,181,173,155);
+            int lintel=doorFloor[2]+GG_WORLD_DOOR_HEIGHT+3;
+            for(int side=-1;side<=1;side+=2){
+                int x=(x0+x1)/2+side*57;
+                ggMeshGroundBox(m,x-8,y0-25,x+8,y0-10,lintel,181,173,155);
             }
             ggMeshBox(m,x0+26,y0-30,x1-26,y0-6,
-                      ground+20,ground+23,182,170,145);
+                      lintel,lintel+3,182,170,145);
         }
         if(build==B_HOUSE||build==B_HUT){
             // A small masonry chimney gives every cottage a readable
@@ -923,23 +960,24 @@ static void ggMeshCart(GgMeshContext*m,int x,int y,int ground){
     }
 }
 static void ggMeshStall(GgMeshContext*m,int x,int y,int ground,int quality){
+    int eave=ground+GG_WORLD_DOOR_HEIGHT+1;
     for(int dx=-44;dx<=44;dx+=88)for(int dy=-24;dy<=24;dy+=48)
         ggMeshGroundBox(m,x+dx-4,y+dy-4,x+dx+4,y+dy+4,
-                         ground+12+(dy>0),108,81,59);
-    ggMeshBox(m,x-47,y-28,x+47,y+28,ground+4,ground+6,146,102,67);
+                         eave+1+(dy>0),108,81,59);
+    ggMeshBox(m,x-47,y-28,x+47,y+28,ground+5,ground+7,146,102,67);
     int previous=m->material;
     m->material=GG_MAT_FABRIC;
     int strips=quality>=2?4:1;
     for(int i=0;i<strips;i++){
         int left=x-52+104*i/strips,right=x-52+104*(i+1)/strips;
         int r=i&1?206:158,g=i&1?164:82,b=i&1?115:71;
-        GgMeshVertex a=ggMeshV(left,y-33,ground+11);
-        GgMeshVertex b0=ggMeshV(right,y-33,ground+11);
-        GgMeshVertex c=ggMeshV(right,y+33,ground+13);
-        GgMeshVertex d=ggMeshV(left,y+33,ground+13);
+        GgMeshVertex a=ggMeshV(left,y-33,eave);
+        GgMeshVertex b0=ggMeshV(right,y-33,eave);
+        GgMeshVertex c=ggMeshV(right,y+33,eave+2);
+        GgMeshVertex d=ggMeshV(left,y+33,eave+2);
         ggMeshQuad(m,a,b0,c,d,r,g,b);
-        ggMeshQuad(m,ggMeshV(left,y-33,ground+9),
-            ggMeshV(right,y-33,ground+9),b0,a,r-12,g-10,b-8);
+        ggMeshQuad(m,ggMeshV(left,y-33,eave-2),
+            ggMeshV(right,y-33,eave-2),b0,a,r-12,g-10,b-8);
     }
     m->material=previous;
 }
@@ -1162,28 +1200,19 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     GgFilmScenicAtmosphere atmosphere=ggFilmScenicAtmosphere(terrain);
     // Use the exact triangular terrain beneath the camera. Nominal
     // tile height caused a visible vertical pop at slopes/biome borders.
-    int eye=ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)+13+
+    int eye=ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)+GG_WORLD_EYE_HEIGHT+
             (ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0);
     int angle=ggExplore.angle&255;
+    int cover=terrain==T_SAND||terrain==T_DESERT?0:
+              terrain==T_SNOW?3:
+              terrain==T_SWAMP||terrain==T_FOREST||terrain==T_JUNGLE?2:1;
     GgMeshContext*m=&ggMeshContext;
-    ggMeshBegin(m,out,quality,ggExplore.px,ggExplore.py,eye,
-                ggExpCos[angle],ggExpSin[angle],
-                49+atmosphere.skyR,78+atmosphere.skyG,
-                108+atmosphere.skyB);
-    m->sunTint=1;
-    ggMeshSkyWeather(m,ggExplore.frame,
-        terrain==T_SAND||terrain==T_DESERT?0:
-        terrain==T_SNOW?3:
-        terrain==T_SWAMP||terrain==T_FOREST||terrain==T_JUNGLE?2:1);
-    // Match the new bright horizon instead of fading distant buildings
-    // into the previous dark grey-blue strip above the ground.
-    m->fogR=ggMeshClamp(164+atmosphere.skyR/2,0,255);
-    m->fogG=ggMeshClamp(182+atmosphere.skyG/2,0,255);
-    m->fogB=ggMeshClamp(193+atmosphere.skyB/2,0,255);
+    ggMeshBeginDaylight(m,out,quality,ggExplore.px,ggExplore.py,eye,
+                        ggExpCos[angle],ggExpSin[angle],
+                        49+atmosphere.skyR,78+atmosphere.skyG,
+                        108+atmosphere.skyB,cover);
+    ggMeshSkyWeather(m,ggExplore.frame);
     m->fogMax=(terrain==T_SWAMP||terrain==T_SNOW)?174:132;
-    m->ambientLight=(terrain==T_SNOW||terrain==T_SAND||
-                     terrain==T_DESERT)?236:
-                    terrain==T_SWAMP||terrain==T_FOREST?198:218;
     ggMeshTilesDrawn=ggMeshBuildingsDrawn=ggMeshPropsDrawn=0;
     enum { VIEW_RADIUS=9, VIEW_WIDTH=VIEW_RADIUS*2+1 };
     struct { short x,y,forward; } buildings[VIEW_WIDTH*VIEW_WIDTH];

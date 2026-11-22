@@ -339,6 +339,9 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
 #ifndef GG_FILM_SHADOW_MASKED
 #define GG_FILM_SHADOW_MASKED(x,y) 0
 #endif
+#ifndef GG_FILM_SHADOW_SIZE
+#define GG_FILM_SHADOW_SIZE(pixels) (pixels)
+#endif
 // Feather the actual already-rendered terrain beneath each pair of boots.
 // A flat black oval used to look pasted over grass, snow and masonry.
 // Blend directly into the existing RGB film buffer; no additional image,
@@ -346,7 +349,7 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
 // 72x6 pixels per actor, and never writes below the projected foot row.
 static void ggFilmArtContactShadow(u8*out,int x,int feet,int scale){
     int s=ggExpClamp(scale,1,3);
-    int rx=12*s,ry=s;
+    int rx=GG_FILM_SHADOW_SIZE(12*s),ry=GG_FILM_SHADOW_SIZE(s);
     int area=rx*rx*ry*ry;
     int x0=ggExpClamp(x-rx,0,400),x1=ggExpClamp(x+rx,0,400);
     int y0=ggExpClamp(feet-2*ry,0,240),y1=ggExpClamp(feet,0,240);

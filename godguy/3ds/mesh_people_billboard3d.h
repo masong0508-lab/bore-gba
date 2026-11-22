@@ -17,16 +17,16 @@ static inline int ggMeshPersonFacing(int heading,int cameraAngle){
 static inline int ggMeshPersonHeight(const GgMeshContext*m,
                                       int forward,int ground){
     GgMeshCameraVertex bottom={forward,0,ground,0,0};
-    GgMeshCameraVertex crown={forward,0,ground+30,0,0};
+    GgMeshCameraVertex crown={forward,0,ground+GG_WORLD_PERSON_HEIGHT,0,0};
     GgMeshProjected a=ggMeshProject(m,bottom),b=ggMeshProject(m,crown);
-    int h=(a.y-b.y)*m->scale;
-    return ggPersonClamp(h,0,152);
+    return (a.y-b.y)*m->scale;
 }
 // The source cel is 32x48; the old 32/80 billboard aspect ratio
 // squeezed shoulders, faces and legs into conspicuously thin cutouts.
-// Keep true cel proportions in world projection and bound close-up cost.
+// Keep both axes proportional during a dolly. The raster loop clips
+// the projected rectangle to the screen, including at the near plane.
 static inline int ggMeshPersonWidth(int pixelH){
-    return ggPersonClamp(pixelH*GG_PERSON_W/GG_PERSON_H,4,96);
+    return pixelH*GG_PERSON_W/GG_PERSON_H;
 }
 static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
                              int ground,int forward,int side,
@@ -67,12 +67,20 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     // Grade the 24 reusable inks ONCE, not three multiplies and a clamp
     // for every covered pixel. The cel retains its painted local light.
     int shade=ggPersonClamp(m->ambientLight+12,128,256);
+    GgMeshRgb gain={shade,shade,shade};
+    if(m->daylight.cover>=0){
+        int angle=heading&255;
+        GgMeshNormal face={ggExpCos[angle]*3,ggExpSin[angle]*3,1400};
+        GgMeshRgb light=ggMeshDaylightGain(m,face);
+        gain=(GgMeshRgb){(light.r*3+256)/4,(light.g*3+256)/4,
+                         (light.b*3+256)/4};
+    }
     int haze=ggMeshFogAmount(forward,m->fogMax);
     for(int ink=1;ink<GG_PERSON_INKS;ink++){
         unsigned char *color=ggMeshPersonCel.palette[ink];
-        int red=color[0]*shade/256;
-        int green=color[1]*shade/256;
-        int blue=color[2]*shade/256;
+        int red=ggPersonClamp(color[0]*gain.r/256,0,255);
+        int green=ggPersonClamp(color[1]*gain.g/256,0,255);
+        int blue=ggPersonClamp(color[2]*gain.b/256,0,255);
         color[0]=(unsigned char)((red*(256-haze)+m->fogR*haze)/256);
         color[1]=(unsigned char)((green*(256-haze)+m->fogG*haze)/256);
         color[2]=(unsigned char)((blue*(256-haze)+m->fogB*haze)/256);

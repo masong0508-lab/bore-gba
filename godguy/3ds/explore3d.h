@@ -9,6 +9,7 @@
 // It is a light sandbox foundation, not a claimed Minecraft block engine.
 #ifndef GG_EXPLORE3D_H
 #define GG_EXPLORE3D_H
+#include "world_scale3d.h"
 #include "film_architecture3d.h"
 #include "film_facade3d.h"
 #include "film_floor3d.h"
@@ -68,11 +69,11 @@ static int ggExpGround(int t){
 }
 static int ggExpBuilding(int b){
     switch(b){
-    case B_HUT:return 18;
+    case B_HUT:return 21;
     case B_HOUSE:return 25;
     case B_HALL:return 37;
     case B_TOWER:return 55;
-    case B_FARM:return 6;
+    case B_FARM:return 15;
     case B_RUIN:return 12;
     case B_DOCK:return 7;
     case B_TEMPLE:return 34;
@@ -140,7 +141,7 @@ static int ggMeshGroundAtQ8(int wx,int wy);
 static void ggExpTarget(int *tx,int *ty){
     int dir=ggExplore.angle&255;
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
-    int eye=ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)+13+
+    int eye=ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)+GG_WORLD_EYE_HEIGHT+
             (ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0);
     // A bounded three-tile ray stops at the first real obstruction.
     // Never silently paint unseen land through a house or an inhabitant.
@@ -703,7 +704,7 @@ static void ggExpRenderMode(u8 *top,int cinematic){
     int terrain=world[ggExplore.py>>8][ggExplore.px>>8];
     if((unsigned)terrain>=T_N)terrain=T_DIRT;
     GgFilmScenicAtmosphere mood=ggFilmScenicAtmosphere(terrain);
-    int eye=ggExpGround(terrain)+13;
+    int eye=ggExpGround(terrain)+GG_WORLD_EYE_HEIGHT;
     int walkBob=ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0;
     int horizon=cinematic?116+walkBob*2:58+walkBob;
     int dirX=ggExpCos[a],dirY=ggExpSin[a];

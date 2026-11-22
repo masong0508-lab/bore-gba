@@ -80,6 +80,19 @@ int main(void){
     require(near.y>far.y,"world-space floor has no depth gradient");
     require(ggFilmProject(moved,ggV3(120,0,560)).x!=near.x,
             "a camera track does not transform a point");
+    // A full-size adult placed at the cottage threshold needs head and
+    // shoulder clearance at both camera distances.
+    const int cottageDepths[]={740,1050};
+    for(unsigned i=0;i<sizeof cottageDepths/sizeof *cottageDepths;i++){
+        int z=cottageDepths[i];
+        memset(uiBuf,0,sizeof picture.page);
+        ggFilmHouse(moved,0,z,216,196,1,1);
+        GgS2 doorTop=ggFilmProject(moved,ggV3(0,144,z-68));
+        GgS2 doorSide=ggFilmProject(moved,ggV3(-26,110,z-68));
+        require(uiBuf[doorTop.y*256+doorTop.x]==ggFilmInk(25)&&
+                uiBuf[doorSide.y*256+doorSide.x]==ggFilmInk(25),
+                "the village cottage door cannot admit a standing adult");
+    }
     memset(uiBuf,0,sizeof picture.page);
     unsigned long empty=hashFrame();
     int populated=0;
@@ -163,6 +176,20 @@ int main(void){
     ggFilmCastShadow(fordCam,marks.other,F_FORD,9);
     require(uiBuf[deck.y*256+deck.x]==fmvSlots[24],
             "a bridge cast shadow lost its projection onto the deck");
+    GgS2 windowShadow=ggFilmProject(center,ggV3(-24,2,638));
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmCastShadow(center,ggV3(0,1,700),F_PORCH,1);
+    require(uiBuf[windowShadow.y*256+windowShadow.x]==ggFilmInk(24),
+            "the porch shadow does not extend away from the window");
+    GgS2 sunsetShadow=ggFilmProject(center,ggV3(42,3,568));
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmCastShadow(center,ggV3(0,2,690),F_GATE,9);
+    require(uiBuf[sunsetShadow.y*256+sunsetShadow.x]==ggFilmInk(20),
+            "the gate shadow does not extend away from the setting sun");
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmCastShadow(center,ggV3(0,2,690),F_SHORE,1);
+    require(uiBuf[sunsetShadow.y*256+sunsetShadow.x]==ggFilmInk(26),
+            "the shore shadow does not extend away from the setting sun");
     GgS2 window=ggFilmPropSupport(fordCam,F_PORCH,1);
     GgS2 tabletop=ggFilmProject(fordCam,ggV3(0,36,583));
     require(window.x==tabletop.x&&window.y==tabletop.y,

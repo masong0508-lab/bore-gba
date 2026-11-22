@@ -3,13 +3,17 @@
 // This prevents the old hero/guest billboard scaling and hover mismatch.
 #ifndef GG_FILM_PROJECTION3D_H
 #define GG_FILM_PROJECTION3D_H
+#include "world_scale3d.h"
 enum { GG_FILM_HORIZON=116, GG_FILM_FOCAL=250,
-       GG_FILM_EYE_HEIGHT=13, GG_FILM_HEIGHT_MULT=12 };
+       GG_FILM_EYE_HEIGHT=GG_WORLD_EYE_HEIGHT, GG_FILM_HEIGHT_MULT=12 };
 // Use the EXACT same horizontal focal length as ggExpRenderMode's
 // screen ray (skew / 250), rather than the former incompatible 140.
 static inline int ggFilmProjectScreenX(int side,int forward){
     if(forward<=0)return -10000;
     return 200+side*GG_FILM_FOCAL/forward;
+}
+static inline int ggFilmProjectHeight(int forward,int height){
+    return height*GG_FILM_HEIGHT_MULT*256/(forward+256);
 }
 // The renderer draws visible land at horizon-(height-eye)*12/(d+1).
 // A character's boots must be at the same WORLD GROUND projection, not
@@ -21,9 +25,8 @@ static inline int ggFilmProjectFootY(int forward,int cameraGround,int actorGroun
     // Previous code accidentally added TWO tile steps, so boots floated
     // above flat grass by 8-13 px. Add ONE step and interpolate in Q8;
     // this is the exact inverse of the cinema ground-floor projection.
-    return GG_FILM_HORIZON-(actorGround-cameraGround-
-           GG_FILM_EYE_HEIGHT)*GG_FILM_HEIGHT_MULT*256/
-           (forward+256);
+    return GG_FILM_HORIZON+ggFilmProjectHeight(forward,
+                              cameraGround+GG_FILM_EYE_HEIGHT-actorGround);
 }
 // Scaling is an authored camera-take property, NOT rounded independently
 // every time the actor moves a fraction of a tile. Hero and guests share

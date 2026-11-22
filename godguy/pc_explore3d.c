@@ -121,6 +121,68 @@ static unsigned long hash(void){
     for(int i=0;i<400*240*3;i++)h=(h^guarded.img[i])*16777619u;
     return h;
 }
+static void checkSagaMeshProjection(void){
+    GgExplore3D saved=ggExplore;
+    int quality=ggExpScenicQuality,meshEnabled=ggExpMeshEnabled;
+    u8 terrain[3][7],buildings[7];
+    for(int y=82;y<=84;y++)for(int x=79;x<=85;x++){
+        terrain[y-82][x-79]=world[y][x];
+        world[y][x]=T_GRASS;
+        if(y==83){buildings[x-79]=bld[y][x];bld[y][x]=0;}
+    }
+    world[83][81]=T_HILL;
+    world[84][83]=T_HILL;
+    ggExplore.px=80*256+240;ggExplore.py=83*256+128;
+    ggExplore.angle=0;ggExplore.stepPhase=5;
+    ggExpMeshEnabled=1;
+    check(ggMeshGroundAtQ8(ggExplore.px,ggExplore.py)!=ggExpGround(T_GRASS),
+          "saga projection fixture did not place the camera on a slope");
+    for(int detail=1;detail<=2;detail++){
+        ggExpScenicQuality=detail;
+        ggExpRenderMode(guarded.img,1);
+        int heights[2];
+        for(int i=0;i<2;i++){
+            int wx=ggExplore.px+576+i*320,wy=ggExplore.py+64;
+            int z=ggMeshGroundAtQ8(wx,wy),x,feet;
+            GgMeshCameraVertex base=ggMeshCameraPoint(&ggMeshContext,
+                                                      ggMeshV(wx,wy,z));
+            GgMeshProjected boot=ggMeshProject(&ggMeshContext,base);
+            base.z+=GG_WORLD_PERSON_HEIGHT;
+            GgMeshProjected crown=ggMeshProject(&ggMeshContext,base);
+            check(ggSagaProjectActor(wx,wy,&x,&feet,&heights[i])&&
+                  x==boot.x*ggMeshContext.scale&&feet==boot.y*ggMeshContext.scale,
+                  "saga actors do not share the rendered mesh camera on slopes");
+            check(heights[i]==(boot.y-crown.y)*ggMeshContext.scale,
+                  "saga actor height does not match the world's standing adult");
+            if(i==0){
+                GgFilmPose neutral={0};
+                memset(guarded.img,0,sizeof guarded.img);
+                int scale=ggSagaArtBegin(x,feet,heights[i]);
+                ggFilmDrawGuestActor(guarded.img,x,feet,scale,
+                     ggFilmGuestPalette[0][0],ggFilmGuestPalette[0][1],
+                     ggFilmGuestPalette[0][2],&neutral,0);
+                ggSagaArt.height=0;
+                int top=240,bottom=-1;
+                for(int y=0;y<240;y++)for(int px=0;px<400;px++){
+                    const u8 *rgb=guarded.img+(y*400+px)*3;
+                    if(!(rgb[0]||rgb[1]||rgb[2]))continue;
+                    if(y<top)top=y;
+                    if(y>bottom)bottom=y;
+                }
+                check(abs((bottom-top+1)-heights[i])<=2&&
+                      bottom>=feet-2&&bottom<=feet,
+                      "saga figure painting lost its projected height or feet");
+            }
+        }
+        check(heights[0]>heights[1],
+              "saga actors retain the same apparent height across depths");
+    }
+    ggExplore=saved;ggExpScenicQuality=quality;ggExpMeshEnabled=meshEnabled;
+    for(int y=82;y<=84;y++)for(int x=79;x<=85;x++){
+        world[y][x]=terrain[y-82][x-79];
+        if(y==83)bld[y][x]=buildings[x-79];
+    }
+}
 int main(void){
     // Real-world citizen sprites must use the same 250px lens,
     // physically projected foot row and 2px walking-camera bob.
@@ -779,6 +841,7 @@ int main(void){
           ggSaga.ending<GG_SAGA_ENDINGS&&ggSaga.seen,
           "final campaign choice failed to produce a recorded ending");
     int achieved=ggSaga.ending;
+    checkSagaMeshProjection();
     // Film character and architecture must use the same camera, with a
     // stable location, a smooth dolly and exact gameplay camera restore.
     ggChron.act=0;ggSaga.mode=GG_SAGA_INTERLUDE;
