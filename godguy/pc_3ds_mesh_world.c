@@ -134,6 +134,40 @@ static void meshPorticoRotation(unsigned char *pixels){
                     "west temple column disappears when the camera crosses its facade plane");
     }
 }
+static void meshFoundationOverShelf(void){
+    const int x=64*256,y=64*256;
+    world[64][64]=T_MOUNT;world[64][63]=T_WATER;
+    world[63][63]=T_SAND;world[65][63]=T_FOREST;
+    for(int row=63;row<=65;row++)world[row][64]=row==64?T_MOUNT:T_HILL;
+    int base=ggMeshFoundationGround(x+15,y+19,x+47,y+238,48);
+    int shelf=ggMeshGroundAtQ8(x+15,y+37);
+    meshRequire(base<shelf,"foundation skirt leaves a visible gap over a recessed shore shelf");
+    world[64][64]=world[64][63]=world[63][63]=world[65][63]=T_GRASS;
+    world[63][64]=world[65][64]=T_GRASS;
+}
+static void meshPlantedBoots(unsigned char *pixels){
+    const int wx=65*256+128,wy=65*256+72,forward=384;
+    GgMeshContext*m=&ggMeshContext;
+    world[65][65]=T_HILL;
+    int ground=ggMeshGroundAtQ8(wx,wy);
+    ggMeshBegin(m,pixels,2,wx-forward,wy,ground+13,4096,0,55,77,99);
+    ggMeshPersonDraw(m,wx,wy,ground,forward,0,1001,0,128,0,0,famCol[0]);
+    int width=ggMeshPersonWidth(ggMeshPersonHeight(m,forward,ground));
+    int left=m->w/2-width/2,support[2]={0,0};
+    for(int x=left;x<left+width;x++){
+        int column=(x-left)*GG_PERSON_W/width;
+        if(!ggMeshPersonCel.pixels[(GG_PERSON_H-1)*GG_PERSON_W+column])continue;
+        int y=m->h-1;
+        while(y>=0&&!m->depth[y*m->w+x])y--;
+        int side=(x-m->w/2)*forward/m->focal;
+        int z=ggMeshGroundAtQ8(wx,wy+side);
+        int floor=ggMeshProject(m,(GgMeshCameraVertex){forward,side,z,0,0}).y;
+        meshRequire(abs(floor-y-1)<=3,"resident boot lifts or sinks on a cross slope");
+        support[x>m->w/2]++;
+    }
+    meshRequire(support[0]>=3&&support[1]>=3,"cross-slope fixture missed both boots");
+    world[65][65]=T_GRASS;
+}
 static void meshNearArchitecture(unsigned char *pixels){
     GgMeshContext *m=&ggMeshContext;
     ggMeshBegin(m,pixels,2,0,0,10,4096,0,42,65,89);
@@ -250,6 +284,8 @@ int main(void){
     meshEntrances(pixels);
     meshBuildingSilhouettes(pixels);
     meshPorticoRotation(pixels);
+    meshFoundationOverShelf();
+    meshPlantedBoots(pixels);
     meshNearArchitecture(pixels);
     meshArchitectureCover(pixels);
     ggExpRenderMode(pixels,1);

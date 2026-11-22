@@ -232,9 +232,11 @@ static void combatStyles(void){
     ggChronStep(KEY_A);ggChronStep(0);
     check(combatShots()==1&&ggChron.stamina==94&&ggChron.foe[0].hp==80,
           "tapping A did not launch one low-cost arrow");
-    for(int i=0;i<18;i++)ggChronStep(0);
+    for(int i=0;i<18&&combatShots();i++)ggChronStep(0);
     check(ggChron.foe[0].hp==71&&!combatShots(),
           "tap arrow did not resolve once at short range");
+    check(!ggChron.attackFlash&&ggChron.combatNotice==GG_COMBAT_HIT,
+          "a distant arrow impact replayed the player's release pose");
 
     combatFixture(GG_CHRON_BOW,5);
     for(int i=0;i<22;i++)ggChronStep(KEY_A|GG_3DS_ZL);
@@ -358,7 +360,7 @@ static void combatStyles(void){
     ggChronStep(GG_3DS_ZL);
     for(int i=0;i<3;i++)ggChronStep(GG_3DS_ZL);
     ggChronIncomingHit(0,12);
-    check(ggChron.hp==84&&ggChron.combatNotice==GG_COMBAT_BLOCK,
+    check(ggChron.hp==84&&ggChron.combatNotice==GG_COMBAT_BLOCK&&!ggChron.attackFlash,
           "holding ZL through a swing did not resume a steady block");
     ggChron.stamina=8;
     ggChronIncomingHit(0,12);
@@ -1012,11 +1014,20 @@ int main(void){
     ggExplore.px=60*256+128;ggExplore.py=60*256+128;
     ggExplore.angle=0;ggChron.active=1;
     bld[60][62]=B_FARM;
+    int meshBeforeTown=ggExpMeshEnabled;
+    ggExpMeshEnabled=1;
+    ggExpRender(guarded.img);
+    unsigned long meshFarm=hash();
+    ggReignSceneDraw(guarded.img);
+    check(ggMeshBuildingsDrawn>0&&ggReignSceneDrawn==0&&hash()==meshFarm,
+          "legacy building decals paint over the native settlement");
+    ggExpMeshEnabled=0;
     ggExpRender(guarded.img);
     unsigned long bareFarm=hash();
     ggReignSceneDraw(guarded.img);
     check(ggReignSceneDrawn>0&&hash()!=bareFarm,
           "3DS farm decorations are absent from the real settlement");
+    ggExpMeshEnabled=meshBeforeTown;
     bld[60][62]=0;
     // Dense districts must not allocate more than the fixed scene cap.
     for(int yy=57;yy<65;yy++)for(int xx=60;xx<68;xx++)

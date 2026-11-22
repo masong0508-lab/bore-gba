@@ -194,7 +194,6 @@ static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame,int strange
     const u8 *skin=ggOriginSkinRGB[(ggOrigin.skin+stranger)%GG_ORIGIN_SKINS];
     const u8 *hair=ggOriginHairRGB[(ggOrigin.hair+stranger*3)%GG_ORIGIN_HAIRS];
     const u8 *coat=ggOriginClothesRGB[(ggOrigin.garment+stranger*2)%GG_ORIGIN_GARMENTS];
-    ggExpRect(out,x-8*scale,y-2,16*scale,3,30,38,40);
     for(int py=0;py<24;py++){
         const char *row=ggOriginHumanCel[py];
         for(int px=0;px<16;px++){
@@ -239,7 +238,8 @@ static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
     // the top LCD. Rendering the set there leaves the DS UI page intact.
     cam.page=gbuf;
     ggFilmWorldDraw(cam,&take,frame,0,1,0);
-    GgV3 foot=ggV3(phase==GG_ORIGIN_YOUTH?48+move/2:96,0,700);
+    int actorX=phase==GG_ORIGIN_YOUTH?48+move/2:96;
+    GgV3 foot=ggV3(actorX,ggFilmSurfaceHeight(take.place,0,actorX,700),700);
     if(birth){
         ggFilmBox(cam,-116,0,690,10,57,99,24,20,25);
         ggFilmBox(cam,-12,0,690,10,57,99,24,20,25);
@@ -251,7 +251,10 @@ static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
     }
     if(awakening){
         int falling=frame<54?frame:54;
-        foot=ggV3(36+falling,83-falling*83/54,770);
+        int x=36+falling,z=770;
+        int floor=ggFilmSurfaceHeight(take.place,0,x,z);
+        foot=ggV3(x,floor+83-falling*83/54,z);
+        ggFilmContactShadow(cam,ggV3(x,floor,z),take.place,0,24,37,falling==54);
         int caught=frame<38?frame:38;
         int beamY=219-caught*105/38;
         if(frame>84)beamY=114-(frame<122?frame-84:38)*108/38;
@@ -267,7 +270,8 @@ static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
                                ggV3(x+56,y+15,z),ggV3(x,y+4,z),i&1?14:15);
             }
         }
-    }
+    }else if(phase==GG_ORIGIN_CHILD||phase==GG_ORIGIN_YOUTH)
+        ggFilmCastShadow(cam,foot,take.place,0);
     ggExpRect(out,0,0,400,240,17,24,36);
     u8 rgb[256][3]={0};
     for(unsigned ink=0;ink<GG_FILM_INK_N;ink++){

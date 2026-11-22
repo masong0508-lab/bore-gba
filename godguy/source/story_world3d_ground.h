@@ -6,10 +6,21 @@ enum {
     GG_FILM_BRIDGE_FIRST=466, GG_FILM_BRIDGE_BAY=88, GG_FILM_BRIDGE_BAYS=8,
     GG_FILM_BRIDGE_END=GG_FILM_BRIDGE_FIRST+GG_FILM_BRIDGE_BAY*GG_FILM_BRIDGE_BAYS,
     GG_FILM_BRIDGE_HALF=96, GG_FILM_FORD_HALF=113,
-    GG_FILM_RAMP_SHOULDER=23, GG_FILM_RUG_TOP=5
+    GG_FILM_RAMP_SHOULDER=23, GG_FILM_RUG_TOP=5, GG_FILM_ROAD_TOP=3,
+    GG_FILM_ROAD_LEFT_SHOULDER=12, GG_FILM_ROAD_RIGHT_SHOULDER=17
 };
 typedef struct { short z; u8 y; } GgFilmGrade;
 typedef struct { short x,near,far,width; } GgFilmRugPlan;
+typedef struct { short x,z,half; } GgFilmRoadPoint;
+typedef struct { short x,z; } GgFilmCoastPoint;
+static const GgFilmRoadPoint ggFilmRoad[]={
+    {-8,350,174},{-24,625,135},{9,845,107},{50,1050,99},
+    {91,1240,76},{128,1520,57},{133,2030,33}
+};
+static const GgFilmCoastPoint ggFilmCoast[]={
+    {-1900,1110},{-1120,1050},{-665,925},{-360,810},{-125,855},
+    {40,966},{240,1000},{440,981},{680,1044},{1110,1250},{1900,1220}
+};
 static const GgFilmRugPlan ggFilmRugs[F_SET_N]={
     [F_PORCH]={-151,465,856,137}, [F_ARCHIVE]={36,556,1201,314},
     [F_HALL]={0,397,1550,397}, [F_THRONE]={0,397,1550,275},
@@ -27,6 +38,29 @@ static int ggFilmBankHeight(int x,int z){
     // Same sloping-in-plan bank edges as the two slabs in ggFilmFloor.
     int near=616-x*12/1900,far=1129-x*27/1900;
     return z<=near||z>=far?1:0;
+}
+static int ggFilmBeachEdge(int x){
+    if(x<=ggFilmCoast[0].x)return ggFilmCoast[0].z;
+    for(unsigned i=1;i<sizeof ggFilmCoast/sizeof *ggFilmCoast;i++){
+        GgFilmCoastPoint a=ggFilmCoast[i-1],b=ggFilmCoast[i];
+        if(x<=b.x)return a.z+(x-a.x)*(b.z-a.z)/(b.x-a.x);
+    }
+    return ggFilmCoast[sizeof ggFilmCoast/sizeof *ggFilmCoast-1].z;
+}
+static int ggFilmRoadHeight(int x,int z){
+    for(unsigned i=1;i<sizeof ggFilmRoad/sizeof *ggFilmRoad;i++){
+        GgFilmRoadPoint a=ggFilmRoad[i-1],b=ggFilmRoad[i];
+        if(z<a.z||z>b.z)continue;
+        int span=b.z-a.z,offset=z-a.z;
+        int l=a.x-a.half+offset*((b.x-b.half)-(a.x-a.half))/span;
+        int r=a.x+a.half+offset*((b.x+b.half)-(a.x+a.half))/span;
+        if(x>=l&&x<=r)return GG_FILM_ROAD_TOP;
+        int margin=x<l?GG_FILM_ROAD_LEFT_SHOULDER:GG_FILM_ROAD_RIGHT_SHOULDER;
+        int distance=x<l?l-x:x-r;
+        if(distance<margin)return GG_FILM_ROAD_TOP*(margin-distance)/margin;
+        break;
+    }
+    return 0;
 }
 static int ggFilmSurfaceHeight(int place,int chapter,int x,int z){
     if(place==F_FORD){
@@ -49,7 +83,8 @@ static int ggFilmSurfaceHeight(int place,int chapter,int x,int z){
         }
         return ggFilmBankHeight(x,z);
     }
-    if(place==F_SHORE||place==F_STORM)return 3;
+    if(place==F_SHORE||place==F_STORM)return z<=ggFilmBeachEdge(x)?3:0;
+    if(place==F_VILLAGE||place==F_ORBIT)return ggFilmRoadHeight(x,z);
     if((place==F_GATE||place==F_RUINS)&&x>=-139&&x<=139&&z>=428&&z<=1570)return 2;
     if(ggFilmRoom(place)){
         const GgFilmRugPlan *rug=&ggFilmRugs[place];

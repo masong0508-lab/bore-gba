@@ -212,16 +212,14 @@ static void ggFilmWater(GgFilmCamera cam,int place,int t){
     }
 }
 static void ggFilmBeach(GgFilmCamera cam,int place,int t){
-    static const short coastX[]={-1900,-1120,-665,-360,-125,40,240,440,680,1110,1900};
-    static const short coastZ[]={1110,1050,925,810,855,966,1000,981,1044,1250,1220};
     int storm=place==F_STORM;
-    for(unsigned i=0;i+1<sizeof coastX/sizeof *coastX;i++){
-        int l=coastX[i],r=coastX[i+1],a=coastZ[i],b=coastZ[i+1];
+    for(unsigned i=0;i+1<sizeof ggFilmCoast/sizeof *ggFilmCoast;i++){
+        int l=ggFilmCoast[i].x,r=ggFilmCoast[i+1].x,a=ggFilmCoast[i].z,b=ggFilmCoast[i+1].z;
         int wash=(t/19+(int)i*2)%19;
         ggFilmQuad(cam,ggV3(l,2,a-9),ggV3(r,2,b-9),
                       ggV3(r,2,b+46+wash),ggV3(l,2,a+46+wash),storm?14:GG_WATER_CREST);
         ggFilmQuad(cam,ggV3(l,3,a-27),ggV3(r,3,b-27),
-                      ggV3(r,3,b+15+wash),ggV3(l,3,a+15+wash),storm?GG_WATER_CREST:GG_WATER_GLINT);
+                      ggV3(r,1,b+15+wash),ggV3(l,1,a+15+wash),storm?GG_WATER_CREST:GG_WATER_GLINT);
         ggFilmQuad(cam,ggV3(l,3,a-74),ggV3(r,3,b-74),
                       ggV3(r,3,b),ggV3(l,3,a),storm?GG_SLATE:26);
         ggFilmQuad(cam,ggV3(l,3,330),ggV3(r,3,330),
@@ -246,15 +244,15 @@ static void ggFilmDryGround(GgFilmCamera cam,int place,int winter){
                           (i%3?GG_SLATE:21));
     }
     if(grassy){
-        static const short road[][3]={{-8,350,174},{-24,625,135},{9,845,107},
-            {50,1050,99},{91,1240,76},{128,1520,57},{133,2030,33}};
-        for(unsigned i=0;i+1<sizeof road/sizeof *road;i++){
-            int a=road[i][0],b=road[i+1][0],n=road[i][1],f=road[i+1][1];
-            int w=road[i][2],v=road[i+1][2];
-            ggFilmQuad(cam,ggV3(a-w-7,2,n),ggV3(a+w+12,2,n),
-                          ggV3(b+v+24,2,f),ggV3(b-v-14,2,f),winter?22:GG_MOSS);
-            ggFilmQuad(cam,ggV3(a-w,3,n),ggV3(a+w,3,n),
-                          ggV3(b+v,3,f),ggV3(b-v,3,f),winter?21:26);
+        for(unsigned i=0;i+1<sizeof ggFilmRoad/sizeof *ggFilmRoad;i++){
+            GgFilmRoadPoint a=ggFilmRoad[i],b=ggFilmRoad[i+1];
+            int l=a.x-a.half,r=a.x+a.half,fl=b.x-b.half,fr=b.x+b.half;
+            ggFilmQuad(cam,ggV3(l-GG_FILM_ROAD_LEFT_SHOULDER,0,a.z),ggV3(l,GG_FILM_ROAD_TOP,a.z),
+                          ggV3(fl,GG_FILM_ROAD_TOP,b.z),ggV3(fl-GG_FILM_ROAD_LEFT_SHOULDER,0,b.z),winter?22:GG_MOSS);
+            ggFilmQuad(cam,ggV3(r,GG_FILM_ROAD_TOP,a.z),ggV3(r+GG_FILM_ROAD_RIGHT_SHOULDER,0,a.z),
+                          ggV3(fr+GG_FILM_ROAD_RIGHT_SHOULDER,0,b.z),ggV3(fr,GG_FILM_ROAD_TOP,b.z),winter?22:GG_MOSS);
+            ggFilmQuad(cam,ggV3(l,GG_FILM_ROAD_TOP,a.z),ggV3(r,GG_FILM_ROAD_TOP,a.z),
+                          ggV3(fr,GG_FILM_ROAD_TOP,b.z),ggV3(fl,GG_FILM_ROAD_TOP,b.z),winter?21:26);
         }
         for(int i=0;i<17;i++){
             int z=475+i*57;

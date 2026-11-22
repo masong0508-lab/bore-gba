@@ -8,6 +8,7 @@
 #ifndef GG_REIGN_SAVE_PATH
 #define GG_REIGN_SAVE_PATH "sdmc:/godguy_unwritten_reign.dat"
 #endif
+#include "chronicle_actor_art3d.h"
 
 enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=6, GG_REIGN_ORDERS=3,
        GG_REIGN_SQUAD_MAX=6, GG_REIGN_OFFICES=5 };
@@ -18,6 +19,7 @@ enum { GG_ROLE_WAYFINDER,GG_ROLE_SHADE,GG_ROLE_TRADER,
        GG_ROLE_UNBOUND };
 enum { GG_REIGN_FOLLOW,GG_REIGN_HOLD,GG_REIGN_ASSAULT };
 typedef struct {short x,y; signed char hp; } GgReignGuard;
+typedef struct {uint32_t identity; unsigned char heading,pose;} GgReignGuardArt;
 typedef struct {
     int loaded,role,choice,menu,page,action,order,selectedOrder;
     int credits,renown,influence,infamy,legitimacy,divine,office;
@@ -25,6 +27,7 @@ typedef struct {
     int squadN,initialChoice,nextCivicAt;
     unsigned char support[(VIL_N+7)/8];
     GgReignGuard squad[GG_REIGN_SQUAD_MAX];
+    GgReignGuardArt squadArt[GG_REIGN_SQUAD_MAX];
     char notice[74];
 } GgReign3D;
 static GgReign3D ggReign;
@@ -216,7 +219,10 @@ static int ggReignRecruit(void){
                 if(!alive){ggChron.foeWindup[i]=0;ggChron.dirty=1;}
             }
         }
-        if(alive)ggReign.squad[live++]=ggReign.squad[k];
+        if(alive){
+            ggReign.squad[live]=ggReign.squad[k];
+            ggReign.squadArt[live++]=ggReign.squadArt[k];
+        }
     }
     ggReign.squadN=live;
     if(ggReign.squadN>=GG_REIGN_SQUAD_MAX){
@@ -239,8 +245,12 @@ static int ggReignRecruit(void){
         if(occupied)continue;
         ggReign.credits-=price;
         ggReignVillageStock(v,-5);
-        ggReign.squad[ggReign.squadN++]=(GgReignGuard){
-            (short)nx,(short)ny,45};
+        int slot=ggReign.squadN++;
+        ggReign.squad[slot]=(GgReignGuard){(short)nx,(short)ny,45};
+        uint32_t origin=(uint32_t)ny*WW+(uint32_t)nx;
+        ggReign.squadArt[slot]=(GgReignGuardArt){
+            ggPersonMix(origin^((uint32_t)ggReign.frame*0x9e3779b9u))|1u,
+            (unsigned char)ggChronActorHeading(x-nx,y-ny),GG_CHRON_ACTOR_READY};
         ggReignNotice("RECRUITED A FOLLOWER FROM THE REAL TOWN");
         ggReignSave();
         return 1;
@@ -528,6 +538,8 @@ static void ggReignSquadTick(void){
     for(int i=0;i<ggReign.squadN;i++){
         GgReignGuard *g=&ggReign.squad[i];
         if(g->hp<=0)continue;
+        GgReignGuardArt *art=&ggReign.squadArt[i];
+        art->pose=GG_CHRON_ACTOR_READY;
         int enemy=-1,distance=999,strike=-1,reach=3;
         for(int j=0;j<ggChron.foeN;j++){
             const GgChronFoe *f=&ggChron.foe[j];
@@ -542,6 +554,8 @@ static void ggReignSquadTick(void){
             // Soldiers contribute bounded damage, creating a real
             // tactical advantage without spawning fake 2D world citizens.
             GgChronFoe *f=&ggChron.foe[strike];
+            art->heading=(unsigned char)ggChronActorHeading(f->x-g->x,f->y-g->y);
+            art->pose=GG_CHRON_ACTOR_STRIKE;
             int damage=4+(ggReign.order==GG_REIGN_ASSAULT?3:0);
             if(f->hp>damage)f->hp-=damage;
             else{
@@ -551,6 +565,10 @@ static void ggReignSquadTick(void){
             }
             ggChron.dirty=1;
             continue;
+        }
+        if(enemy>=0&&distance<5){
+            const GgChronFoe *f=&ggChron.foe[enemy];
+            art->heading=(unsigned char)ggChronActorHeading(f->x-g->x,f->y-g->y);
         }
         int tx=ggExplore.px>>8,ty=ggExplore.py>>8;
         if(ggReign.order==GG_REIGN_HOLD)continue;
@@ -563,7 +581,10 @@ static void ggReignSquadTick(void){
         }
         int nx=g->x,ny=g->y;
         if(ggReignGuardStep(g->x,g->y,tx,ty,&nx,&ny)){
+            art->heading=(unsigned char)ggChronActorHeading(nx-g->x,ny-g->y);
+            art->pose=GG_CHRON_ACTOR_MOVE;
             g->x=(short)nx;g->y=(short)ny;
+            ggChron.dirty=1;
         }
     }
 }
@@ -571,13 +592,23 @@ static void ggReignSquadTick(void){
 // this header. It shares the existing modal, without adding a screen buffer.
 static void ggQuestJournalDraw(u8 *out);
 static void ggSagaFateDraw(u8 *out);
-static void ggReignDraw(u8 *out){
+static void ggReignDrawSquad(u8 *out){
     if(!ggChron.active)return;
-    // Officers and companions use tiny native-game silhouettes with
-    // physically positioned banners; there is no block-built army.
     for(int i=0;i<ggReign.squadN;i++){
         const GgReignGuard *g=&ggReign.squad[i];
         if(g->hp<=0)continue;
+        if(ggExpMeshActive){
+            const GgReignGuardArt *art=&ggReign.squadArt[i];
+            int phase=ggReign.frame%12,pose=art->pose;
+            if(pose==GG_CHRON_ACTOR_STRIKE){
+                if(phase<5)phase=phase*255/4;
+                else{pose=GG_CHRON_ACTOR_RECOVER;phase=(phase-5)*255/6;}
+            }else phase=phase*255/11;
+            ggChronActorDraw(g->x*256+128,g->y*256+128,art->identity,
+                             GG_CHRON_ACTOR_ALLY,art->heading,pose,phase);
+            continue;
+        }
+        // Retain the original sprites in the legacy world renderer.
         int x,y,size;
         if(!ggChronProject(g->x,g->y,&x,&y,&size))continue;
         int scale=ggExpClamp(size/8,1,4);
@@ -598,6 +629,9 @@ static void ggReignDraw(u8 *out){
         ggExpRect(out,x+4*scale,y-10*scale,2,10*scale,170,150,94);
         ggExpRect(out,x+4*scale+2,y-10*scale,5*scale,3*scale,42,131,137);
     }
+}
+static void ggReignDraw(u8 *out){
+    if(!ggChron.active)return;
     // Text is contained in a slim band and a dedicated modal board.
     if(ggReign.menu){
         ggExpRect(out,14,45,372,144,13,24,38);

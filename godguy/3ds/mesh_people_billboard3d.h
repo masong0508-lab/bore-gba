@@ -28,14 +28,31 @@ static inline int ggMeshPersonHeight(const GgMeshContext*m,
 static inline int ggMeshPersonWidth(int pixelH){
     return pixelH*GG_PERSON_W/GG_PERSON_H;
 }
-static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
-                             int ground,int forward,int side,
-                             uint32_t identity,int family,int heading,
-                             int tick,int active,
-                             const unsigned char colors[3][3]){
-    if(forward<m->near||forward>11*256)return;
+static inline int ggMeshPersonInView(const GgMeshContext*m,int forward,int side){
+    int reach=GG_WORLD_PERSON_HEIGHT*m->vertical*256/3;
+    return forward>=m->near&&forward<=11*256&&
+           abs(side)*m->focal<=(m->w/2+2)*forward+reach;
+}
+static int ggMeshBillboardUneven(const GgMeshContext*m,int x,int y,
+                                 int ground,int forward,int span){
+    int extent=span*forward/(m->focal*m->scale);
+    return !ggMeshShadowFlat((x-extent)>>8,(x+extent)>>8,
+                             (y-extent)>>8,(y+extent)>>8,ground)&&
+           ggMeshGroundAtQ8(x,y)==ground;
+}
+static int ggMeshBillboardFloorY(const GgMeshContext*m,int x,int y,
+                                 int forward,int screenOffset){
+    int cross=screenOffset*forward/(m->focal*m->scale);
+    int wx=x-m->sine*cross/4096,wy=y+m->cosine*cross/4096;
+    GgMeshCameraVertex sole={forward,0,ggMeshGroundAtQ8(wx,wy),0,0};
+    return ggMeshProject(m,sole).y*m->scale;
+}
+static int ggMeshPersonDrawGenerated(GgMeshContext*m,int worldX,int worldY,
+                                     int ground,int forward,int side,
+                                     int heading,int active){
+    if(forward<m->near||forward>11*256)return 0;
     int pixelH=ggMeshPersonHeight(m,forward,ground);
-    if(pixelH<7)return;
+    if(pixelH<7)return 0;
     int width=ggMeshPersonWidth(pixelH);
     GgMeshCameraVertex base={forward,side,ground,0,0};
     GgMeshProjected projected=ggMeshProject(m,base);
@@ -54,10 +71,45 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
              -((-top+pixelStep-1)/pixelStep)*pixelStep;
         feet=top+pixelH;
     }
-    if(left>=400||left+width<=0||top>=240||feet<=0)return;
-    int turn=ggMeshPersonFacing(heading,ggExplore.angle);
-    ggPersonGenerate(&ggMeshPersonCel,identity,family,turn,tick,
-                     active,colors);
+    if(left>=400||left+width<=0)return 0;
+    int fromX=left<0?-left:0,toX=400-left;
+    if(toX>width)toX=width;
+    unsigned char celColumn[GG_MESH_MAX_W];
+    for(int dx=fromX;dx<toX;dx+=pixelStep)
+        celColumn[left+dx]=(unsigned char)(dx*GG_PERSON_W/width);
+
+    // The cel's vertical plane is one depth, but the visible boots
+    // span several world points across that plane, each on its own
+    // terrain grade. Only the lower legs follow those contacts.
+    enum { KNEE_ROW=32 };
+    int knee=pixelH*KNEE_ROW/GG_PERSON_H/pixelStep*pixelStep;
+    int rough=ggMeshBillboardUneven(m,worldX,worldY,ground,forward,
+                                    width/2+pixelStep);
+    short soleOffset[GG_MESH_MAX_W];
+    int rise=0,lowest=feet;
+    if(rough){
+        uint32_t legs=0;
+        for(int sy=GG_PERSON_H-8;sy<GG_PERSON_H;sy++)
+            for(int sx=0;sx<GG_PERSON_W;sx++)
+                if(ggMeshPersonCel.pixels[sy*GG_PERSON_W+sx])
+                    legs|=1u<<sx;
+        int highest=feet;
+        for(int dx=fromX;dx<toX;dx+=pixelStep){
+            int x=left+dx,sx=celColumn[x];
+            soleOffset[x]=0;
+            if(!(legs&(1u<<sx)))continue;
+            int y=ggMeshBillboardFloorY(m,worldX,worldY,forward,x-center);
+            soleOffset[x]=(short)(y-feet);
+            if(y<highest)highest=y;
+            if(y>lowest)lowest=y;
+        }
+        // Give the uphill knee room to bend even on a steep bank.
+        // The rigid torso rises only enough to keep the shin visible.
+        int room=(pixelH-knee)/2/pixelStep*pixelStep;
+        rise=ggMeshClamp(feet-highest-room,0,feet-highest);
+    }
+    top-=rise;
+    if(top>=240||lowest<=0)return 0;
     // Contact follows sloped world terrain, with hardware-appropriate
     // cost and occlusion; the sprite body owns no fake screen shadow.
     if(m->scale==1&&forward<5*256)
@@ -90,19 +142,26 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     // Closeup screen source remains 32x48 with stable wardrobe. Bilinear
     // filtering would smear the tiny facial features; sample the painted
     // anatomy at integer centers with bounded rectangular footprints.
-    int fromY=top<0?-top:0,toY=240-top;
-    if(toY>pixelH)toY=pixelH;
-    int fromX=left<0?-left:0,toX=400-left;
-    if(toX>width)toX=width;
+    int fromY=top<0?-top:0,toY=(lowest<240?lowest:240)-top;
     for(int dy=fromY;dy<toY;dy+=pixelStep){
-        int sourceY=dy*GG_PERSON_H/pixelH;
+        int y=top+dy,row=dy*GG_PERSON_H/pixelH;
+        int adjustLegs=rough&&dy>=knee;
+        int slot=(y/m->scale)*m->w;
         for(int dx=fromX;dx<toX;dx+=pixelStep){
-            int sourceX=dx*GG_PERSON_W/width;
+            int x=left+dx,sourceY=row;
+            if(adjustLegs){
+                int change=rise+soleOffset[x],height=pixelH+change;
+                if(dy>=height)continue;
+                if(change){
+                    int shin=height-knee-pixelStep;
+                    sourceY=shin>0?KNEE_ROW+(dy-knee)*(GG_PERSON_H-1-KNEE_ROW)/shin:
+                                   GG_PERSON_H-1;
+                }
+            }
             unsigned char ink=ggMeshPersonCel.pixels[
-                sourceY*GG_PERSON_W+sourceX];
+                sourceY*GG_PERSON_W+celColumn[x]];
             if(!ink)continue;
-            int x=left+dx,y=top+dy;
-            int z=(y/m->scale)*m->w+(x/m->scale);
+            int z=slot+x/m->scale;
             if(inverse+1<m->depth[z])continue;
             const unsigned char *color=ggMeshPersonCel.palette[ink];
             int i=(y*400+x)*3;
@@ -127,5 +186,16 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
         ggMeshPersonCount++;
         if(active)ggMeshPersonWalkingDrawn++;
     }
+    return drawn;
+}
+static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
+                             int ground,int forward,int side,
+                             uint32_t identity,int family,int heading,
+                             int tick,int active,
+                             const unsigned char colors[3][3]){
+    if(!ggMeshPersonInView(m,forward,side))return;
+    int turn=ggMeshPersonFacing(heading,ggExplore.angle);
+    ggPersonGenerate(&ggMeshPersonCel,identity,family,turn,tick,active,colors);
+    ggMeshPersonDrawGenerated(m,worldX,worldY,ground,forward,side,heading,active);
 }
 #endif

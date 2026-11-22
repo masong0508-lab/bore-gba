@@ -205,16 +205,19 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
                           (int64_t)(b.iz-a.iz)*(x2-x0))*4096/area);
     uint32_t rowIz=(uint32_t)a.iz*4096u+
                    (uint32_t)(left-x0)*dx+(uint32_t)(top-y0)*dy;
-    // Beyond six world tiles, real atmosphere dominates the detail.
-    // Retain sunlit geometry but stop per-fragment divisions and hashing
-    // on distant surfaces, preserving New-3DS audio and frame budget.
+    // Fade texture relief across the middle distance so mortar and
+    // grass don't pop between saturated detail and a flat color as the
+    // camera turns. Outside this band there is no fragment texture work.
+    enum { DETAIL_FAR=65535/(6*256), DETAIL_NEAR=65535/(3*256) };
     int inverseMid=(a.iz+b.iz+c.iz)/3;
     int doTexture=m->material!=GG_MAT_NONE&&m->scale==1&&
                   m->detailQuality>=2&&
-                  inverseMid>=65535/(6*256);
+                  inverseMid>DETAIL_FAR;
     uint32_t dux=0,duy=0,dvx=0,dvy=0;
     uint32_t rowU=0,rowV=0;
     if(doTexture){
+        int weight=ggMeshClamp((inverseMid-DETAIL_FAR)*256/(DETAIL_NEAR-DETAIL_FAR),0,256);
+        detailGain=detailGain*weight/256;
         // Perspective-correct u/z and v/z, interpolated incrementally.
         // The tile-local origin keeps samples inside the visible face
         // in range even when UVs extrapolate outside the face.
