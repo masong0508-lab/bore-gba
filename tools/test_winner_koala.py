@@ -61,10 +61,22 @@ def assert_project():
     assert sum(cell[0]==97 for p in pats for row in p for cell in row)==715
     assert sum(1<=cell[0]<=96 for p in pats for row in p for cell in row)==8813
 
+    # Bass and both Rhodes parts must use the exact source-encoded note
+    # durations (not long full-sample tails). Every original attack remains.
+    from winner_arrangement_fix import transform as restore_tonal_gates, verify_source_events
+    restored, tonal = restore_tonal_gates(gated)
+    assert tonal['notes_verified'] == 8813, tonal
+    assert tonal['melodic_note_lengths_checked'] == 4053, tonal
+    assert tonal['melodic_releases_added'] >= 3600, tonal
+    assert tonal['bass_downbeats_accented'] >= 500, tonal
+    restored_patterns, _ = decode_patterns(restored)
+    assert len(verify_source_events(restored_patterns)) == 8813
+    assert sum(cell[0] == 97 for pat in restored_patterns for row in pat for cell in row) == 715 + tonal['melodic_releases_added']
+
     # No artificial pitch or time-stretching of the isolated original singing.
     from winner_voice import make as make_vocal_cues
     cues=make_vocal_cues()
-    assert len(cues)==56 and cues[0][0]==54 and cues[-1][0]==10585, (cues[0],cues[-1])
+    assert len(cues)==56 and cues[0][0]==1206 and cues[-1][0]==11737, (cues[0],cues[-1])
     assert all(cues[i][0]<cues[i+1][0] for i in range(55))
     assert (ROOT/"source/winner_vocals.h").exists()
     main=(ROOT/"source/main.c").read_text()
@@ -87,7 +99,7 @@ def assert_project():
     assert 'static int isDbgSong(int i)' in main
     assert 'const char orig[]=" (ORIGINAL)"' in main
     assert '!isDbgSong(i)&&!isLockedSong(i)' in main
-    print("Winner Koala: 8813 notes, 715 precise flute releases, 56 original vocal cues, two secret predecessors: PASS")
+    print("Winner Koala: 8813 notes, 715 flute gates, source-exact bass/Rhodes releases, delayed original vocals, two secret predecessors: PASS")
 
 if __name__ == "__main__":
     assert_project()
