@@ -6,6 +6,9 @@
 #define MS_ONE_MORE_NIGHT 16u
 #define MS_PRESSURE_BITS 224u
 #define MS_PENDING_SCENE 64u
+// TV has no checklist tasks. Its first saved task bit distinguishes a clock
+// started on day 255 from day 254, while 255 in the clock byte stays "not started".
+#define MS_DAY_255 1u
 // Story status SRAM byte: low three bits chapter, next three task flags,
 // bit six pending film, bit seven guest seen. Keep this layout save-compatible.
 // Preserve the original TV protagonist's UID across household selection.

@@ -6,9 +6,25 @@
 #define CSG_WARM 0x03FF
 #define CSG_COOL 0x7FE0
 static u16 csGm(int s){ return s==1?0x3DEF:s==2?0x1CE7:0x0C63; }                                       // the bits that survive a shift of s
+#ifndef CS_HOST
+__attribute__((target("arm")))
+#endif
 IWRAM_OVL2 static void csGlowRow(int sx0,int sx1,int sy,int s,u16 ch){                                              // screen row: add a share of the missing light to the channels in ch
-    if(sy<12||sy>=116||(unsigned)(sy-cY0)>=cH) return; if(sx0<cX0) sx0=cX0; if(sx1>cX0+(int)cW) sx1=cX0+(int)cW; u16 m=(u16)(csGm(s)&ch);   // (inside the clip: a part redraw must not light a pixel twice)
-    for(u16*p=&fb[sy*SW+sx0];sx0<sx1;sx0++,p++){ u16 c=*p; *p=(u16)(c+((((~c)&0x7FFF)>>s)&m)); }
+    if(sy<12||sy>=116||(unsigned)(sy-cY0)>=cH) return; if(sx0<cX0) sx0=cX0; if(sx1>cX0+(int)cW) sx1=cX0+(int)cW;
+    if(sx0>=sx1) return;   // inside the clip: a part redraw must not light a pixel twice
+    u16*p=&fb[sy*SW+sx0]; int n=sx1-sx0; u16 m=(u16)(csGm(s)&ch); u32 mm=(u32)m|((u32)m<<16);
+    if((uintptr_t)p&2){ u16 c=*p; *p++=(u16)(c+((((~c)&0x7FFF)>>s)&m)); n--; }
+    // Each channel adds at most its distance from 31, so packed pixels and
+    // their channels cannot carry into one another.
+    u32*q=(u32*)p;
+    for(;n>=8;n-=8,q+=4){
+        u32 v=q[0]; q[0]=v+((((~v)&0x7FFF7FFFu)>>s)&mm);
+        v=q[1]; q[1]=v+((((~v)&0x7FFF7FFFu)>>s)&mm);
+        v=q[2]; q[2]=v+((((~v)&0x7FFF7FFFu)>>s)&mm);
+        v=q[3]; q[3]=v+((((~v)&0x7FFF7FFFu)>>s)&mm);
+    }
+    for(;n>=2;n-=2,q++){ u32 v=*q; *q=v+((((~v)&0x7FFF7FFFu)>>s)&mm); }
+    if(n){ p=(u16*)q; u16 c=*p; *p=(u16)(c+((((~c)&0x7FFF)>>s)&m)); }
 }
 static void csGlowBox(int wx,int wy,int w,int h,int s,u16 ch){                                           // a rectangle of world pixels
     int x0=csCamX(wx), x1=csCamX(wx+w), y0=csCamY(wy), y1=csCamY(wy+h); if(x1<=x0) x1=x0+1; if(y1<=y0) y1=y0+1;
@@ -68,14 +84,25 @@ IWRAM_OVL2 static void csDk(int y,int x0,int x1,int s){                         
     // Packed lanes cannot borrow: each subtracted channel is <= its source.
     if((uintptr_t)p&2){ u16 c=*p; *p++=(u16)(c-((c>>s)&m)); n--; }
     u32*q=(u32*)p;
+    // Eight pixels share one loop branch; each word keeps the same
+    // independent RGB15 subtraction as the scalar head and tail.
+    for(;n>=8;n-=8,q+=4){
+        u32 v=q[0]; q[0]=v-((v>>s)&mm);
+        v=q[1]; q[1]=v-((v>>s)&mm);
+        v=q[2]; q[2]=v-((v>>s)&mm);
+        v=q[3]; q[3]=v-((v>>s)&mm);
+    }
     for(;n>=2;n-=2,q++){ u32 v=*q; *q=v-((v>>s)&mm); }
     if(n){ p=(u16*)q; u16 c=*p; *p=(u16)(c-((c>>s)&m)); }
 }
 static void csVig(int bg){
     if(bg==CB_RATE||bg==CB_BLACK) return;
-    if(csMood>0){ int s=csMood>1?1:2; for(int y=12;y<116;y++) csDk(y,0,SW,s); }                       // cutscene redo 12: the lights go down
-    else if(csMood<0){ for(int y=12;y<116;y++) csGlowRow(0,SW,y,3,CSG_ALL); }                           // ...or the whole world turns up
-    for(int y=12;y<116;y++){ int edge=(y<14||y>=114);
+    // A partial picture cannot change rows outside its active clip. Avoid
+    // entering five row kernels there just to reject each call again.
+    int y0=cY0>12?cY0:12, y1=cY0+(int)cH; if(y1>116) y1=116;
+    if(csMood>0){ int s=csMood>1?1:2; for(int y=y0;y<y1;y++) csDk(y,0,SW,s); }                       // cutscene redo 12: the lights go down
+    else if(csMood<0){ for(int y=y0;y<y1;y++) csGlowRow(0,SW,y,3,CSG_ALL); }                           // ...or the whole world turns up
+    for(int y=y0;y<y1;y++){ int edge=(y<14||y>=114);
         if(edge) csDk(y,10,230,3);
         csDk(y,0,4,2); csDk(y,4,10,3); csDk(y,230,236,3); csDk(y,236,240,2);
     }
