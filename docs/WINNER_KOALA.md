@@ -105,3 +105,50 @@ bank. The 4-bit legacy vocal source cannot be magically restored to
 lossless quality; note entry placement and audio taste must still be
 reviewed at actual GBA audio output. No global song speed, song pitch,
 voice stretch, extra framebuffer, or large RAM allocation is introduced.
+
+
+## Bass and every-note-trigger timing correction — November 22, 2026
+
+This pass reopens the user's actual Koala archive, verifying its SHA-256
+against the original project's checksum above. This is a GBA playback
+correction, not a rewrite of the user's original Koala song.
+
+The source contains 8,813 original note-on events, with no duplicate
+same-row/pad/pitch attacks. The previous 16-channel tracker preserved
+all 8,813 attacks but did not honor most original note lengths, so many
+long samples could smear adjacent notes. The bass pluck (Koala pad 4) has
+1,265 attacks; both Rhodes pads (5 and 8) have 2,788 more. Their 4,053
+original durations, warped to the source swing grid, now live in the tiny
+source-checksummed tools/winner_tonal_durations.b64 data file. At build
+time tools/winner_arrangement_fix.py inserts safe note-offs after the
+existing pad-6 flute release pass, without overwriting subsequent notes.
+Drum one-shots are not cut short. Original note-on positions, pitches,
+instruments, pads and section order remain unchanged.
+
+The bass gets mild, reproducible accents on 588 source downbeats and
+softens 156 passing attacks. No notes were reconstructed from stems.
+The original source sample and full song length remain intact.
+Every XM note attack's row, channel, pitch and instrument are guarded
+by an exact SHA-256 fingerprint. The compact note length map has its own
+SHA-256. If the source/importer changes, the build fails instead of
+putting note-offs on the wrong instruments.
+
+To regenerate the map from the original source, run:
+    python3 tools/make_winner_tonal_durations.py Winner.koala
+
+The 56 isolated sung ADPCM phrases were previously scheduled at row 54
+(about 1.59 seconds), ahead of the Koala song's long 18-bar introduction
+and first full bass groove. The pass moves all vocal cues 18 complete
+bars (1,152 XM rows), with the first phrase at row 1,206 (about 35.47
+seconds). Original recorded vocal pitch, sample data and internal phrase
+timing are unchanged. This is a musically motivated first alignment,
+not a claim that every lyric syllable has been approved by listening.
+
+Validation: python3 tools/test_winner_koala.py checks the original
+8,813 preserved note attacks, source bass/Rhodes releases, original
+flute attacks, 56 relocated original vocal cues and secret-song rules.
+The original compressed XM remains untouched; the installer regenerates
+the game bank under a new checksum. The GBA still has just 16 channels
+and approximately 29-millisecond row timing, so some active-voice
+preemption and sub-row timing limitations remain. Human review of an
+actual GBA audio capture is still required before calling this final.
