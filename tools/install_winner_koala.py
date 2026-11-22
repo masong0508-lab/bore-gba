@@ -39,6 +39,9 @@ def install():
     # original flute gate pass, keeping the vendor XM archive immutable.
     from winner_arrangement_fix import transform as fix_melodic_articulation
     corrected,articulation_report=fix_melodic_articulation(gated)
+    # Optional approved bass composition pass after source-accurate note gates.
+    from winner_bass_rework import transform as recompose_bass
+    corrected,bass_report=recompose_bass(corrected)
     rebuild_digest=hashlib.sha256(corrected).hexdigest()
     if not XM.exists() or XM.read_bytes()!=corrected:
         XM.write_bytes(corrected)
@@ -63,7 +66,7 @@ def install():
     sys.path.insert(0,str(ROOT/'tools'))
     import xm2gba as C
     C.BLOB.clear(); C.LABELS.clear(); C.SHARED.clear()
-    C.GAIN['winner_koala']=1.45
+    C.GAIN['winner_koala']=1.60
     song=C.convert('winner_koala',str(XM))
     base=BANK.stat().st_size
     blob=bytes(C.BLOB)
