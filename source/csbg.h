@@ -5,7 +5,6 @@
 #define CSG_ALL 0x7FFF
 #define CSG_WARM 0x03FF
 #define CSG_COOL 0x7FE0
-static int csGi(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static u16 csGm(int s){ return s==1?0x3DEF:s==2?0x1CE7:0x0C63; }                                       // the bits that survive a shift of s
 IWRAM_OVL2 static void csGlowRow(int sx0,int sx1,int sy,int s,u16 ch){                                              // screen row: add a share of the missing light to the channels in ch
     if(sy<12||sy>=116||(unsigned)(sy-cY0)>=cH) return; if(sx0<cX0) sx0=cX0; if(sx1>cX0+(int)cW) sx1=cX0+(int)cW; u16 m=(u16)(csGm(s)&ch);   // (inside the clip: a part redraw must not light a pixel twice)
@@ -18,7 +17,16 @@ static void csGlowBox(int wx,int wy,int w,int h,int s,u16 ch){                  
 static void csGlow(int wx,int wy,int rx,int ry,int s,u16 ch){                                            // an ellipse of world pixels
     int cx=csCamX(wx), cy=csCamY(wy), sx=csCamX(wx+rx)-cx, sy=csCamY(wy+ry)-cy; if(sx<1) sx=1; if(sy<1) sy=1;
     if(sx*sy*3>6000) return;
-    for(int y=-sy;y<=sy;y++){ int w=sx*csGi(16*(sy*sy-y*y))/(4*sy); csGlowRow(cx-w,cx+w+1,cy+y,s,ch); }
+    if(cx+sx<cX0||cx-sx>=cX0+(int)cW||cy+sy<cY0||cy-sy>=cY0+(int)cH) return;
+    // Reuse the previous row's integer root as the ellipse widens/narrows.
+    // Same half-widths as restarting sqrt at zero, with linear total work.
+    int q=0;
+    for(int y=-sy;y<=sy;y++){
+        int v=16*(sy*sy-y*y);
+        while((q+1)*(q+1)<=v) q++;
+        while(q*q>v) q--;
+        int w=sx*q/(4*sy); csGlowRow(cx-w,cx+w+1,cy+y,s,ch);
+    }
 }
 static void csMote(int wx,int wy,int s){ int n=(csCz+128)>>8; if(n<1) n=1; int x=csCamX(wx); for(int i=0;i<n;i++) csGlowRow(x,x+n,csCamY(wy)+i,s,CSG_ALL); }
 static void csBgFx(int bg,int t,int fx){
@@ -50,11 +58,18 @@ static void csBgFx(int bg,int t,int fx){
     default: break;
     }
 }
+#ifndef CS_HOST
+__attribute__((target("arm")))
+#endif
 IWRAM_OVL2 static void csDk(int y,int x0,int x1,int s){                                                             // darken a screen row segment by 1/2, 1/4 or 1/8
     if((unsigned)(y-cY0)>=cH) return; if(x0<cX0) x0=cX0; if(x1>cX0+(int)cW) x1=cX0+(int)cW; if(x0>=x1) return;   // (inside the clip: a part redraw must not darken a pixel twice)
-    u16*p=&fb[y*SW+x0]; u16 m=csGm(s); u32 mm=(u32)m|((u32)m<<16);
-    if(((uintptr_t)p&2)||((x1-x0)&1)){ for(;x0<x1;x0++,p++){ u16 c=*p; *p=(u16)(c-((c>>s)&m)); } return; }
-    for(u32*q=(u32*)p;x0<x1;x0+=2,q++){ u32 v=*q; *q=v-((v>>s)&mm); }
+    u16*p=&fb[y*SW+x0]; int n=x1-x0; u16 m=csGm(s); u32 mm=(u32)m|((u32)m<<16);
+    // An odd clip edge needs only one scalar pixel, not a scalar whole row.
+    // Packed lanes cannot borrow: each subtracted channel is <= its source.
+    if((uintptr_t)p&2){ u16 c=*p; *p++=(u16)(c-((c>>s)&m)); n--; }
+    u32*q=(u32*)p;
+    for(;n>=2;n-=2,q++){ u32 v=*q; *q=v-((v>>s)&mm); }
+    if(n){ p=(u16*)q; u16 c=*p; *p=(u16)(c-((c>>s)&m)); }
 }
 static void csVig(int bg){
     if(bg==CB_RATE||bg==CB_BLACK) return;

@@ -72,74 +72,70 @@ static int csStepLift(int t,int per,int mx){ int p=((t%per)+per)%per, h=per/2; i
 static void csGlassAt(int x,int y){ csR(x-1,y-6,3,6,RGB(15,21,29)); csR(x-1,y-6,3,1,RGB(31,31,31)); csR(x-1,y-3,3,3,RGB(9,16,26)); csR(x-2,y-1,2,2,RGB(24,16,10)); }   // a glass in a hand at (x,y): the rim, the water, the fingers round it
 static int csFigNowX(int who,int x){ if(who<=0||who>=7) return x; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->x:x; }   // where a figure is right now (on its way to a new spot), for the camera
 static int csFigNowY(int who,int y){ if(who<=0||who>=7) return y; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->y:y; }
-// PROPORTION-FIRST BEDSIDE MODEL. The head, neck, shoulder, cover and
-// pillow share one WORLD coordinate system. No enlarged circular head pasted
-// on top of another one. No new image files, heap blocks or framebuffers.
+// A shared, supported bedside figure. All dimensions are quarter-world
+// pixels projected through the same camera as the standing cast and bed.
 static int csWardAwake(void){ return csCurSc==3&&csCurBi>=16&&csCurBi<34; }
 static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     int flat=csBgNow==CB_FLAT, awake=csWardAwake()&&!flat;
-    int stir=pose==CP_STIR&&!flat, breath=flat?0:((t/38)&1);
-    int lift=stir?(t<24?t/8:3+((t>>4)&1)):0;
-    int talking=awake&&csTalking&&csSpk==who;
-    u16 edge=RGB(7,11,19), cloth=RGB(12,19,27);
-    u16 seam=RGB(18,29,31), sh=csSh(sk,3);
-    u16 sheet=RGB(12,19,27), sheetHi=RGB(17,25,30), sheetFold=RGB(8,14,23);
-    // The pillow supports the back of the head and has a stitched outline.
-    csR(x-51,y-25,34,21,RGB(8,16,23));
-    csR(x-49,y-24,32,18,RGB(23,28,30));
-    csR(x-48,y-23,30,15,RGB(28,30,30));
-    csR(x-48,y-21,4,12,RGB(22,28,30));
-    csLn(x-47,y-8,x-19,y-8,RGB(18,24,28));
-    // One NARROW neck joins the jaw to a broad gown/shoulder.
-    csR(x-24,y-14-breath,12,8,edge);
-    csR(x-23,y-13-breath,12,6,sh);
-    csR(x-22,y-14-breath,11,6,sk);
-    csR(x-20,y-17-breath,38,15,edge);
-    csR(x-18,y-16-breath,36,13,cloth);
-    csR(x-17,y-16-breath,29,3,csLt(cloth,6));
-    csR(x-17,y-9-breath,30,4,csSh(cloth,2));
-    csR(x-22,y-10-breath,7,3,sk);
-    csLn(x-14,y-10-breath,x-8,y-7-breath,seam);
-    // Draw the head only ONCE, with its features anchored at x-31,y-16.
-    // A large close-up uses the same jaw/neck coordinates as the wide sprite.
-    // Keep head, eyes and mouth in phase with the breathing neck and gown.
-    if(csCz>=560) csFaceBed(x-31,y-16-breath,t,sk,hr,awake);
-    else {
-        csD(x-29,y-17-breath,7,edge); csD(x-28,y-18-breath,7,hr);
-        csD(x-31,y-16-breath,6,csSh(sk,1)); csD(x-32,y-16-breath,5,sk);
-        csR(x-37,y-21-breath,13,3,hr); csR(x-36,y-22-breath,8,1,csLt(hr,5));
-        csR(x-39,y-15-breath,3,2,sk);
-        csR(x-37,y-11-breath,5,2,csSh(sk,2));
-        csR(x-26,y-15-breath,2,3,csSh(sk,3)); csR(x-25,y-14-breath,2,2,sk);
-        if(awake){
-            csR(x-35,y-17-breath,4,3,csSh(sk,6));
-            csR(x-34,y-16-breath,2,2,RGB(30,29,25));
-            csR(x-33,y-16-breath,1,2,RGB(10,9,8));
-        } else csR(x-35,y-15-breath,4,1,csSh(sk,5));
-        csR(x-35,y-10-breath,3,talking?2:1,RGB(18,7,9));
-    }
-    // The sheet begins at the WAIST so the chest and neckline remain
-    // recognizably human; long diagonal folds suggest bent legs underneath.
-    csR(x+1,y-12-breath,49,16+breath,edge);
-    csR(x+2,y-11-breath,47,13+breath,sheet);
-    csR(x+3,y-11-breath,43,3,sheetHi);
-    csR(x+1,y-11-breath,4,11,RGB(22,26,29));
-    csLn(x+5,y-9,x+14,y-6,sheetHi);
-    csLn(x+14,y-6,x+26,y-7,sheetHi);
-    csLn(x+25,y-8,x+37,y-4,sheetFold);
-    csLn(x+16,y-2,x+28,y-1,RGB(19,24,28));
-    csR(x+43,y-9,6,9,csSh(sheet,2));
-    // Sleeve, bent forearm, wrist and hand are one linked silhouette.
-    csR(x-9,y-8-breath,10,4,csSh(cloth,3));
-    csR(x-2,y-7-breath-lift,13,4,sh);
-    csR(x-1,y-7-breath-lift,12,3,sk);
-    csR(x+10,y-8-breath-lift,4,3,sk);
-    if(stir){
-        csR(x+13,y-9-breath-lift,2,2,sk);
-        csR(x+15,y-8-breath-lift,2,1,csLt(sk,2));
-    }
-    if(flat) csR(x-35,y-15,4,1,csSh(sk,6));
+    int stir=pose==CP_STIR&&!flat;
+    int breath=flat?0:(csSw(t,150)+127)/85; // less than one world pixel
+    int lift=stir?(t<30?t/6:5+csSw(t,90)/64):0;
+    u16 edge=RGB(7,12,16), gown=RGB(10,18,22);
+    u16 sheet=RGB(18,25,27), seam=RGB(10,17,21);
+    (void)who;
+    csBedOrigin(x,y);
+    // Low, compressed pillow: the skull rests in its centre, not upright
+    // against a tall rectangular panel.
+    csFTrap(-47,-37,-182,-103,-190,-96,RGB(14,21,24));
+    csFTrap(-37,-9,-190,-96,-180,-101,RGB(24,28,28));
+    csFTrap(-43,-29,-180,-104,-185,-100,RGB(29,30,28));
+    csFTrap(-29,-15,-185,-100,-178,-104,RGB(27,29,28));
+    csFLn(-179,-16,-151,-12,RGB(18,24,25));
+    csFLn(-111,-25,-104,-17,RGB(20,25,26));
+    // Body contact is on the mattress surface. Shoulder to hip is a
+    // continuous curved gown, narrower than the previous block torso.
+    csFTrap(-35-breath,-17,-108,-51,-116,-40,edge);
+    csFTrap(-17,-7,-116,-40,-105,-34,edge);
+    csFTrap(-37-breath,-26,-97,-73,-109,-50,gown);
+    csFTrap(-26,-12,-109,-50,-109,-38,gown);
+    csFTrap(-12,-8,-109,-38,-103,-35,csSh(gown,2));
+    csFTrap(-35-breath,-29-breath,-97,-73,-106,-57,csLt(gown,3));
+    csFLn(-96,-29,-81,-20,csLt(gown,2));
+    csFLn(-63,-19,-40,-13,csSh(gown,3));
+    csFTrap(-34,-27,-108,-101,-105,-94,sk); // collar, under the neck
+    csFLn(-108,-30,-99,-23,RGB(22,27,27));
+    csFLn(-99,-23,-91,-27,RGB(22,27,27));
+    // Blanket drapes over hip, low knee and toes, inside the mattress.
+    csFTrap(-31,-24,-48,-26,-56,3,seam);
+    csFTrap(-27,-17,28,37,24,44,seam); // toe under a rounded fold
+    csFTrap(-24,-14,-56,3,-52,47,seam);
+    csFTrap(-14,-4,-52,47,-46,47,seam);
+    csFTrap(-30,-23,-45,-27,-52,5,sheet);
+    csFTrap(-25,-16,29,36,24,42,sheet);
+    csFTrap(-23,-12,-52,5,-48,43,sheet);
+    csFTrap(-12,-6,-48,43,-45,44,sheet);
+    csFLn(-49,-26,-32,-28,RGB(26,29,28));
+    csFLn(-31,-28,-8,-23,RGB(25,29,28));
+    csFLn(-9,-23,2,-24,RGB(24,28,28));
+    csFLn(2,-24,17,-18,RGB(24,28,28));
+    csFLn(29,-25,36,-24,RGB(25,29,28));
+    csFLn(-32,-21,-18,-15,RGB(14,22,25));
+    csFLn(-18,-15,9,-13,RGB(15,23,25));
+    csFLn(23,-13,39,-10,RGB(13,21,24));
+    // Sleeve -> elbow -> wrist form one connected bent arm. The elbow
+    // remains supported while the hand stirs by at most 1.5 world pixels.
+    csFTrap(-26,-17,-102,-91,-92,-76,csSh(gown,3));
+    csFTrap(-17,-9,-92,-76,-77,-65,csSh(gown,3));
+    csFTrap(-19,-10,-77,-69,-78,-66,csSh(sk,3));
+    csFTrap(-23-lift,-12,-58,-48,-76,-67,csSh(sk,2));
+    csFTrap(-22-lift,-14,-58,-49,-73,-67,sk);
+    csFE(-49,-23-lift,7,4,sk);
+    csFLn(-52,-26-lift,-44,-25-lift,csLt(sk,2));
+    if(stir) csFLn(-45,-25-lift,-41,-27-lift,csLt(sk,1));
+    // Stable head/pillow contact across breathing, speech and hand motion.
+    csFaceBed(x-36,y-13,t,sk,hr,awake);
 }
+
 static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones), then VANCE (the network exec: a charcoal suit, silver slick hair)
     static const u16 SKc[7]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5),RGB(28,21,16)};
@@ -261,6 +257,13 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     else {
     csR(x-4+ls,y-12,3,12,ol); csR(x+1-ls,y-12,3,12,ol); csR(x-3+ls,y-11,2,11,lc); csR(x+1-ls,y-11,2,11,lc);               // legs: a third of the figure, trousers or jeans (bare under Missy's skirt)
     csR(x-5+ls,y-2,4,2,dk); csR(x+1-ls,y-2,4,2,dk); csR(x-4+ls,y-2,2,1,csLt(dk,5)); }                                      // shoes
+    // At the far side of the bed, Mamesy holds the patient's near hand.
+    // Override only this hand after blending/gestures; the other arm and
+    // expression can still react. While approaching, she reaches naturally.
+    if(who==CA_MAME&&(csBgNow==CB_HOSP||csBgNow==CB_FLAT)&&x>=154&&
+       (csOth==CP_LIE||csOth==CP_STIR)){
+        lh=152-(x+lean); lv=(csOth==CP_STIR&&csBgNow!=CB_FLAT?91:92)-sy;
+    }
     u16 ac=(who==CA_CREW)?RGB(14,14,16):cl;                                                                // arms: a sleeve (Hal: a grey work shirt under the vest)
     csArm(x+lean-ax,sy,x+lean+lh,sy+lv,-1,ac,ol,sk); csArm(x+lean+ax,sy,x+lean+rh,sy+rv,1,ac,ol,sk);                    // arms: shoulder, elbow, hand
     if(csSeat&&who==CA_HOST) csR(x+lean+lh-3,sy+lv-2,5,3,RGB(28,28,26));                                                   // Dex: his cue cards in hand

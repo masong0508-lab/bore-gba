@@ -16,6 +16,9 @@ static int csFr(int n){ int v=csFu(n); return v<1?1:v; }             // a size: 
 static int csFi(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 IWRAM_OVL2 static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled ellipse (top: only the upper half)
     if(csFtrack) csTrack(cx-rx,cy-ry,cx+rx+1,cy+(top?1:ry+1));   // (the figures' box, for part redraws)
+    // Track first so partial redraws still include moving hair/eyes, but do
+    // not rasterize ellipses wholly outside the active picture region.
+    if(cx+rx<cX0||cx-rx>=cX0+(int)cW||cy+(top?0:ry)<cY0||cy-ry>=cY0+(int)cH) return;
     if(ry<1){ rect(cx-rx,cy,2*rx+1,1,c); return; }
     int q=0;   // the square root of 16*(ry*ry-y*y), walked from row to row instead of counted up from 0 every row (the same numbers; a big close-up face was tens of thousands of steps a frame)
     int d=4*ry, inv=65536/d+1;   // (rx*q/d by a reciprocal, put right by a step either way: the same w as the division)
@@ -28,7 +31,11 @@ static void csFE(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+
 static void csFT(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),1,c); }
 static void csFR(int dx,int dy,int w,int h,u16 c){ int x=csFcx+csFu(dx), y=csFcy+csFu(dy), ww=csFr(w), hh=csFr(h); if(csFtrack) csTrack(x,y,x+ww,y+hh); rect(x,y,ww,hh,c); }
 static void csFStr(int x,int y,int w,int h,u16 c){ int a=h/3, l=csHlag*4; csFR(x,y,w,a,c); csFR(x+l/2,y+a,w,a,c); csFR(x+l,y+2*a,w,h-2*a,c); }   // a long strand of hair: the tip trails (csHlag)
-static void csFLn(int x0,int y0,int x1,int y1,u16 c){ int a=csFcx+csFu(x0), b=csFcy+csFu(y0), d=csFcx+csFu(x1), e=csFcy+csFu(y1); if(csFtrack) csTrack((a<d?a:d),(b<e?b:e),(a>d?a:d)+1,(b>e?b:e)+1); line(a,b,d,e,c); }
+static void csFLn(int x0,int y0,int x1,int y1,u16 c){ int a=csFcx+csFu(x0), b=csFcy+csFu(y0), d=csFcx+csFu(x1), e=csFcy+csFu(y1); if(csFtrack) csTrack((a<d?a:d),(b<e?b:e),(a>d?a:d)+1,(b>e?b:e)+1);
+    if((a>d?a:d)<cX0||(a<d?a:d)>=cX0+(int)cW||(b>e?b:e)<cY0||(b<e?b:e)>=cY0+(int)cH) return;
+    if(b==e){ int l=a<d?a:d; rect(l,b,(a>d?a:d)-l+1,1,c); }
+    else if(a==d){ int u=b<e?b:e; rect(a,u,1,(b>e?b:e)-u+1,c); }
+    else line(a,b,d,e,c); }
 
 static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 hr){
     csFcx=csCamX(wx+csOx); csFcy=csCamY(wy+csOy); int bx=csFcx;   // bx: the head's own centre; csFOff() slides the features off it for the turn
@@ -105,58 +112,78 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     if(who==CA_DOC){ u16 g=RGB(22,22,24); csFLn(-12,18,-2,40,g); csFLn(12,18,2,40,g); csFLn(-11,18,-1,40,g); csFLn(11,18,1,40,g); csFE(0,42,3,3,RGB(26,26,28)); }
 }
 
-// Missy's bedside CLOSE-UP. Proportions come from the same x-31,y-16
-// head centre as the world-space patient. Quarter-world units below are
-// CAMERA scaled. Hair behind the face, then neck, cheek, eye and mouth:
-// NO second full-sized black head shadow, chin-beard, or pasted-on mask.
-static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
-    if(csCz<560) return;
-    csFcx=csCamX(wx); csFcy=csCamY(wy);
-    u16 shadow=csFSh(skin,2), warm=csFLt(skin,2);
-    u16 lip=RGB(17,7,9), outline=RGB(8,7,9);
-    // The nape joins the shoulder under the gown collar at x+40.
-    csFE(30,10,16,11,shadow);
-    csFR(22,7,23,10,skin);
-    csFR(39,8,20,10,RGB(12,19,27));
-    csFLn(36,9,44,14,RGB(24,29,30));
-    // Head silhouette: roughly 12 world px across, narrower than chest.
-    // Hair follows the back of the skull rather than swelling under the jaw.
-    csFE(8,-3,23,19,outline);
-    csFE(8,-4,21,18,hair);
-    csFE(20,5,9,9,csFLt(hair,2));
-    csFE(-1,0,21,16,shadow);
-    csFE(-3,-2,20,15,skin);
-    csFE(-17,5,8,8,skin);
-    csFE(-9,9,10,5,shadow);
-    csFE(-12,7,10,4,skin);
-    // Real side-profile nose: LEFT of the face; the lips rest just beneath.
-    csFE(-24,1,5,4,skin);
-    csFR(-27,3,5,2,shadow);
-    csFR(-26,7,7,2,lip);
-    if(awake&&csTalking&&csSpk==CA_MISSY){
-        int speak=((t/5)&3)!=0;
-        csFR(-26,7,7,speak?3:2,lip);
-        if(speak) csFR(-24,8,4,1,RGB(26,18,19));
+// Quarter-world geometry for the bedside figure. Both wide and close shots
+// project the same silhouette; finer coordinates retain detail during a zoom.
+// Each trapezoid walks its edges once, with no heap or extra framebuffer.
+#ifndef CS_HOST
+__attribute__((target("arm")))
+#endif
+IWRAM_OVL2 static void csFTrap(int y0,int y1,int l0,int r0,int l1,int r1,u16 c){
+    int a=csFcy+csFu(y0), b=csFcy+csFu(y1);
+    int lx=csFcx+csFu(l0), rx=csFcx+csFu(r0);
+    int le=csFcx+csFu(l1), re=csFcx+csFu(r1);
+    if(b<=a) b=a+1;
+    if(csFtrack) csTrack(lx<le?lx:le,a,(rx>re?rx:re)+1,b);
+    if((rx>re?rx:re)<cX0||(lx<le?lx:le)>=cX0+(int)cW||
+       b<=cY0||a>=cY0+(int)cH) return;
+    int h=b-a;
+    if(h==1){ if(rx>=lx) rect(lx,a,rx-lx+1,1,c); return; }
+    int dl=(le-lx)*256/h, dr=(re-rx)*256/h;
+    int l=lx*256,r=rx*256;
+    if(a<cY0){ l+=dl*(cY0-a); r+=dr*(cY0-a); a=cY0; }
+    if(b>cY0+(int)cH) b=cY0+(int)cH;
+    int px=0,pw=0,py=a;
+    for(int y=a;y<b;y++,l+=dl,r+=dr){
+        int x=l>>8, w=(r>>8)-x+1;
+        if(x!=px||w!=pw){
+            if(pw>0) rect(px,py,pw,y-py,c);
+            px=x; pw=w; py=y;
+        }
     }
-    // Swept hairline and loose curl, kept smaller than the skull.
-    csFE(-3,-12,21,8,hair);
-    csFR(-20,-17,20,3,csFLt(hair,3));
-    csFR(-18,-13,8,3,hair);
-    csFE(18,-7,6,9,csFSh(hair,2));
-    csFR(0,-19,10,2,csFLt(hair,5));
-    // Ear on the rear edge of the jaw; never a disconnected disc.
-    csFE(15,4,5,7,shadow);
-    csFE(16,3,4,5,skin);
-    csFE(16,4,2,2,csFSh(skin,4));
-    csFR(-20,-8,12,2,csFSh(hair,2));
+    if(pw>0) rect(px,py,pw,b-py,c);
+}
+static void csBedOrigin(int wx,int wy){
+    csFcx=csCamX(wx+csOx); csFcy=csCamY(wy+csOy);
+}
+static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
+    csBedOrigin(wx,wy);
+    u16 shade=csFSh(skin,3), light=csFLt(skin,2);
+    u16 ink=csFSh(hair,1), lip=RGB(15,7,7);
+    // The face points UP: forehead, eye, nose, lips, chin run left to right.
+    // The occiput and loose hair rest on the pillow; the jaw tapers into nape.
+    csFE(-16,4,20,22,ink);
+    csFE(-18,2,17,19,hair);
+    csFE(-12,16,20,8,hair);
+    csFTrap(4,18,0,24,0,36,shade);       // short neck into the collar
+    csFTrap(4,13,1,23,5,34,skin);
+    csFTrap(-15,-5,-21,2,-25,17,shade);  // forehead and cheek silhouette
+    csFTrap(-5,9,-25,17,-14,20,shade);
+    csFTrap(9,16,-14,20,-3,12,shade);    // jaw angles back toward the ear
+    csFTrap(-14,-4,-20,1,-22,16,skin);
+    csFTrap(-4,8,-22,16,-12,18,skin);
+    csFTrap(8,12,-12,18,-3,12,skin);
+    csFTrap(-22,-12,-4,-2,-8,3,skin);    // nose rises above the profile
+    csFTrap(-21,-14,-3,-2,-3,1,light);
+    csFTrap(-14,-8,7,10,5,15,skin);      // lips then chin, toward the feet
+    csFTrap(-8,1,8,15,7,18,skin);
+    csFE(-6,1,8,6,light);               // near cheek, softly lit
+    csFE(-9,10,4,5,shade);              // one near-side ear
+    csFR(-9,8,2,4,csFSh(skin,5));
+    csFTrap(-17,-4,-25,-18,-29,-20,hair); // temple hair follows the skull
+    csFLn(-27,-7,-25,9,csFLt(hair,3));
+    csFLn(-25,16,-15,20,csFLt(hair,2));
+    csFLn(-16,-11,-9,-13,csFSh(hair,0)); // near brow, behind the nose
     if(awake){
         int blink=((t+37)%180)<5;
-        csFE(-14,-4,8,blink?2:4,csFSh(skin,5));
         if(!blink){
-            csFE(-14,-4,6,3,RGB(29,29,27));
-            csFE(-13,-3,3,3,RGB(11,9,9));
-            csFR(-14,-5,2,1,RGB(31,31,30));
+            csFE(-10,-6,3,2,RGB(26,24,21));
+            csFR(-9,-8,2,3,RGB(7,6,5));
         }
-    } else csFR(-20,-3,12,2,csFSh(skin,5));
-    csFR(-18,-10,11,1,warm);
+        csFLn(-14,-6,-8,-8,csFSh(skin,7));
+    } else csFLn(-14,-5,-8,-7,csFSh(skin,7));
+    csFR(0,-12,2,2,shade);              // nostril under the tip
+    csFLn(7,-10,11,-7,lip);
+    if(awake&&csTalking&&csSpk==CA_MISSY&&((t/5)&3))
+        csFR(8,-8,3,2,csFSh(lip,3));
+    csFLn(11,-5,15,-3,csFLt(skin,1));
 }

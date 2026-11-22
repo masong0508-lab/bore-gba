@@ -60,6 +60,20 @@ for needle in [
     "plugRestore(); // restore before any hospital pressure changes",
     "case TQ_PLUG: if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255) plugRestore(); return plugV<=PLUG_OK;",
     "if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255){ plugDay=0xFFFF; plugSec=plugTen=0; plugRestore(); }",
+    "case STY_TVSHOW: stKid=(u8)hhPUid; break;",
+    "int patientUid=(int)msPatientUid((unsigned)stKid,(unsigned)hhPUid);",
+    "static int stTvMamesyMember(int patientUid)",
+    "kin[patientUid][hhM[k].uid]==KN_SISTER",
+    "int uid=stTvMamesyUid(patientUid);",
+    "if(s==STY_TVSHOW&&stTvMamesyMember(hhPUid)>=0) need=0;",
+    "stRel(patientUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF)",
+    "int patientMember=patientUid==hhPUid?-1:stMember(patientUid);",
+    "if(patientUid!=hhPUid&&patientMember<0)",
+    "m=stAddSim(lk,AG_ADULT,patientUid==hhPUid?hhPLast:hhM[patientMember].last)",
+    "stKid=(u8)patientUid; stTvWant=0;",
+    "s==STY_ICE||s==STY_SPARKS||s==STY_TVSHOW)?1:s==STY_FRIEND?2:0;",
+    "MAMESY NEEDS A FREE HOUSEHOLD SLOT",
+    "AS MAMESY  KEEP PRESSURE 60 OR LESS",
     "msPressureOutcome((unsigned)v,(unsigned)plugNight)==2u",
     "msPressureOutcome((unsigned)v,(unsigned)plugNight)==1u",
     "case TQ_DAYS: return (int)msDaysProgress",
@@ -78,7 +92,7 @@ for needle in [
     "if(s==STY_TVSHOW&&custom)",
     "plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=plugNight=0;",
     "if(s==STY_TVSHOW) stmPut(0);",
-    "replaying this story in the same household",
+    "int uid=stTvMamesyUid(patientUid);",
     "if(stId==STY_TVSHOW&&stCh==4&&stKid!=255",
     "if((cl!=8&&cl!=12)", "slwPut(w,(u8)(stId==STY_TVSHOW?stmGet():0))",
     "SRAM_BASE[STB_OFF+i]=c.p[9+i]",
@@ -90,29 +104,35 @@ assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")
 face = Path("source/csface.h").read_text(encoding="utf-8")
 assert "static void csFaceBed(" in face
-assert "csFaceBed(x-31,y-16-breath,t,sk,hr,awake)" in art
-assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
-assert "int talking=awake&&csTalking&&csSpk==who" in art
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
-assert "One NARROW neck joins the jaw to a broad gown/shoulder." in art
-assert "The nape joins the shoulder under the gown collar" in face
-assert "NO second full-sized black head shadow" in face
+assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
 assert "int blink=((t+37)%180)<5" in face
-# Bed, pillow and one unified anatomical head are a regression contract.
-# Previously the stand-in head was painted twice and the mattress was
-# 11 pixels above the patient. Passing compilation did not catch the art bug.
-assert art.count("csFaceBed(")==1, "portrait must be rendered only once"
-assert "csD(x-29,y-17-breath,7,edge)" in art, "small head moves with breathing torso"
-assert "csD(x-29,y-17,7,edge)" not in art, "wide sprite head must not lag behind breathing torso"
-assert "csR(x-20,y-17-breath,38,15,edge)" in art
-assert "csR(x-51,y-25,34,21" in art
-assert "csR(115,90,96,15" in cut, "ICU mattress must be beneath patient/pillow"
-assert "csR(118,107,96,2" in cut, "near rail should not cross the patient's face"
-assert "{3,16,1,  0,100, 560,-12,90, 700,-12,89}" in shots
-assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" not in art
-assert "csFE(0,13,10,3,sh)" not in face
-assert "long diagonal folds suggest bent legs" in art
+# The patient uses one renderer and one world transform at every distance.
+# Anatomy itself is judged with actual frames, not assertions of paint calls.
+assert art.count("csFaceBed(")==1
+assert "csFaceBed(x-36,y-13,t,sk,hr,awake)" in art
+bed_face=face[face.index("static void csFaceBed("):]
+assert "csBedOrigin(wx,wy)" in bed_face
+assert "csCz" not in bed_face, "no differently proportioned zoom-only head"
+assert "awake=csWardAwake()&&!flat" in art
+assert "int stir=pose==CP_STIR&&!flat" in art
+assert "breath=flat?0:" in art
+assert "csR(115,90,68,15" in cut, "patient-supporting mattress"
+assert "csR(118,107,68,2" in cut, "rail must not cross the patient"
+# Both ends of key face shots must keep the whole head inside the picture,
+# allowing two world pixels for the scene's deliberate handheld/shake motion.
+for sc,bi in ((3,16),(3,21),(3,28),(6,8)):
+    match=re.search(r"\{"+str(sc)+r","+str(bi)+r",([^}]+)\}", shots)
+    assert match, (sc,bi)
+    anchor,start,duration,z0,x0,y0,z1,x1,y1=map(int,match.group(1).split(','))
+    assert anchor==1
+    for z,x,y in ((z0,x0,y0),(z1,x1,y1)):
+        cx=164+x
+        assert (116-cx)*z/256+120>=0, (sc,bi,"head left")
+        assert (139-cx)*z/256+120<240, (sc,bi,"head right")
+        assert (76-y)*z/256+64>=12, (sc,bi,"head top")
+        assert (94-y)*z/256+64<116, (sc,bi,"head bottom")
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut

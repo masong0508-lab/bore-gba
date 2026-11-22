@@ -8,6 +8,11 @@
 #define MS_PENDING_SCENE 64u
 // Story status SRAM byte: low three bits chapter, next three task flags,
 // bit six pending film, bit seven guest seen. Keep this layout save-compatible.
+// Preserve the original TV protagonist's UID across household selection.
+ // 255 is the legacy save sentinel: only then use the active Sim as fallback.
+static inline unsigned msPatientUid(unsigned saved,unsigned selected){
+    return saved==255u?selected:saved;
+}
 static inline unsigned msStatusPack(unsigned chapter,unsigned tasks,unsigned pending,unsigned guest){
     return (chapter&7u)|((tasks&7u)<<3)|(pending?MS_PENDING_SCENE:0u)|(guest?128u:0u);
 }

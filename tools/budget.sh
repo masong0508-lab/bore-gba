@@ -6,6 +6,8 @@
 ELF=${1:-bore.elf}
 EW_MAX=$((262144-8192)); IW_MAX=${IWRAM_MAX:-32512}
 SLOT0=$(awk '/XP_AT0/{gsub("u","",$3); print $3; exit}' source/packslots.h 2>/dev/null)
+# POSIX awk does not require hexadecimal numeric-string conversion.
+[ -z "$SLOT0" ] || SLOT0=$((SLOT0))
 arm-none-eabi-size -A "$ELF" | awk -v ew="$EW_MAX" -v iw="$IW_MAX" '
   $1==".sbss"||$1==".ewram"{e+=$2}
   $1==".bss"||$1==".data"||$1==".iwram"{i+=$2}

@@ -101,6 +101,17 @@ int main(void){
             assert(msStatusPending(status)==pending);
             assert(msStatusGuest(status)==guest);
         }
+    // Scenario matrix: selection of another housemate must never replace
+    // the patient saved at story start. Legacy 255 saves use the selection.
+    for(unsigned saved=0;saved<256u;saved++)
+        for(unsigned selected=0;selected<256u;selected++){
+            unsigned expected=saved==255u?selected:saved;
+            assert(msPatientUid(saved,selected)==expected);
+            assert(msPatientUid(msPatientUid(saved,selected),selected)==expected);
+        }
+    assert(msPatientUid(0u,7u)==0u);
+    assert(msPatientUid(12u,9u)==12u);
+    assert(msPatientUid(255u,9u)==9u);
     assert(MS_PENDING_SCENE==64u&&MS_ONE_MORE_NIGHT==16u);
     puts("BORE Missy story memory: PASS");
     return 0;
