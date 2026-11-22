@@ -28,6 +28,17 @@ See [port verification](PORT_RELEASE_QA.md) for regression coverage and
 the remaining console acceptance checks.
 
 
+**Shared-world graphics overhaul (21 November 2026).** DS, DSi and the
+New 3DS map now use a coordinated terrain palette, calmer sea patterns,
+continuous shore contours, tiered forests and redrawn settlement tiles.
+Close views preserve terrain motifs and give every creature family its own
+colors without recoloring roofs or toolbar swatches. The New 3DS world has
+continuous ground materials, fuller tree crowns, detailed glazed facades,
+steeper roofs, low wildflowers, coastal bands and a camera-anchored sky with
+slow cloud movement. Its inhabitants have rebuilt directional clothing,
+hair, proportions and walking poses. These are changes to the actual game
+renderers. See [graphics coverage and evidence](GRAPHICS_OVERHAUL_QA.md).
+
 A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in life, and watch it live, eat, hunt and breed.
 
 **Starting out.** New worlds open on the six-power Kit with Grass selected. Tap the map to shape it, then use Spawn for individual creatures or Settle on clear grass for a village. Browse all other powers in Land, Life, Events and Folk. L/R moves through a tab and B+L/R switches tabs. Powers starred in the World Browser also appear in Kit.

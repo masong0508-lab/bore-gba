@@ -1,6 +1,6 @@
-// gfx2.h - GODGUY graphics pass 1 (included once from main.c, right before bldPix).
-// Richer ground tiles (tufts, meadows, shaded trees, snow-capped peaks, dunes, cracked lava, waves), a calmer mottling of the ground over large areas,
-// buildings with shaded roofs and windows that light up at night, and creatures with a lit top edge and a shaded underside.
+// gfx2.h - GodGuy's shared handheld pixel art. Lit clusters, quiet ground,
+// individual settlement silhouettes and connected shorelines use the same
+// 8x8 tiles in DS, DSi and New3DS map modes, including close/micro zoom.
 // Integer maths only (the DS has no FPU). Tile and palette layout is unchanged: ground is still terrain*4+variant, buildings still BT0+type*8+race (the later ones, dock to library, at BT1; see BTILE in main.c).
 // New palette entries (main background): 104..114 details (flowers, hot lava, cactus, cattail), 144..159 roofs (dark, light), 160 window glass.
 #define GFX_PAL_N 192
@@ -8,24 +8,26 @@
 #define GFX_MEADOW0 108          // 16 spare tile slots (108..123): grass with flowers
 #define GFX_MEADOW_N 16
 enum { PX_FLW=104, PX_LAVAHOT=110, PX_LAVAWHITE=111, PX_CACT=112, PX_CACTD=113, PX_CATTAIL=114, PX_SNOWS1=115, PX_SNOWS2=116, PX_ROOFD=144, PX_ROOFL=152, PX_WIN=160 };
-static const u8 gfxDet[13][3]={ {31,31,27},{31,28,5},{30,13,19},{29,5,5},{21,11,29},{31,19,4},{31,26,6},{31,31,22},{7,19,7},{3,10,4},{15,8,3},{22,26,31},{26,29,31} };
+static const u8 gfxDet[13][3]={ {31,31,26},{30,26,13},{28,18,21},{27,11,10},{22,17,28},{30,21,13},{31,24,7},{31,31,22},{12,21,12},{6,13,9},{21,15,9},{21,25,28},{25,28,29} };
 static void gfxBgPal(void){
     for(int i=0;i<13;i++) BG_PALETTE[PX_FLW+i]=RGB15(gfxDet[i][0],gfxDet[i][1],gfxDet[i][2]);
     for(int r=0;r<8;r++){ int a=roofCol[r][0],b=roofCol[r][1],c=roofCol[r][2];
-        BG_PALETTE[PX_ROOFD+r]=RGB15(a*5/8,b*5/8,c*5/8);
-        int la=a*13/10+3, lb=b*13/10+3, lc=c*13/10+3; if(la>31) la=31; if(lb>31) lb=31; if(lc>31) lc=31; BG_PALETTE[PX_ROOFL+r]=RGB15(la,lb,lc); }
-    BG_PALETTE[PX_WIN]=RGB15(12,17,24);
+        BG_PALETTE[PX_ROOFD+r]=RGB15(a*5/8,b*5/8,c*5/8+1);
+        int la=a*11/10+4, lb=b*11/10+4, lc=c*11/10+3; if(la>31) la=31; if(lb>31) lb=31; if(lc>31) lc=31; BG_PALETTE[PX_ROOFL+r]=RGB15(la,lb,lc); }
+    BG_PALETTE[PX_WIN]=RGB15(11,22,26);
 }
 #define SH(t,k) ((t)*8+((k)<0?0:(k)>7?7:(k)))
 static inline int gAbs(int a){ return a<0?-a:a; }
 
 // ---------------------------------------------------------------- grass and meadows
 static int pxGrass(int v,int x,int y){
-    int base=v==2?5:v==3?3:4, s=base; int h=(int)(hsh(x+v*8,y+v*5,31)&31);
-    if(h<2) s=base-1; else if(h<6) s=base+1;
-    for(int k=0;k<2+(v&1);k++){ int tx=(int)((hsh(v,k,41)>>4)&7), ty=(int)((hsh(v,k,43)>>4)%6);   // little tufts: a light tip over a dark root
-        if(x==tx&&y==ty) s=base+2; else if(x==tx&&y==ty+1) s=base-2; else if(k==0&&x==((tx+1)&7)&&y==ty+1) s=base+1; }
-    return SH(T_GRASS,s);
+    // One coherent tuft and a soft two-pixel patch, not random confetti.
+    int base=v==2?5:v==3?3:4;
+    int tx=(v*3+2)&7,ty=2+(v&1)*3;
+    if(y==ty&&x==tx)return SH(T_GRASS,base+1);
+    if(y==ty+1&&(x==tx||x==((tx+1)&7)))return SH(T_GRASS,base-1);
+    if(y==((ty+4)&7)&&((x+v)&7)<2)return SH(T_GRASS,base+1);
+    return SH(T_GRASS,base);
 }
 static int pxMeadow(int m,int x,int y){
     for(int k=0;k<1+(m>=6);k++){ int fx=(int)((hsh(m,k,51)>>3)&7), fy=(int)((hsh(m,k,52)>>3)%7);
@@ -36,21 +38,23 @@ static int pxMeadow(int m,int x,int y){
 static int gBall(int x,int y,int cx2,int cy2,int r2,int n){
     int dx=2*x+1-cx2, dy=2*y+1-cy2, d2=dx*dx+dy*dy; if(d2>r2*r2) return -1;
     int s=(n-1)/2+(-(dx+dy)*(n-1))/(r2*3);
-    int hh=(int)(hsh(x*5+cx2,y*3+cy2,71)&7); if(hh==0) s--; else if(hh==1) s++;
+    if(((x+cx2)/2+(y+cy2)/2)%4==0)s++; // clusters, rather than single-pixel speckling
     if(d2>(r2-2)*(r2-2)&&r2>2){ if(dx+dy>0) s=0; else s--; }
     return s<0?0:s>n-1?n-1:s;
 }
 static int pxForest(int t,int v,int x,int y){   // forest (T_FOREST) and jungle (T_JUNGLE)
-    static const u8 RF[7]={T_FOREST*8+1,T_FOREST*8+3,T_FOREST*8+4,T_FOREST*8+5,T_FOREST*8+7,T_GRASS*8+3,T_GRASS*8+4};
-    static const u8 RJ[7]={T_JUNGLE*8+1,T_JUNGLE*8+3,T_JUNGLE*8+4,T_JUNGLE*8+5,T_JUNGLE*8+7,T_GRASS*8+4,T_GRASS*8+6};
-    const u8*R=t==T_JUNGLE?RJ:RF; int s=-1, floor=t*8+1+((hsh(x+v*8,y,81)&7)==0);
-    switch(v){
-    case 0: s=gBall(x,y,7,6,7,7); if(s<0&&y==7&&(x==3||x==4)) return T_DIRT*8+2; break;
-    case 1: s=gBall(x,y,5,5,5,7); if(s<0) s=gBall(x,y,11,10,5,7); if(s<0&&((x==2&&y>=6)||(x==5&&y==7))) return T_DIRT*8+2; break;
-    case 2: s=gBall(x,y,9,7,6,7); if(s<0) s=gBall(x,y,3,12,3,7); if(s<0&&x==4&&y==7) return T_DIRT*8+2; break;
-    default: s=gBall(x,y,4,4,4,7); if(s<0) s=gBall(x,y,12,5,4,7); if(s<0) s=gBall(x,y,8,12,4,7); if(s<0&&(x==1&&y==3)) return T_DIRT*8+2; break; }
-    if(s>=0){ if(t==T_JUNGLE&&v==3&&x==5&&y==2) return PX_FLW+3; if(t==T_JUNGLE&&v==2&&(x==7||x==0)&&y==5) return PX_FLW+5; return R[s]; }
-    return floor;
+    static const char canopy[4][8][9]={
+      {"...66...",".67754..","6776553.","67655421",".5544321","..32221.","...tdq..","..qqqq.."},
+      {"..66....",".6754...","675543..",".54321..","..21.65.","..td6542","..q.3211","....tqq."},
+      {"....6...","...674..","..67542.","...543..","..654321",".6554321","..32221.","....tqq."},
+      {".66..6..","67546743",".5435542","..216532",".6654321","6543221.",".321tdq.","..tqqqq."}
+    };
+    char c=canopy[v][y][x];
+    if(c>='1'&&c<='7')return SH(t,c-'0');
+    if(c=='t')return SH(T_DIRT,5);if(c=='d')return SH(T_DIRT,2);
+    if(c=='q')return SH(T_GRASS,1);
+    if(t==T_JUNGLE&&v==1&&x==7&&y==3)return PX_FLW+2;
+    return SH(T_GRASS,3);
 }
 // ---------------------------------------------------------------- hills: a grassy mound with an earth flank
 static int gMound(int x,int y,int cx2,int yb,int hw,int h,int*dxo){   // 1 inside the half-ellipse mound standing on row yb
@@ -82,23 +86,21 @@ static int pxMount(int v,int x,int y){
 }
 // ---------------------------------------------------------------- sand, desert, dirt, snow
 static int pxSand(int v,int x,int y){
-    int base=v==2?6:v==3?4:5, s=base, h=(int)(hsh(x+v*8,y,31)&15);
-    if(h==0) s=base-1; else if(h==1) s=base+1;
-    for(int k=0;k<2;k++){ int dx=(int)((hsh(v,k,111)>>3)&7), dy=(int)((hsh(v,k,112)>>3)%6)+1; int ex=(x-dx)&7;   // wind ripples: a dark dash with a bright one under it
-        if(y==dy&&ex<3) s=base-2; else if(y==dy+1&&ex>=1&&ex<=3) s=base+2; }
-    return SH(T_SAND,s);
+    int base=v==2?5:4,dx=(x+v*3)&7,dy=(y+v)&7;
+    if(dy==3&&dx>=2&&dx<=5)return SH(T_SAND,base+1);
+    if(dy==4&&dx>=3&&dx<=5)return SH(T_SAND,base-1);
+    if(v==3&&x==1&&y==6)return PX_FLW;
+    return SH(T_SAND,base);
 }
 static int pxDesert(int v,int x,int y){
     static const signed char W[8]={0,1,1,0,-1,-1,0,1};
-    int h=(int)(hsh(x+v*8,y,31)&15), ridge=3+W[(x+v*2)&7]+(v&1), s=y<ridge?5:y==ridge?7:y<=ridge+2?3:4;
-    if(h==0) s--; else if(h==1) s++;
+    int ridge=3+W[(x+v*2)&7]+(v&1), s=y<ridge?5:y==ridge?6:y<=ridge+1?3:4;
     if(v==3&&x==5&&y>=3&&y<=6){ return y>=4&&(x==5)?PX_CACT:PX_CACT; }
     if(v==3&&((x==4&&y==4)||(x==6&&y==3))) return PX_CACTD;
     return SH(T_DESERT,s);
 }
 static int pxDirt(int v,int x,int y){
-    int base=v==2?5:v==3?3:4, s=base, h=(int)(hsh(x+v*8,y,31)&15);
-    if(h<3) s=base-1; else if(h<5) s=base+1;
+    int base=v==2?5:v==3?3:4, s=base;
     int sx=(int)((hsh(v,1,121)>>3)&7), sy=(int)((hsh(v,1,122)>>3)%6);   // a pebble with a shadow
     if(x==sx&&y==sy) s=7; else if(x==((sx+1)&7)&&y==sy+1) s=1;
     if(v==1&&y==5&&x>=2&&x<=5) s=base-2; if(v==3&&x==y&&x<5) s=base-1;     // cracks
@@ -133,10 +135,14 @@ static int pxLava(int v,int x,int y){
 }
 // ---------------------------------------------------------------- water: wave crests over a gently mottled sea
 static int pxWater(int t,int v,int x,int y){
-    int deep=t==T_DEEP, base=deep?(v==2?3:v==3?1:2):(v==2?4:v==3?2:3); int h=(int)(hsh(x+v*8,y+t*16,t)&15); int s=base+(h<2?1:0)-(h==15&&!deep?1:0);
-    for(int k=0;k<(deep?1:2);k++){ int x0=(int)((hsh(v,k,61)>>3)&7), yy=(int)((hsh(v,k+2,62)>>3)%6)+1; int dx=(x-x0)&7; if(dx>=4) continue;
-        int wy=yy+((dx==0||dx==3)?1:0); if(y==wy) return deep?SH(t,dx==1||dx==2?5:4):SH(t,dx==1||dx==2?7:6); if(!deep&&y==wy+1&&(dx==1||dx==2)) s=base-1; }
-    return SH(t,s);
+    int deep=t==T_DEEP,base=deep?2:3;
+    int dx=(x+v*3)&7,crest=2+(v&1)*3;
+    // Long horizontal curls separated by clear water. Deep-sea glints are
+    // dimmer than shallows; the bright foam belongs only to real coasts.
+    if(y==crest&&dx>=2&&dx<=5)return SH(t,deep?4:4+(dx==3));
+    if(y==crest+1&&(dx==1||dx==6))return SH(t,deep?3:4);
+    if(y==crest+1&&dx>=3&&dx<=5)return SH(t,base-1);
+    return SH(t,base+(v==2&&y>5));
 }
 // ---------------------------------------------------------------- the ground tile of terrain t, variant v (0 plain, 1 plain, 2 light patch, 3 dark patch for the flat grounds)
 static int tilePix(int t,int v,int x,int y){
@@ -159,17 +165,33 @@ static int tileVar(int t,int x,int y){
     if(t==T_FOREST||t==T_JUNGLE||t==T_HILL||t==T_MOUNT||t==T_LAVA) return r;
     int m=vnoise(x,y,6,77); if(m>160&&r<2) return 2; if(m<96&&r<2) return 3; return r&1;
 }
-// ---------------------------------------------------------------- buildings: the old shapes, with lit and shaded roofs, shaded walls and windows (glowing at night)
-static int bldPixOld(int type,int race,int x,int y);
+// Settlement silhouettes occupy the original single tile. Roof ridge,
+// shaded eaves, stone corners, timber framing and warm window points are
+// composed deliberately so a library, temple or tower reads at 1x.
+static const char gfxBuildings[B_N][8][9]={
+ [B_HUT]={"...R....","..RRr...",".RRrrs..",".sssss..","..WwW...","..Wdwq..","..dddqq.","...qqq.."},
+ [B_HOUSE]={"..RR....",".RRRrr..","RRRrrrs.","ssssssss",".W|WwWq.",".o|dodq.",".W|dwwq.",".dddddq."},
+ [B_HALL]={"..|ff...","..|f....","S.S.S.S.","SmmmmmSq","SkWdoSkq","SmmdoSkq","SmmddSkq","SmmmmSSq"},
+ [B_FARM]={"|------|",".cC.cC.|",".ce.ce.e",".cC.cC.e",".ce.ce.e",".cC.cC.e",".ee.eee|","|------|"},
+ [B_TOWER]={"..S.S...","..SmS...","..Smkq..","..Sokq..","..Smkq..","..Sokq..","..Sdkq..",".SSSSqq."},
+ [B_RUIN]={"........","..k.....","..Sk..k.","..mk.Sk.",".kmm.Skq",".mkmkmqq",".qqkmq..","..qqq..."},
+ [B_DOCK]={"........",".|....|.",".W----W.","WWWWWWWW","w-w-w-ww",".|....|q",".q....q.","........"},
+ [B_TEMPLE]={"...ff...","...S....","..RRrr..",".RRRrrs.",".SSSSSSq",".S|o|Skq",".S|d|Skq","SSSSSSSq"},
+ [B_STATUE]={"...SS...","...Wk...","..SSmk..","...Sm...","...Sk...","..SSmk..",".SSmmmkq",".qqqqqq."},
+ [B_LIBRARY]={".RRRRrr.",".RRrrrs.",".ssssss.",".W|W|wq.",".o|o|oq.",".W|W|wq.",".WWddwq.",".dddddq."},
+ [B_BORDER]={"........","...|ff..","...|f...","...|....","...|q...","...|q...","..SSq...","..qqq..."}
+};
 static int bldPix(int type,int race,int x,int y){
-    int p=bldPixOld(type,race,x,y);
-    if(p==128+race){ return x<4?PX_ROOFL+race:(y==3&&type==B_HOUSE)?PX_ROOFD+race:p; }
-    if(p==136){ if(x>=6||(type==B_HUT&&x>=5)) return SH(T_SAND,3); return SH(T_SAND,5+(y==4)); }
-    if(p==137){ if(type!=B_FARM) return PX_WIN; return p; }
-    if(p==139){ if(x>=5||y==7) return SH(T_MOUNT,3); if(y<=2) return SH(T_MOUNT,7); return SH(T_MOUNT,5); }
-    if(p==138) return SH(T_DIRT,2);
-    if(type!=B_FARM&&type!=B_RUIN&&p!=PX_WIN&&p>=0&&p<104&&(x==7||y==7)&&bldPixOld(type,race,x-1,y-1)>=104) return SH(T_GRASS,1);   // a soft shadow on the grass to the lower right
-    return p;
+    if((unsigned)x>=8||(unsigned)y>=8||type<=B_NONE||type>=B_N)return SH(T_GRASS,4);
+    char c=gfxBuildings[type][y][x];
+    switch(c){
+    case 'R':return PX_ROOFL+race;case 'r':return 128+race;case 's':return PX_ROOFD+race;
+    case 'W':return 136;case 'w':return SH(T_SAND,3);case 'd':return SH(T_DIRT,1);
+    case 'o':return PX_WIN;case 'S':return SH(T_MOUNT,7);case 'm':return SH(T_MOUNT,5);
+    case 'k':return SH(T_MOUNT,2);case '|':return 137;case '-':return SH(T_DIRT,5);
+    case 'c':return SH(T_GRASS,6);case 'C':return PX_FLW+1;case 'e':return SH(T_DIRT,3);
+    case 'f':return PX_ROOFL+race;case 'q':return SH(T_GRASS,1);
+    default:return pxGrass(0,x,y);}
 }
 // ---------------------------------------------------------------- light: windows glow at night, creatures are tinted a little by the day
 static u16 gfxSprBase[256];
@@ -177,16 +199,60 @@ static void gfxSprPal(int b){   // bank b: 1 body, 2 dark, 3 accent, 4 white, 5 
     for(int k=0;k<3;k++) gfxSprBase[b*16+1+k]=RGB15(famCol[b][k][0],famCol[b][k][1],famCol[b][k][2]); gfxSprBase[b*16+4]=RGB15(31,31,31);
     int r=famCol[b][0][0],g=famCol[b][0][1],c=famCol[b][0][2];
     gfxSprBase[b*16+5]=RGB15(r+(31-r)*2/5,g+(31-g)*2/5,c+(31-c)*2/5); gfxSprBase[b*16+6]=RGB15(r*6/10,g*6/10,c*6/10);
+    gfxSprBase[b*16+7]=RGB15(3,4,5);
     for(int k=0;k<8;k++) SPRITE_PALETTE[b*16+k]=gfxSprBase[b*16+k]; SPRITE_PALETTE[b*16]=0;
 }
 static int gfxSprIdx(int s,int f,int x,int y){
-    char ch=shpRow(s,f,y)[x]; if(ch=='e') return 4; if(ch=='a') return 3; if(ch=='d') return 2; if(ch!='b') return 0;
+    char ch=shpRow(s,f,y)[x]; if(ch=='e') return 4; if(ch=='a') return 3; if(ch=='d') return 2;
+    if(ch!='b'){
+        // A single dark contact edge makes bodies readable on the busy
+        // ground without expanding sprite size or adding OAM entries.
+        if(y>1&&y<7&&shpRow(s,f,y-1)[x]!='.'&&shpRow(s,f,y-1)[x]!='d')return 7;
+        return 0;
+    }
     int up=y>0?shpRow(s,f,y-1)[x]:'.', dn=y<7?shpRow(s,f,y+1)[x]:'.', lf=x>0?shpRow(s,f,y)[x-1]:'.', rt=x<7?shpRow(s,f,y)[x+1]:'.';
     int hi=(up=='.')||(lf=='.'), lo=(dn=='.')||(rt=='.'); if(hi&&!lo) return 5; if(lo&&!hi) return 6; return 1;
 }
+static int gfxCitizenRace(int shape){
+    return shape==5?0:shape>=24&&shape<=30?shape-23:-1;
+}
+// Close views earn additional detail instead of only magnifying the 8x8
+// OAM picture. This painter uses existing palette entries and a fixed 16x16
+// footprint; feet stay on the final row through every walk phase/race.
+static int gfxCitizenPix(int race,int frame,int variant,int x,int y){
+    int shortBody=race==2||race==5||race==6;
+    int hy=y-shortBody*2,dx=x-7;
+    int faceWidth=race==3||race==7?3:2;
+    if(race==6&&hy>=0&&hy<=2&&gAbs(dx)<=hy)return hy==0?8:3;
+    if(hy>=1&&hy<=2&&gAbs(dx)<=faceWidth+(hy==2)){
+        if(race==2)return hy==1?4:2;
+        return hy==2&&x==8+(variant&1)?1:2;
+    }
+    if(hy>=3&&hy<=5&&gAbs(dx)<=faceWidth){
+        if(hy==3&&(x==6||x==8))return 4;
+        if(hy==3&&x==7)return 2;
+        if(hy==5&&race==2)return 2;
+        return x==7+faceWidth?6:1;
+    }
+    if(hy==4&&(race==1||race==4)&&(x==3||x==11))return 1;
+    if(hy==6&&gAbs(dx)<=1)return race==2?2:1;
+    int width=race==7?4:race==3?3:2;
+    if(y>=7&&y<=11&&gAbs(dx)<=width){
+        if(y==10)return x==7?4:2;
+        if(x==7+width||y==11)return 9;
+        if(x==7-width||(variant&1&&x==6))return 8;
+        return 3;
+    }
+    int armY=7+((frame+(x<7))&1);
+    if(gAbs(dx)==width+1&&y>=armY&&y<=armY+2)return y==armY+2?1:3;
+    int left=5+(frame&1),right=9-(frame&1);
+    if(y>=12&&y<=14&&((x>=left&&x<=left+1)||(x>=right&&x<=right+1)))return 2;
+    if(y==15&&((x>=left-1&&x<=left+1)||(x>=right&&x<=right+2)))return 7;
+    return 0;
+}
 static void gfxLight(int Lr,int Lg,int Lb){
     int night=Lr<150;   // windows: dull glass by day, warm light when it is dark
-    BG_PALETTE[PX_WIN]=night?RGB15(31,26,9):RGB15(12*Lr>>8,17*Lg>>8,24*Lb>>8);
+    BG_PALETTE[PX_WIN]=night?RGB15(31,26,12):RGB15(11*Lr>>8,22*Lg>>8,26*Lb>>8);
     int fr=(256+Lr)/2, fg=(256+Lg)/2, fb=(256+Lb)/2;
     for(int b=0;b<16;b++) for(int k=1;k<8;k++){ u16 c=gfxSprBase[b*16+k]; int r=(c&31)*fr>>8, g=((c>>5)&31)*fg>>8, bl=((c>>10)&31)*fb>>8; if(r>31) r=31; if(g>31) g=31; if(bl>31) bl=31; SPRITE_PALETTE[b*16+k]=RGB15(r,g,bl); }
 }

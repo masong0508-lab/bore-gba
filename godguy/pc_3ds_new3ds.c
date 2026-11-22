@@ -27,7 +27,12 @@ int main(void){
     require(m->triangles>=2&&m->fragments>50&&m->textureSamples>50,
             "native detail did not rasterize world-space material");
     int center=(116*400+200)*3;
-    unsigned char first[3]={pixels[center],pixels[center+1],pixels[center+2]};
+    // Quiet materials may deliberately leave any one pixel unchanged.
+    // Compare a visible wall area so the quality gate measures actual
+    // surface detail, not a coincidental noise value at the optical center.
+    static unsigned char detailedWall[48*160*3];
+    for(int y=0;y<48;y++)
+        memcpy(detailedWall+y*160*3,pixels+((96+y)*400+120)*3,160*3);
     ggMeshBegin(m,pixels,1,0,0,12,4096,0,44,64,83);
     m->fogMax=0;
     require(m->w==400&&m->h==240&&m->scale==1&&
@@ -48,7 +53,17 @@ int main(void){
             pixels[center+1]==142*light/256&&
             pixels[center+2]==122*light/256,
             "reduced detail lost the same directional wall lighting");
-    require(memcmp(first,pixels+center,3)!=0,
+    int changed=0,maxDelta=0;
+    for(int y=0;y<48;y++)for(int x=0;x<160;x++){
+        const unsigned char *hi=detailedWall+(y*160+x)*3;
+        const unsigned char *lo=pixels+((96+y)*400+120+x)*3;
+        changed+=memcmp(hi,lo,3)!=0;
+        for(int c=0;c<3;c++){
+            int delta=(int)hi[c]-lo[c];if(delta<0)delta=-delta;
+            if(delta>maxDelta)maxDelta=delta;
+        }
+    }
+    require(changed>1000&&maxDelta>=12,
             "native high detail was indistinguishable from untextured fallback");
     require(sizeof ggMeshDepthStorage==192000,
             "depth buffer grew despite New-3DS-only profile");

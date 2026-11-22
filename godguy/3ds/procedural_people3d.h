@@ -1,5 +1,5 @@
-// GodGuy 3DS: anatomically structured, deterministic procedural people.
-// Eight facing directions, layered 32x48 source cels with 24 shaded inks.
+// GodGuy 3DS: directional pixel-art inhabitants, from one stable identity.
+// Eight facing directions, articulated 32x48 source cels, 24 shaded inks.
 // One 1.5 KiB cel is regenerated for a visible citizen; no atlas, heap,
 // persistent 12,000-citizen caches or platform SDK dependency.
 // Identity is derived from a stable actor ID; pose/eyes can animate without
@@ -94,26 +94,31 @@ static void ggPersonColors(GgPersonCel*c,GgPersonTraits p,
     ggPersonInk(c,GG_P_HAIR_D,r*58/100,g*61/100,b*63/100);
     ggPersonInk(c,GG_P_HAIR_M,r,g,b);
     ggPersonInk(c,GG_P_HAIR_L,r+(255-r)/4,g+(255-g)/4,b+(255-b)/4);
-    // Keep the simulation's actual family palette, but enforce
-    // sufficient saturation and contrast for readable 3D-world fabric.
-    int cr=ggPersonClamp((int)coat[0][0]*8,48,200);
-    int cg=ggPersonClamp((int)coat[0][1]*8,53,197);
-    int cb=ggPersonClamp((int)coat[0][2]*8,51,190);
-    ggPersonInk(c,GG_P_COAT_D,cr*58/100,cg*58/100,cb*61/100);
+    // Family hues stay recognizable; a stable dye/wear variation gives
+    // neighboring residents individual fabric without frame-to-frame noise.
+    int dye=(int)((p.fingerprint>>16)&15u)-7;
+    int cr=ggPersonClamp((int)coat[0][0]*6+28+dye,48,208);
+    int cg=ggPersonClamp((int)coat[0][1]*6+25+dye,48,203);
+    int cb=ggPersonClamp((int)coat[0][2]*6+24+dye,45,196);
+    ggPersonInk(c,GG_P_COAT_D,cr*67/100,cg*66/100,cb*70/100);
     ggPersonInk(c,GG_P_COAT_M,cr,cg,cb);
-    ggPersonInk(c,GG_P_COAT_L,cr+(255-cr)/3,
-                cg+(255-cg)/3,cb+(255-cb)/3);
+    ggPersonInk(c,GG_P_COAT_L,cr+(255-cr)/4,
+                cg+(255-cg)/4,cb+(255-cb)/4);
     ggPersonInk(c,GG_P_PANTS_D,41+(p.wear*10),48+(p.wear*9),
                 57+(p.wear*7));
     ggPersonInk(c,GG_P_PANTS_L,71+(p.wear*12),78+(p.wear*10),
                 88+(p.wear*9));
     ggPersonInk(c,GG_P_BOOT_D,32,34,39);
     ggPersonInk(c,GG_P_BOOT_L,74,68,61);
-    ggPersonInk(c,GG_P_OUTLINE,29,32,39);
+    ggPersonInk(c,GG_P_OUTLINE,32,34,39);
     ggPersonInk(c,GG_P_SHIRT,227,207,167);
     ggPersonInk(c,GG_P_SEAM,92,75,67);
-    ggPersonInk(c,GG_P_TRIM,210,171,111);
-    ggPersonInk(c,GG_P_ACCENT,137,67,84);
+    ggPersonInk(c,GG_P_TRIM,195+(p.wear&1)*13,157,102);
+    static const unsigned char accents[4][3]={
+        {146,67,61},{65,103,114},{121,94,135},{141,117,57}
+    };
+    ggPersonInk(c,GG_P_ACCENT,accents[p.eye][0],
+                accents[p.eye][1],accents[p.eye][2]);
     ggPersonInk(c,GG_P_METAL,208,201,168);
     ggPersonInk(c,GG_P_FACE,58,45,48);
     ggPersonInk(c,GG_P_IRIS,51+p.eye*13,65+p.eye*7,74+p.eye*6);
@@ -149,221 +154,357 @@ static void ggPersonStroke(GgPersonCel*c,int x0,int y0,
         if(twice<dx){err+=dx;y0+=sy;}
     }
 }
-// Physical front (0), quarter turns (1/7, 3/5), side (2/6),
-// back (4). The identity/wardrobe is conserved across all directions.
+// A tapered fabric panel uses connected scanlines, not overlapping
+// round blobs. Shoulders, waist and hem therefore have deliberate edges.
+static void ggPersonTaper(GgPersonCel*c,int cx,int y0,int y1,
+                          int top,int bottom,int ink){
+    if(y1<y0)return;
+    int span=y1-y0;
+    for(int y=y0;y<=y1;y++){
+        int half=span?top+(bottom-top)*(y-y0)/span:top;
+        ggPersonRect(c,cx-half,y,half*2+1,1,ink);
+    }
+}
+static void ggPersonArm(GgPersonCel*c,int x,int y,int elbowX,
+                        int elbowY,int handX,int handY,int nearSide,
+                        int rolled){
+    ggPersonStroke(c,x,y,elbowX,elbowY,GG_P_OUTLINE,4);
+    ggPersonStroke(c,elbowX,elbowY,handX,handY-1,GG_P_OUTLINE,4);
+    ggPersonStroke(c,x,y,elbowX,elbowY,
+                   nearSide?GG_P_COAT_M:GG_P_COAT_D,2);
+    ggPersonStroke(c,elbowX,elbowY,handX,handY-1,
+                   rolled?GG_P_SKIN_D:GG_P_COAT_D,2);
+    if(!rolled)ggPersonRect(c,handX-1,handY-2,2,1,GG_P_TRIM);
+    ggPersonRect(c,handX-1,handY-1,3,3,GG_P_SKIN_D);
+    ggPersonRect(c,handX-1,handY-1,2,2,GG_P_SKIN_M);
+    ggPersonDot(c,x-1,y,GG_P_COAT_L);
+}
+// Physical front (0), quarter turns (1/7, 3/5), side (2/6), back (4).
+// Front fasteners never appear through the back. Hair wraps the entire
+// rear skull, and a profile has a projecting nose and one visible eye.
 static void ggPersonGenerate(GgPersonCel*c,uint32_t id,int family,
                              int turn,int tick,int active,
                              const unsigned char coat[3][3]){
     GgPersonTraits p=ggPersonTraits(id,family);
-    // The transparent ink must be initialized too: two regenerations
-    // on different stacks must produce byte-for-byte identical sprites.
-    // This is just one 1.6 KiB reusable cel, not an allocation.
     memset(c,0,sizeof *c);
     ggPersonColors(c,p,coat);
     turn&=7;
-    int front=turn==0||turn==1||turn==7;
-    int rear=turn==3||turn==4||turn==5;
-    int left=turn==1||turn==2||turn==3;
-    int right=turn==5||turn==6||turn==7;
-    int quarter=turn==1||turn==3||turn==5||turn==7;
+    int rear=turn>=3&&turn<=5;
     int profile=turn==2||turn==6;
-    int lean=turn==1||turn==7?1:turn==3||turn==5?-1:0;
-    int width=7+(p.build==2?1:p.build==0?-1:0)+p.shoulder/2;
-    int breath=((tick+(int)(p.fingerprint&31u))/20)&1;
-    int sway=active?((tick/5)&1?2:-2):0;
-    int faceY=9+breath;
+    int quarter=turn&1;
+    int facing=turn>=1&&turn<=3?-1:turn>=5?1:0;
+    int center=16;
+    int phase=((unsigned)tick/4u+(p.fingerprint&7u))&7;
+    static const signed char stride[8]={0,2,3,2,0,-2,-3,-2};
+    static const unsigned char lift[8]={0,1,2,1,0,0,0,0};
+    int breath=active?((phase&3)==2?-1:0):
+                       (int)(((unsigned)tick+(p.fingerprint&31u))/24u&1u);
     int glance=active?0:ggPersonIdleLook(p.fingerprint,tick);
     int gesture=active?0:ggPersonIdleGesture(p.fingerprint,tick);
-    int center=16+lean;
-    int skin=GG_P_SKIN_M;
-    // Shoes are BELOW pants; both retain one common grounded sole.
-    // Movement changes strides only when the population marks active.
-    for(int s=-1;s<=1;s+=2){
-        int legX=center+s*(profile?2:quarter?3:4)+s*sway;
-        ggPersonOval(c,legX,39,3,7,GG_P_OUTLINE);
-        ggPersonRect(c,legX-2,35,4,9,GG_P_PANTS_D);
-        ggPersonRect(c,legX-1,35,2,8,GG_P_PANTS_L);
-        ggPersonOval(c,legX+s,45,4,2,GG_P_BOOT_D);
-        ggPersonRect(c,legX-2+s,45,4,1,GG_P_BOOT_L);
-        ggPersonRect(c,legX+s-3,47,7,1,GG_P_OUTLINE);
-    }
-    // Outer silhouette first: taper from shoulders to waist and hem.
-    // Three-quarter views narrow the torso slightly. A side profile
-    // must not retain both full front-facing shoulders and two arms.
-    if(profile)width=ggPersonClamp(width-2,4,10);
-    else if(quarter)width=ggPersonClamp(width-1,5,11);
-    int shoulders=width+2,hem=width-(p.style==3?1:0);
-    ggPersonOval(c,center,22+breath,shoulders,5,GG_P_OUTLINE);
-    ggPersonRect(c,center-width,22,2*width+1,12,GG_P_OUTLINE);
-    ggPersonOval(c,center,33,hem,3,GG_P_OUTLINE);
-    ggPersonOval(c,center,23+breath,width,4,GG_P_COAT_M);
-    ggPersonRect(c,center-width+1,24,2*width-1,9,GG_P_COAT_M);
-    ggPersonOval(c,center,33,hem-1,2,GG_P_COAT_D);
-    ggPersonStroke(c,center-width+2,25,center-width+2,33,
-                   GG_P_COAT_L,2);
-    ggPersonStroke(c,center+width-2,24,center+width-2,32,
-                   GG_P_COAT_D,2);
-    if(p.style==0||p.style==2){
-        // Fitted double-breasted coat and collar.
-        ggPersonRect(c,center-2,22,4,11,GG_P_COAT_D);
-        ggPersonStroke(c,center-4,23,center,29,GG_P_SHIRT,1);
-        ggPersonStroke(c,center+4,23,center,29,GG_P_COAT_L,1);
-        ggPersonDot(c,center+2,30,GG_P_METAL);
-    }else if(p.style==1||p.style==4){
-        // Short jacket with visible shirt panel and lapels.
-        ggPersonRect(c,center-2,23,4,10,GG_P_SHIRT);
-        ggPersonStroke(c,center-3,23,center-1,28,GG_P_TRIM,1);
-        ggPersonStroke(c,center+3,23,center+1,28,GG_P_COAT_D,1);
-        ggPersonStroke(c,center-width+2,31,center+width-2,31,
-                       GG_P_SEAM,1);
-    }else if(p.style==3){
-        // Layered robe with elongated hem and a contrasting sash.
-        ggPersonOval(c,center,34,hem,3,GG_P_COAT_L);
-        ggPersonRect(c,center-1,23,2,12,GG_P_COAT_D);
-        ggPersonRect(c,center-width+1,31,2*width-2,2,GG_P_TRIM);
-    }else{
-        // Soft tunic with under-vest and stitched seam.
-        ggPersonRect(c,center-3,23,6,10,GG_P_COAT_D);
-        ggPersonRect(c,center-1,23,2,10,GG_P_COAT_L);
-    }
-    if(p.style!=3){
-        ggPersonStroke(c,center-width+1,33,center+width-1,33,
-                       GG_P_PANTS_D,2);
-        ggPersonRect(c,center-1,32,3,3,GG_P_TRIM);
-        ggPersonDot(c,center,33,GG_P_METAL);
-    }
-    // Articulated arms: shoulder/elbow/wrist poses are separate
-    // geometries; both hands rejoin the sleeves, never float outside.
-    for(int s=-1;s<=1;s+=2){
-        // From the side, the far arm is occluded by the body rather
-        // than appearing as an extra detached limb in front.
-        if(profile&&s==(left?1:-1))continue;
-        int armX=center+s*(shoulders-1);
-        int elbowX=armX+s*2;
-        int raised=gesture&&s==((p.fingerprint&1u)?1:-1);
-        int handX=raised?elbowX-s*5:
-                  elbowX+(active?-s*sway/2:0);
-        int armEnd=raised?18+((tick>>2)&1):
-                   31+((tick+(int)(p.fingerprint>>6))%47<3?-1:0);
-        ggPersonStroke(c,armX,23,elbowX,28,GG_P_OUTLINE,5);
-        ggPersonStroke(c,armX,23,elbowX,28,GG_P_COAT_M,3);
-        ggPersonStroke(c,elbowX,28,handX,armEnd,
+    int width=6+(p.build==2?2:p.build==3?1:0)+p.shoulder/2;
+    if(profile)width=4+(p.build==2);
+    else if(quarter)width--;
+    int shoulderY=19+breath,waistY=29+breath;
+    int hemY=(p.style==2?34:p.style==3?38:32)+breath;
+    int hemW=width-(p.style==0||p.style==1?1:0);
+    int headX=center+facing+glance,faceY=10+breath;
+    int armX[2],elbowX[2],handX[2],handY[2];
+    int elbowY[2],nearArm=profile?(facing<0?0:1):-1;
+    // Hips, knees and ankles articulate independently. The advancing
+    // boot lifts while the supporting sole remains at row 47; side
+    // strides move along the facing axis, never as jumping-jack legs.
+    for(int layer=0;layer<2;layer++){
+        int side=layer?1:-1;
+        int legPhase=(phase+(layer?4:0))&7;
+        int swing=active?stride[legPhase]:0;
+        int lifted=active?lift[legPhase]:0;
+        int hipX=center+side*(profile||quarter?2:3);
+        int ankleX=hipX+facing*swing/(quarter?2:1);
+        if(!profile)ankleX+=side;
+        int kneeX=(hipX+ankleX)/2+facing*(lifted?1:0);
+        int soleY=47-lifted;
+        ggPersonStroke(c,hipX,31+breath,kneeX,39-lifted/2,
                        GG_P_OUTLINE,5);
-        ggPersonStroke(c,elbowX,28,handX,armEnd,
-                       GG_P_COAT_D,3);
-        ggPersonRect(c,handX-2,armEnd,4,3,GG_P_SKIN_D);
-        ggPersonRect(c,handX-1,armEnd,2,2,skin);
+        ggPersonStroke(c,kneeX,39-lifted/2,ankleX,soleY-3,
+                       GG_P_OUTLINE,4);
+        ggPersonStroke(c,hipX-1,32+breath,kneeX-1,39-lifted/2,
+                       layer?GG_P_PANTS_D:GG_P_PANTS_L,3);
+        ggPersonStroke(c,kneeX-1,39-lifted/2,ankleX-1,soleY-3,
+                       layer?GG_P_PANTS_D:GG_P_PANTS_L,2);
+        ggPersonDot(c,kneeX,39-lifted/2,GG_P_PANTS_L);
+        int toe=profile?facing:side;
+        ggPersonRect(c,ankleX-2,soleY-3,4,3,GG_P_BOOT_D);
+        ggPersonRect(c,ankleX-2+(toe<0?-1:0),soleY-1,5,1,
+                     GG_P_BOOT_L);
+        ggPersonRect(c,ankleX-2+(toe<0?-1:0),soleY,5,1,
+                     GG_P_OUTLINE);
     }
-    // Neck remains centered under the skull in every perspective.
-    ggPersonRect(c,center-3,17+breath,6,5,GG_P_SKIN_D);
-    ggPersonRect(c,center-2,18+breath,4,4,skin);
-    // Lower face jaw and skull: no misaligned Atari-square heads.
-    int jawW=4+(p.face==2?1:0),cranium=6+(p.face==3?1:0);
-    int headX=center+(left?-2:right?2:0)+glance;
-    ggPersonOval(c,headX,faceY,cranium+1,8,GG_P_OUTLINE);
-    ggPersonOval(c,headX,faceY,cranium,7,GG_P_SKIN_D);
-    ggPersonOval(c,headX-1,faceY-1,cranium-1,6,GG_P_SKIN_M);
-    ggPersonOval(c,headX,faceY+4,jawW,3,GG_P_SKIN_M);
-    ggPersonStroke(c,headX-3,faceY-3,headX-2,faceY+4,
-                   GG_P_SKIN_L,1);
-    if(!rear){
-        int noseX=headX+(left?-3:right?3:0);
-        ggPersonRect(c,noseX,faceY+1,2,2,GG_P_SKIN_L);
-        ggPersonDot(c,noseX+(right?1:0),faceY+3,
-                    GG_P_SKIN_D);
-        int blink=((tick+(int)(p.fingerprint>>11))%91)<3;
-        if(front){
-            for(int side=-1;side<=1;side+=2){
-                int ex=headX+side*(quarter?3:3);
-                if(quarter&&((side<0&&right)||(side>0&&left)))
-                    continue;
-                ggPersonStroke(c,ex-1,faceY-2,ex+1,faceY-2,
-                               GG_P_HAIR_D,1);
-                ggPersonDot(c,ex,faceY,blink?GG_P_SKIN_D:
-                             GG_P_WHITE);
-                if(!blink)ggPersonDot(c,ex+side/2,faceY,
-                                      GG_P_IRIS);
-            }
-        }else{
-            int ex=headX+(left?-2:2);
-            ggPersonRect(c,ex,faceY,2,blink?1:2,
-                         blink?GG_P_SKIN_D:GG_P_IRIS);
-            ggPersonDot(c,ex,faceY-2,GG_P_HAIR_D);
+    for(int i=0;i<2;i++){
+        int side=i?1:-1;
+        int swing=active?stride[(phase+(i?0:4))&7]:0;
+        armX[i]=center+side*(width+1);
+        if(profile)armX[i]=center+(i==nearArm?-1:1);
+        elbowX[i]=armX[i]+(profile?facing*swing/2:side);
+        handX[i]=elbowX[i]+(profile?facing*swing/2:
+                            quarter?facing*swing/2:0);
+        elbowY[i]=25+breath;
+        handY[i]=31+breath-(active&&swing>1?1:0);
+        if(gesture&&i==((p.fingerprint&1u)?1:0)){
+            elbowX[i]+=side;
+            handX[i]=elbowX[i]-side*3;
+            handY[i]=20+((unsigned)tick/5u&1u);
         }
-        // Mouth shifts with head orientation but never exits the jaw.
-        int mx=headX+(left?-2:right?2:0);
-        ggPersonStroke(c,mx-1,faceY+5,mx+1,faceY+5,
-                       GG_P_FACE,1);
-        if(p.face==1)ggPersonDot(c,mx+1,faceY+6,GG_P_BLUSH);
+        // Far sleeve is genuinely behind the torso in a side view.
+        if(profile&&i!=nearArm)
+            ggPersonArm(c,armX[i],shoulderY+1,elbowX[i],elbowY[i],
+                        handX[i],handY[i],0,p.style==4);
     }
-    // Hair sits ON the anatomy, not as disconnected rectangles.
-    // Eight directions share identical style, cut and stable color.
-    ggPersonOval(c,headX,faceY-5,cranium+1,4,GG_P_HAIR_D);
-    ggPersonOval(c,headX-1,faceY-6,cranium,3,GG_P_HAIR_M);
-    if(p.hair==0||p.hair==4){
-        // Cropped or silver short hair, visible close temples.
-        ggPersonRect(c,headX-6,faceY-5,2,4,GG_P_HAIR_D);
-        ggPersonRect(c,headX+5,faceY-5,2,3,GG_P_HAIR_D);
-    }else if(p.hair==1||p.hair==6){
-        // Curls: staggered tufts and sideburn silhouette.
-        for(int tuft=-2;tuft<=2;tuft++){
-            int xx=headX+tuft*3,yy=faceY-8+((tuft+2)&1);
-            ggPersonOval(c,xx,yy,2,2,tuft&1?GG_P_HAIR_M:
-                                              GG_P_HAIR_L);
-        }
-        ggPersonRect(c,headX-7,faceY-4,3,6,GG_P_HAIR_M);
-    }else if(p.hair==2){
-        // Long flowing hair extends behind jaw, but not across eyes.
-        ggPersonRect(c,headX-7,faceY-4,3,11,GG_P_HAIR_D);
-        ggPersonRect(c,headX+5,faceY-4,3,12,GG_P_HAIR_M);
-        ggPersonRect(c,headX+6,faceY+3,1,5,GG_P_HAIR_L);
-    }else if(p.hair==3){
-        // High swept crest and angular forehead part.
-        ggPersonOval(c,headX,faceY-9,5,3,GG_P_HAIR_M);
-        ggPersonStroke(c,headX-4,faceY-9,
-                       headX+4,faceY-11,GG_P_HAIR_L,2);
-        ggPersonRect(c,headX+5,faceY-5,2,3,GG_P_HAIR_D);
-    }else{
-        // Tied bun with clear profile, light clasp.
-        ggPersonOval(c,headX+(rear?0:3),faceY-10,
-                     3,3,GG_P_HAIR_M);
-        ggPersonRect(c,headX+1,faceY-11,3,1,GG_P_TRIM);
-        ggPersonRect(c,headX-6,faceY-4,2,6,GG_P_HAIR_D);
+    // Shoulder slope, fitted waist and six clearly different hems.
+    ggPersonTaper(c,center,shoulderY-1,shoulderY+2,width-2,width,
+                   GG_P_OUTLINE);
+    ggPersonTaper(c,center,shoulderY+2,waistY,width,width-1,
+                   GG_P_OUTLINE);
+    ggPersonTaper(c,center,waistY,hemY,width-1,hemW,GG_P_OUTLINE);
+    ggPersonTaper(c,center,shoulderY,shoulderY+3,width-2,width-1,
+                   GG_P_COAT_M);
+    ggPersonTaper(c,center,shoulderY+3,waistY,width-1,width-2,
+                   GG_P_COAT_M);
+    ggPersonTaper(c,center,waistY,hemY-1,width-2,hemW-1,
+                   GG_P_COAT_M);
+    ggPersonStroke(c,center-width+2,shoulderY+3,
+                   center-hemW+2,hemY-2,GG_P_COAT_L,1);
+    ggPersonStroke(c,center+width-2,shoulderY+3,
+                   center+hemW-2,hemY-2,GG_P_COAT_D,2);
+    // Hem folds follow the garment; long robes hide thighs naturally.
+    if(p.style==2||p.style==3){
+        ggPersonStroke(c,center-2,waistY+1,center-3,hemY-1,
+                       GG_P_COAT_D,1);
+        ggPersonStroke(c,center+2,waistY+2,center+3,hemY-1,
+                       GG_P_COAT_L,1);
+        ggPersonRect(c,center-hemW+1,hemY-1,2*hemW-1,1,GG_P_TRIM);
     }
-    ggPersonStroke(c,headX-3,faceY-8,headX+1,faceY-9,
-                   GG_P_HAIR_L,1);
-    // Clothing wear, clasps and a shoulder seam are intentionally
-    // tied to stable identity rather than ticking with the gait.
-    if(p.wear==1){
-        ggPersonStroke(c,center+width-3,27,
-                       center+width-2,31,GG_P_SEAM,1);
-    }else if(p.wear==2){
-        ggPersonDot(c,center-width+2,27,GG_P_COAT_L);
-        ggPersonDot(c,center-width+2,29,GG_P_COAT_L);
-    }else if(p.wear==3){
-        ggPersonRect(c,center-1,31,2,1,GG_P_METAL);
-    }
+    int opening=center+(profile?facing*(width-2):quarter?facing:0);
     if(rear){
-        // Back of head has no phantom eyes: nape and hair part.
-        ggPersonRect(c,headX-1,faceY-2,2,7,GG_P_HAIR_M);
-        ggPersonRect(c,headX,faceY-5,1,5,GG_P_HAIR_L);
+        // A shoulder yoke and back seam replace the front shirt/lapels.
+        ggPersonStroke(c,center-width+2,shoulderY+4,
+                       center+width-2,shoulderY+4,GG_P_COAT_L,1);
+        ggPersonStroke(c,center,shoulderY+5,center,hemY-2,
+                       GG_P_COAT_D,1);
+        if(p.style==5){
+            ggPersonTaper(c,center,shoulderY+1,26+breath,
+                           width-1,width,GG_P_ACCENT);
+            ggPersonRect(c,center-width+1,26+breath,2*width-1,1,
+                         GG_P_TRIM);
+        }
+    }else{
+        if(p.style==0){
+            // Tailored travel coat: collar, lapels and two small clasps.
+            ggPersonRect(c,opening-1,shoulderY,3,7,GG_P_SHIRT);
+            ggPersonStroke(c,opening-3,shoulderY+1,opening,shoulderY+6,
+                           GG_P_COAT_L,1);
+            ggPersonStroke(c,opening+3,shoulderY+1,opening,shoulderY+6,
+                           GG_P_COAT_D,1);
+            ggPersonStroke(c,opening,shoulderY+6,opening,hemY-1,
+                           GG_P_COAT_D,1);
+            ggPersonDot(c,opening+1,26+breath,GG_P_METAL);
+            ggPersonDot(c,opening+1,29+breath,GG_P_METAL);
+        }else if(p.style==1){
+            // Open waistcoat: warm shirt panel and visible pocket.
+            ggPersonRect(c,opening-2,shoulderY,profile?2:4,
+                         hemY-shoulderY-1,GG_P_SHIRT);
+            ggPersonStroke(c,opening-3,shoulderY+2,opening-2,hemY-2,
+                           GG_P_COAT_D,1);
+            ggPersonStroke(c,opening+2,shoulderY+2,opening+2,hemY-2,
+                           GG_P_COAT_L,1);
+            if(!profile)ggPersonRect(c,center+width-4,26+breath,3,1,
+                                    GG_P_TRIM);
+        }else if(p.style==2){
+            // Long tunic: laced neckline and side-split lower panels.
+            ggPersonRect(c,opening-1,shoulderY,3,5,GG_P_COAT_D);
+            ggPersonDot(c,opening,shoulderY+1,GG_P_TRIM);
+            ggPersonDot(c,opening,shoulderY+3,GG_P_TRIM);
+            ggPersonStroke(c,opening,waistY+2,opening,hemY,
+                           GG_P_PANTS_D,1);
+        }else if(p.style==3){
+            // Robe: diagonal wrap and a continuous woven sash.
+            ggPersonStroke(c,opening-3,shoulderY+1,
+                           opening+2,waistY-1,GG_P_SHIRT,2);
+            ggPersonRect(c,center-width+2,waistY,2*width-3,2,
+                         GG_P_ACCENT);
+            ggPersonRect(c,opening+2,waistY+2,2,5,GG_P_ACCENT);
+        }else if(p.style==4){
+            // Canvas apron over a short tunic, with a useful silhouette.
+            ggPersonRect(c,opening-2,shoulderY+4,profile?3:5,6,
+                         GG_P_TRIM);
+            ggPersonTaper(c,opening,waistY-1,hemY-1,
+                           profile?2:3,profile?2:4,GG_P_TRIM);
+            ggPersonStroke(c,opening-2,shoulderY+1,
+                           opening-2,shoulderY+5,GG_P_SHIRT,1);
+            ggPersonRect(c,opening-1,waistY+1,3,1,GG_P_SEAM);
+        }else{
+            // Shoulder mantle changes the outline, not just its color.
+            ggPersonTaper(c,center,shoulderY,shoulderY+5,
+                           width-2,width+1,GG_P_ACCENT);
+            ggPersonRect(c,center-width,shoulderY+5,2*width+1,1,
+                         GG_P_TRIM);
+            ggPersonDot(c,opening,shoulderY+2,GG_P_METAL);
+            ggPersonStroke(c,opening,shoulderY+7,opening,hemY-1,
+                           GG_P_COAT_D,1);
+        }
     }
-    // Specific identity markers, intentionally subtle at distance.
+    if(p.style!=3&&p.style!=4){
+        ggPersonRect(c,center-width+2,waistY,2*width-3,2,GG_P_BOOT_D);
+        if(!rear&&!profile){
+            ggPersonRect(c,opening,waistY,2,2,GG_P_TRIM);
+            ggPersonDot(c,opening,waistY,GG_P_METAL);
+        }
+    }
+    // Accessory straps follow the correct side of the body. Rear bags
+    // and shawls use their reverse face; no floating pins on empty air.
     if(p.accessory==0){
-        ggPersonStroke(c,center-width+3,26,center+width-2,32,
-                       GG_P_ACCENT,2); // satchel strap
-        ggPersonRect(c,center+width-3,31,4,4,GG_P_TRIM);
+        int strap=rear?-1:1;
+        ggPersonStroke(c,center-strap*(width-2),shoulderY+1,
+                       center+strap*(width-2),waistY+2,GG_P_BOOT_D,2);
+        ggPersonStroke(c,center-strap*(width-2),shoulderY+1,
+                       center+strap*(width-2),waistY+2,GG_P_TRIM,1);
+        int bagX=center+(profile?-facing:strap)*(width-1);
+        ggPersonRect(c,bagX-2,waistY+1,5,5,GG_P_BOOT_D);
+        ggPersonRect(c,bagX-1,waistY+1,3,4,GG_P_ACCENT);
+        ggPersonRect(c,bagX-1,waistY+1,3,1,GG_P_TRIM);
     }else if(p.accessory==1){
-        ggPersonRect(c,center-5,22,10,2,GG_P_ACCENT); // scarf
-        ggPersonRect(c,center+2,24,2,7,GG_P_ACCENT);
-    }else if(p.accessory==2){
-        ggPersonDot(c,center,28,GG_P_METAL); // pendant
-        ggPersonDot(c,center,29,GG_P_TRIM);
-    }else if(p.accessory==3){
-        ggPersonRect(c,center-width+1,29,2,3,GG_P_METAL); // pins
-        ggPersonRect(c,center+width-2,29,2,3,GG_P_METAL);
-    }else if(p.accessory==4){
-        ggPersonStroke(c,center-3,22,center+3,22,GG_P_TRIM,1);
+        ggPersonRect(c,center-3,shoulderY,7,2,GG_P_ACCENT);
+        if(!rear)ggPersonRect(c,opening+1,shoulderY+2,2,6,
+                             GG_P_ACCENT);
+    }else if(p.accessory==2&&!rear&&!profile){
+        ggPersonStroke(c,opening-2,shoulderY+1,opening,shoulderY+5,
+                       GG_P_TRIM,1);
+        ggPersonDot(c,opening,shoulderY+5,GG_P_METAL);
+    }else if(p.accessory==3&&!rear){
+        ggPersonRect(c,center-width+2,shoulderY+5,2,2,GG_P_METAL);
+    }
+    if(p.wear==1&&!rear){
+        ggPersonRect(c,center+width-3,waistY-3,2,2,GG_P_SEAM);
+        ggPersonDot(c,center+width-2,waistY-3,GG_P_COAT_L);
+    }
+    for(int i=0;i<2;i++){
+        if(profile&&i!=nearArm)continue;
+        ggPersonArm(c,armX[i],shoulderY+1,elbowX[i],elbowY[i],
+                    handX[i],handY[i],i==0,p.style==4);
+    }
+    // Neck and ears connect the narrower, adult-proportioned head to
+    // the shoulder line. Crown remains inside the cel in every pose.
+    ggPersonRect(c,headX-1,faceY+5,3,shoulderY-faceY-3,GG_P_SKIN_D);
+    ggPersonRect(c,headX-1,faceY+5,2,shoulderY-faceY-4,GG_P_SKIN_M);
+    int jaw=(p.face==2?4:3),skull=5;
+    if(profile)skull=4;
+    ggPersonOval(c,headX,faceY,skull+1,6,GG_P_OUTLINE);
+    ggPersonOval(c,headX,faceY,skull,5,rear?GG_P_HAIR_D:GG_P_SKIN_D);
+    if(rear){
+        ggPersonOval(c,headX-1,faceY-1,skull-1,4,GG_P_HAIR_M);
+        ggPersonStroke(c,headX-2,faceY-3,headX-2,faceY+2,
+                       GG_P_HAIR_L,1);
+        ggPersonRect(c,headX-2,faceY+4,5,2,GG_P_HAIR_D);
+        if(quarter)ggPersonRect(c,headX+facing*skull,faceY,1,3,
+                               GG_P_SKIN_D);
+    }else{
+        ggPersonOval(c,headX-1,faceY,skull-1,4,GG_P_SKIN_M);
+        ggPersonOval(c,headX,faceY+3,jaw,2,GG_P_SKIN_M);
+        if(profile){
+            int nose=headX+facing*(skull+1);
+            ggPersonRect(c,nose+(facing<0?-1:0),faceY,2,2,
+                         GG_P_SKIN_M);
+            ggPersonDot(c,nose,faceY,GG_P_SKIN_L);
+            ggPersonRect(c,headX-facing*2,faceY,2,3,GG_P_SKIN_D);
+            ggPersonDot(c,headX-facing,faceY,GG_P_SKIN_L);
+        }else{
+            ggPersonDot(c,headX-skull,faceY+1,GG_P_SKIN_M);
+            ggPersonDot(c,headX+skull,faceY+1,GG_P_SKIN_D);
+            ggPersonStroke(c,headX-3,faceY+1,headX-2,faceY+3,
+                           GG_P_SKIN_L,1);
+        }
+        int noseX=headX+(quarter?facing:profile?facing*3:0);
+        int blink=((unsigned)tick+(p.fingerprint>>11))%91u<3u;
+        if(profile){
+            int eye=headX+facing*2;
+            ggPersonDot(c,eye,faceY-1,GG_P_HAIR_D);
+            ggPersonDot(c,eye,faceY,blink?GG_P_SKIN_D:GG_P_IRIS);
+            ggPersonDot(c,noseX,faceY+3,GG_P_FACE);
+        }else{
+            for(int side=-1;side<=1;side+=2){
+                int eye=headX+side*2+(quarter?facing:0);
+                ggPersonStroke(c,eye-1,faceY-2,eye,faceY-2,
+                               GG_P_HAIR_D,1);
+                ggPersonDot(c,eye-1,faceY,blink?GG_P_SKIN_D:GG_P_WHITE);
+                ggPersonDot(c,eye,faceY,blink?GG_P_SKIN_D:GG_P_IRIS);
+            }
+            ggPersonDot(c,noseX,faceY+1,GG_P_SKIN_L);
+            ggPersonDot(c,noseX+1,faceY+2,GG_P_SKIN_D);
+            ggPersonRect(c,noseX-1,faceY+4,2,1,GG_P_FACE);
+            if(p.face==1){
+                ggPersonRect(c,noseX-2,faceY+3,4,1,GG_P_HAIR_D);
+                ggPersonDot(c,noseX,faceY+5,GG_P_HAIR_D);
+            }else if(p.face==3){
+                ggPersonDot(c,headX+3,faceY+2,GG_P_BLUSH);
+            }
+        }
+    }
+    // Sculpted crown and side locks all stay attached. The same cut
+    // wraps behind the skull rather than painting a face on its back.
+    ggPersonOval(c,headX,faceY-4,skull+1,3,GG_P_HAIR_D);
+    ggPersonOval(c,headX-1,faceY-5,skull,2,GG_P_HAIR_M);
+    if(p.hair==0){
+        ggPersonRect(c,headX-skull,faceY-4,2,4,GG_P_HAIR_D);
+        ggPersonRect(c,headX+skull-1,faceY-4,2,3,GG_P_HAIR_D);
+        ggPersonStroke(c,headX-3,faceY-5,headX+1,faceY-5,
+                       GG_P_HAIR_L,1);
+    }else if(p.hair==1||p.hair==6){
+        for(int n=-2;n<=2;n++){
+            int xx=headX+n*2,yy=faceY-5-((n+2)&1);
+            ggPersonOval(c,xx,yy,2,2,n&1?GG_P_HAIR_M:GG_P_HAIR_L);
+        }
+        ggPersonRect(c,headX-skull,faceY-3,2,4,GG_P_HAIR_M);
+        if(p.hair==6)ggPersonRect(c,headX+skull-1,faceY-3,2,5,
+                                  GG_P_HAIR_D);
+    }else if(p.hair==2){
+        if(rear){
+            ggPersonTaper(c,headX,faceY+1,shoulderY+1,skull,skull+1,
+                           GG_P_HAIR_D);
+            ggPersonStroke(c,headX-2,faceY-2,headX-3,shoulderY,
+                           GG_P_HAIR_M,2);
+            ggPersonStroke(c,headX+2,faceY,headX+3,shoulderY-1,
+                           GG_P_HAIR_L,1);
+        }else{
+            ggPersonRect(c,headX-skull-1,faceY-3,2,11,GG_P_HAIR_D);
+            ggPersonRect(c,headX+skull-1,faceY-3,2,12,GG_P_HAIR_M);
+            ggPersonRect(c,headX+skull,faceY+2,1,6,GG_P_HAIR_L);
+        }
+    }else if(p.hair==3){
+        ggPersonStroke(c,headX-4,faceY-5,headX+2,faceY-7,
+                       GG_P_HAIR_M,2);
+        ggPersonStroke(c,headX-3,faceY-5,headX+1,faceY-6,
+                       GG_P_HAIR_L,1);
+        if(!rear)ggPersonStroke(c,headX+2,faceY-5,headX-2,faceY-2,
+                                GG_P_HAIR_D,2);
+    }else if(p.hair==4){
+        ggPersonOval(c,headX,faceY-5,skull+1,2,GG_P_HAIR_M);
+        ggPersonRect(c,headX-skull,faceY-4,2,5,GG_P_HAIR_D);
+        ggPersonStroke(c,headX-3,faceY-6,headX+2,faceY-5,
+                       GG_P_HAIR_L,1);
+    }else{
+        int bunX=headX+(profile?-facing*4:rear?0:3);
+        ggPersonOval(c,bunX,faceY-6,3,2,GG_P_HAIR_D);
+        ggPersonOval(c,bunX-1,faceY-6,2,1,GG_P_HAIR_L);
+        ggPersonRect(c,bunX-1,faceY-4,3,1,GG_P_TRIM);
+        ggPersonRect(c,headX-skull,faceY-4,2,4,GG_P_HAIR_D);
+    }
+    if(profile){
+        // Profile nape is on the trailing side, outside the single eye.
+        ggPersonRect(c,headX-facing*(skull-1)-1,faceY-4,2,7,
+                     GG_P_HAIR_D);
+    }
+    if(p.accessory==4&&!rear){
+        ggPersonRect(c,headX-skull+1,faceY-3,skull*2-1,1,
+                     GG_P_ACCENT);
     }
 }
 static inline unsigned int ggPersonOpaquePixels(const GgPersonCel*c){

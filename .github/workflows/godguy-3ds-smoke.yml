@@ -3,11 +3,15 @@ on:
   push:
     paths:
       - 'godguy/3ds/**'
+      - 'godguy/source/terrain_palette.h'
+      - 'godguy/pc_explore3d.c'
       - 'godguy/pc_3ds_*.c'
       - '.github/workflows/godguy-3ds-smoke.yml'
   pull_request:
     paths:
       - 'godguy/3ds/**'
+      - 'godguy/source/terrain_palette.h'
+      - 'godguy/pc_explore3d.c'
       - 'godguy/pc_3ds_*.c'
       - '.github/workflows/godguy-3ds-smoke.yml'
   workflow_dispatch:
@@ -31,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for test in walkin camera acting type staging framing projection architecture direction actor_visual floor partner occlusion anatomy scenery facade life mesh mesh_material procedural_people person_motion new3ds; do
+          for test in walkin camera acting type staging framing projection architecture direction actor_visual floor partner occlusion anatomy scenery facade life mesh mesh_material procedural_people person_motion new3ds sky; do
             printf '\n-- 3DS %s --\n' "$test"
             gcc -O2 -std=c11 -Wall -Wextra -Werror "pc_3ds_${test}.c" -o "/tmp/gg-3ds-${test}"
             "/tmp/gg-3ds-${test}"
@@ -49,6 +53,12 @@ jobs:
           /tmp/gg-3ds-worldmesh-safe
           gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource pc_3ds_interaction.c -lm -o /tmp/gg-3ds-interaction
           /tmp/gg-3ds-interaction
+          for test in world_art inhabitants; do
+            gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource "pc_3ds_${test}.c" -lm -o "/tmp/gg-3ds-${test}"
+            "/tmp/gg-3ds-${test}"
+          done
+          gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -Wall -Wextra -Werror pc_3ds_sky.c -o /tmp/gg-3ds-sky-safe
+          /tmp/gg-3ds-sky-safe
       - name: Render 400x240 story, character turntables and occlusion comparisons
         working-directory: godguy
         shell: bash
@@ -57,6 +67,8 @@ jobs:
           gcc -O2 -std=c11 -DGG_NEW3DS_ONLY -w -Icompat -Isource pc_3ds_cinema_capture.c -lm -o /tmp/gg-3ds-capture
           mkdir -p artifacts/godguy-cinema
           /tmp/gg-3ds-capture artifacts/godguy-cinema
+          gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource pc_3ds_art_tour.c -lm -o /tmp/gg-3ds-art-tour
+          /tmp/gg-3ds-art-tour artifacts/godguy-cinema
           /tmp/gg-3ds-procedural_people artifacts/godguy-cinema/procedural_people_turntable.ppm
           python3 tools/film_capture_png.py artifacts/godguy-cinema
           if command -v ffmpeg >/dev/null; then

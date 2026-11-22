@@ -78,6 +78,34 @@ static void testNear(int level){
     zFlush();checkTiles();
     printf("zoom %s: %d art lookups, first upload 672, unchanged upload 0\n",zNm[level],lookups);
 }
+static void testCitizenBounds(void){
+    // Exercise the complete clipping/color path, not just the pixel helper:
+    // every civilization, both gait phases, both detailed zooms and four
+    // edge positions. Nothing may spill into an adjacent cell or row.
+    static const int shapes[8]={5,24,25,26,27,28,29,30};
+    static const int pos[4][2]={{96,48},{-7,-7},{250,48},{96,163}};
+    int oldA=sp[0].a;nCr=1;memset(&cr[0],0,sizeof cr[0]);
+    cr[0].sp=0;cr[0].alive=1;crId[0]=17;crFl[0]=0;
+    for(int race=0;race<8;race++){
+        int ai=-1;for(unsigned j=0;j<sizeof arch/sizeof *arch;j++)if(arch[j].shape==shapes[race]){ai=(int)j;break;}
+        CK(ai>=0,"civilized shape absent from catalogue");if(ai<0)continue;sp[0].a=(u16)ai;
+        for(int S=16;S<=32;S+=16)for(int phase=0;phase<4;phase++)for(int edge=0;edge<4;edge++){
+            int px=pos[edge][0],py=pos[edge][1];
+            if(edge==2)px=256-S/2;if(edge==3)py=ZH-S/2;
+            memset(gbuf,85,256*ZH);tick=(phase&1)*8+(phase>>1)*2;cr[0].ox=1;cr[0].oy=0;
+            zCrit(0,px-S/8,py,S); // neutralize the world's sub-tile move
+            int spill=0,ink=0,grounded=0;
+            for(int y=0;y<ZH;y++)for(int x=0;x<256;x++){
+                int in=x>=px&&x<px+S&&y>=py&&y<py+S;
+                if(gbuf[y*256+x]!=85){ink++;if(!in)spill++;}
+                if(in&&y==py+S-1&&gbuf[y*256+x]==UIP(U_SHADOW))grounded++;
+            }
+            CK(ink>0,"clipped citizen disappeared");CK(spill==0,"citizen art spills beyond its world cell");
+            if(edge==0)CK(grounded>0,"walking citizen boots float above the cell floor");
+        }
+    }
+    cr[0].ox=0;sp[0].a=(u16)oldA;
+}
 int main(void){
     mapPtr=(u16*)bgGetMapPtr(0);
     planetSize=192; rs=43897; makeSpecies(); makeItems(); newWorld();
@@ -95,6 +123,7 @@ int main(void){
     tick+=2; zForce=1; CK(zDraw()==1,"moving camera / changing world must repaint");
     zFlush();checkTiles();
     zSet(Z_FAR);tick+=4;CK(zDraw()==1,"far view failed");zFlush();checkTiles();
+    testCitizenBounds();
     printf(errors?"ZOOM PERF FAIL (%d errors)\n":"ZOOM PERF OK\n",errors);
     return errors?1:0;
 }

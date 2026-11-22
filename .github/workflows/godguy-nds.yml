@@ -185,12 +185,29 @@ jobs:
             case "$cfg" in dsi16) flags="-DGG_DSI16";; big) flags="-DGG_BIG";; esac
             gcc -O2 -DNDSSHIM -DGG_ZOOM_TEST $flags -Icompat -Isource -Wno-all -include unistd.h pc_zoom_perf.c -lm -o "/tmp/godguy-zoom-$cfg"
             "/tmp/godguy-zoom-$cfg"
+            gcc -O1 -DNDSSHIM $flags -fsanitize=bounds -fno-sanitize-recover=bounds -Icompat -Isource -Wno-all -include unistd.h pc_map_art.c -lm -o "/tmp/godguy-map-art-$cfg"
+            mkdir -p "artifacts/map-art-$cfg"
+            "/tmp/godguy-map-art-$cfg" "artifacts/map-art-$cfg"
           done
 
       # 3DS-only globe renderer is more detailed than the DS fallback.
       # Confirm real ARM11/libctru builds above, then compare picking,
       # visual palette, pixel detail, tile uploads and scene music against
       # regression references on the host. These tests are required.
+      - name: Verify native graphics, facade depth and inhabitants
+        working-directory: godguy
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_sky.c -o /tmp/gg-visual-sky
+          /tmp/gg-visual-sky
+          gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_procedural_people.c -o /tmp/gg-visual-people
+          /tmp/gg-visual-people
+          for test in world_art inhabitants; do
+            gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource "pc_3ds_${test}.c" -lm -o "/tmp/gg-visual-${test}"
+            "/tmp/gg-visual-${test}"
+          done
+
       - name: Validate 3DS globe graphics and simulation audio detection
         working-directory: godguy
         run: |
