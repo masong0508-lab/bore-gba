@@ -7,7 +7,7 @@ from story_art import (
     WISP, HOLLOW, MIRA_ELDER, actor, canvas,
 )
 from story_shots import (
-    HEIGHT, WIDTH, coast, fire, gate, hall, house, interior, landscape,
+    HEIGHT, WIDTH, atlas, coast, fire, gate, hall, house, interior, landscape,
     masonry, orbit, river, throne,
 )
 
@@ -27,11 +27,14 @@ CEL_WIDTH, CEL_HEIGHT, CEL_N = 28, 34, 6
 PROP_SIZE = 20
 
 
-def plate(name):
+def plate(name, flat=False):
     image = canvas((WIDTH, HEIGHT))
     d = ImageDraw.Draw(image)
     if name == "orbit":
-        orbit(image, d, 27)
+        if flat:
+            atlas(d, 27)
+        else:
+            orbit(image, d, 27)
     elif name in ("shore", "storm", "village"):
         coast(d, 32, settled=name == "village", storm=name == "storm")
     elif name == "ford":

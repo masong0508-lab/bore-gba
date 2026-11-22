@@ -3,6 +3,7 @@
 //   gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o pc_stereo pc_stereo.c -lm && ./pc_stereo [outdir]
 #define GG_THEATRE 1
 #define UI_NOTRANS 1
+#define GG_LEGACY_GLOBE_TEST 1
 #define main ds_main
 #include "source/main.c"
 #undef main

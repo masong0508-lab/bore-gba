@@ -1,5 +1,6 @@
 // PC test of the globe: facing a tile must put that tile in the middle of the screen (walk mode), picking is the inverse of drawing, and a few pictures are saved.
 //   gcc -O2 -DNDSSHIM -Icompat -Isource -include unistd.h -o pc_globe pc_globe.c -lm && ./pc_globe
+#define GG_LEGACY_GLOBE_TEST 1
 #define main ds_main
 #include "source/main.c"
 #undef main

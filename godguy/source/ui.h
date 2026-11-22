@@ -172,7 +172,33 @@ static int uiText(int x,int y,const char*s,int col,int sc){ int x0=x; while(*s){
 static void uiTextS(int x,int y,const char*s,int col,int sc){ uiText(x+sc,y+sc,s,U_SHADOW,sc); uiText(x,y,s,col,sc); }
 static void uiTextR(int xr,int y,const char*s,int col){ uiText(xr-uiTextW(s,1),y,s,col,1); }
 static void uiTextC(int xc,int y,const char*s,int col,int sc){ uiText(xc-uiTextW(s,sc)/2,y,s,col,sc); }
-static int uiWrap(int x,int y,int cols,int maxl,const char*s,int col){ int line=0, pos=0, n=(int)strlen(s); while(pos<n&&line<maxl){ int len=n-pos<cols?n-pos:cols; if(pos+len<n){ int k=len; while(k>0&&s[pos+k]!=' ') k--; if(k>0) len=k; } char b[64]; if(len>63) len=63; memcpy(b,s+pos,len); b[len]=0; uiText(x,y+line*9,b,col,1); pos+=len; while(s[pos]==' ') pos++; line++; } return line; }
+// Wrap against the whole line so revealing characters never moves a word
+// that is already visible. Pass -1 to draw the complete text.
+static int uiWrapReveal(int x,int y,int cols,int maxl,const char*s,int show,int col){
+    int line=0,pos=0,n=(int)strlen(s);
+    if(show<0||show>n) show=n;
+    while(pos<show&&line<maxl){
+        int len=n-pos<cols?n-pos:cols;
+        if(pos+len<n){
+            int split=len;
+            while(split>0&&s[pos+split]!=' ') split--;
+            if(split>0) len=split;
+        }
+        char b[64];
+        if(len>63) len=63;
+        int visible=show-pos<len?show-pos:len;
+        memcpy(b,s+pos,visible);
+        b[visible]=0;
+        uiText(x,y+line*9,b,col,1);
+        pos+=len;
+        while(s[pos]==' ') pos++;
+        line++;
+    }
+    return line;
+}
+static int uiWrap(int x,int y,int cols,int maxl,const char*s,int col){
+    return uiWrapReveal(x,y,cols,maxl,s,-1,col);
+}
 static void uiBar(int x,int y,int w,int h,int val,int max,int col){ uiFrame(x,y,w,h,U_SHADOW,U_BLO,U_BHI); int f=max>0?(w-2)*(val>max?max:val)/max:0; if(f>0) uiRect(x+1,y+1,f,h-2,col); if(f>2) uiRect(x+1,y+1,f,1,U_WHITE); }
 static void uiIcon10(int x,int y,int idx){ for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c=icon10[idx][j*10+i]; if(c) uiPx(x+i,y+j,c); } }
 static void uiIcon8(int x,int y,int idx){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiPx(x+i,y+j,c); } }

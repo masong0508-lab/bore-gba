@@ -457,7 +457,15 @@ static int trTile(int t,int n,int mask,int v,int foam,int b){
     vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64);
 #endif
     trKey[hi]=key+1; trVal[hi]=(u16)slot; return slot; }
-static int zl=3;          // the zoom level (Z_* below): 0 planet .. 5 micro, 3 = the normal view
+// These zoom numbers are part of the shared save format.
+enum { Z_PLANET, Z_VFAR, Z_FAR, Z_NORMAL, Z_CLOSE, Z_MICRO };
+#if defined(__3DS__) || defined(GG_LEGACY_GLOBE_TEST)
+#define GG_HAS_GLOBE 1
+enum { Z_MIN=Z_PLANET };
+#else
+enum { Z_MIN=Z_VFAR };
+#endif
+static int zl=Z_NORMAL;
 static int zBmp=0;       // 1 while the background holds the zoom picture (a bitmap in tiles) instead of the map's own tiles
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
     if(zBmp) return;
@@ -1342,14 +1350,15 @@ static void itSay(char*out,int i){ const Item*I=&it[i]; static const char*kn[8]=
 typedef struct { const char*nm, *goal; u8 kind; u16 target; } Chap;
 enum { OB_USE, OB_FOLK, OB_HOMES, OB_PEOPLES, OB_SLAY, OB_GIFT, OB_L3, OB_SEEN, OB_YEAR, OB_FINAL };
 #define CHAP_N 14
+enum { STORY_FINAL_SLAIN=150, STORY_FINAL_YEAR=16 };
 static const Chap chap[CHAP_N]={
- {"LET THERE BE LIGHT","USE YOUR POWERS 6 TIMES",OB_USE,6}, {"THE FIRST FOLK","20 FOLK IN YOUR WORLD",OB_FOLK,20}, {"A ROOF OVERHEAD","BUILD 8 HOMES",OB_HOMES,8}, {"TWO PEOPLES","TWO PEOPLES WITH VILLAGES",OB_PEOPLES,2},
+ {"LET THERE BE LIGHT","USE A POWER 6 TIMES",OB_USE,6}, {"THE FIRST FOLK","20 FOLK IN YOUR WORLD",OB_FOLK,20}, {"A ROOF OVERHEAD","BUILD 8 HOMES",OB_HOMES,8}, {"TWO PEOPLES","TWO PEOPLES WITH VILLAGES",OB_PEOPLES,2},
  {"THE FIRST DARKNESS","SLAY 5 MONSTERS",OB_SLAY,5}, {"ARMS FOR THE FAITHFUL","GIVE 5 GIFTS",OB_GIFT,5}, {"A HALL OF STONE","GROW A LEVEL 3 HALL",OB_L3,1}, {"THE BESTIARY","MEET 15 KINDS OF MONSTER",OB_SEEN,15},
  {"AGE OF KINGS","REACH YEAR 8",OB_YEAR,8}, {"THE HORDE","SLAY 40 MONSTERS",OB_SLAY,40}, {"THE GREAT CITY","BUILD 40 HOMES",OB_HOMES,40}, {"A GOD'S LIBRARY","MEET 80 KINDS OF MONSTER",OB_SEEN,80},
- {"THE LONG PEACE","250 FOLK IN YOUR WORLD",OB_FOLK,250}, {"GODHOOD","SLAY 150, REACH YEAR 16",OB_FINAL,1} };
+ {"THE LONG PEACE","250 FOLK IN YOUR WORLD",OB_FOLK,250}, {"GODHOOD","SLAY 150 MONSTERS AND REACH YEAR 16",OB_FINAL,1} };
 static int chapVal(int kind){
     int hh; switch(kind){ case OB_USE: return (int)stUse; case OB_FOLK: return vilTotals(&hh); case OB_HOMES: vilTotals(&hh); return hh; case OB_SLAY: return (int)stKill; case OB_GIFT: return (int)stGift;
-        case OB_SEEN: return seenN; case OB_YEAR: return year; case OB_FINAL: return stKill>=150&&year>=16;
+        case OB_SEEN: return seenN; case OB_YEAR: return year; case OB_FINAL: return stKill>=STORY_FINAL_SLAIN&&year>=STORY_FINAL_YEAR;
         case OB_PEOPLES: { int m=0; for(int v=0;v<VIL_N;v++) if(vil[v].on) m|=1<<vil[v].race; int n=0; while(m){ n+=m&1; m>>=1; } return n; }
         default: { int l3=0; for(int v=0;v<VIL_N;v++) l3+=vil[v].on&&vil[v].lvl>=3; return l3; } } }
 // ---------------------------------------------------------------------------------------------- the cast and their words
@@ -1358,23 +1367,62 @@ static const char* const whoNm[W_N]={"WISP","MIRA","GRUUL","ELOWEN","THORGRIM","
 static const char* const whoRole[W_N]={"THE FIRST SPARK","KEEPER OF THE HEARTH","WARDEN OF THE RIVER",
     "KEEPER OF NAMES","SMITH OF THE HALL","THE GOD WHO CAME BEFORE","WIZARD OF THE LONG COUCH"};
 typedef struct { u8 who; const char*txt; } Dl;
-static const Dl dl0[]={{W_WISP,"You woke. Good. I am Wisp. I was a spark in the dark before you, and I have waited a very long time for a god."},{W_WISP,"Start with a patch of grass. Tap the land below and watch the ground change. We can bring it to life when you are ready."},{0,0}};
-static const Dl dl1[]={{W_WISP,"Choose SETTLE from your Kit and touch some open grass. The first folk will build homes and grow their own food."},{W_MIRA,"Who spoke the rain? I am Mira. I set out my brass cup to catch the first drops. It is the first full thing we have had in days."},{W_WISP,"Be gentle with her. She is the first to ever look up."},{0,0}};
-static const Dl dl2[]={{W_MIRA,"We piled stones against the wind. At night the children take turns holding down the roof. Give us time to learn to build it right."},{W_WISP,"Leave room along the paths they walk. They know where a door belongs."},{0,0}};
-static const Dl dl3[]={{W_GRUUL,"I am Gruul, warden of this river. My people dug the ford. Now I find your footprints on both banks. Tell me what I am to tell them."},{W_MIRA,"We only knew we were thirsty. Take the first cup. Then tell me where your folk need us to stop."},{W_WISP,"Two peoples, one river. You can bless them, or break them. A god chooses."},{W_DAVE,"Whoa. Hey. Is this the part where the world starts? I am Dave. I have been a wizard on this couch for, like, a thousand years."},{W_DAVE,"Anyway. Snacks. If you give a creature a snack, it might just... get it. Like, really get it. Try the nachos."},{0,0}};
-static const Dl dl4[]={{W_HOLLOW,"I smell a new god. How sweet. How young."},{W_WISP,"...He is here. The Hollow King. He was the god before you, and the one before that."},{W_WISP,"His creatures are coming. Smite them, arm your people, build towers. He will not stop."},{0,0}};
-static const Dl dl5[]={{W_THORGRIM,"Thorgrim, smith. The first blade is for Gruul. The second will be a plough. Bring iron, godguy. We need enough for both."},{W_GRUUL,"Orcs fight better than they build. Give us an axe and stand back."},{W_MIRA,"Use the GIFT power. A gift to a hand is worth ten prayers."},{0,0}};
-static const Dl dl6[]={{W_MIRA,"A hall of stone. My grandmother would not believe it. Our children will never know this cold."},{W_THORGRIM,"Stone remembers what wood forgets. Build it tall."},{0,0}};
-static const Dl dl7[]={{W_ELOWEN,"I am Elowen. When something scares me, I draw it. Then I leave room on the page for all the things I got wrong."},{W_ELOWEN,"Walk the world and show me every creature the Hollow King sends. I will write each one in the bestiary."},{0,0}};
-static const Dl dl8[]={{W_GRUUL,"Mira still leaves a cup by our fire. I used to think she was asking permission. Turns out she was saving me a seat."},{W_MIRA,"Kings and queens rise and fall, godguy. We do not need them to be good. We need them to be many."},{0,0}};
-static const Dl dl9[]={{W_HOLLOW,"I was here before you. I made seas, and cities, and loved them. They all burned, or forgot me. Or I forgot them."},{W_WISP,"Do not listen. He wants you to be as tired as he is."},{W_THORGRIM,"Hold the walls! The horde is at the gate!"},{W_DAVE,"Dude. Kings. Crowns. So much stress. Have you tried just... sitting? The couch is very long, godguy. It has room."},{0,0}};
-static const Dl dl10[]={{W_MIRA,"The cup leaks now. One of the children uses it to water the beans anyway. I think she will be all right when I am gone."},{W_WISP,"She will not be here forever. That is what makes it matter."},{0,0}};
-static const Dl dl11[]={{W_ELOWEN,"I drew teeth first. Then I drew where they sleep, what they eat and which ones come back for their young. The book needed more pages."},{W_ELOWEN,"And do you know, they are not all evil. Some only follow the Hollow King because no one asked them to stay."},{0,0}};
-static const Dl dl12[]={{W_WISP,"I have learned something about the Hollow King. He is not a monster. He is the last god who gave up."},{W_WISP,"Every world he made, he watched die. So he made monsters instead. They never leave."},{W_GRUUL,"Then end him. Or end the loneliness. I do not know which is harder."},{W_DAVE,"The long peace. Yeah. The wizard weed goes on the windowsill. Cheesy puffs go on the couch. I have a whole system."},{W_WISP,"Dave, how are you in my story."},{W_DAVE,"Wisp. Man. The couch is in everyone's story."},{0,0}};
-static const Dl dl13[]={{W_HOLLOW,"You showed me an open door, a dry seat, and a light that burned until morning. I thought I had forgotten what those were for."},{W_WISP,"The seat is still there. We have one more hard night ahead, and we could use another pair of hands."},{W_HOLLOW,"Then let us keep the lights on."},{0,0}};
-static const Dl dl14[]={{W_HOLLOW,"I heard laughter in the rain and waited for it to stop. Mira's children moved their supper under the eaves. The city kept its lights on."},{W_HOLLOW,"Thank you, godguy. I will stay, if the world will have me."},{W_WISP,"There is room for two gods. There always was. Welcome home."},{0,0}};
+static const Dl dl0[]={
+    {W_WISP,"That seed took root. I'm Wisp. I can show you dry land. You get to decide what grows there."},
+    {W_WISP,"Grass is selected. Tap the map six times to try your power. One patch at a time is fine."},{0,0}};
+static const Dl dl1[]={
+    {W_MIRA,"I left a cup on the porch to catch rain. Anyone who follows the light can have a drink. Stay long enough and we'll need a village."},
+    {W_WISP,"Choose SETTLE and tap open grass to found a village. Leave it running so families can grow. Use SPAWN to bring more folk to the area."},{0,0}};
+static const Dl dl2[]={
+    {W_MIRA,"Thorgrim put the last nail in our roof. The goat claimed it before we could. Now the neighbors could use someplace dry."},
+    {W_WISP,"Let the villagers build eight homes. Leave patches of open ground near the hall and give them time to gather supplies."},{0,0}};
+static const Dl dl3[]={
+    {W_GRUUL,"I guard the ford. Mira brought me a drink while I was busy trying to scare her off. We agreed both banks should have a place to live."},
+    {W_WISP,"Select SPAWN and use X or Y to choose another founding species. Then switch to SETTLE and found their village on open ground."},
+    {W_DAVE,"I was told this was a bridge meeting. I brought dip. Please tell me someone thought to bring the bridge."},{0,0}};
+static const Dl dl4[]={
+    {W_WISP,"The figure in the ruins is the Hollow King. He saw our lamps and sent his creatures down the road. Mira is getting people inside."},
+    {W_GRUUL,"Use SMITE on monsters away from our folk. Towers can help hold the approaches. We need five monsters down to reopen the ford."},{0,0}};
+static const Dl dl5[]={
+    {W_THORGRIM,"Gruul took the first blade. The second piece of iron became a spoon. There are more people waiting for supper than for swords."},
+    {W_MIRA,"Pick GIFT, choose an item with X or Y, and tap a creature to give it something. Try food for hungry folk or equipment for a guard."},{0,0}};
+static const Dl dl6[]={
+    {W_MIRA,"We brought everyone under one roof during the raid. I want a hall big enough to do that and still have room for supper."},
+    {W_THORGRIM,"Let one village reach fourteen homes and stockpile supplies. When it has eighty in stock and room to build, it can raise a level three hall."},{0,0}};
+static const Dl dl7[]={
+    {W_ELOWEN,"The watch saw tracks they couldn't name. I started a bestiary so the next watch knows what went past. The first drawing was mostly teeth."},
+    {W_ELOWEN,"The book records new monster kinds when they appear. Keep the world running or use SPAWN to introduce kinds you haven't met."},{0,0}};
+static const Dl dl8[]={
+    {W_GRUUL,"I thought Mira's cup meant a truce. Turns out she was saving me a seat. Now we take turns keeping the roads safe after dark."},
+    {W_MIRA,"Keep the world running until year eight. If a village gets hungry or comes under attack, help it through. I'll keep a place by the fire."},{0,0}};
+static const Dl dl9[]={
+    {W_THORGRIM,"We braced the west gate and cleared the aisle in the hall. People sang inside so the watch would know they were still there."},
+    {W_GRUUL,"The Hollow King's horde is still out there. Help the watch get to forty slain monsters. Use SMITE well away from people at the gate."},
+    {W_DAVE,"My evacuation plan has one flaw. The couch doesn't fit through the door. We all have to sit very still until it's over."},{0,0}};
+static const Dl dl10[]={
+    {W_MIRA,"The gate held. Now the families coming back need homes. The cup on my sill leaks, which makes it perfect for watering beans."},
+    {W_WISP,"Work toward forty homes across your villages. Found more villages where there's open land and give the builders room around each hall."},{0,0}};
+static const Dl dl11[]={
+    {W_ELOWEN,"I followed a monster back to the ford. It was feeding its young. The teeth were worth drawing, but so was what it did with them."},
+    {W_ELOWEN,"Let's record eighty kinds in the bestiary. The total is on the Story page. The goat is welcome to look at the book from a distance."},{0,0}};
+static const Dl dl12[]={
+    {W_WISP,"The Hollow King told me about the houses that went dark in his old world. He keeps calling monsters because he knows they'll come."},
+    {W_GRUUL,"We can leave him a seat and still ask him what he did. First help our villages grow to two hundred and fifty folk."},
+    {W_DAVE,"I'll put out another plate. I'd offer him the couch, but the goat has tenure."},{0,0}};
+static const Dl dl13[]={
+    {W_HOLLOW,"Mira offered me a cup at the gate. The lamps are still burning in houses I gave orders to attack. I'll help keep the town standing."},
+    {W_WISP,"Reach year sixteen and a hundred and fifty monsters slain. Both totals are on the Story page. Then we can put down the tools for supper."},{0,0}};
+static const Dl dl14[]={
+    {W_HOLLOW,"Thorgrim set a hammer aside for me. I'll help with the west hinge before supper. Tomorrow I'd like to take the watch with Gruul."},
+    {W_MIRA,"He will. Leave your cup by the door. Someone on the next watch will want a drink."},
+    {W_DAVE,"Great. One chair leans and the other is a goat. I am willing to negotiate with either."},{0,0}};
 static const Dl*const dlgTab[15]={dl0,dl1,dl2,dl3,dl4,dl5,dl6,dl7,dl8,dl9,dl10,dl11,dl12,dl13,dl14};
-static const char* const chapTxt[CHAP_N]={"THE FIRST LIGHT TOUCHES THE LAND","SOMEONE LOOKS UP AT YOU","ROOFS GO UP AGAINST THE NIGHT","TWO PEOPLES MEET AT THE WELL","THE DARKNESS HAS TEETH","THEY LEARN TO FIGHT BACK","STONE REMEMBERS, WOOD FORGETS","YOU BEGIN TO NAME THE FEARS","KINGS RISE. KINGS FALL.","THE HORDE BREAKS ON THE WALLS","A CITY THAT NEVER SLEEPS","EVERY NIGHTMARE HAS A PAGE","THE LONG PEACE BEGINS","THE WORLD KNOWS YOUR NAME"};
+static const char* const chapTxt[CHAP_N]={
+    "THE GROUND IS READY","THE FIRST VILLAGE GROWS","EIGHT ROOFS ARE UP",
+    "BOTH PEOPLES HAVE A HOME","THE FORD IS CLEAR","THE WATCH HAS SUPPLIES",
+    "THE GREAT HALL OPENS","FIFTEEN MONSTERS RECORDED","EIGHT YEARS TOGETHER",
+    "THE WATCH HOLDS THE GATE","FORTY HOMES SHELTER THE FOLK",
+    "EIGHTY MONSTERS RECORDED","THE VILLAGES ARE THRIVING","THE WATCH CAN REST"};
 static void chapterDone(void){   // a chapter is finished (by play, or by the debug menu): items open, the jingle plays, the aural sculptures open at chapter 3
     siprintf(info,"%.32s",chapTxt[chapter]); chapter++; dlgPend=chapter<CHAP_N?chapter:14;
     if(chapter>=3&&!auralOpen){ auralOpen=1; siprintf(info,"AURAL SCULPTURES UNLOCKED"); }
@@ -1657,6 +1705,7 @@ static int rdVec(void*dst,int dstN,int srcN,int esz,SV*f){ u8 tmp[32]; int ok=1;
 #include "save_preflight.h"
 #ifndef PCTEST
 static void zSet(int nz);
+static void zRestoreSaved(int zoom,int x,int y);
 static void tbInvalidate(void);
 #endif
 static int saveGameRaw(const char*path){
@@ -1735,7 +1784,8 @@ static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexIn
 #ifndef PCTEST
     storyGoalT=0;
     tbInvalidate();
-    zSet(h.pad_[2]<=5?h.pad_[2]:3);      // the zoom level comes back with the save
+    // A legacy globe save still carries its last flat camera position.
+    zRestoreSaved(h.pad_[2],h.camX,h.camY);
 #endif
     return 1; }
 #ifndef NDSHW
@@ -1746,10 +1796,14 @@ static int loadGame(const char*path){ char b[64]; if(loadGameRaw(path)) return 1
 #else
 static int saveGame(const char*p){ return saveGameRaw(p); } static int loadGame(const char*p){ return loadGameRaw(p); }
 #endif
+#ifdef GG_HAS_GLOBE
 static int walkOn, walkX=64, walkY=64;     // walking the globe: the avatar's tile
 static int view3d=0, rotX=20, rotY=0, zoom3=40, gClouds=1;       // the globe: rotY = longitude of the centre, rotX = latitude of the centre (degrees), zoom3 = how big
 static void faceTile(int x,int y,int*lat,int*lon){ *lon=x*360/WW; int la=90-y*180/WH; *lat=la>85?85:la<-85?-85:la; }
-static int shape3;
+#else
+#define view3d 0
+#define walkOn 0
+#endif
 #ifndef PCTEST
 // ---------------------------------------------------------------------------------------------- screens
 // ---- light: the day goes round and the water shimmers (a tint on the background palette) ----
@@ -1772,12 +1826,10 @@ static void applyLight(void){
 #include "ui.h"
 #include "story_fmv.h"
 #include "title3d.h"
-// ---------------------------------------------------------------------------------------------- the globe: a planet drawn by the CPU (no 3D hardware, so it works in every build)
-// Every pixel of the disc has a normal (from a table made once per size); a small matrix turns it into a direction on the planet, two table lookups give the longitude and latitude, and the
-// map gives the ground. Lit from the upper left, a dark side with city lights, a glowing atmosphere, drifting clouds, a sparkle on the water. Picking a point with the stylus is the same
-// maths backwards, so it is exact. The picture is drawn in RAM and sent to the screen as 768 tiles.
-#define GR_MAX 120
 static u8 gbuf[256*192] __attribute__((aligned(4)));
+#ifdef GG_HAS_GLOBE
+// CPU-rendered globe used by the 3DS in addition to its native 3D world.
+#define GR_MAX 120
 static u16 gnz[GR_MAX*GR_MAX+1]; static s16 gxn[2*GR_MAX+1]; static int gR=0;
 static u16 gAtan[257]; static u16 gAsin[4097]; static u8 gCloud[64][64]; static int gInit;
 static u16 gSavedPal[256];
@@ -2026,11 +2078,10 @@ static void globeEnter(void){
 static void leaveGlobe(void){
     walkOn=0; trUsed=0; memset(trKey,0,sizeof trKey); zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32);
     uiPalette(); tbInit(); saveBasePal(); winX=-99; view3d=0; }
-// ---------------------------------------------------------------------------------------------- zoom: six levels, from the whole planet down to single creatures
-// 0 PLANET (the globe), 1 VERY FAR (2 pixels a tile), 2 FAR (4), 3 NORMAL (8: the map's own tiles and the hardware sprites), 4 CLOSE (16), 5 MICRO (32).
-// All but the planet and normal are drawn by the CPU into the same 256 x 168 picture the globe uses (sent to the screen as tiles, under the toolbar). The ground is the normal view's own tile art
-// enlarged (with its transitions, shores, buildings and the day/night palette), and every creature on screen is drawn as an animated sprite, so a crowd of thousands shows, not just 100.
-enum { Z_PLANET, Z_VFAR, Z_FAR, Z_NORMAL, Z_CLOSE, Z_MICRO };
+#else
+#define leaveGlobe() ((void)0)
+#endif
+// The bitmap zooms use the regular map's terrain art and sprites.
 static int zcx=0, zcy=0, zForce=1;        // zcx, zcy: the centre of the view, in 1/8 tile units (the normal view's pixels)
 static int zS_=8, zK_=1, zSh_=3;     // pixels to a tile (1, 2, 4, 8, 16, 32) and tiles to a pixel (1: each pixel is one tile; 2 or 4: the planet squeezed, for a big planet's VERY FAR view)
 static void zScale(void){ int W=gW; switch(zl){ case Z_VFAR: if(W<=256){ zS_=2; zK_=1; } else { zS_=1; zK_=W>=768?4:W>=384?2:1; } break; case Z_FAR: zS_=W<=256?4:2; zK_=1; break; case Z_CLOSE: zS_=16; zK_=1; break; case Z_MICRO: zS_=32; zK_=1; break; default: zS_=8; zK_=1; }
@@ -2099,7 +2150,7 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UIP(U_LGREY)); } }
 static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race; }      // the colour of a building tile when the picture is too small for its art
 static int zKey=-1;
-static int zDraw(void){ gKeyOk=0;
+static int zDraw(void){
     zScale(); int S=zS_, sh=zSh_, K=zK_; int ox=zOx(), oy=zOy();
     // CLOSE/MICRO artwork and animated entities refresh at up to 30 Hz.
     // The game loop (including sound) still runs at its regular cadence.
@@ -2186,17 +2237,29 @@ static void zEnterBmp(void){
 static void zLeaveBmp(void){
     zBmp=0; memset(trKey,0,sizeof trKey); trUsed=0; makeTiles(); winX=-99; }
 static void zSet(int nz){
-    if(nz<0) nz=0; if(nz>5) nz=5; if(nz==zl) return;
-    int old=zl;
-    if(old==Z_PLANET){ int tx=rotY*WW/360, ty=(90-rotX)*WH/180; if(tx<0) tx=0; if(tx>=WW) tx=WW-1; if(ty<0) ty=0; if(ty>=WH) ty=WH-1; zcx=tx*8+4; zcy=ty*8+4; leaveGlobe(); }     // (back on the map, with its own tiles)
-    else if(old==Z_NORMAL){ zcx=camX+128; zcy=camY+ZH/2; }
+    if(nz<Z_MIN) nz=Z_MIN;
+    if(nz>Z_MICRO) nz=Z_MICRO;
+    if(nz==zl) return;
+#ifdef GG_HAS_GLOBE
+    if(zl==Z_PLANET){ int tx=rotY*WW/360, ty=(90-rotX)*WH/180; if(tx<0) tx=0; if(tx>=WW) tx=WW-1; if(ty<0) ty=0; if(ty>=WH) ty=WH-1; zcx=tx*8+4; zcy=ty*8+4; leaveGlobe(); }     // (back on the map, with its own tiles)
+    else
+#endif
+    if(zl==Z_NORMAL){ zcx=camX+128; zcy=camY+ZH/2; }
     zl=nz;
+#ifdef GG_HAS_GLOBE
     if(nz==Z_PLANET){ if(zBmp) zLeaveBmp(); zl=Z_PLANET; faceTile(zcx/8,zcy/8,&rotX,&rotY); globeEnter(); }
-    else if(nz==Z_NORMAL){ if(zBmp){ zClamp(); zLeaveBmp(); } camX=zcx-128; camY=zcy-ZH/2; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; winX=-99; }
+    else
+#endif
+    if(nz==Z_NORMAL){ if(zBmp){ zClamp(); zLeaveBmp(); } camX=zcx-128; camY=zcy-ZH/2; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; winX=-99; }
     else { if(!zBmp) zEnterBmp(); zClamp(); zSyncCam(); zForce=1; }
     siprintf(info,"ZOOM: %s",zNm[zl]); }
-#define enter3D globeEnter
-#define leave3D leaveGlobe
+static void zRestoreSaved(int zoom,int x,int y){
+    zSet(Z_NORMAL);
+    camX=x;
+    camY=y;
+    winX=-99;
+    if(zoom>=Z_MIN&&zoom<=Z_MICRO) zSet(zoom);
+}
 // ---- the sound backend: the libnds channels behind gmplay.h. Wave voices are looped 64-sample PCM channels that are only retuned (never restarted) while a song plays; drums are one-shots.
 static void gb_vstart(int v,int wave); static void gb_vstop(int v); static void gb_vset(int v,int rate,int vol,int pan); static void gb_hit(int slot,int part,int idx,int vol,int pan);
 static void gb_ptone(int midi8,int vol,int duty); static void gb_poff(void); static void gb_pnoise(int freq,int vol); static void gb_pnoff(void);
@@ -2366,10 +2429,38 @@ static void drawSprites(void){
 static u8 mmCol[T_N];
 static int page=0, titleOn=1, sceneOn=0;
 static void drawMinimap(void){ if(zBmp&&!view3d){ zScale(); uiVw=256*zK_/zS_; uiVh=ZH*zK_/zS_; if(uiVw>WW) uiVw=WW; if(uiVh>WH) uiVh=WH; uiVx=zcx/8-uiVw/2; uiVy=zcy/8-uiVh/2; } else { uiVw=32; uiVh=24; uiVx=camX>>3; uiVy=camY>>3; } }   // (the minimap is part of the status screen now: see uiStatus)
-static const char* const introTxt[]={"","  IN THE BEGINNING THERE WAS","  ONLY A QUIET, EMPTY PLANET.","","  THEN YOU WOKE.","","  YOUR HANDS MAKE LAND, RAIN","  AND FIRE. YOUR WORD MAKES LIFE.","","  TEACH THE FIRST FOLK TO LIVE.","","  BUT THE DARK IS PATIENT,","  AND IT HAS TEETH.","","  TOUCH THE WORLD TO BEGIN.",0};
-static const char* const endTxt[]={"","  THE FOLK HAVE CITIES NOW,","  AND SONGS, AND WAR, AND PEACE.","","  YOU MET EVERY NIGHTMARE","  AND GAVE IT A NAME.","","  THEY DO NOT KNOW YOUR FACE.","  THEY KNOW THE RAIN,","  THE HARVEST, THE SPARK THAT","  LEAPS FROM THE SKY.","","  THE STORY IS TOLD.","","  THE WORLD IS YOURS, GODGUY.",0};
+static const char* const introTxt[]={
+    "","  WISP FOUND ONE SEED ON THE SHORE.","","  HELP IT TAKE ROOT.",
+    "  THEN GIVE SOMEONE A REASON TO STAY.","","  TAP THE MAP TO USE A POWER.",0};
+static const char* const endTxt[]={
+    "","  THE WEST HINGE IS FIXED.","  THE FORD IS OPEN.","",
+    "  MIRA SET OUT A CUP FOR THE WATCH.","  THE HOLLOW KING TOOK THE NEXT TURN.","",
+    "  THE WORLD CARRIES ON.","  THERE IS A SEAT FOR YOU AT SUPPER.",0};
 static const char* const credTxt[]={"","","       BORE: GODGUY","","  A SPINOFF OF BORE","","  DESIGN, CODE, MUSIC","  AND MONSTERS","  BY CLAUDE, FOR YOU","","  MUSIC AMALGAMATED FROM","  THE SONGS OF BORE","  (THE DIPPER MAN, AND ALL","  THE REST)","","  MANY MONSTERS","  392 CREATURES","  364 ITEMS","  23 TRAITS","  134 TRACKS","","  THANK YOU FOR PLAYING","","","","",0};
-static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      POWER IN CURRENT TAB","B + L R  SWITCH KIT TABS","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","         (FIELD TOOLS: MODE)","B + X Y  FIELD BRUSH RADIUS","         OR JUMP TEN SPECIES/ITEMS","B + DRAG PANS THE MAP","L + R    ZOOM IN","X + Y    ZOOM OUT","  6 LEVELS: PLANET, VERY FAR,","  FAR, NORMAL, CLOSE, MICRO","D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)","  PLANET: TOUCH = POWER,","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY EVERY","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.","","EVENTS TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE","AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SETS SIM RULES.","","KIT SHOWS STARTERS AND STARRED POWERS.","STAR POWERS IN THE WORLD BROWSER.","WORLD > PINS BOOKMARKS MAP VIEWS.",0};
+static const char* const helpTxt[]={
+    "TOUCH THE WORLD: USE POWER","L R      POWER IN CURRENT TAB","B + L R  SWITCH KIT TABS",
+    "X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)",
+    "         (MUTATE: TRAIT)","         (FIELD TOOLS: MODE)","B + X Y  FIELD BRUSH RADIUS",
+    "         OR JUMP TEN SPECIES/ITEMS","B + DRAG PANS THE MAP","L + R    ZOOM IN","X + Y    ZOOM OUT",
+#ifdef GG_HAS_GLOBE
+    "  PLANET, VERY FAR, FAR,",
+    "  NORMAL, CLOSE, MICRO",
+    "  PLANET: TOUCH = POWER",
+    "  B + DRAG = SPIN, A = CLOUDS",
+    "  Y + A  WALK THE GLOBE",
+#else
+    "  VERY FAR, FAR, NORMAL, CLOSE, MICRO",
+#endif
+    "D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)",
+    "SELECT   NEXT INFO PAGE","START    PAUSE MENU","L+R+SELECT    SAVE NOW","",
+    "STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.",
+    "100%: MEET AND SLAY EVERY","MONSTER AFTER THE STORY.","",
+    "TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","",
+    "TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.","",
+    "EVENTS TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE",
+    "AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SETS SIM RULES.","",
+    "KIT SHOWS STARTERS AND STARRED POWERS.","STAR POWERS IN THE WORLD BROWSER.",
+    "WORLD > PINS BOOKMARKS MAP VIEWS.",0};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage;
 static const Dl*dlgSet; static char lastInfo[64];
 static const FmvClip *sceneClip;
@@ -2507,6 +2598,7 @@ static void startWorld(int story){
     if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,&fmvClips[0]); dlgPend=0; }
 }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
+#ifdef GG_HAS_GLOBE
 static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
 #ifdef NDSSHIM
 static signed char plZ[109*109];
@@ -2517,16 +2609,28 @@ static signed char plZ[109*109];
 #define PLZ(k) 0
 #endif
 static int plInit; static short plHalo[180][2];
-static void uiPlanetSprite(int cx,int cy,int R){   // the planet as a lit ball (the sphere maths is done once for radius 54; any smaller radius samples it)
+static void uiWorldPreview(int cx,int cy,int R){   // the planet as a lit ball (the sphere maths is done once for radius 54; any smaller radius samples it)
     const int B=54; if(!plInit){ plInit=1; for(int y=-B;y<=B;y++) for(int x=-B;x<=B;x++){ int k=(y+B)*109+(x+B); plJ[k]=255; if(x*x+y*y>B*B) continue; float nx=(float)x/B, ny=(float)y/B, z=sqrtf(1.f-nx*nx-ny*ny);
             float lon=atan2f(nx,z), lat=asinf(ny); plLon[k]=(short)((0.5f+lon/6.2831853f)*4096); plWy[k]=(short)((0.5f+lat/3.1415927f)*4096); float l=0.3f+0.7f*(-nx*0.45f-ny*0.45f+z*0.8f); plJ[k]=(u8)(l<0.5f?0:l<0.78f?1:2); PLZSET(k) }
         for(int a=0;a<180;a++){ float r=(float)B+1.5f; plHalo[a][0]=(short)(r*cosf(a*2*0.0174533f)); plHalo[a][1]=(short)(r*sinf(a*2*0.0174533f)); } }
     if(R<4) R=4; if(R>B) R=B; int shift=(tick>>5)*WW/600;
     for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); uiZSet(cx+x,cy+y,3+PLZ(k)); }
     for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0]*R/B,cy+plHalo[a][1]*R/B,U_CYAN); }
-static void uiLoadHook(const char*msg,int pct){   // a loading screen: the planet grows as the world is made
+#else
+static void uiWorldPreview(int cx,int cy,int radius){
+    int w=radius*2, h=radius+radius/2;
+    int left=cx-w/2, top=cy-h/2;
+    uiFrame(left-2,top-2,w+4,h+4,U_SHADOW,U_CYAN,U_BLO);
+    for(int y=0;y<h;y++){
+        const u8 *row=world[y*WH/h];
+        u8 *dst=uiBuf+(top+y)*256+left;
+        for(int x=0;x<w;x++) dst[x]=(u8)(64+row[x*WW/w]);
+    }
+}
+#endif
+static void uiLoadHook(const char*msg,int pct){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=3) uiRect(0,y,256,1,U_PANEL); for(int k=0;k<60;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
-    uiPlanetSprite(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
+    uiWorldPreview(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
     uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
     uiText(6,182,"TAP THE KIT TO CHANGE POWERS",U_DIM,1); uiFlush(); }
 static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand; static const char*const cEdgeN[]={"WALLS","VANISH","WRAP"};
@@ -2665,11 +2769,11 @@ static void uiTitle(void){
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     int ids[16];
     if(mScr==0){
-        uiPlanetSprite(206,128,planetSize==128?34:planetSize==192?40:46);
+        uiWorldPreview(206,128,planetSize==128?34:planetSize==192?40:46);
         uiTitleArt(6,2);
         uiRect(8,73,148,1,U_BHI); uiRect(8,73,36,1,U_GOLD); uiText(10,77,"MAIN MENU",U_GOLD,1);
         uiMenuList(8,88,148,slotOn?13:16,slotOn?5:4); menuList(ids); gfxDescBox(8,154,148,34,gfxDesc(ids[mSel])); }
-    else { uiPlanetSprite(215,108,planetSize==128?30:36);
+    else { uiWorldPreview(215,108,planetSize==128?30:36);
         gfxHead(mScr==1?"MAIN MENU  >  OPTIONS":"MAIN MENU  >  EXTRAS",1);
         uiMenuList(4,21,170,15,9); menuList(ids); gfxDescBox(4,158,170,33,gfxDesc(ids[mSel])); }
     uiFlush(); }
@@ -2781,7 +2885,24 @@ static void uiStatus(void){
         uiText(143,107,"X Y: CHOOSE",U_DIM,1); for(int k=-1;k<=1;k++){ char nm[40]; int ok=1;
             if(pw[power].kind==PK_SPAWN){ spName((spSel+nSp+k)%nSp,nm); } else if(pw[power].kind==PK_GIFT){ int j=k==0?itSel:itNext(itSel,k); itSay(nm,j); } else if(pw[power].kind==PK_STATUS){ int q=(statusSel+6+k)%6; strcpy(nm,statusName[q]); } else if(pw[power].kind==PK_FIELD){ strcpy(nm,fieldName[(fieldMode+FIELD_N+k)%FIELD_N]); } else { int t=(trSel+TR_N+k)%TR_N; strcpy(nm,t?trNm[t]:"(CLEAR)"); (void)ok; }
             nm[17]=0; if(k==0) uiRect(140,116+(k+1)*10,112,10,U_SEL); uiText(143,118+(k+1)*10,nm,k==0?U_WHITE:U_DIM,1); } }
-    else if(storyOn&&chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; siprintf(b,"CHAPTER %d",chapter+1); uiText(143,108,b,U_GOLD,1); uiWrap(143,118,18,2,C->goal,U_WHITE); uiBar(143,137,106,9,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiTextC(196,138,b,U_WHITE,1); }
+    else if(storyOn&&chapter<CHAP_N){
+        const Chap*C=&chap[chapter];
+        siprintf(b,"CHAPTER %d",chapter+1);
+        uiText(143,108,b,U_GOLD,1);
+        if(C->kind==OB_FINAL){
+            siprintf(b,"SLAIN %u/%d",stKill>STORY_FINAL_SLAIN?(unsigned)STORY_FINAL_SLAIN:(unsigned)stKill,STORY_FINAL_SLAIN);
+            uiText(143,120,b,stKill>=STORY_FINAL_SLAIN?U_GREEN:U_WHITE,1);
+            siprintf(b,"YEAR %d/%d",year>STORY_FINAL_YEAR?STORY_FINAL_YEAR:year,STORY_FINAL_YEAR);
+            uiText(143,134,b,year>=STORY_FINAL_YEAR?U_GREEN:U_WHITE,1);
+        }else{
+            int v=chapVal(C->kind);
+            if(v>C->target) v=C->target;
+            uiWrap(143,118,18,2,C->goal,U_WHITE);
+            uiBar(143,137,106,9,v,C->target,U_GREEN);
+            siprintf(b,"%d/%d",v,C->target);
+            uiTextC(196,138,b,U_WHITE,1);
+        }
+    }
     else if(storyOn){ uiText(143,108,"STORY TOLD",U_GOLD,1); uiText(143,120,"YOU ARE A GOD",U_WHITE,1); }
     else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/%d",seenN,MON_N); uiText(143,132,b,U_DIM,1); }
     }
@@ -2957,7 +3078,25 @@ static void uiBonusFilms(void){
 #endif
 static void uiStory(void){
     char b[64]; uiWin("STORY",storyOn?(storyDone?"FINISHED":"STORY MODE"):"FREE PLAY: PAUSED","SELECT NEXT PAGE");
-    if(chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); siprintf(b,"CHAPTER %d: %s",chapter+1,C->nm); uiText(10,20,b,U_GOLD,1); uiText(10,30,C->goal,U_WHITE,1); uiBar(10,40,200,7,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiText(216,40,b,U_WHITE,1); }
+    if(chapter<CHAP_N){
+        const Chap*C=&chap[chapter];
+        uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO);
+        siprintf(b,"CHAPTER %d: %s",chapter+1,C->nm);
+        uiText(10,20,b,U_GOLD,1);
+        uiText(10,30,C->goal,U_WHITE,1);
+        if(C->kind==OB_FINAL){
+            siprintf(b,"SLAIN %u/%d",stKill>STORY_FINAL_SLAIN?(unsigned)STORY_FINAL_SLAIN:(unsigned)stKill,STORY_FINAL_SLAIN);
+            uiText(10,40,b,stKill>=STORY_FINAL_SLAIN?U_GREEN:U_WHITE,1);
+            siprintf(b,"YEAR %d/%d",year>STORY_FINAL_YEAR?STORY_FINAL_YEAR:year,STORY_FINAL_YEAR);
+            uiText(141,40,b,year>=STORY_FINAL_YEAR?U_GREEN:U_WHITE,1);
+        }else{
+            int v=chapVal(C->kind);
+            if(v>C->target) v=C->target;
+            uiBar(10,40,188,7,v,C->target,U_GREEN);
+            siprintf(b,"%d/%d",v,C->target);
+            uiTextR(246,40,b,U_WHITE);
+        }
+    }
     else { uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); uiText(10,28,"THE STORY IS TOLD. YOU ARE A GOD.",U_GOLD,1); }
     for(int c=0;c<CHAP_N;c++){
         int y=52+c*8, done=c<chapter, active=storyOn&&c==chapter;
@@ -3009,7 +3148,8 @@ static void uiDialog(void){
     int who=d->who;
     int portrait=who==W_MIRA&&dlgSet==dlgTab[10]?W_N:who;
     int tl=(int)strlen(d->txt), cc=dlgChars<tl?dlgChars:tl;
-    int cel=cc<8?3:(tick+who*11)%107<5?2:cc<tl&&(tick/5)%2?1:0;
+    int blink=(tick+who*11)%107<5;
+    int cel=blink?2:cc<tl&&((tick/5)&1)?1:0;
     fmvPortrait(11,11,portrait,cel);
     int len=(int)strlen(whoNm[who]);
     uiTextS(86,17,whoNm[who],U_GOLD,len>12?1:2);
@@ -3019,17 +3159,23 @@ static void uiDialog(void){
     while(dlgSet[lines].txt) lines++;
     char count[16];
     siprintf(count,"%d/%d",dlgIdx+1,lines);
+    if(chapter<CHAP_N){
+        char heading[24];
+        siprintf(heading,"CHAPTER %d",chapter+1);
+        uiText(86,57,heading,U_CYAN,1);
+    }else uiText(86,57,"EPILOGUE",U_CYAN,1);
     uiTextR(244,57,count,U_DIM);
     uiFrame(8,84,240,94,U_PANEL,U_BHI,U_BLO);
-    char buf[160];
-    memcpy(buf,d->txt,cc);
-    buf[cc]=0;
-    uiWrap(15,94,37,7,buf,U_WHITE);
+    uiWrapReveal(15,93,37,5,d->txt,cc,U_WHITE);
+    if(chapter<CHAP_N){
+        uiRect(15,139,226,1,U_BHI);
+        uiText(15,145,chap[chapter].goal,U_GOLD,1);
+    }
     uiRound(114,157,64,16,U_PANELHI,U_BHI);
     uiTextC(146,162,"B SKIP",U_LGREY,1);
     uiBtn(114,157,64,16,KEY_B,0,0,0);
     uiRound(182,157,60,16,U_SEL,U_GOLD);
-    uiTextC(212,162,cc<tl?"A REVEAL":"A NEXT",U_WHITE,1);
+    uiTextC(212,162,cc<tl?"A REVEAL":dlgSet[dlgIdx+1].txt?"A NEXT":"A CLOSE",U_WHITE,1);
     uiFlush(); }
 static void uiMenu(void){
     if(mScr==4){ uiSlots(); return; }
@@ -3120,7 +3266,7 @@ static void advanceStoryFilm(void){
 }
 static void startFinale(void){
     endShown=1;
-    if(view3d) leave3D();
+    if(view3d) leaveGlobe();
     if(zBmp) zSet(Z_NORMAL);
     sceneNext=credTxt;
     sceneStartFmv(endTxt,&fmvClips[CHAP_N]);
@@ -3320,7 +3466,7 @@ int main(void){
             dlgPaused=paused;
             paused=1;
             if(next>0&&next<CHAP_N){
-                if(view3d) leave3D();
+                if(view3d) leaveGlobe();
                 if(zBmp) zSet(Z_NORMAL);
                 sceneStartFmv(0,&fmvClips[next]);
                 advanceStoryFilm();
@@ -3477,6 +3623,7 @@ int main(void){
             } else fieldMode=(fieldMode+FIELD_N+d)%FIELD_N;
             kd&=~(KEY_X|KEY_Y); dirty=1;
         }
+#ifdef GG_HAS_GLOBE
         if(view3d){
             int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX+=ts; if(kh&KEY_DOWN) rotX-=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))&&(tick&3)==0) rotY+=1; }
             if(rotX>85) rotX=85; if(rotX<-85) rotX=-85; rotY%=360; if(rotY<0) rotY+=360;
@@ -3508,9 +3655,10 @@ int main(void){
 #endif
             }
             if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
+#endif
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||traitMet(t)||debugOn||unlockAll){ trSel=t; break; } } } else if(pw[power].kind==PK_STATUS){ statusSel=(statusSel+6+d)%6; } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ if(kh&KEY_B){ speedMul=speedMul==1?2:speedMul==2?4:1; siprintf(info,"SPEED X%d",speedMul); } else paused^=1; dirty=1; }
-        int panning=0; { static int pnx=-1, pny=-1;   // B + drag on the world pans the map (the same gesture that spins the globe); nothing is painted while B is held
+        int panning=0; { static int pnx=-1, pny=-1;   // B + drag pans without painting.
           if(pen.held&&!pen.fromUi&&!pen.fromBar&&pen.y<TB_Y&&(kh&KEY_B)){ panning=1; if(pnx>=0&&(pnx!=pen.x||pny!=pen.y)){ int ddx=pnx-pen.x, ddy=pny-pen.y;
                   if(zBmp){ zScale(); zcx+=ddx*8*zK_/zS_; zcy+=ddy*8*zK_/zS_; zClamp(); zSyncCam(); } else { camX+=ddx; camY+=ddy; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; } dirty=1; }
               pnx=pen.x; pny=pen.y; held=1; } else pnx=-1; }

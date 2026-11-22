@@ -13,6 +13,7 @@ BLOCK_LIMIT = 16384
 # The DS links the films below the 3 MiB save-buffer boundary.
 DS_ASSET_LIMIT = 192 * 1024
 FRAME_TICKS = 5
+ORBIT_CLIPS = {"opening", "old_god", "finale"}
 
 
 # A handful of visual hits borrow short effects from GodGuy's score.
@@ -88,8 +89,11 @@ def c_array(out, name, ctype, values, width):
 
 def main():
     clips = []
+    orbit_clips = {}
     for name, title, count in SHOTS:
-        frames = (render(name, t).tobytes() for t in range(count))
+        frames = (render(name, t, flat=True).tobytes() for t in range(count))
+        if name in ORBIT_CLIPS:
+            orbit_clips[name] = encode(render(name, t).tobytes() for t in range(count))
         data = encode(frames)
         clips.append((name, title, count, data))
         print(f"{name:16s}{count/12:4.2f}s  {len(data):6,} bytes", flush=True)
@@ -101,7 +105,7 @@ def main():
                                    (False, True, False), (False, False, True)):
             portrait_offsets.append(len(art))
             art.extend(lz.encode(cast_sprite(who, talk, blink, react).tobytes()))
-    sets = [lz.encode(plate(name)) for name in SETS]
+    sets = [lz.encode(plate(name, flat=True)) for name in SETS]
     wide_sets = [lz.encode(plate_hd(name)) for name in SETS]
     props = [lz.encode(prop(name)) for name in PROPS]
     cast_data = [lz.encode(cast_cel(who, cel)) for who in range(MIRA_ELDER + 1) for cel in range(CEL_N)]
@@ -118,7 +122,13 @@ def main():
         c_array(out, "fmvPortraitOffsets", "u16", portrait_offsets, 12)
         c_array(out, "fmvPortraits", "u8", art, 24)
         for name, _, _, data in clips:
+            if name in orbit_clips:
+                out.write("#ifdef __3DS__\n")
+                c_array(out, f"fmv_{name}", "u8", orbit_clips[name], 24)
+                out.write("#else\n")
             c_array(out, f"fmv_{name}", "u8", data, 24)
+            if name in orbit_clips:
+                out.write("#endif\n")
         out.write(f"enum {{ FILM_CEL_W = {CEL_WIDTH}, FILM_CEL_H = {CEL_HEIGHT}, "
                   f"FILM_CEL_N = {CEL_N}, FILM_PROP_SIZE = {PROP_SIZE} }};\n")
         for group, images in (("filmSet", sets), ("filmProp", props), ("filmCast", cast_data)):

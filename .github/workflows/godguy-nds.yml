@@ -174,15 +174,15 @@ jobs:
           mkdir -p ../out && cp godguy.3dsx ../out/godguy.3dsx
 
       # Exact pixel/VRAM regression for zoomed terrain, partial updates and
-      # forced repaints in all three coordinate/creature-memory layouts.
+      # forced repaints across layouts, including platform-specific zoom limits.
       # This test must pass before uploading or publishing ROMs.
-      - name: Verify zoom renderer (DS, DSi16 and 3DS layouts)
+      - name: Verify zoom renderer (DS, DSi16, large-map and 3DS layouts)
         working-directory: godguy
         run: |
           command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
-          for cfg in ds dsi16 big; do
+          for cfg in ds dsi16 big 3ds; do
             flags=""
-            case "$cfg" in dsi16) flags="-DGG_DSI16";; big) flags="-DGG_BIG";; esac
+            case "$cfg" in dsi16) flags="-DGG_DSI16";; big) flags="-DGG_BIG";; 3ds) flags="-D__3DS__ -DGG_BIG";; esac
             gcc -O2 -DNDSSHIM -DGG_ZOOM_TEST $flags -Icompat -Isource -Wno-all -include unistd.h pc_zoom_perf.c -lm -o "/tmp/godguy-zoom-$cfg"
             "/tmp/godguy-zoom-$cfg"
             gcc -O1 -DNDSSHIM $flags -fsanitize=bounds -fno-sanitize-recover=bounds -Icompat -Isource -Wno-all -include unistd.h pc_map_art.c -lm -o "/tmp/godguy-map-art-$cfg"
@@ -255,9 +255,9 @@ jobs:
       - name: Verify chapter-film playback and sound timing
         working-directory: godguy
         run: |
-          for cfg in ds 3ds; do
+          for cfg in ds dsi16 3ds; do
             flags=""
-            if [ "$cfg" = 3ds ]; then flags="-D__3DS__"; fi
+            case "$cfg" in dsi16) flags="-DGG_DSI16";; 3ds) flags="-D__3DS__";; esac
             gcc -O2 -DNDSSHIM $flags -Icompat -Isource -w -include unistd.h pc_fmv.c -lm -o "/tmp/godguy-fmv-$cfg"
             "/tmp/godguy-fmv-$cfg"
           done

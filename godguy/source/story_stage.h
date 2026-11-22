@@ -148,12 +148,10 @@ static FilmFraming filmFraming(const FilmBeat *beat,int move){
                        w*FILM_PLATE_SCALE,h*FILM_PLATE_SCALE*256/FILM_H};
     return frame;
 }
-// Real coast/ridge/village skyline. Colors and relative placement come
-// from world[][] and bld[][], not an arbitrary seed based solely on chapter.
-// It returns to the SAME horizon as the camera revisits a familiar place.
-// DS: 25 short columns plus at most 12 building silhouettes, all on the
-// existing 256x192 indexed page. 3DS gets the same recognizable silhouette
-// behind its projected 3D geometry; no extra 3D heap or framebuffer.
+#ifdef __3DS__
+// Real-world samples complement the projected 3DS landscape. On DS/DSi
+// the illustrated backdrop is self-contained, with real terrain confined
+// to its own overhead shot so it cannot obscure the sky or shoreline.
 static void filmDrawWorldVista(const FilmBeat *beat,int t){
     int index=filmVistaPlace(beat->place);
     if(index<0)return;
@@ -236,6 +234,7 @@ static void filmDrawWorldVista(const FilmBeat *beat,int t){
         (void)shore;
     }
 }
+#endif
 static void filmDrawSet(const FilmBeat *beat,int move){
     FilmFraming camera=filmFraming(beat,move);
     u8 columns[256];
@@ -549,6 +548,14 @@ static void filmAtmosphere(const FilmBeat *beat,int t){
             int rx=(i*59+13)&255,ry=FILM_TOP+((i*37+t/2)%FILM_H);
             uiRect(rx,ry,1,3,fmvSlots[22]);
         }
+#ifndef __3DS__
+    } else if(beat->place==F_ORBIT){
+        for(int i=0;i<8;i++){
+            int x=14+(i*29+t/8)%225;
+            int y=150+(i*5)%15;
+            uiRect(x,y,3+i%4,1,fmvSlots[14]);
+        }
+#endif
     } else if(beat->place==F_SHORE||beat->place==F_FORD){
         for(int i=0;i<4;i++){
             int rx=63+i*41,ry=147+i%3*3;
@@ -798,8 +805,7 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
     if(thumb)filmGripOverlay(beat->lead,grip,prop);
 }
 
-// A location change is a new scene; keep an establishing look on the set
-// before the actors enter. Near/insert cuts within one set are continuous.
+#ifdef GG_FILM_TEST
 static const FilmBeat *filmPreviousBeat(const FmvClip *clip,const FilmBeat *beat){
     int i=(int)(clip-fmvClips);
     const FilmReel *main=&filmReels[i];
@@ -820,6 +826,7 @@ static const FilmBeat *filmPreviousBeat(const FmvClip *clip,const FilmBeat *beat
 #endif
     return NULL;
 }
+#endif
 static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int chapter=(int)(clip-fmvClips);
     if(chapter==1){
@@ -1054,7 +1061,11 @@ static int filmActionCue(const FilmBeat *beat,int elapsed){
 }
 
 static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
-    static u8 establishing;
+    static const char *const location[F_SET_N]={
+        "THE WORLD","THE SHORE","THE STORM","THE VILLAGE","THE FORD",
+        "THE WEST GATE","THE FORGE","THE GREAT HALL","THE ARCHIVE",
+        "BY THE HEARTH","THE KING'S KEEP","DAVE'S COUCH","MIRA'S PORCH","THE OLD RUINS"
+    };
     if(!elapsed){
 #ifdef __3DS__
         ggUnpack(filmWides[beat->place],uiNew,FMV_W*FMV_H*4);
@@ -1068,13 +1079,10 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #else
         filmBars(clip->title);
 #endif
-        // Keep the name of the same real player-built city throughout
-        // exterior establishing/reverse shots. The film title and skip
-        // hint remain unchanged; the label lives in unused top-bar space.
+        const char *place=location[beat->place];
         if(filmTownName[0]&&(beat->place==F_VILLAGE||beat->place==F_GATE))
-            uiText(7,15,filmTownName,U_CYAN,1);
-        const FilmBeat *previous=filmPreviousBeat(clip,beat);
-        establishing=previous&&previous->place!=beat->place;
+            place=filmTownName;
+        uiText(7,15,place,U_CYAN,1);
     }
     int total=beat->seconds*FILM_SECOND;
     int move=filmEase(elapsed,total);
@@ -1089,9 +1097,9 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int cue=filmActionCue(beat,elapsed);
     if(cue>=0)fxReq(cue);
     filmDrawSet(beat,move);
-    // Draw the player's own saved coastline/city/ridge behind scene props
-    // and performers. It is captured once per movie, never per frame.
+#ifdef __3DS__
     filmDrawWorldVista(beat,filmSceneryClock);
+#endif
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // The geometry is projected through the same dollying camera as actors.
     // Draw before cast so roofs, water and room floors form a stable world.
@@ -1171,8 +1179,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     otherPose=filmActingPose(beat,elapsed,0,action);
 #endif
 
-    int showCast=!(establishing&&elapsed<39);
-    if(beat->camera!=F_INSERT&&showCast){
+    if(beat->camera!=F_INSERT){
 #ifdef __3DS__
         filmCastContact(beat->other,block.otherX,block.otherFeet,block.otherHeight);
         filmCastContact(beat->lead,block.leadX,block.leadFeet,block.leadHeight);
@@ -1182,8 +1189,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
                       block.leadHeight,paired&&block.leadX>block.otherX);
     }
-    if(showCast||beat->camera==F_INSERT)
-        filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
+    filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // True near-camera geometry is composited last, so the actors and
     // gripped props are partially hidden when they move behind an obstacle.

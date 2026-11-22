@@ -1,5 +1,6 @@
 // Exercise the chapter interludes through the shared game loop.
 #define UI_NOTRANS 1
+#define GG_FILM_TEST 1
 #define main ds_main
 #include "source/main.c"
 #undef main
@@ -389,6 +390,61 @@ static void checkFeatureFilmAndArchive(void){
            (campaignSeconds+bonusSeconds)/60,(campaignSeconds+bonusSeconds)%60);
 }
 #endif
+static u32 stageViewportHash(void){
+    u32 hash=2166136261u;
+    for(int i=FILM_TOP*256;i<FILM_BOTTOM*256;i++)
+        hash=(hash^uiBuf[i])*16777619u;
+    return hash;
+}
+
+static void checkStoryEditorial(void){
+    for(int ch=0;ch<=CHAP_N;ch++){
+        if(ch<CHAP_N) check(uiTextW(chap[ch].goal,1)<=226,
+                            "chapter objective clips on the dialogue popup");
+        for(const Dl *d=dlgTab[ch];d->txt;d++){
+            check(uiWrap(0,192,37,6,d->txt,U_WHITE)<=5,
+                  "a story dialogue card overflows its five-line panel");
+        }
+    }
+
+    memset(uiBuf,U_BG,9*256);
+    const char *reveal="1234567890123456789012345678901234 WORD";
+    uiWrapReveal(0,0,37,2,reveal,37,U_WHITE);
+    u8 row[9*256];
+    memcpy(row,uiBuf,sizeof row);
+    memset(uiBuf,U_BG,sizeof row);
+    uiWrap(0,0,37,2,reveal,U_WHITE);
+    check(!memcmp(row,uiBuf,sizeof row),"revealing the next word changed an earlier line");
+
+    const FilmBeat *cut=hearthBeats+7;
+    filmDrawBeat(&fmvClips[8],cut,0);
+    u32 withCast=stageViewportHash();
+    FilmBeat empty=*cut;
+    empty.lead=empty.other=F_OFFSCREEN;
+    empty.line=NULL;
+    filmDrawBeat(&fmvClips[8],&empty,0);
+    check(withCast!=stageViewportHash(),"the first frame after a location cut is missing its cast");
+
+#ifndef __3DS__
+    const FmvClip *opening=&fmvClips[0];
+    check(fmvRenderAt(opening,0),"the first baked film frame did not decode");
+    check(uiBuf[FILM_TOP*256]==fmvSlots[17],"DS/DSi opening must start on its flat map");
+    filmDrawBeat(opening,firstLightBeats,0);
+    check(uiBuf[FILM_TOP*256]==fmvSlots[17],"DS/DSi staged opening must also show the flat map");
+
+    const FilmBeat *shore=firstLightBeats+2;
+    int coast=filmVistaPlace(F_SHORE);
+    FilmVista before=filmVista[coast];
+    filmVista[coast].valid=0;
+    filmDrawBeat(opening,shore,0);
+    u32 paintedShore=stageViewportHash();
+    filmVista[coast].valid=1;
+    filmDrawBeat(opening,shore,0);
+    check(paintedShore==stageViewportHash(),
+          "sampled terrain blocks cover the illustrated DS/DSi shoreline");
+    filmVista[coast]=before;
+#endif
+}
 static void checkWorldFlightPlayback(void){
     // Exercise the actual film renderer on a mapped city, shoreline and
     // ridge. This is more stringent than just testing route arithmetic:
@@ -421,6 +477,14 @@ static void checkWorldFlightPlayback(void){
           ,"route duration corrupted the existing movie length");
     check(fmvRenderAt(clip,baked),
           "continuous geographical flight missed its first frame");
+#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
+    check(uiBuf[FILM_TOP*256+128]==fmvSlots[filmFlightInk(T_GRASS)],
+          "DS/DSi flight must show continuous map terrain at the top of the frame");
+    check(uiBuf[(FILM_TOP+FILM_H/2)*256+128]==fmvSlots[filmFlightInk(T_GRASS)],
+          "the center of the top-down shot must track the route's first tile");
+    check(uiBuf[(FILM_TOP+FILM_H/2+3)*256+128+3*8+3]==fmvSlots[25],
+          "the tower on the route must have a recognizable overhead footprint");
+#endif
     u32 first=pictureHash();
     check(fmvRenderAt(clip,baked+300),
           "flight dropped its midpoint frame");
@@ -434,6 +498,19 @@ static void checkWorldFlightPlayback(void){
     int local=0;
     check(filmBeatAt(clip,&local)==filmReels[0].beats,
           "flight rewrote or skipped the original screenplay");
+#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
+    filmRoute.x[0]=4;filmRoute.y[0]=4;
+    filmRoute.x[1]=12;filmRoute.y[1]=4;
+    filmRoute.length[0]=filmRoute.total=8;
+    for(int y=0;y<14;y++)for(int x=0;x<30;x++){
+        world[y][x]=T_GRASS;
+        bld[y][x]=0;
+    }
+    check(fmvRenderAt(clip,baked),"flat corner flight lost its first frame");
+    u32 corner=stageViewportHash();
+    check(fmvRenderAt(clip,baked+300)&&corner!=stageViewportHash(),
+          "flat corner flight froze before reaching the edge of the map");
+#endif
     filmRoute=before;
     puts("WORLD FLIGHT OK: continuous real-map camera, 2D/3D frames, "
          "original beat timeline, safe handoff");
@@ -519,6 +596,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
 #ifdef __3DS__
             checkFeatureFilmAndArchive();
 #endif
+            checkStoryEditorial();
             checkWorldFlightPlayback();
             checkDirectedPlayback();
             startWorld(0);
