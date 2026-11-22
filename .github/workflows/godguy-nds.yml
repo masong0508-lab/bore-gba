@@ -28,8 +28,10 @@ jobs:
         run: |
           command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
           [ -x /usr/bin/python3 ] || ln -sf "$(command -v python3)" /usr/bin/python3     # (the build scripts call /usr/bin/python3)
-          dkp-pacman -Syu --noconfirm || true
-          dkp-pacman -S --needed --noconfirm nds-dev ndstool || true
+          # Both SDK builders must update the same package database and
+          # libraries. A partial upgrade cannot qualify release images.
+          dkp-pacman -Syu --noconfirm
+          dkp-pacman -S --needed --noconfirm nds-dev ndstool
           ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
 
       - name: Regenerate professionally mastered vocal chops and 168-track sequences
@@ -70,6 +72,19 @@ jobs:
           /usr/bin/python3 tools/make_story_hq.py
           test -s source/story_film_hq_data.h
 
+      - name: Verify save recovery and cartridge capacity before building ROMs
+        working-directory: godguy
+        run: |
+          for layout in DS DSI BIG; do
+            flags=""
+            if [ "$layout" = DSI ]; then flags="-DGG_DSI16"; fi
+            if [ "$layout" = BIG ]; then flags="-DGG_BIG"; fi
+            gcc -O1 -DNDSSHIM $flags -fsanitize=bounds -fno-sanitize-recover=bounds -Icompat -Isource -Wno-all -include unistd.h pc_save_safety.c -lm -o /tmp/gg-save-safety
+            /tmp/gg-save-safety
+          done
+          gcc -O2 -w -Isource pc_save_hw_guard.c -lm -o /tmp/gg-save-hw-guard
+          /tmp/gg-save-hw-guard
+
       # Film runtime and script sanity checks are fast and SDK-independent.
       # Prevent release packaging if story beats, titles, unlocks, or
       # captions drift below the 80+40 minute 3DS director's-cut contract.
@@ -83,7 +98,9 @@ jobs:
           gcc -O2 -std=c11 -Wall -Wextra -Icompat -Isource pc_vistas.c -o /tmp/godguy-vistas
           /tmp/godguy-vistas
 
-      # 1. the main one: no libnds, no calico. Runs in DraStic and melonDS. No SD saving (it saves to the cartridge chip, or use DraStic save states).
+      # 1. Main DS target: no libnds/Calico. Real-ROM startup, gameplay,
+      # audio and cartridge save/reload tested in DeSmuME; each flashcart
+      # and other emulator still needs its own runtime check.
       - name: godguy_hw.nds  (DraStic / melonDS / hardware, no libnds)
         working-directory: godguy
         run: |
@@ -92,7 +109,9 @@ jobs:
           /usr/bin/python3 tools/check_nds_vocal_image.py godguy_hw.nds
           mkdir -p ../out && cp godguy_hw.nds ../out/godguy_hw.nds
 
-      # 2. the libnds 2 / calico build: SD saving, three save slots, globe. For melonDS and flashcarts.
+      # 2. Optional libnds/Calico SD-save experiment. DeSmuME currently
+      # reaches white screens; other loaders remain unverified. Package
+      # separately from the recommended direct-hardware DS candidate.
       - name: godguy.nds  (libnds + calico, SD saves)
         continue-on-error: true
         working-directory: godguy
@@ -142,11 +161,13 @@ jobs:
       - name: godguy.3dsx  (3DS, libctru)
         working-directory: godguy
         run: |
-          dkp-pacman -S --needed --noconfirm 3ds-dev || true
+          dkp-pacman -S --needed --noconfirm 3ds-dev
           export DEVKITPRO=/opt/devkitpro
           chmod +x 3ds/build.sh
           echo "MIXED-PORT New3DS source and compiler provenance"
           "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          dkp-pacman -Q devkitarm-gcc devkitarm-newlib libctru
+          sha256sum "$DEVKITPRO/libctru/lib/libctru.a"
           sha256sum source/gmdata.h source/gmvox_hq.h source/story_film_hq_data.h
           ./3ds/build.sh
           sha256sum godguy.3dsx
@@ -282,6 +303,9 @@ jobs:
       - name: SDK, tools and film cels
         working-directory: godguy
         run: |
+          # Match the mixed-port builder: installing without -Syu kept
+          # libctru 2.7.0 here while that job linked 2.7.1, changing the ROM.
+          dkp-pacman -Syu --noconfirm
           dkp-pacman -S --needed --noconfirm 3ds-dev
           command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
           /usr/bin/python3 -c 'from PIL import Image' 2>/dev/null || { apt-get update && apt-get install -y python3-pil; }
@@ -326,12 +350,19 @@ jobs:
           /tmp/gg-3ds-floor
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_3ds_partner.c -o /tmp/gg-3ds-partner
           /tmp/gg-3ds-partner
+      - name: Verify 3DS frame copies, stereo and audio lifecycle
+        working-directory: godguy
+        run: |
+          gcc -O2 -std=c11 -Wall -Wextra -Werror -Wno-misleading-indentation -Wno-unused-function -I3ds/stub pc_3ds.c 3ds/platform3ds.c -lm -o /tmp/gg-3ds-platform
+          /tmp/gg-3ds-platform
       - name: Build native 3DS homebrew executable
         working-directory: godguy
         run: |
           chmod +x 3ds/build.sh
           echo "CINEMA New3DS source and compiler provenance"
           "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          dkp-pacman -Q devkitarm-gcc devkitarm-newlib libctru
+          sha256sum "$DEVKITPRO/libctru/lib/libctru.a"
           sha256sum source/gmdata.h source/gmvox_hq.h source/story_film_hq_data.h
           GG_BUILD_GPU_PROBE=1 ./3ds/build.sh
           sha256sum godguy.3dsx
@@ -424,6 +455,24 @@ jobs:
           path: port_images/cinema
       - name: Prove that corrupt and mislabeled ROMs fail release checks
         run: python3 godguy/tools/test_package_port_candidates.py
+      - name: Require reproducible New 3DS game images from both SDK jobs
+        run: |
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          images = []
+          for root in ('port_images/nds', 'port_images/cinema'):
+              matches = list(Path(root).rglob('godguy.3dsx'))
+              if len(matches) != 1:
+                  raise SystemExit(f'{root}: expected one playable New 3DS image, found {len(matches)}')
+              image = matches[0].read_bytes()
+              print(f'{sha256(image).hexdigest()}  {matches[0]} ({len(image)} bytes)')
+              images.append(image)
+          if images[0] != images[1]:
+              raise SystemExit('New 3DS SDK jobs produced different game images; compare SDK and asset provenance before publishing')
+          print('Both independent New 3DS builds are byte-identical.')
+          PY
       - name: Validate real headers and emit compact verified candidate ZIPs
         run: |
           python3 godguy/tools/package_port_candidates.py \
@@ -447,9 +496,13 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: godguy-ports-ci-candidate
+          # A reused tag can keep pointing at an old commit while its
+          # release accumulates newer ROMs. Each candidate gets its own
+          # source-addressed tag and assets instead.
+          tag_name: godguy-ports-ci-${{ github.sha }}
           name: GodGuy DS/DSi/New3DS — CI candidates ${{ github.sha }}
           target_commitish: ${{ github.sha }}
+          prerelease: true
           make_latest: false
           body: |
             Automatically built candidate images after BOTH DS/DSi and

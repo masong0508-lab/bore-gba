@@ -1625,9 +1625,11 @@ static int validSize(int g){ for(int k=0;k<SZ_N;k++) if(szList[k]==g) return 1; 
 #ifndef NDSHW
 typedef FILE SV;
 static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ return fwrite(b,s,n,f); } static size_t svRead(void*b,size_t s,size_t n,SV*f){ return fread(b,s,n,f); } static int svClose(SV*f){ return fclose(f); }
+static int svRewind(SV*f){ return fseek(f,0,SEEK_SET)==0; }
 #endif
 static int rdVec(void*dst,int dstN,int srcN,int esz,SV*f){ u8 tmp[32]; int ok=1; for(int i=0;i<srcN&&ok;i++){ ok=svRead(tmp,esz,1,f)==1; if(ok&&i<dstN) memcpy((u8*)dst+i*esz,tmp,esz); } return ok; }      // read srcN records of esz bytes, keep the first dstN (a save may hold more or fewer villages than this build)
 #include "ggidsv.h"
+#include "save_preflight.h"
 #ifndef PCTEST
 static void zSet(int nz);
 static void tbInvalidate(void);
@@ -1655,12 +1657,20 @@ static int saveGameRaw(const char*path){
     // (an old build never reads it; an old save has none, so every policy is normal)
     { int cl_=svClose(f); return ok&&cl_==0; } }   // (a pack that does not fit the cartridge chip fails the save instead of reporting SAVED)
 static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexInvalidate();
-    SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1; trSeenHi=0; memset(favPow,0,sizeof favPow);
+    SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h;
+    if(svRead(&h,sizeof h,1,f)!=1||!saveHeaderValid(&h)||!savePreflight(f,&h)||!svRewind(f)){
+        svClose(f); return 0;
+    }
+    // Re-read from the same stream only after validation, before touching
+    // any world state. The hardware backend replays its existing buffer.
+    SaveHdr checked=h;
+    if(svRead(&h,sizeof h,1,f)!=1||memcmp(&h,&checked,sizeof h)){ svClose(f); return 0; }
+    int ok=1;
     int nC=(int)h.nCr|(h.ver>=10?(int)h.pad_[1]<<16:0); int nvs=h.ver>=10&&h.planet?h.planet:VIL_OLDN; int legacy=0;
 #ifdef GG_BIGMAP
     legacy=h.szCr==sizeof(CrOld)&&h.szVil==sizeof(VilOld);      // a DS save (or one from before the big planets) on a big build: widened as it is read
 #endif
-    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<11||h.ver>14)||(!legacy&&(h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)))||!validSize(h.gw)||nC>MAXC){ svClose(f); return 0; }
+    trSeenHi=0; memset(favPow,0,sizeof favPow);
     memset(rz,0,sizeof rz); rzN=0; gxDefaults(); gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ);
     for(int y=0;y<gH&&ok;y++){ ok&=svRead(world[y],1,gW,f)==(size_t)gW; ok&=svRead(bld[y],1,gW,f)==(size_t)gW; ok&=svRead(bldv[y],1,gW,f)==(size_t)gW; }
     nCr=nC;
@@ -2398,11 +2408,16 @@ static void slotSet(int n){ slot=((n%NSLOT)+NSLOT)%NSLOT;
 static int slotPeek(int n,int*yr){     // is there a readable save in slot n, and what year was it saved in (the header only: nothing in the game changes)
     SaveHdr h;
 #ifdef NDSHW
-    if(!svPeek(n,&h,sizeof h)||h.magic!=SAVE_MAGIC) return 0; *yr=(int)h.year; return 1;
+    if(!svPeek(n,&h,sizeof h)||!saveHeaderValid(&h)) return 0; *yr=(int)h.year; return 1;
 #else
     char p[48], b[56]; if(n==0) strcpy(p,SAVE_PATH); else siprintf(p,"%s.%d",SAVE_PATH,n+1);
-    SV*f=svOpen(p,"rb"); if(!f){ siprintf(b,"%s.bak",p); f=svOpen(b,"rb"); if(!f) return 0; }
-    int ok=svRead(&h,sizeof h,1,f)==1; svClose(f); if(!ok||h.magic!=SAVE_MAGIC) return 0; *yr=(int)h.year; return 1;
+    siprintf(b,"%s.bak",p);
+    for(int attempt=0;attempt<2;attempt++){
+        SV*f=svOpen(attempt?b:p,"rb"); if(!f) continue;
+        int ok=svRead(&h,sizeof h,1,f)==1; svClose(f);
+        if(ok&&saveHeaderValid(&h)){ *yr=(int)h.year; return 1; }
+    }
+    return 0;
 #endif
 }
 static void slotRemember(void){
@@ -2426,11 +2441,11 @@ static int slotErase(int k){     // empty slot k (its file and backup, or its fi
     char p[48], b[56]; if(k==0) strcpy(p,SAVE_PATH); else siprintf(p,"%s.%d",SAVE_PATH,k+1); siprintf(b,"%s.bak",p); remove(p); remove(b); return 1;
 #endif
 }
-static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return; } if(saveGame(savePath)){ savedYear=year; siprintf(info,"SAVED"); fxReq(FX_SAVE); slotScan(); } else {
+static int doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return 0; } if(saveGame(savePath)){ savedYear=year; hasSave=1; siprintf(info,"SAVED"); fxReq(FX_SAVE); slotScan(); return 1; } else {
 #ifdef NDSHW
  if(svTooBig) siprintf(info,"TOO BIG: %dK NEEDED, SLOT HOLDS %dK",svTooBig,(int)(hwSlotSz/1024)); else
 #endif
- siprintf(info,"SAVE FAILED"); } }
+ siprintf(info,"SAVE FAILED"); return 0; } }
 static void setSize(int sz){ planetSize=sz; }
 static void startWorld(int story){
     possessed=-1; printerCopied=0; storyOn=story;
@@ -3117,7 +3132,7 @@ static void calStep(int kd,int kh){
 #endif
 static void menuInput(int kd){
     int ids[16]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); if(menuNoteT>0) menuNoteT--;
-    if(menuAsk){ if(kd&KEY_B) fxReq(FX_MENU_BACK); else if(kd&KEY_A) fxReq(FX_MENU_OK); if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==9){ if(loadGame(savePath)){ refillWindow(); paused=dlgPaused; siprintf(info,"LOADED"); } else { siprintf(info,"NO SAVE TO LOAD"); menuOn=1; menuNoteT=100; } } else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
+    if(menuAsk){ if(kd&KEY_B) fxReq(FX_MENU_BACK); else if(kd&KEY_A) fxReq(FX_MENU_OK); if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==9){ if(loadGame(savePath)){ refillWindow(); paused=dlgPaused; siprintf(info,"LOADED"); } else { siprintf(info,"NO SAVE TO LOAD"); menuOn=1; menuNoteT=100; } } else if(a==8){ if(doSave()){ titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=1; musReq(GM_TITLE); } else { menuOn=1; paused=1; menuNoteT=180; fxReq(FX_ERROR); } } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
     if(titleOn&&konami>=4) return;          // the secret code is in progress: the menu holds still
     if(mScr==3){ createInput(kd); return; }
     if(mScr==4){ slotsInput(kd); return; }

@@ -331,7 +331,7 @@ void shimPresent(void){
         // Render on actual camera/world changes, or every eighth frame
         // for subtle clouds/feedback. Static scenes reuse the existing
         // RGB output; there is no second 400x240 framebuffer or hash scan.
-        static int lastX,lastY,lastA,lastEdits,lastFx,lastSky;
+        static int lastX,lastY,lastA,lastEdits,lastFx,lastSky,lastMaterial;
         static int lastMeshQuality=-1;
         int sky=ggExplore.frame/8;
         // During authored 3D movie shots we render at a steady, bounded
@@ -348,6 +348,7 @@ void shimPresent(void){
                             0:!(ggSaga.frame&1)) :
                    tc||ggExplore.px!=lastX||ggExplore.py!=lastY||
                    ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
+                   ggExplore.material!=lastMaterial||
                    ggExplore.feedback!=lastFx||sky!=lastSky||
                    (ggChron.active&&(ggOrigin.active||ggChron.dirty||
                                       ggReign.menu||ggReign.noticeT||
@@ -358,6 +359,7 @@ void shimPresent(void){
             else if(ggChron.active&&ggSaga.mode)
                 ggSagaDraw(topBuf);
             else{
+                ggExpBuildPreview=!ggChron.active;
                 ggExpRender(topBuf);
                 if(ggChron.active){
                     ggReignSceneDraw(topBuf);
@@ -369,6 +371,7 @@ void shimPresent(void){
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;
             lastA=ggExplore.angle;lastEdits=ggExplore.edits;
+            lastMaterial=ggExplore.material;
             lastFx=ggExplore.feedback;lastSky=sky;
             lastMeshQuality=ggExpScenicQuality;
             tc=1;

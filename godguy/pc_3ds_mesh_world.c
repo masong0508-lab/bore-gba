@@ -5,6 +5,42 @@
 static void meshRequire(int good,const char*why){
     if(!good){fprintf(stderr,"3DS WORLD MESH FAIL: %s\n",why);exit(1);}
 }
+static void meshRoundGeometryRegression(unsigned char *pixels){
+    // Exercise the real final facet of every circular world primitive.
+    // In particular, the six/eight-sided closing vertex used to read
+    // sin/cos[256]; the bounds-sanitized integration build must catch that
+    // even if an unrelated neighbor in static memory looks plausible.
+    int x=64*256+128,y=64*256+128;
+    int ground=ggMeshGroundAtQ8(x,y);
+    for(int quality=1;quality<=2;quality++)
+      for(int angle=0;angle<256;angle+=64)
+        for(int shape=0;shape<5;shape++){
+            int cosine=ggExpCos[angle],sine=ggExpSin[angle];
+            ggMeshBegin(&ggMeshContext,pixels,quality,
+                        x-cosine*512/4096,y-sine*512/4096,
+                        ground+13,cosine,sine,42,65,89);
+            switch(shape){
+            case 0:
+                // The legacy 2x path deliberately omits soft shadows.
+                if(ggMeshContext.scale>1)continue;
+                ggMeshContactShadow(&ggMeshContext,x,y,70,13);break;
+            case 1:
+                ggMeshFoliage(&ggMeshContext,x,y,ground,1,733,quality);break;
+            case 2:
+                ggMeshShrub(&ggMeshContext,x,y,ground,733);break;
+            case 3:
+                ggMeshCloudPuff(&ggMeshContext,x,y,ground+15,90,7,
+                                130,140,160);break;
+            case 4:
+                ggMeshActorHorizontalBody(&ggMeshContext,
+                    x-29,y,x+29,y,ground+9,17,5,
+                    150,110,75,quality>=2?8:6);break;
+            }
+            meshRequire(ggMeshContext.triangles>=4&&
+                        ggMeshContext.fragments>8,
+                        "closed world primitive disappeared at a camera heading");
+        }
+}
 int main(void){
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
         world[y][x]=T_GRASS;bld[y][x]=0;occ[y][x]=0;
@@ -219,6 +255,7 @@ int main(void){
                     "coarse citizen writes broken 2x2 pixels over 3D geometry");
     }
 #endif
+    meshRoundGeometryRegression(pixels);
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;
     ggExpRenderMode(pixels,0);

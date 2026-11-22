@@ -168,6 +168,13 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
     int e0=(x2-x1)*(top-y1)-(y2-y1)*(left-x1);
     int e1=(x0-x2)*(top-y2)-(y0-y2)*(left-x2);
     int e2=(x1-x0)*(top-y0)-(y1-y0)*(left-x0);
+    // A shared edge belongs to its top/left triangle only. Inclusive
+    // edges on both faces made translucent shadow fans blend twice at
+    // their diagonals, leaving dark spokes across an otherwise soft decal.
+    // Edge thresholds are computed once; the pixel loop stays additive.
+    int edge0=(y2<y1||(y2==y1&&x2>x1))?0:1;
+    int edge1=(y0<y2||(y0==y2&&x0>x2))?0:1;
+    int edge2=(y1<y0||(y1==y0&&x1>x0))?0:1;
     // A single reciprocal-depth plane, computed once per triangle.
     // Pixel loop only adds; it has no divisions, floats or heap use.
     int dx=((int64_t)(b.iz-a.iz)*(y2-y0)-
@@ -209,7 +216,7 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
         int w0=rowE0,w1=rowE1,w2=rowE2,iz=rowIz;
         int uvX=rowU,uvY=rowV;
         for(int x=left;x<=right;x++){
-            if(w0>=0&&w1>=0&&w2>=0){
+            if(w0>=edge0&&w1>=edge1&&w2>=edge2){
                 int inverse=(iz+2048)>>12;
                 int slot=y*m->w+x;
                 if(inverse>0&&inverse>m->depth[slot]){

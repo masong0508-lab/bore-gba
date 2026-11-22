@@ -129,7 +129,7 @@ static void ggMeshActorHorizontalBody(GgMeshContext*m,
     if(mag<1)return;
     int rightX=-dy*4096/mag,rightY=dx*4096/mag;
     for(int n=0;n<sides;n++){
-        int a=n*256/sides,bangle=(n+1)*256/sides;
+        int a=n*256/sides,bangle=((n+1)*256/sides)&255;
         int p=ggExpCos[a]*halfWidth/4096,
             q=ggExpCos[bangle]*halfWidth/4096;
         int h=ggExpSin[a]*halfHeight/4096,

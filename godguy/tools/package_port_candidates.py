@@ -25,10 +25,10 @@ GPU_3DSX = "godguy_new3ds_gpu_probe.3dsx"
 ALL = REQUIRED_DS + OPTIONAL_DS + (GAME_3DSX, GPU_3DSX)
 PACKAGES = {
     "playable": (
-        "godguy.3dsx", "godguy_hw.nds", "godguy_dsi.nds", "godguy.nds",
+        "godguy.3dsx", "godguy_hw.nds", "godguy_dsi.nds",
     ),
     "experimental": (
-        "godguy_new3ds_gpu_probe.3dsx", "godguy_dsi_mode.nds",
+        "godguy_new3ds_gpu_probe.3dsx", "godguy_dsi_mode.nds", "godguy.nds",
         "godguy_hw_safe.nds", "godguy_hw_audio_only.nds",
         "godguy_hw_save_only.nds", "godguy_hw_nocache.nds",
     ),
@@ -143,10 +143,10 @@ def readme(kind, commit, package_files, alternates=None):
             "godguy.3dsx: requires New 3DS, New 3DS XL or New 2DS XL.",
             "  This is the existing playable SOFTWARE renderer, not the",
             "  experimental PICA200 GPU prototype.",
-            "godguy_hw.nds: direct-hardware DS build; cartridge/save-state",
-            "  behavior must be tested on the target emulator/flashcart.",
-            "godguy_dsi.nds: DSi-tuned ROM running in compatible DS mode.",
-            "godguy.nds (if present): experimental libnds/Calico build.",
+            "godguy_hw.nds: recommended DS build; saves use cartridge or",
+            "  emulator backup memory. Target flashcart behavior still",
+            "  needs testing. See the verification notes below.",
+            "godguy_dsi.nds: DSi-compatible ROM running in DS mode.",
         ]
     else:
         lines += [
@@ -154,6 +154,10 @@ def readme(kind, commit, package_files, alternates=None):
             "  NOT the live GodGuy game; New 3DS/New 2DS XL only.",
             "godguy_dsi_mode.nds: EXPERIMENTAL 16 MiB DSi mode with",
             "  unsigned homebrew header. Do not run on original DS.",
+            "godguy.nds (if present): optional libnds/Calico build.",
+            "  Boot QA observed two white screens and no audio in",
+            "  DeSmuME (JIT: 900 frames; interpreter: 1800 frames).",
+            "  Other loaders are unverified; use godguy_hw.nds for DS.",
             "godguy_hw_safe.nds: no sound or save diagnostics.",
             "godguy_hw_audio_only.nds: saves disabled diagnostic.",
             "godguy_hw_save_only.nds: audio disabled diagnostic.",
@@ -169,6 +173,8 @@ def readme(kind, commit, package_files, alternates=None):
         ]
     lines += ["", "Included files:", *(" - " + x for x in package_files),
               "", "SHA256SUMS.txt lists the exact binaries inside this ZIP.",
+              "Verification notes for this source revision:",
+              f"https://github.com/masong0508-lab/bore-gba/blob/{commit}/godguy/PORT_RELEASE_QA.md",
               "Treat this as a release candidate until hardware QA passes."]
     return "\n".join(lines) + "\n"
 

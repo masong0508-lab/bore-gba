@@ -377,7 +377,7 @@ static void ggMeshContactShadow(GgMeshContext*m,int cx,int cy,
         int centerZ=ggMeshGroundAtQ8(centerX,centerY)+2;
         m->opacity=ring?75:28;
         for(int n=0;n<8;n++){
-            int a=n*32,b=(n+1)*32;
+            int a=n*32,b=((n+1)*32)&255;
             int ax=centerX+ggExpCos[a]*wide/4096,
                 ay=centerY+ggExpSin[a]*(wide*2/3)/4096;
             int bx=centerX+ggExpCos[b]*wide/4096,
@@ -556,7 +556,7 @@ static void ggMeshFoliage(GgMeshContext*m,int x,int y,int ground,
         int sides=quality>=2?8:6;
         int rr=pine?54:63,gg=pine?105:118,bb=pine?76:83;
         for(int n=0;n<sides;n++){
-            int aa=n*256/sides,ab=(n+1)*256/sides;
+            int aa=n*256/sides,ab=((n+1)*256/sides)&255;
             int ax=crownX+ggExpCos[aa]*radius/4096,
                 ay=y+ggExpSin[aa]*radius/4096;
             int bx=crownX+ggExpCos[ab]*radius/4096,
@@ -578,7 +578,7 @@ static void ggMeshShrub(GgMeshContext*m,int x,int y,int ground,
     // understory without view-dependent sprite stretching.
     int radius=32,base=ground+1,mid=ground+5,tip=ground+10;
     for(int i=0;i<8;i++){
-        int a=i*32,b=(i+1)*32;
+        int a=i*32,b=((i+1)*32)&255;
         int ax=x+ggExpCos[a]*radius/4096,
             ay=y+ggExpSin[a]*radius/4096;
         int bx=x+ggExpCos[b]*radius/4096,
@@ -688,7 +688,7 @@ static void ggMeshCloudPuff(GgMeshContext*m,int x,int y,int z,
     // catches the sky light without turning the horizon into a polygon
     // artifact. Visible from either side of the camera.
     for(int i=0;i<8;i++){
-        int a=i*32,n=(i+1)*32;
+        int a=i*32,n=((i+1)*32)&255;
         GgMeshVertex u=ggMeshV(x+ggExpCos[a]*radius/4096,
                               y+ggExpSin[a]*radius/4096,z);
         GgMeshVertex v=ggMeshV(x+ggExpCos[n]*radius/4096,

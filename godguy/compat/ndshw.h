@@ -138,7 +138,7 @@ static u8 svPacked[0x80000] __attribute__((aligned(32)));
 static GgSaveWriter ggSaveWriter;
 static GgSaveReader ggSaveReader;
 #endif
-typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
+typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode,svFailed;
 static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }
 // ARM7 accesses the packed save through IPC. The new DS buffer is in
 // cacheable ARM9 BSS, so explicitly synchronize 32-byte cache lines for
@@ -173,7 +173,11 @@ static void hwFlash(u32 op,u32 mem,u32 len,u32 off){
     HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0;
     m->a=mem; m->b=len; m->c=off; m->d=0;
     q->head=(q->head+1)&63;
-    u32 t=0; while(HWIPC->svBusy&&++t<50000000u){}
+    // ARM7 owns this buffer until it publishes completion. A large save
+    // on a slow EEPROM can outlast an arbitrary ARM9 spin count; returning
+    // early would let the next save overwrite data still being written.
+    // ARM7 bounds every SPI wait and reports failures through svOK.
+    while(HWIPC->svBusy){}
 }
 static u32 rleEnc(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ if(o+140>max) return 0; u32 r=1; while(i+r<n&&in[i+r]==in[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=in[i]; i+=r; } else { u32 st=i; u32 l=0; while(i<n&&l<128){ u32 rr=1; while(i+rr<n&&in[i+rr]==in[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(u32 k=0;k<l;k++) out[o++]=in[st+k]; } } return o; }
 static u32 rleDec(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ u8 c=in[i++]; if(c<128){ u32 l=c+1; if(o+l>max||i+l>n) return 0; for(u32 k=0;k<l;k++) out[o++]=in[i++]; } else { u32 r=c-126; if(o+r>max||i>=n) return 0; for(u32 k=0;k<r;k++) out[o++]=in[i]; i++; } } return o; }
@@ -201,7 +205,7 @@ static int hwLayoutSet(int n){      // 1 on success. Slot 1 keeps its save if it
     int old=hwSlots; u32 osz=hwSlotSz; for(int k=1;k<old;k++){ memset(SVCMP,0,256); hwFlash(8,(u32)SVCMP,256,(u32)k*osz); } hwSlotGeom(n); for(int k=1;k<n;k++) hwSlotErase(k);
     memset(SVCMP,0,SV_REC); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='L'; SVCMP[3]='1'; *(u32*)(SVCMP+4)=hwCap; SVCMP[8]=(u8)n; hwFlash(8,(u32)SVCMP,SV_REC,hwCap-SV_REC); return HWIPC->svOK; }
 static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 0; svPos=0;
-    if(m[0]=='w'){ svMode=1; svLen=0;
+    if(m[0]=='w'){ svMode=1; svLen=0; svFailed=0; svTooBig=0;
 #ifdef GG_DS_STREAM_SAVE
         memset(&ggSaveWriter,0,sizeof ggSaveWriter);
 #endif
@@ -218,10 +222,11 @@ static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 
 #endif
     svMode=0; return &svDummy; }
 static size_t svWrite(const void*b,size_t s,size_t n,SV*f){
-    (void)f; if(s&&n>(size_t)SVMAX/s)return 0;
-    u32 t=(u32)(s*n); if(t>SVMAX-svLen)return 0;
+    (void)f; if(svFailed)return 0;
+    if(s&&n>(size_t)SVMAX/s){svFailed=1;return 0;}
+    u32 t=(u32)(s*n); if(t>SVMAX-svLen){svFailed=1;return 0;}
 #ifdef GG_DS_STREAM_SAVE
-    if(!ggSvWrite(&ggSaveWriter,SVCMP+12,SVCMAX,b,t,SVMAX))return 0;
+    if(!ggSvWrite(&ggSaveWriter,SVCMP+12,SVCMAX,b,t,SVMAX)){svFailed=1;return 0;}
 #else
     memcpy(SVBUF+svLen,b,t);
 #endif
@@ -237,8 +242,21 @@ static size_t svRead(void*b,size_t s,size_t n,SV*f){
 #endif
     svPos+=t;return n;
 }
+// Re-run the validated archive without re-reading the cartridge or
+// reserving a second raw world. The first pass only uses small records.
+static int svRewind(SV*f){
+    (void)f;
+    if(svMode!=0)return 0;
+    svPos=0;
+#ifdef GG_DS_STREAM_SAVE
+    ggSvReaderStart(&ggSaveReader,SVCMP+12,ggSaveReader.packed,svLen);
+#endif
+    return 1;
+}
 static u32 hwSlotLimit(void){ return hwSlotSz?hwSlotSz:hwSvLimit(); }
 static int svClose(SV*f){ (void)f; if(svMode==1){
+    // Never overwrite a valid cartridge save with a partial archive.
+    if(svFailed)return -1;
 #ifdef GG_DS_STREAM_SAVE
     if(!ggSvPack(&ggSaveWriter,SVCMP+12,SVCMAX))return -1;
     u32 clen=ggSaveWriter.packed;

@@ -1,0 +1,93 @@
+{
+  "rom_sha256": "dc81ea08342187c26b8d4a2d5eff49d5fc47467bb870e4e7728a36d5b353fbc2",
+  "core_sha256": "7c161ca445bc6ee12861f4dfed07796a6bdeb9aa240da2127b396495a07838ff",
+  "harness_sha256": "ac18cd5852130a266912aa5e3ebcd02b543cb9e87bb289e68631acdd1e689d88",
+  "explicit_in_game_save": {
+    "archive_bytes": 11520,
+    "raw_world_bytes": 65715,
+    "save_version": 14,
+    "map_width": 128,
+    "tick": 2220,
+    "year": 1,
+    "power_uses": 1,
+    "world_seed": 1894208326,
+    "creatures": 350,
+    "camera": [
+      480,
+      440
+    ],
+    "chapter": 0,
+    "story_on": 1,
+    "file_sha256": "73bb13f24b2b4621223b0292dcbc0216ffbb61ddb3b361ef538c2abc2dfd7eca",
+    "archive_sha256": "097212a9f6926a6d0048cda341b1764fbf4ec9f166148fde53bdb67a0091fbfa"
+  },
+  "cold_restart_save": {
+    "archive_bytes": 11520,
+    "raw_world_bytes": 65715,
+    "save_version": 14,
+    "map_width": 128,
+    "tick": 2474,
+    "year": 1,
+    "power_uses": 1,
+    "world_seed": 1894208326,
+    "creatures": 350,
+    "camera": [
+      480,
+      440
+    ],
+    "chapter": 0,
+    "story_on": 1,
+    "file_sha256": "4b0eb99df648b573afb4406cd6c5a8af650253732ca64256762dcbebe37e8d5c",
+    "archive_sha256": "5ae8360fe1d9cc3f9d20c25428361f0bba95052002c7b26233ed269e9a2729f1"
+  },
+  "cold_snapshot_identical": true,
+  "post_soak_autosave": {
+    "archive_bytes": 20725,
+    "raw_world_bytes": 75263,
+    "save_version": 14,
+    "map_width": 128,
+    "tick": 6145,
+    "year": 3,
+    "power_uses": 1,
+    "world_seed": 1894208326,
+    "creatures": 793,
+    "camera": [
+      480,
+      440
+    ],
+    "chapter": 0,
+    "story_on": 1,
+    "file_sha256": "9f3ace3e43e79710ce9d7928ec42823d52ac1f0698e0d5435252a656d31414dd",
+    "archive_sha256": "c62da6a68d79644c73261ca0e3102924c862159ec986c9efe010496db9454271"
+  },
+  "archive_and_runtime_checks_pass": true,
+  "cold_restart_used_state_files": false,
+  "soak_emulated_frames": 6000,
+  "soak_changed_frames": 5933,
+  "soak_nonzero_audio_samples": 8836542,
+  "soak_audio_peak": 24557,
+  "stale_spi_command_errors": 0,
+  "core_source_commit": "95b4d798731caa809125b6c3c11d17cc332ff6ef",
+  "core_build_note": "Software renderer; external BIOS disabled; existing NO_PCAP stub condition enabled.",
+  "save_medium": "Emulated cartridge .dsv; no emulator savestates",
+  "build_scope": "Local direct-hardware DS ROM; does not certify physical console timing or enhanced DSi mode",
+  "visual_review": {
+    "status": "passed",
+    "findings": [
+      "Painted island and first chapter objective1/6 are visible.",
+      "Explicit save shows SAVED Y1.",
+      "Title after saving and cold-boot title both offer Continue.",
+      "Cold Continue retains the island and objective1/6.",
+      "World remains active through year3 during soak; later autosave is verified separately."
+    ],
+    "captures": {
+      "first_painted_world.ppm": "6d220538ca6f2485eec13180108ee0ee28fae4dbcbfbc60fad50f162b9d6d80d",
+      "first_save_complete.ppm": "3287f71c57adebc44c2bec0bb37585932d6984464abe4c7f711b4de4a24b1507",
+      "first_saved_title.ppm": "8116d3959a9f5f2a86b9fb5c0bb129b821ab18a106e1ea8674fec20a5399781c",
+      "restart_cold_boot_title.ppm": "a53b43527f584a8ec84051dcd8f1fe484a0af12f8cb9b033b9d6ce64d92711b9",
+      "restart_cold_reloaded_world.ppm": "356043b51361a9f5b82a88acc6c385d1df544243b6b4ebb7c1ca24a8e2d600a4",
+      "restart_live_soak_second.ppm": "dd77a370b7db34e01aa3aedf9f6c7d5ac0c7ec3ddc33df826d202da2ac98f473"
+    },
+    "method": "Six actual-ROM captures visually inspected; final runner captures verified byte-identical to those inspected."
+  }
+}

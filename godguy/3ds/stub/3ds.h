@@ -15,8 +15,12 @@ enum { NDSP_OUTPUT_STEREO=1, NDSP_INTERP_LINEAR=1, NDSP_FORMAT_STEREO_PCM16=1, N
 typedef struct { void*data_vaddr; u32 nsamples; int status; } ndspWaveBuf;
 // the model the test looks at
 extern u8 stubFb[2][2][400*240*3]; extern int stubCur[2], stubShown[2], stubSwaps, stubFlushes, stubSpeedup, stubQueued, stubNextExpect; extern u32 stubKeys; extern touchPosition stubTouch; extern short*stubQueue[64]; extern ndspWaveBuf*stubWb[64];
+extern int stubAllocFailAt,stubAllocCalls,stubAllocLive,stubAllocFreed;
+extern int stubDSPInitResult,stubDSPInits,stubDSPExits,stubDSPActive;
+extern int stubFreeWhileDSPActive,stubGfxInits,stubGfxExits;
 static inline void osSetSpeedupEnable(int on){ extern int stubSpeedup; stubSpeedup=on; }
-static inline void gfxInitDefault(void){} static inline void gfxSet3D(int b){ (void)b; } static inline void gfxSetDoubleBuffering(int s,int b){ (void)s;(void)b; } static inline void gfxExit(void){}
+static inline void gfxInitDefault(void){ stubGfxInits++; } static inline void gfxSet3D(int b){ (void)b; } static inline void gfxSetDoubleBuffering(int s,int b){ (void)s;(void)b; } static inline void gfxExit(void){ stubGfxExits++; }
+static inline void*consoleInit(int screen,void*console){ (void)screen; return console; }
 extern u8 stubFbR[2][400*240*3]; extern float stubSlider;
 static inline u8*gfxGetFramebuffer(int s,int side,u16*w,u16*h){ (void)w;(void)h; if(s==GFX_TOP&&side==GFX_RIGHT) return stubFbR[stubCur[0]]; return stubFb[s][stubCur[s]]; }
 static inline unsigned long long osGetTime(void){ static unsigned long long t; t+=17; return t; }
@@ -25,9 +29,22 @@ static inline Result APT_CheckNew3DS(bool*o){ *o=true; return 0; }
 static inline void gfxFlushBuffers(void){ extern int stubFlushes; stubFlushes++; }
 static inline void gfxSwapBuffers(void){ extern int stubSwaps; for(int s=0;s<2;s++){ stubShown[s]=stubCur[s]; stubCur[s]^=1; } stubSwaps++; }
 static inline void gspWaitForVBlank(void){}
-static inline Result ndspInit(void){ return 0; } static inline void ndspExit(void){} static inline void ndspSetOutputMode(int m){ (void)m; } static inline void ndspChnSetInterp(int c,int i){ (void)c;(void)i; } static inline void ndspChnSetRate(int c,float r){ (void)c;(void)r; } static inline void ndspChnSetFormat(int c,int f){ (void)c;(void)f; }
-static inline void*linearAlloc(size_t n){ return malloc(n); } static inline void DSP_FlushDataCache(const void*p,u32 n){ (void)p;(void)n; }
+static inline Result ndspInit(void){ stubDSPInits++; if(R_SUCCEEDED(stubDSPInitResult))stubDSPActive++; return stubDSPInitResult; }
+static inline void ndspExit(void){ stubDSPExits++; stubDSPActive--; }
+static inline void ndspSetOutputMode(int m){ (void)m; } static inline void ndspChnSetInterp(int c,int i){ (void)c;(void)i; } static inline void ndspChnSetRate(int c,float r){ (void)c;(void)r; } static inline void ndspChnSetFormat(int c,int f){ (void)c;(void)f; }
+static inline void*linearAlloc(size_t n){
+    int call=stubAllocCalls++;
+    if(call==stubAllocFailAt)return NULL;
+    void *p=malloc(n);if(p)stubAllocLive++;return p;
+}
+static inline void linearFree(void *p){
+    if(!p)return;
+    if(stubDSPActive)stubFreeWhileDSPActive++;
+    stubAllocLive--;stubAllocFreed++;free(p);
+}
+static inline void DSP_FlushDataCache(const void*p,u32 n){ (void)p;(void)n; }
 static inline void ndspChnWaveBufAdd(int c,ndspWaveBuf*w){ (void)c; extern int stubQueued; extern short*stubQueue[64]; extern ndspWaveBuf*stubWb[64]; w->status=NDSP_WBUF_QUEUED; if(stubQueued<64){ stubQueue[stubQueued]=(short*)w->data_vaddr; stubWb[stubQueued]=w; } stubQueued++; }
 static inline void hidScanInput(void){} static inline u32 hidKeysHeld(void){ extern u32 stubKeys; return stubKeys; } static inline void hidTouchRead(touchPosition*t){ extern touchPosition stubTouch; *t=stubTouch; }
+static inline u32 hidKeysDown(void){ return stubKeys; }
 static inline int aptMainLoop(void){ return 1; }
 #endif

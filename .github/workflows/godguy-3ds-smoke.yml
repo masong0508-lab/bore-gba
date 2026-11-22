@@ -45,6 +45,10 @@ jobs:
           /tmp/gg-pica-batch
           gcc -O2 -std=c11 -DGG_NEW3DS_ONLY -w -Icompat -Isource pc_3ds_mesh_world.c -lm -o /tmp/gg-3ds-worldmesh
           /tmp/gg-3ds-worldmesh
+          gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource pc_3ds_mesh_world.c -lm -o /tmp/gg-3ds-worldmesh-safe
+          /tmp/gg-3ds-worldmesh-safe
+          gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource pc_3ds_interaction.c -lm -o /tmp/gg-3ds-interaction
+          /tmp/gg-3ds-interaction
       - name: Render 400x240 story, character turntables and occlusion comparisons
         working-directory: godguy
         shell: bash

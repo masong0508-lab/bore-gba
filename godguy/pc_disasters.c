@@ -24,7 +24,7 @@ int main(void){
     CHECK(sizeof(Hz)==14,"disasters do not enlarge the saved hazard record");
     CHECK(sizeof(Cr)==(sizeof(coord_t)==1?20:22),"creature record size remains target-compatible");
     CHECK(findPower(PK_ALIEN)>=0&&findPower(PK_DRAGON)>=0&&findPower(PK_MOON)>=0&&findPower(PK_BIOMASS)>=0&&findPower(PK_ICE)>=0&&findPower(PK_GARDEN)>=0,"all six disaster powers are listed");
-    CHECK(findPower(PK_SPECIAL)>=0&&findPower(PK_FIREEL)>=0&&PW_N==79,"special-event power and five cycling fire variants are available without exceeding the 80 favorite slots");
+    CHECK(findPower(PK_SPECIAL)>=0&&findPower(PK_FIREEL)>=0&&PW_N<=(int)sizeof favPow,"special-event power and five cycling fire variants are available without exceeding the 80 favorite slots");
 
     int h=hzAdd(HZ_ALIEN,40,40); CHECK(h>=0,"create alien invasion hazard"); if(h>=0){ disasterStep(&hz[h]); CHECK(countArch("ALIEN")>=1&&countArch("UFO")>=1,"alien invasion deploys aliens and a UFO"); }
     memset(hz,0,sizeof hz); nCr=0; memset(occ,0,sizeof occ); cellClear();
