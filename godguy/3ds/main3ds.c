@@ -9,6 +9,11 @@
 // first-person voxel renderer. It is 3DS-only, leaving DS/DSi unchanged.
 static void ggExpRenderCreatures(u8 *top);
 #include "explore3d.h"
+static int ggHybridWalkable(const Cr *actor,int x,int y){
+    if((unsigned)x>=WW||(unsigned)y>=WH)return 0;
+    unsigned terrain=world[y][x];
+    return terrain<T_N&&((arch[sp[actor->sp].a].mask|trMask(actor))>>terrain&1);
+}
 #include "hybrid3d.h"
 #include "outdoor3d.h"
 #include "population3d.h"
