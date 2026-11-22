@@ -1995,6 +1995,27 @@ static inline __attribute__((always_inline)) int softClip(int x){
     if(x<-96){ int d=-96-x; if(d>1023) d=1023; return -96-scKnee[1][d]; }
     return x;
 }
+// Song-local early reflections stay in ROM, not IWRAM (tight interrupt budget).
+// Original dry transients remain in front; only mids/highs feed this tiny room.
+__attribute__((noinline)) static void winnerRoomMix(s8*outL,s8*outR){
+    u32 rp=winnerRoomPos;
+    int low=winnerRoomLow;
+    for(int i=0;i<MUS_N;i++){
+        u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16);
+        int d=(l+r)>>3;
+        low+=(d-low)>>7;  // ~23 Hz high-pass on room send
+        int eL=winnerRoom[(rp-1567u)&WINNER_ROOM_MASK]; // ~86ms
+        int eR=winnerRoom[(rp-3181u)&WINNER_ROOM_MASK]; // ~175ms
+        int feed=((d-low)*3+eL+eR)>>3;
+        if(feed>127) feed=127; else if(feed< -128) feed= -128;
+        winnerRoom[rp]=(s8)feed;
+        rp=(rp+1)&WINNER_ROOM_MASK;
+        outL[i]=(s8)softClip((l>>2)+((eL*21+eR*9)>>7));
+        outR[i]=(s8)softClip((r>>2)+((eR*21+eL*9)>>7));
+    }
+    winnerRoomPos=(u16)rp;
+    winnerRoomLow=low;
+}
 IWRAM_ARM static void musMix(s8*outL,s8*outR){
     int done=0;
     while(done<MUS_N){
@@ -2028,28 +2049,8 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
         if(mSong==&xm_winner_koala && (winnerSinger[0].d||winnerSinger[1].d)) winnerVocalMix(a,n);
         mLeft-=n; done+=n;
     }
-    if(mSong==&xm_winner_koala){
-        // Two quiet, decorrelated reflections (86 ms and 175 ms at 18,157 Hz)
-        // with short feedback. Mix AFTER original-note declick and singing;
-        // collect only non-sub-bass into the wet send, leave source dry intact.
-        u32 rp=winnerRoomPos;
-        int low=winnerRoomLow;
-        for(int i=0;i<MUS_N;i++){
-            u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16);
-            int d=(l+r)>>3;
-            low+=(d-low)>>7;  // ~23 Hz high-pass on room send
-            int eL=winnerRoom[(rp-1567u)&WINNER_ROOM_MASK];
-            int eR=winnerRoom[(rp-3181u)&WINNER_ROOM_MASK];
-            int feed=((d-low)*3+eL+eR)>>3;
-            if(feed>127) feed=127; else if(feed< -128) feed= -128;
-            winnerRoom[rp]=(s8)feed;
-            rp=(rp+1)&WINNER_ROOM_MASK;
-            outL[i]=(s8)softClip((l>>2)+((eL*21+eR*9)>>7));
-            outR[i]=(s8)softClip((r>>2)+((eR*21+eL*9)>>7));
-        }
-        winnerRoomPos=(u16)rp;
-        winnerRoomLow=low;
-    }else for(int i=0;i<MUS_N;i++){
+    if(mSong==&xm_winner_koala) winnerRoomMix(outL,outR);
+    else for(int i=0;i<MUS_N;i++){
         u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16);
         outL[i]=(s8)softClip(l>>2); outR[i]=(s8)softClip(r>>2);
     }
