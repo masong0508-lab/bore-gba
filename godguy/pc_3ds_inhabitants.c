@@ -25,6 +25,23 @@ static void inhabitantCapture(const char*folder,int shape,int turn){
                       sizeof guarded.img,"cannot finish inhabitant capture");
     inhabitantRequire(fclose(f)==0,"cannot close inhabitant capture");
 }
+static void inhabitantFooting(void){
+    world[64][65]=T_HILL;
+    for(int heading=0;heading<256;heading+=32){
+        int wx=65*256+16,wy=64*256+128;
+        GgMeshCreaturePose pose={wx,wy,ggMeshGroundAtQ8(wx,wy),
+                                 ggExpCos[heading],ggExpSin[heading]};
+        for(int along=-36;along<=36;along+=24)
+            for(int across=-30;across<=30;across+=20){
+                GgMeshVertex toe=ggMeshCreatureV(&pose,along,across,0);
+                int floor=ggMeshGroundAtQ8(toe.x,toe.y);
+                int boot=pose.z+ggMeshCreatureFoot(&pose,along,across);
+                inhabitantRequire(boot<=floor&&boot>=floor-1,
+                                  "a planted toe sits above or below its local ground");
+            }
+    }
+    world[64][65]=T_GRASS;
+}
 int main(int argc,char**argv){
     // Numeric shapes come from the authored source/main.c SHAPE table:
     // wolf, bird, fish, spider, snake, blob, butterfly, rabbit, turtle,
@@ -41,6 +58,7 @@ int main(int argc,char**argv){
     memset(guarded.first,0x5a,sizeof guarded.first);
     memset(guarded.last,0xc3,sizeof guarded.last);
     ggExpBegin(64,64,0);
+    inhabitantFooting();
     ggExpMeshEnabled=1;ggExpScenicQuality=2;ggExpSceneryEnabled=0;ggExpBuildPreview=0;
     ggExplore.angle=0;ggExplore.px=64*256+128;
     ggExplore.py=64*256+128;ggExplore.frame=52;ggExplore.actorId=0;

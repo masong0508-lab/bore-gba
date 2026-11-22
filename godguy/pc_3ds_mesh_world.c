@@ -27,7 +27,7 @@ static void meshRoundGeometryRegression(unsigned char *pixels){
             case 1:
                 ggMeshFoliage(&ggMeshContext,x,y,ground,1,733,quality);break;
             case 2:
-                ggMeshShrub(&ggMeshContext,x,y,ground,733);break;
+                ggMeshShrub(&ggMeshContext,x,y,ground,733,2);break;
             case 3:
                 ggMeshCloudPuff(&ggMeshContext,x,y,ground+15,90,7,
                                 130,140,160);break;

@@ -56,7 +56,7 @@ static void ggMeshActorHuman(GgMeshContext*m,int x,int y,
         int forwardStep=side*swing;
         int footX=sx+fx*forwardStep/4096;
         int footY=sy+fy*forwardStep/4096;
-        int footZ=ggMeshGroundAtQ8(footX,footY)+1;
+        int footZ=ggMeshGroundAtQ8(footX,footY);
         int kneeX=(sx+footX)/2+fx*forwardStep/8192;
         int kneeY=(sy+footY)/2+fy*forwardStep/8192;
         ggMeshActorTube(m,sx,sy,ground+8,6,
@@ -65,8 +65,8 @@ static void ggMeshActorHuman(GgMeshContext*m,int x,int y,
         ggMeshActorTube(m,kneeX,kneeY,ground+4,5,
                         footX,footY,footZ+2,5,68,68,75,6);
         // Truly world-planted boot, never an unrelated floating cel.
-        ggMeshBox(m,footX-9,footY-6,footX+9,footY+9,
-                  footZ,footZ+2,52,55,63);
+        ggMeshGroundBox(m,footX-9,footY-6,footX+9,footY+9,
+                        footZ+2,52,55,63);
         int armX=x+rx*side*shoulder/4096,
             armY=y+ry*side*shoulder/4096;
         int elbowX=armX+rx*side*8/4096+
@@ -157,7 +157,7 @@ static GgMeshVertex ggMeshCreatureV(const GgMeshCreaturePose*p,
 static int ggMeshCreatureFoot(const GgMeshCreaturePose*p,
                               int along,int across){
     GgMeshVertex v=ggMeshCreatureV(p,along,across,0);
-    return ggMeshGroundAtQ8(v.x,v.y)-p->z+1;
+    return ggMeshGroundAtQ8(v.x,v.y)-p->z-1;
 }
 // Two ring sections and tapered end fans make a CLOSED rounded hull.
 // The old open barrel exposed the background through noses and rumps.
@@ -343,8 +343,11 @@ static void ggMeshCreatureBird(GgMeshContext*m,const GgMeshCreaturePose*p,
 static void ggMeshCreatureFish(GgMeshContext*m,const GgMeshCreaturePose*p,
                                int shape,int phase,int quality,
                                int r,int g,int b){
+    GgMeshCreaturePose swimmer=*p;
+    swimmer.z-=2;
+    p=&swimmer;
     int seal=shape==61,whale=shape==13;
-    int length=whale?56:seal?43:43;
+    int length=whale?56:43;
     ggMeshCreatureHull(m,p,0,0,4,length,whale?20:12,whale?4:3,
                        r,g,b,quality>=2?8:6);
     int tail=ggExpSin[phase&255]/700;
@@ -405,10 +408,12 @@ static void ggMeshCreatureSerpent(GgMeshContext*m,const GgMeshCreaturePose*p,
     for(int part=0;part<5;part++){
         int along=28-part*15;
         int wave=ggExpSin[(phase+part*30)&255]/400;
-        ggMeshCreatureHull(m,p,along,wave,part?3:5,13,part==4?5:9,
+        int footing=ggMeshCreatureFoot(p,along,wave);
+        int belly=footing+2;
+        ggMeshCreatureHull(m,p,along,wave,part?belly:belly+3,13,part==4?5:9,
                            part==4?1:2,r,g,b,quality>=2?6:4);
         if(!part)for(int side=-1;side<=1;side+=2)
-            ggMeshCreatureEye(m,p,along+5,wave+side*7,6);
+            ggMeshCreatureEye(m,p,along+5,wave+side*7,belly+4);
     }
 }
 static void ggMeshCreatureWinged(GgMeshContext*m,const GgMeshCreaturePose*p,
@@ -432,10 +437,10 @@ static void ggMeshCreatureWinged(GgMeshContext*m,const GgMeshCreaturePose*p,
 static void ggMeshCreatureBlob(GgMeshContext*m,const GgMeshCreaturePose*p,
                                int phase,int quality,int r,int g,int b){
     int breath=ggExpSin[phase&255]>0;
-    ggMeshCreatureHull(m,p,0,0,4,29,28+breath,4+breath,
+    ggMeshCreatureHull(m,p,0,0,3,29,28+breath,4+breath,
                        r,g,b,quality>=2?8:6);
     for(int side=-1;side<=1;side+=2)
-        ggMeshCreatureEye(m,p,20,side*10,6+breath);
+        ggMeshCreatureEye(m,p,20,side*10,5+breath);
 }
 static void ggMeshActorAnimal(GgMeshContext*m,int x,int y,
                                int ground,int heading,int phase,

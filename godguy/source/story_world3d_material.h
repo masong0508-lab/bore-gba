@@ -62,4 +62,29 @@ static void ggFilmMasonry(GgFilmCamera cam,int l,int r,int bottom,int top,int z,
         }
     }
 }
+// An octagonal wooden rim has a real lateral thickness. The spokes
+// rotate with travel while the hub stays on the axle.
+static void ggFilmCartWheel(GgFilmCamera cam,int x,int y,int z,int r,int turn){
+    static const signed char rim[][2]={{100,0},{71,71},{0,100},{-71,71},
+        {-100,0},{-71,-71},{0,-100},{71,-71}};
+    GgV3 outer[8],inner[8],rear[8];
+    int face=x-4;
+    for(int i=0;i<8;i++){
+        int dy=rim[i][0],dz=rim[i][1];
+        outer[i]=ggV3(face,y+dy*r/100,z+dz*r/100);
+        inner[i]=ggV3(face,y+dy*(r-5)/100,z+dz*(r-5)/100);
+        rear[i]=ggV3(x+4,outer[i].y,outer[i].z);
+    }
+    for(int i=0;i<8;i++){
+        int j=(i+1)&7;
+        ggFilmQuad(cam,rear[i],rear[j],outer[j],outer[i],i<4?24:20);
+        ggFilmQuad(cam,outer[i],outer[j],inner[j],inner[i],i<3?GG_STONE:24);
+    }
+    for(int i=turn&1;i<8;i+=2){
+        GgV3 tip=inner[i],base=ggV3(face,y,z);
+        GgV3 width=ggV3(face,tip.y+(tip.z-z)/6,tip.z-(tip.y-y)/6);
+        ggFilmFace(cam,base,tip,width,26);
+    }
+    ggFilmBox(cam,face,y-4,z,9,9,11,25,24,26);
+}
 #endif

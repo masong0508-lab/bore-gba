@@ -10,24 +10,33 @@
 #include "mesh_material3d.h"
 enum { GG_MESH_MAX_W=400,GG_MESH_MAX_H=240,GG_MESH_NEAR=96 };
 typedef struct { int x,y,z; } GgMeshVertex;
+typedef struct { int64_t x,y,z; } GgMeshNormal;
 // GodGuy material-lighting contract. Geometry is real 3D and the
 // directional sunlight is computed ONCE PER TRIANGLE, never per pixel.
 // Height is expressed in smaller game-world units than XY; scale it for
 // meaningful architectural, hillside and roof normal response.
-static inline int ggMeshSunlight(GgMeshVertex a,GgMeshVertex b,
-                                  GgMeshVertex c,int ambient){
+static inline GgMeshNormal ggMeshFaceNormal(GgMeshVertex a,GgMeshVertex b,
+                                           GgMeshVertex c){
     int64_t ux=(int64_t)b.x-a.x,uy=(int64_t)b.y-a.y,
             uz=((int64_t)b.z-a.z)*24;
     int64_t vx=(int64_t)c.x-a.x,vy=(int64_t)c.y-a.y,
             vz=((int64_t)c.z-a.z)*24;
-    int64_t nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
-    int64_t den=(nx<0?-nx:nx)+(ny<0?-ny:ny)+(nz<0?-nz:nz);
+    return (GgMeshNormal){uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx};
+}
+static inline int64_t ggMeshNormalAbs(int64_t n){return n<0?-n:n;}
+static inline int ggMeshNormalLight(GgMeshNormal n,int ambient){
+    int64_t den=ggMeshNormalAbs(n.x)+ggMeshNormalAbs(n.y)+
+                ggMeshNormalAbs(n.z);
     if(den==0)return ambient;
     // Stable south-west sun. High, low and unlit faces keep distinct
     // values even with all textures disabled on an Old 3DS.
-    int directional=(int)((nx*(-70)+ny*42+nz*112)/den);
+    int directional=(int)((n.x*(-70)+n.y*42+n.z*112)/den);
     int shade=ambient+directional*3/5;
     return shade<124?124:shade>285?285:shade;
+}
+static inline int ggMeshSunlight(GgMeshVertex a,GgMeshVertex b,
+                                  GgMeshVertex c,int ambient){
+    return ggMeshNormalLight(ggMeshFaceNormal(a,b,c),ambient);
 }
 
 typedef struct { int f,s,z,u,v; } GgMeshCameraVertex;
@@ -40,6 +49,7 @@ typedef struct {
     int skyR,skyG,skyB;
     int material,materialSeed,textureSamples;
     int ambientLight;
+    int sunTint; // live daylight colors; neutral by default for other scenes
     int opacity,blendedFragments;
     int depthBias; // scoped decal tolerance; depth storage remains physical
     int fogR,fogG,fogB,fogMax;
@@ -86,7 +96,7 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
     m->skyR=skyR;m->skyG=skyG;m->skyB=skyB;
     m->triangles=0;m->fragments=0;m->textureSamples=0;
     m->material=GG_MAT_NONE;m->materialSeed=0;
-    m->ambientLight=212;
+    m->ambientLight=212;m->sunTint=0;
     m->opacity=256;m->blendedFragments=0;m->depthBias=0;
     m->fogR=skyR;m->fogG=skyG;m->fogB=skyB;
     m->fogMax=150;
@@ -203,12 +213,10 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
             if(w0>=edge0&&w1>=edge1&&w2>=edge2){
                 int inverse=(iz+2048)>>12;
                 int slot=y*m->w+x;
-                // Facade layers separated by a few world units can
-                // round to the same 16-bit inverse depth. A bounded
-                // one-unit comparison tolerance permits that equality;
-                // it never passes a genuinely nearer depth value, and
-                // stored depth remains unbiased for actors and scenery.
-                if(inverse>0&&inverse+(m->depthBias>0?1:0)>m->depth[slot]){
+                // A scoped tolerance lets a surface decal survive
+                // quantization at a shared edge. Stored depth remains
+                // unbiased for later actors and scenery.
+                if(inverse>0&&inverse+m->depthBias>m->depth[slot]){
                     // A translucent contact decal shades geometry but
                     // is not itself solid occluding geometry. Writing its
                     // depth made subsequently drawn walls and people clip
@@ -258,11 +266,14 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
 static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
                            GgMeshVertex b,GgMeshVertex c,
                            int r,int g,int bl){
+    GgMeshNormal normal={0,0,0};
     if(m->material!=GG_MAT_NONE){
-        int sun=ggMeshSunlight(a,b,c,m->ambientLight);
-        r=ggMeshClamp(r*sun/256,0,255);
-        g=ggMeshClamp(g*sun/256,0,255);
-        bl=ggMeshClamp(bl*sun/256,0,255);
+        normal=ggMeshFaceNormal(a,b,c);
+        int sun=ggMeshNormalLight(normal,m->ambientLight);
+        int tint=m->sunTint?(sun-m->ambientLight)/8:0;
+        r=ggMeshClamp(r*sun/256+tint,0,255);
+        g=ggMeshClamp(g*sun/256+tint/3,0,255);
+        bl=ggMeshClamp(bl*sun/256-tint,0,255);
     }
     GgMeshCameraVertex points[3]={
         ggMeshCameraPoint(m,a),ggMeshCameraPoint(m,b),
@@ -270,22 +281,27 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
     };
     if(m->material!=GG_MAT_NONE&&m->scale==1&&
        m->detailQuality>=2){
-        // Use XY on floors and roofs, and horizontal-plus-height on
-        // walls. Local 512-unit origins retain absolute UV continuity
-        // across adjacent triangles while avoiding 32-bit overflow.
-        int xx=a.x-b.x;if(xx<0)xx=-xx;
-        int xx2=a.x-c.x;if(xx2<0)xx2=-xx2;
-        int yy=a.y-b.y;if(yy<0)yy=-yy;
-        int yy2=a.y-c.y;if(yy2<0)yy2=-yy2;
-        int zz=a.z-b.z;if(zz<0)zz=-zz;
-        int zz2=a.z-c.z;if(zz2<0)zz2=-zz2;
-        int vertical=!m->groundUV&&zz+zz2>8;
-        int axis=xx+xx2>=yy+yy2?0:1;
+        // Project the two halves of a plane from the same axes, even
+        // when their longest edges differ. Roof U follows the ridge and
+        // V runs down the slope. Near-vertical surfaces use actual height.
+        int64_t nx=ggMeshNormalAbs(normal.x),ny=ggMeshNormalAbs(normal.y);
+        int64_t nz=ggMeshNormalAbs(normal.z);
+        int uAxis=0,vAxis=1,vSign=1;
+        if(!m->groundUV){
+            if(m->material==GG_MAT_ROOF&&nz){
+                uAxis=nx>ny;
+                vAxis=1-uAxis;
+                vSign=(uAxis?normal.x:normal.y)<0?-1:1;
+            }else if(nz<=(nx+ny)/3){
+                uAxis=nx>ny;
+                vAxis=2;
+            }
+        }
         int us[3],vs[3];
         GgMeshVertex src[3]={a,b,c};
         for(int j=0;j<3;j++){
-            us[j]=(axis==0||!vertical)?src[j].x:src[j].y;
-            vs[j]=vertical?src[j].z*4:src[j].y;
+            us[j]=uAxis?src[j].y:src[j].x;
+            vs[j]=vAxis==2?src[j].z*4:(vAxis?src[j].y:src[j].x)*vSign;
         }
         int baseU=us[0],baseV=vs[0];
         for(int j=1;j<3;j++){

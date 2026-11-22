@@ -1,6 +1,34 @@
 #ifndef GG_STORY_WORLD3D_INTERIOR_H
 #define GG_STORY_WORLD3D_INTERIOR_H
 
+enum {
+    GG_FILM_PORCH_TABLE_Z=583, GG_FILM_PORCH_TABLE_TOP=36, GG_FILM_PORCH_TABLE_D=74,
+    GG_FILM_ARCHIVE_DESK_TOP=55, GG_FILM_ARCHIVE_DESK_Z=840, GG_FILM_ARCHIVE_DESK_D=106,
+    GG_FILM_ANVIL_TOP=93, GG_FILM_ANVIL_Z=820, GG_FILM_ANVIL_D=57,
+    GG_FILM_COUCH_X=175, GG_FILM_COUCH_Z=920, GG_FILM_COUCH_CUSHION_TOP=32,
+    GG_FILM_COUCH_TABLE_Z=678, GG_FILM_COUCH_TABLE_TOP=34, GG_FILM_COUCH_TABLE_D=69,
+    GG_FILM_THRONE_STAND_Z=697, GG_FILM_THRONE_STAND_TOP=43, GG_FILM_THRONE_STAND_D=69
+};
+
+static void ggFilmLowTable(GgFilmCamera cam,int x,int z,int w,int d,int top){
+    for(int end=1;end>=-1;end-=2){
+        for(int side=-1;side<=1;side+=2){
+            int px=x+side*(w/2-15),pz=z+end*(d/2-10);
+            ggFilmBox(cam,px,1,pz,10,top-7,12,25,24,26);
+            ggFilmBox(cam,px,1,pz,13,5,14,24,GG_OXBLOOD,25);
+        }
+    }
+    ggFilmBox(cam,x,top-15,z,w-12,9,d-11,25,24,26);
+    ggFilmBox(cam,x,top-6,z,w,6,d,26,24,GG_PLASTER);
+    for(int i=1;i<=3;i++){
+        int grain=z-d/2+i*d/5;
+        ggFilmGroundPatch(cam,x-(i%2)*15,top,grain,w-25,4,26);
+    }
+}
+static void ggFilmTableOnFloor(GgFilmCamera cam,int x,int z,int w,int d,int top){
+    ggFilmGroundPatch(cam,x+13,1,z,w+34,d+28,GG_OXBLOOD);
+    ggFilmLowTable(cam,x,z,w,d,top);
+}
 static int ggFilmWoodRoom(int p){return p==F_PORCH||p==F_COUCH||p==F_HEARTH;}
 static void ggFilmRoomFloor(GgFilmCamera cam,int p){
     int wood=ggFilmWoodRoom(p);
@@ -130,10 +158,17 @@ static void ggFilmHearth(GgFilmCamera cam,int x,int z,int w,int h,int t,int forg
                   forge?21:GG_LIMESTONE);
     ggFilmRoundTop(cam,x,f-2,19,w-jamb,h*3/4,forge?GG_COPPER:GG_PLASTER);
     ggFilmRoundTop(cam,x,f-4,20,w-jamb-24,h*3/4-14,2);
-    ggFilmRoundTop(cam,x,f-5,22,w-jamb-38,h/2,GG_OXBLOOD);
+    int half=(w-jamb-24)/2,back=f+41,sill=21;
+    GgV3 nearL=ggV3(x-half,sill,f-5),nearR=ggV3(x+half,sill,f-5);
+    GgV3 farL=ggV3(x-half+21,sill,back),farR=ggV3(x+half-21,sill,back);
+    ggFilmQuad(cam,nearL,nearR,farR,farL,GG_OXBLOOD);
+    ggFilmQuad(cam,nearL,farL,ggV3(farL.x,86,back),ggV3(nearL.x,81,f-5),24);
+    ggFilmQuad(cam,farR,nearR,ggV3(nearR.x,81,f-5),ggV3(farR.x,86,back),GG_SLATE);
+    ggFilmBox(cam,x-13,sill,back-11,56,10,21,7,GG_OXBLOOD,8);
+    ggFilmBox(cam,x+19,sill,back-21,43,12,14,GG_COPPER,24,8);
     ggFilmBox(cam,x,10,z-72,w+34,11,88,GG_SLATE,20,GG_STONE);
     ggFilmBox(cam,x,h-8,z-13,w+31,15,122,25,20,26);
-    ggFilmFire(cam,x,25,f-13,w-jamb-33,h/3,t);
+    ggFilmFire(cam,x,29,back-23,w-jamb-51,h/3,t);
 }
 static void ggFilmPorch(GgFilmCamera cam,int t,int chapter,int winter){
     int rain=chapter==1||winter;
@@ -191,13 +226,8 @@ static void ggFilmPorch(GgFilmCamera cam,int t,int chapter,int winter){
     ggFilmBox(cam,-260,28,1135,206,65,19,25,24,26);
     ggFilmGrain(cam,-338,-181,55,1124,4,26);
     ggFilmRug(cam,-151,465,856,137,26,GG_COPPER,GG_OXBLOOD);
-    ggFilmGroundPatch(cam,12,3,592,181,92,24);
-    // The cup support stays at z=583, top y=36.
-    ggFilmBox(cam,-52,0,583,10,32,47,25,24,26);
-    ggFilmBox(cam,52,0,583,10,32,47,25,24,26);
-    ggFilmBox(cam,0,28,583,145,8,74,25,24,GG_PLASTER);
-    ggFilmPaving(cam,-66,51,559,564,37,26);
-    ggFilmLamp(cam,456,130,1499,t);
+    ggFilmTableOnFloor(cam,0,GG_FILM_PORCH_TABLE_Z,145,GG_FILM_PORCH_TABLE_D,GG_FILM_PORCH_TABLE_TOP);
+    ggFilmLamp(cam,456,137,1525,t);
 }
 
 static void ggFilmBooks(GgFilmCamera cam,int x,int z,int w,int top){
@@ -219,6 +249,23 @@ static void ggFilmBooks(GgFilmCamera cam,int x,int z,int w,int top){
     }
     ggFilmBox(cam,x,top,z-5,w+18,11,81,25,24,26);
 }
+static void ggFilmArchiveDesk(GgFilmCamera cam,int t){
+    ggFilmBox(cam,-55,0,835,19,52,84,25,24,26);
+    ggFilmBox(cam,80,0,835,19,52,84,25,24,26);
+    ggFilmBox(cam,12,42,GG_FILM_ARCHIVE_DESK_Z,171,GG_FILM_ARCHIVE_DESK_TOP-42,
+              GG_FILM_ARCHIVE_DESK_D,25,24,26);
+    ggFilmBox(cam,12,28,819,161,21,12,24,20,26);
+    int page=((t/44)%11)-5;
+    ggFilmQuad(cam,ggV3(-52,57,784),ggV3(7,57,784),
+                  ggV3(7,61,862),ggV3(-53,62,861),GG_PLASTER);
+    ggFilmQuad(cam,ggV3(7,57,784),ggV3(53,59,787),
+                  ggV3(53,64+page,864),ggV3(7,61,862),23);
+    for(int z=799;z<857;z+=12){
+        ggFilmPaving(cam,-45,-4,z,z+3,61,26);
+        ggFilmPaving(cam,14,46,z,z+3,62+page/3,GG_STONE);
+    }
+    ggFilmLamp(cam,-65,GG_FILM_ARCHIVE_DESK_TOP+17,860,t);
+}
 static void ggFilmArchive(GgFilmCamera cam,int t){
     ggFilmQuad(cam,ggV3(-373,2,564),ggV3(-249,2,564),
                   ggV3(-122,2,1480),ggV3(-247,2,1480),GG_STONE);
@@ -230,20 +277,17 @@ static void ggFilmArchive(GgFilmCamera cam,int t){
     ggFilmRug(cam,36,556,1201,314,26,GG_COPPER,GG_PINE);
     // Desk and book share the projected writing prop's support.
     ggFilmGroundPatch(cam,47,6,816,236,141,24);
-    ggFilmBox(cam,-55,0,835,19,52,84,25,24,26);
-    ggFilmBox(cam,80,0,835,19,52,84,25,24,26);
-    ggFilmBox(cam,12,42,840,171,13,106,25,24,26);
-    ggFilmBox(cam,12,28,819,161,21,12,24,20,26);
-    int page=((t/44)%11)-5;
-    ggFilmQuad(cam,ggV3(-52,57,784),ggV3(7,57,784),
-                  ggV3(7,61,862),ggV3(-53,62,861),GG_PLASTER);
-    ggFilmQuad(cam,ggV3(7,57,784),ggV3(53,59,787),
-                  ggV3(53,64+page,864),ggV3(7,61,862),23);
-    for(int z=799;z<857;z+=12){
-        ggFilmPaving(cam,-45,-4,z,z+3,61,26);
-        ggFilmPaving(cam,14,46,z,z+3,62+page/3,GG_STONE);
-    }
-    ggFilmLamp(cam,-65,63,860,t);
+    ggFilmArchiveDesk(cam,t);
+}
+static void ggFilmForgeAnvil(GgFilmCamera cam){
+    ggFilmBox(cam,-155,0,820,55,75,75,25,24,26);
+    ggFilmBox(cam,-155,65,820,92,14,54,GG_SLATE,20,GG_STONE);
+    ggFilmBox(cam,-155,73,GG_FILM_ANVIL_Z,133,GG_FILM_ANVIL_TOP-73,
+              GG_FILM_ANVIL_D,GG_STONE,GG_SLATE,GG_LIMESTONE);
+    ggFilmFace(cam,ggV3(-252,83,792),ggV3(-220,73,792),
+                  ggV3(-219,93,792),GG_STONE);
+    ggFilmFace(cam,ggV3(-252,83,791),ggV3(-220,84,791),
+                  ggV3(-219,93,791),GG_LIMESTONE);
 }
 static void ggFilmForge(GgFilmCamera cam,int t){
     // Heat catches the stone facing the vent and leaves the anvil in silhouette.
@@ -268,13 +312,7 @@ static void ggFilmForge(GgFilmCamera cam,int t){
     ggFilmRock(cam,-184,0,1175,109,45,89,GG_STONE,GG_SLATE,20);
     ggFilmRock(cam,-116,0,1130,86,28,52,GG_COPPER,21,20);
     ggFilmGroundPatch(cam,-137,5,807,161,113,20);
-    ggFilmBox(cam,-155,0,820,55,75,75,25,24,26);
-    ggFilmBox(cam,-155,65,820,92,14,54,GG_SLATE,20,GG_STONE);
-    ggFilmBox(cam,-155,73,820,133,20,57,GG_STONE,GG_SLATE,GG_LIMESTONE);
-    ggFilmFace(cam,ggV3(-252,83,792),ggV3(-220,73,792),
-                  ggV3(-219,93,792),GG_STONE);
-    ggFilmFace(cam,ggV3(-252,83,791),ggV3(-220,84,791),
-                  ggV3(-219,93,791),GG_LIMESTONE);
+    ggFilmForgeAnvil(cam);
     int compression=(t/23)%9;
     ggFilmBox(cam,387,0,1329,71,46,49,25,24,26);
     ggFilmBox(cam,380,45,1326,79,22-compression,45,GG_OXBLOOD,24,26);
@@ -312,6 +350,7 @@ static void ggFilmCourt(GgFilmCamera cam,int p,int t){
             ggFilmBox(cam,side*67,236,1454,14,42,16,26,25,9);
         }
         ggFilmBox(cam,0,267,1452,24,33,21,26,GG_COPPER,9);
+        ggFilmTableOnFloor(cam,0,GG_FILM_THRONE_STAND_Z,118,GG_FILM_THRONE_STAND_D,GG_FILM_THRONE_STAND_TOP);
     }else{
         ggFilmBox(cam,0,50,1470,226,64,65,25,24,26);
         ggFilmPanel(cam,-96,96,58,104,1436,24);
@@ -323,20 +362,24 @@ static void ggFilmCourt(GgFilmCamera cam,int p,int t){
 }
 static void ggFilmSofa(GgFilmCamera cam,int x,int z,int hearth){
     u8 cloth=hearth?GG_COPPER:GG_PINE, crease=hearth?GG_OXBLOOD:16;
-    ggFilmGroundPatch(cam,x+58,2,z,332,145,24);
-    ggFilmBox(cam,x,18,z,220,46,83,crease,24,cloth);
-    ggFilmBox(cam,x,59,z+37,220,72,25,cloth,24,hearth?26:GG_LEAF);
+    int seat=GG_FILM_COUCH_CUSHION_TOP;
+    ggFilmGroundPatch(cam,x+26,1,z,282,137,24);
+    for(int side=-1;side<=1;side+=2)
+        for(int end=-1;end<=1;end+=2)
+            ggFilmBox(cam,x+side*86,1,z+end*32,15,13,17,24,GG_OXBLOOD,25);
+    ggFilmBox(cam,x,12,z,220,seat-17,83,crease,24,cloth);
+    ggFilmBox(cam,x,seat-6,z+37,220,98-seat,25,cloth,24,hearth?26:GG_LEAF);
     for(int sx=-1;sx<=1;sx++){
         int spot=x+sx*70;
-        ggFilmBox(cam,spot,58,z-9,67,8,67,cloth,crease,hearth?26:GG_LEAF);
-        ggFilmPanel(cam,spot-27,spot+27,79,124,z+21,crease);
-        ggFilmPanel(cam,spot-23,spot+23,83,120,z+20,cloth);
-        ggFilmPanel(cam,spot-3,spot+3,101,106,z+19,hearth?26:GG_MOSS);
+        ggFilmBox(cam,spot,seat-7,z-9,67,7,67,cloth,crease,hearth?26:GG_LEAF);
+        ggFilmPanel(cam,spot-27,spot+27,46,89,z+21,crease);
+        ggFilmPanel(cam,spot-23,spot+23,49,86,z+20,cloth);
+        ggFilmPanel(cam,spot-3,spot+3,67,72,z+19,hearth?26:GG_MOSS);
+        ggFilmGrain(cam,spot-21,spot+23,52,z+19,3,hearth?25:GG_LEAF);
     }
     for(int side=-1;side<=1;side+=2){
-        ggFilmBox(cam,x+side*117,23,z,28,64,106,crease,24,cloth);
-        ggFilmBox(cam,x+side*117,81,z-5,31,12,104,cloth,crease,hearth?26:GG_LEAF);
-        ggFilmBox(cam,x+side*86,6,z-26,15,18,17,24,GG_OXBLOOD,25);
+        ggFilmBox(cam,x+side*112,12,z,25,49,106,crease,24,cloth);
+        ggFilmBox(cam,x+side*112,55,z-5,31,12,104,cloth,crease,hearth?26:GG_LEAF);
     }
 }
 static void ggFilmSittingRoom(GgFilmCamera cam,int p,int t){
@@ -354,7 +397,8 @@ static void ggFilmSittingRoom(GgFilmCamera cam,int p,int t){
         ggFilmRock(cam,-405,0,1250,109,46,72,26,25,24);
         ggFilmRock(cam,-450,0,1203,94,27,54,25,24,20);
         ggFilmSofa(cam,221,1180,1);
-        ggFilmLamp(cam,291,142,1243,t);
+        ggFilmTableOnFloor(cam,388,1235,99,61,65);
+        ggFilmLamp(cam,388,82,1235,t);
     }else{
         ggFilmWindow(cam,413,1510,149,152,194);
         ggFilmBox(cam,-402,0,1470,124,259,54,25,24,26);
@@ -369,10 +413,11 @@ static void ggFilmSittingRoom(GgFilmCamera cam,int p,int t){
                       ggV3(-399+swing,62,1438),ggV3(-404+swing,62,1438),26);
         ggFilmBox(cam,-402+swing,55,1435,27,25,10,26,25,GG_PLASTER);
         ggFilmBanner(cam,-12,1520,144,171,158,GG_OXBLOOD);
-        ggFilmSofa(cam,175,920,0);
+        ggFilmSofa(cam,GG_FILM_COUCH_X,GG_FILM_COUCH_Z,0);
         ggFilmBox(cam,-220,0,1167,117,72,101,25,24,26);
         ggFilmBox(cam,-220,70,1167,144,11,116,26,24,GG_PLASTER);
-        ggFilmLamp(cam,-219,91,1170,t);
+        ggFilmLamp(cam,-219,98,1170,t);
+        ggFilmTableOnFloor(cam,24,GG_FILM_COUCH_TABLE_Z,134,GG_FILM_COUCH_TABLE_D,GG_FILM_COUCH_TABLE_TOP);
     }
 }
 static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
@@ -383,6 +428,33 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
     case F_FORGE: ggFilmForge(cam,t); break;
     case F_HALL: case F_THRONE: ggFilmCourt(cam,p,t); break;
     case F_COUCH: case F_HEARTH: ggFilmSittingRoom(cam,p,t); break;
+    }
+}
+// Restage only the opaque geometry of a piece of furniture when a cast
+// plane is behind it. Its ground shadow still belongs to the floor pass.
+static int ggFilmFurnitureFront(int place){
+    switch(place){
+    case F_PORCH:return GG_FILM_PORCH_TABLE_Z-GG_FILM_PORCH_TABLE_D/2;
+    case F_COUCH:return GG_FILM_COUCH_TABLE_Z-GG_FILM_COUCH_TABLE_D/2;
+    case F_FORGE:return GG_FILM_ANVIL_Z-GG_FILM_ANVIL_D/2;
+    case F_ARCHIVE:return GG_FILM_ARCHIVE_DESK_Z-GG_FILM_ARCHIVE_DESK_D/2;
+    case F_THRONE:return GG_FILM_THRONE_STAND_Z-GG_FILM_THRONE_STAND_D/2;
+    default:return 0;
+    }
+}
+static void ggFilmFurnitureForeground(GgFilmCamera cam,int place,int t){
+    switch(place){
+    case F_PORCH:
+        ggFilmLowTable(cam,0,GG_FILM_PORCH_TABLE_Z,145,GG_FILM_PORCH_TABLE_D,GG_FILM_PORCH_TABLE_TOP);
+        break;
+    case F_COUCH:
+        ggFilmLowTable(cam,24,GG_FILM_COUCH_TABLE_Z,134,GG_FILM_COUCH_TABLE_D,GG_FILM_COUCH_TABLE_TOP);
+        break;
+    case F_THRONE:
+        ggFilmLowTable(cam,0,GG_FILM_THRONE_STAND_Z,118,GG_FILM_THRONE_STAND_D,GG_FILM_THRONE_STAND_TOP);
+        break;
+    case F_FORGE: ggFilmForgeAnvil(cam); break;
+    case F_ARCHIVE: ggFilmArchiveDesk(cam,t); break;
     }
 }
 #endif

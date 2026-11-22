@@ -201,8 +201,26 @@ static void filmDrawCel(const u8 *image,int sw,int sh,int center,int feet,int he
         }
     }
 }
-static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
-    if(who>=F_ACTOR_N) return;
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+// Match filmDrawCel's centre sampling so even a small cel rests on its
+// visible edge. Transparent source rows are margins, not shoe soles.
+static int filmCelBottomPadding(const u8 *image,int sw,int sh,int height,int flip){
+    int width=height*sw/sh;
+    if(height<=0||width<=0)return 0;
+    int dx=(sw<<16)/width,dy=(sh<<16)/height;
+    int sy=dy/2+(height-1)*dy;
+    for(int y=height-1;y>=0;y--,sy-=dy){
+        const u8 *row=image+(sy>>16)*sw;
+        for(int x=0,sx=dx/2;x<width;x++,sx+=dx){
+            int sourceX=sx>>16;
+            if(row[flip?sw-1-sourceX:sourceX]!=255)return height-1-y;
+        }
+    }
+    return 0;
+}
+#endif
+static int filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
+    if(who>=F_ACTOR_N) return feet;
 #ifdef __3DS__
     // 40x48 native authored detail: do NOT magnify the 28x34 DS art.
     // Scratch memory remains on the call stack and is shared by the two
@@ -210,6 +228,9 @@ static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
     u8 pixels[FILM_HQ_W*FILM_HQ_H];
     if(pose<0||pose>=FILM_HQ_N) pose=0;
     ggUnpack(filmHqCasts[who*FILM_HQ_N+pose],pixels,sizeof pixels);
+#ifndef GG_FILM_2D_FALLBACK
+    if(who!=F_WISP)feet+=filmCelBottomPadding(pixels,FILM_HQ_W,FILM_HQ_H,h,flip);
+#endif
     filmDrawCel(pixels,FILM_HQ_W,FILM_HQ_H,x,feet,h,flip);
 #else
     u8 pixels[FILM_CEL_W*FILM_CEL_H];
@@ -217,11 +238,17 @@ static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
     ggUnpack(filmCasts[who*FILM_CEL_N+pose],pixels,sizeof pixels);
     filmDrawCel(pixels,FILM_CEL_W,FILM_CEL_H,x,feet,h,flip);
 #endif
+    return feet;
 }
-static void filmDrawProp(int prop,int x,int feet,int height){
+static void filmDrawProp(int prop,int x,int feet,int height,int onSurface){
     if(prop>=F_PROP_N) return;
     u8 pixels[FILM_PROP_SIZE*FILM_PROP_SIZE];
     ggUnpack(filmProps[prop],pixels,sizeof pixels);
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    if(onSurface)feet+=filmCelBottomPadding(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,height,0);
+#else
+    (void)onSurface;
+#endif
     filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,x,feet,height,0);
 }
 
@@ -617,14 +644,23 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
                                FilmBlocking b,const FilmPoint *support,const FilmPoint *goat){
     int prop=beat->prop;
     if(prop>=F_PROP_N)return;
+    u8 pixels[FILM_PROP_SIZE*FILM_PROP_SIZE];
+    ggUnpack(filmProps[prop],pixels,sizeof pixels);
     if(prop==F_GOAT){
         // The goat is a character on the floor, not a levitating hand prop.
         int walk=filmEase(elapsed,beat->seconds*FILM_SECOND);
-        if(goat) filmDrawProp(prop,goat->x,goat->y,24);
-        else filmDrawProp(prop,58+walk*49/256,157,24);
+        int x=goat?goat->x:58+walk*49/256,feet=goat?goat->y:157;
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+        if(goat)feet+=filmCelBottomPadding(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,24,0);
+#endif
+        filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,x,feet,24,0);
         return;
     }
     int size=beat->camera==F_INSERT?27:beat->camera==F_WIDE?17:19;
+    int padding=0;
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    if(support)padding=filmCelBottomPadding(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,size,0);
+#endif
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     int flipLead=paired&&b.leadX>b.otherX, flipOther=paired&&b.otherX>b.leadX;
     if(beat->camera==F_INSERT||beat->lead>=F_ACTOR_N){
@@ -633,10 +669,10 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         if(!support)filmSurface(beat->place,table.x,table.y);
         // Resting props use their literal lower edge on the table top.
         // Grip/pivot coordinates apply only while a character HOLDS one.
-        int feet=table.y;
-        if(beat->camera==F_INSERT&&prop==F_HAMMER&&elapsed>=72&&elapsed<142)
+        int feet=table.y+padding;
+        if(!support&&beat->camera==F_INSERT&&prop==F_HAMMER&&elapsed>=72&&elapsed<142)
             feet-=2;
-        filmDrawProp(prop,table.x,feet,size);
+        filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,table.x,feet,size,0);
         return;
     }
     int action=filmActionOf(beat);
@@ -647,12 +683,13 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
     FilmPoint pivot=filmPropGripPoint(prop);
     FilmPoint restGrip={
         ground.x+(pivot.x-10)*size/FILM_PROP_SIZE,
-        ground.y-size+pivot.y*size/FILM_PROP_SIZE
+        ground.y+padding-(support?(FILM_PROP_SIZE-pivot.y)*size/FILM_PROP_SIZE:
+                           size-pivot.y*size/FILM_PROP_SIZE)
     };
     // Wisp has no fingers: seed, leaf and cup stay physically on the floor.
     if(beat->lead==F_WISP||action==F_ACT_APPROACH){
         if(!support)filmSurface(beat->place,ground.x,ground.y);
-        filmDrawProp(prop,ground.x,ground.y,size);
+        filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,ground.x,ground.y+padding,size,0);
         return;
     }
     int holding=1, thumb=1;
@@ -670,8 +707,12 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         grip.x=filmLerp(leadHand.x,restGrip.x,down);
         grip.y=filmLerp(leadHand.y,restGrip.y,down);
         // Release only when the item actually touches the sill/ground.
-        holding=down<248;
+        holding=down<(support?256:248);
         thumb=holding;
+        if(support&&!holding){
+            filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,ground.x,ground.y+padding,size,0);
+            return;
+        }
     }else if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
                beat->other!=F_WISP){
         FilmPoint otherHand=filmHandPoint(beat->other,otherPose,b.otherX,
@@ -688,7 +729,7 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         FilmPoint center=filmPropCenterForGrip(prop,size,grip);
         filmArmReach(fromActor,giver,grip);
         if(handoff>90)filmArmReach(toActor,taker,grip);
-        filmDrawProp(prop,center.x,center.y,size);
+        filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,center.x,center.y,size,0);
         if(thumb)filmGripOverlay(fromActor,grip,prop);
         if(!holding)filmGripOverlay(toActor,grip,prop);
         return;
@@ -699,7 +740,7 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
     FilmPoint center=filmPropCenterForGrip(prop,size,grip);
     if(thumb&&(action==F_ACT_TAKE||action==F_ACT_PUT))
         filmArmReach(beat->lead,leadHand,grip);
-    filmDrawProp(prop,center.x,center.y,size);
+    filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,center.x,center.y,size,0);
     if(thumb)filmGripOverlay(beat->lead,grip,prop);
 }
 
@@ -739,7 +780,7 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
             // The cup remains on the sill after Mira puts it there.
             if(beat==firstRainBeats+6){
                 filmSurface(F_PORCH,128,150);
-                filmDrawProp(F_CUP,128,150,19);
+                filmDrawProp(F_CUP,128,150,19,0);
             }
         }else if(beat->place==F_VILLAGE){
             // After the rain, puddles keep the prior weather visible.
@@ -764,7 +805,7 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
             // The hammer stays at the worksite after construction, but
             // not simultaneously in a speaking actor's gripped hand.
             if(beat->prop!=F_HAMMER)
-                filmDrawProp(F_HAMMER,117,156,17);
+                filmDrawProp(F_HAMMER,117,156,17,0);
         }else{
             uiRect(48,111,20,3,fmvSlots[24]);
             uiRect(85,111,20,3,fmvSlots[24]);
@@ -1056,29 +1097,33 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     const FilmPoint *support=NULL,*goat=NULL;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     FilmPoint projectedSupport,projectedGoat;
+    int scenic=ggFilmSceneTime(elapsed);
+    const int goatDepth=780;
     int roofFinished=1;
     if(clipIndex==2){
         if(!actionSound&&ggFilmWorldClock<54*FMV_TICKS)roofFinished=0;
         for(int shot=0;shot<5;shot++)
             if(beat==roofBeats+shot)roofFinished=0;
     }
-    ggFilmWorldDraw(camera,beat,ggFilmSceneTime(elapsed),stageChapter,roofFinished,
+    ggFilmWorldDraw(camera,beat,scenic,stageChapter,roofFinished,
                     filmBonusIndex==0||filmBonusIndex==1);
-    ggFilmCastShadow(camera,footprints.other,beat->place);
-    ggFilmCastShadow(camera,footprints.lead,beat->place);
+    ggFilmCastShadow(camera,footprints.other,beat->place,stageChapter);
+    ggFilmCastShadow(camera,footprints.lead,beat->place,stageChapter);
     if(beat->prop<F_PROP_N){
         GgS2 pos=ggFilmPropSupport(camera,beat->place,stageChapter);
         projectedSupport=(FilmPoint){pos.x,pos.y};
         support=&projectedSupport;
     }
     if(beat->prop==F_GOAT){
-        GgS2 pos=ggFilmProject(camera,ggV3(-168+move,0,780));
+        int x=-168+move;
+        int floor=ggFilmSurfaceHeight(beat->place,stageChapter,x,goatDepth);
+        GgS2 pos=ggFilmProject(camera,ggV3(x,floor,goatDepth));
         projectedGoat=(FilmPoint){pos.x,pos.y};
         goat=&projectedGoat;
     }
     if(filmBonusIndex<0&&beat==firstLightBeats+6){
         GgS2 pos=ggFilmPropSupport(camera,F_SHORE,stageChapter);
-        filmDrawProp(F_LEAF,pos.x,pos.y,14);
+        filmDrawProp(F_LEAF,pos.x,pos.y,14,1);
     }
 
 #else
@@ -1136,12 +1181,34 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
         filmCastContact(beat->other,block.otherX,block.otherFeet,block.otherHeight);
         filmCastContact(beat->lead,block.leadX,block.leadFeet,block.leadHeight);
 #endif
-        filmDrawActor(beat->other,otherPose,block.otherX,block.otherFeet,
-                      block.otherHeight,paired&&block.otherX>block.leadX);
-        filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
-                      block.leadHeight,paired&&block.leadX>block.otherX);
+        int furniturePass=0,leadPass=0,otherPass=0;
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+        int front=ggFilmFurnitureFront(beat->place);
+        if(front&&(footprints.leadDepth>front||footprints.otherDepth>front||
+                   (goat&&goatDepth>front))){
+            furniturePass=1;
+            leadPass=footprints.leadDepth<=front;
+            otherPass=footprints.otherDepth<=front;
+        }
+#endif
+        for(int pass=0;pass<=furniturePass;pass++){
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+            if(pass)ggFilmFurnitureForeground(camera,beat->place,scenic);
+            if(goat&&pass==(furniturePass&&goatDepth<=front))
+                filmDrawPropAction(beat,elapsed,leadPose,otherPose,block,support,goat);
+#endif
+            if(pass==otherPass)
+                block.otherFeet=filmDrawActor(beat->other,otherPose,block.otherX,block.otherFeet,
+                                             block.otherHeight,paired&&block.otherX>block.leadX);
+            if(pass==leadPass)
+                block.leadFeet=filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
+                                            block.leadHeight,paired&&block.leadX>block.otherX);
+        }
     }
-    filmDrawPropAction(beat,elapsed,leadPose,otherPose,block,support,goat);
+    // Props stay visible on the dressed surface or at their marked hand.
+    // A walking goat already passed through the cast's depth order.
+    if(!goat||beat->camera==F_INSERT)
+        filmDrawPropAction(beat,elapsed,leadPose,otherPose,block,support,goat);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // True near-camera geometry is composited last, so the actors and
     // gripped props are partially hidden when they move behind an obstacle.
