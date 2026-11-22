@@ -93,10 +93,11 @@ static void ggMeshOriginalCreature(GgMeshContext*m,int x,int y,int ground,
         int highest=feet;
         int x0=left<0?0:left,x1=left+size>400?400:left+size;
         for(int px=x0;px<x1;px+=step){
+            int sx=((px-left+step)*8-1)/size;
+            if(sole[sx]=='.'){soleOffset[px]=0;continue;}
             int row=ggMeshBillboardFloorY(m,x,y,forward,px-center);
             soleOffset[px]=(short)(row-feet);
-            int sx=((px-left+step)*8-1)/size;
-            if(sole[sx]!='.'&&row<highest)highest=row;
+            if(row<highest)highest=row;
             if(row>lowest)lowest=row;
         }
         int room=lower/2/step*step;
