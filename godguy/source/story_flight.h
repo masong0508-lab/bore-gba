@@ -1,55 +1,62 @@
-// GodGuy step four: uninterrupted camera flight over the player's real map.
-// DS/DSi draw a cheap, animated perspective; the 3DS renders projected
-// terrain and buildings into the existing film page. Read-only camera:
-// no duplicate world, save changes, heap allocations or video buffers.
+// Travel across the player's map in the existing film viewport.
+// DS and DSi use a flat overhead shot. The 3DS projects the same route.
 #ifndef GG_STORY_FLIGHT_H
 #define GG_STORY_FLIGHT_H
-static int filmFlightHeight(int t){
-    return t==T_MOUNT?105:t==T_HILL?49:t==T_SNOW?67:
-           t==T_FOREST?29:t==T_JUNGLE?33:t==T_GRASS?12:
-           t==T_SWAMP?5:t==T_SAND?4:t==T_DESERT?8:
-           t==T_DIRT?9:0;
-}
 static u8 filmFlightInk(int t){
     return t==T_MOUNT?20:t==T_HILL?21:t==T_SNOW?22:
            t==T_FOREST?16:t==T_JUNGLE?17:t==T_SAND?26:
            t==T_DESERT?25:t==T_DIRT?24:
            filmVistaIsWater(t)?13:18;
 }
-static void filmFlight2D(const FilmRouteCamera *camera,int t){
-    // Only 7x13 samples. Every sample is rotated into authentic world
-    // coordinates. The cheap DS/DSi version has stable outlines and
-    // relative building locations across the entire continuous shot.
-    for(int depth=13;depth>=1;depth-=2){
-        int rowY=83+(14-depth)*5;
-        int size=filmRouteMax(4,19-depth);
-        int step=filmRouteMax(4,34-depth*2);
-        for(int side=-6;side<=6;side++){
-            int building;
-            int tile=filmRouteTerrain(camera,depth,side,WW,WH,
-                                      filmWorldCell,&building);
-            int x=128+side*step-size/2;
-            int height=filmFlightHeight(tile);
-            int rise=height*(15-depth)/40;
-            int y=rowY-rise;
-            uiRect(x,y,size,filmRouteMax(3,6+rise/3),
-                   fmvSlots[filmFlightInk(tile)]);
-            if(filmVistaIsWater(tile)&&((t/16+side+depth)&3)==0)
-                uiRect(x+1,rowY,size>4?size-2:2,1,fmvSlots[15]);
+#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
+static void filmFlightMap(const FilmRouteCamera *camera,int t){
+    const int panX=(camera->x>>5)-128;
+    const int panY=(camera->y>>5)-FILM_H/2;
+    const int x0=-(int)((unsigned)panX&7);
+    const int yOffset=-(int)((unsigned)panY&7);
+    for(int ty=(panY+yOffset)/8,sy=FILM_TOP+yOffset;sy<FILM_BOTTOM;ty++,sy+=8){
+        int y0=filmRouteMax(sy,FILM_TOP);
+        int y1=sy+8<FILM_BOTTOM?sy+8:FILM_BOTTOM;
+        for(int tx=(panX+x0)/8,sx=x0;sx<256;tx++,sx+=8){
+            if((unsigned)tx>=WW||(unsigned)ty>=WH){
+                // An uncharted margin lets the camera follow a route right
+                // to the edge of the map without stalling or inventing land.
+                uiRect(sx,y0,8,y1-y0,fmvSlots[2+((tx^ty)&1)]);
+                continue;
+            }
+            int tile=world[ty][tx], building=bld[ty][tx];
+            uiRect(sx,y0,8,y1-y0,fmvSlots[filmFlightInk(tile)]);
+            // Details stay on their tiles, including along the frame edge.
+            int detailY=sy+3;
+            if(detailY<y0||detailY>=y1) continue;
             if(building){
-                int h=building==B_TOWER?14:building==B_HALL?12:
-                      building==B_HOUSE?9:building==B_HUT?7:
-                      building==B_DOCK?4:6;
-                uiRect(x,y-h,size,h,fmvSlots[20]);
-                if(building==B_TOWER||building==B_HALL)
-                    uiRect(x-1,y-h-2,size+2,3,fmvSlots[25]);
-                else if(building==B_HOUSE||building==B_HUT)
-                    uiRect(x,y-h-2,size,2,fmvSlots[24]);
+                int left=building==B_HUT?2:1, width=8-left*2;
+                int roof=building==B_TOWER||building==B_HALL?25:24;
+                int roofY=filmRouteMax(y0,sy+1);
+                int roofEnd=sy+7<y1?sy+7:y1;
+                uiRect(sx+left,roofY,width,roofEnd-roofY,fmvSlots[roof]);
+                uiRect(sx+left+1,detailY,width-2,1,
+                       fmvSlots[building==B_TOWER?25:26]);
+                if(sy+5<y1) uiRect(sx+3,sy+5,2,1,fmvSlots[20]);
+            }else if(filmVistaIsWater(tile)&&((tx*3+ty+t/24)&7)==0){
+                uiRect(sx+2,detailY,4,1,fmvSlots[15]);
+            }else if((tile==T_FOREST||tile==T_JUNGLE)&&((tx^ty)&1)){
+                uiRect(sx+2,detailY,3,1,fmvSlots[19]);
+            }else if(tile==T_MOUNT){
+                uiRect(sx+2,detailY,4,1,fmvSlots[21]);
+            }else if(tile==T_GRASS&&((tx*11+ty*7)&7)==0){
+                uiRect(sx+1,detailY,2,1,fmvSlots[17]);
             }
         }
     }
 }
-#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+#else
+static int filmFlightHeight(int t){
+    return t==T_MOUNT?105:t==T_HILL?49:t==T_SNOW?67:
+           t==T_FOREST?29:t==T_JUNGLE?33:t==T_GRASS?12:
+           t==T_SWAMP?5:t==T_SAND?4:t==T_DESERT?8:
+           t==T_DIRT?9:0;
+}
 static void filmFlight3D(const FilmRouteCamera *camera,int t){
     GgFilmCamera projection={0,-280};
     int models=0,trees=0;
@@ -118,36 +125,27 @@ static int filmFlightDraw(const FmvClip *clip,int t){
         filmBars(clip->title);
         if(filmTownName[0])uiText(6,15,filmTownName,U_CYAN,1);
     }
-    // A single uninterrupted trip; keep the bars and replace only the
-    // world viewport. The 3DS and DS use identical geographical samples.
     FilmRouteCamera camera=filmRouteCameraAt(t);
-    int localBuilding=0;
-    int below=filmRouteTerrain(&camera,0,0,WW,WH,
-                                filmWorldCell,&localBuilding);
-    // Never paint a false ocean beneath an inland viewpoint: fill the
-    // lower plane using the terrain actually under this world position.
-    uiRect(0,FILM_TOP,256,FILM_H,fmvSlots[2]);
-    uiRect(0,95,256,FILM_BOTTOM-95,
-           fmvSlots[filmFlightInk(below)]);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    int localBuilding;
+    int below=filmRouteTerrain(&camera,0,0,WW,WH,filmWorldCell,&localBuilding);
+    uiRect(0,FILM_TOP,256,FILM_H,fmvSlots[2]);
+    uiRect(0,95,256,FILM_BOTTOM-95,fmvSlots[filmFlightInk(below)]);
     filmFlight3D(&camera,t);
 #else
-    filmFlight2D(&camera,t);
+    filmFlightMap(&camera,t);
 #endif
     int traveled=(int)((long long)t*filmRoute.total/
                        filmRoute.duration);
     int next=filmRoute.count>2&&
              traveled>=filmRoute.length[0]?2:1;
     const char *landmark=filmRoute.kind[next]==FILM_VISTA_COAST?
-                           "THE REAL COAST":
+                         "ALONG THE COAST":
                          filmRoute.kind[next]==FILM_VISTA_RIDGE?
-                           "THE REAL RIDGE":"YOUR SETTLEMENT";
+                         "UP TO THE RIDGE":
+                         "APPROACHING THE SETTLEMENT";
     uiRect(0,169,256,17,U_SHADOW);
-    uiTextC(128,170,"A JOURNEY THROUGH YOUR WORLD",U_GOLD,1);
-    char label[48];
-    siprintf(label,"%s  %d,%d",landmark,
-             camera.x>>8,camera.y>>8);
-    uiTextC(128,180,label,U_WHITE,1);
+    uiTextC(128,174,landmark,U_WHITE,1);
     gmFilmMixSet(1,0,64);
     return 1;
 }

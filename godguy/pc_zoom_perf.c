@@ -8,6 +8,7 @@
 #include "source/main.c"
 #undef main
 #include <stdio.h>
+#include <stddef.h>
 static u8 zoomExpected[256*ZH], zoomSaved[256*ZH];
 static int errors;
 #define CK(ok,msg) do { if(!(ok)){ fprintf(stderr,"ZOOM FAIL: %s\n",msg); errors++; } } while(0)
@@ -51,6 +52,53 @@ static void checkTiles(void){
             }
         }
     }
+}
+static void testZoomMinimum(void){
+    zSet(Z_NORMAL);
+    zSet(Z_VFAR);
+    zSet(zl-1);
+#ifdef __3DS__
+    CK(zl==Z_PLANET&&view3d,"3DS must retain the globe");
+#else
+    CK(zl==Z_VFAR&&zBmp&&!view3d,"DS/DSi zoom controls must stop at the widest flat view");
+    zSet(Z_PLANET);
+    CK(zl==Z_VFAR&&zBmp&&!view3d,"direct zoom requests must remain flat on DS/DSi");
+#endif
+    zSet(Z_NORMAL);
+}
+static void testLegacyGlobeSave(void){
+    char path[]="/tmp/gg-legacy-globe.XXXXXX";
+    int fd=mkstemp(path);
+    CK(fd>=0,"create temporary legacy zoom save");
+    if(fd<0) return;
+    close(fd);
+
+    zSet(Z_NORMAL);
+    camX=137;
+    camY=205;
+    int saved=saveGameRaw(path);
+    FILE *f=saved?fopen(path,"r+b"):NULL;
+    CK(f!=NULL,"write legacy zoom save fixture");
+    if(f){
+        int patched=!fseek(f,offsetof(SaveHdr,pad_)+2,SEEK_SET)
+                    &&fputc(Z_PLANET,f)!=EOF;
+        if(fclose(f)) patched=0;
+        CK(patched,"set legacy globe zoom in fixture");
+        if(patched){
+            zSet(Z_CLOSE);
+            zcx+=48;
+            zcy+=24;
+            zSyncCam();
+            CK(loadGameRaw(path),"load legacy zoom save from a different camera");
+#ifdef __3DS__
+            CK(zl==Z_PLANET&&view3d,"3DS opens the globe setting recorded in the save");
+#else
+            CK(zl==Z_NORMAL&&!zBmp&&!view3d,"DS/DSi restore a legacy globe save in normal flat view");
+            CK(camX==137&&camY==205,"legacy globe save restores its last map position");
+#endif
+        }
+    }
+    remove(path);
 }
 static void testNear(int level){
     zSet(level); tick=200; zForce=1; zArtLookups=0;
@@ -108,11 +156,13 @@ static void testCitizenBounds(void){
 }
 int main(void){
     mapPtr=(u16*)bgGetMapPtr(0);
+    mapPtr1=(u16*)bgGetMapPtr(bgInit(1,BgType_Text8bpp,BgSize_T_256x256,4,1));
     planetSize=192; rs=43897; makeSpecies(); makeItems(); newWorld();
     // Isolate terrain so exact image equivalence is testable; sprite overlays
     // are tested via the complete VRAM-vs-framebuffer check below.
     nCr=0; memset(occ,0,sizeof occ); for(int b=0;b<8;b++) boat[b].on=0;
     camX=WW*4; camY=WH*4; zl=Z_NORMAL; zKey=-1;
+    testZoomMinimum();
     testNear(Z_CLOSE);
     testNear(Z_MICRO);
     // Move the view, edit the ground and draw a creature to exercise the
@@ -124,6 +174,7 @@ int main(void){
     zFlush();checkTiles();
     zSet(Z_FAR);tick+=4;CK(zDraw()==1,"far view failed");zFlush();checkTiles();
     testCitizenBounds();
+    testLegacyGlobeSave();
     printf(errors?"ZOOM PERF FAIL (%d errors)\n":"ZOOM PERF OK\n",errors);
     return errors?1:0;
 }

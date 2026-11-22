@@ -3,6 +3,7 @@
 // monster presence, camera movement and regular simulation ticks.
 // gcc -O2 -DNDSSHIM -Icompat -Isource -include unistd.h pc_music_fast.c -lm \\
 //     -o /tmp/gg_music_fast && /tmp/gg_music_fast
+#define GG_LEGACY_GLOBE_TEST 1
 #define main ds_main
 #include "source/main.c"
 #undef main

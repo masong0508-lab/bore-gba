@@ -18,7 +18,7 @@ int main(int argc,char**argv){
     int nk=0; for(int k=0;k<KN_N;k++) nk+=kd[k].on; int alive=0; for(int i=0;i<nCr;i++) alive+=cr[i].alive;
     printf("planet %d, %d ticks: %d creatures, %d villages, %d kingdoms\n",size,ticks,alive,nVilOn,nk);
     printf("tick ms: mean %.4f p50 %.4f p99 %.4f p99.9 %.4f max %.4f\n",tot/ticks,dt[ticks/2],dt[(int)(ticks*0.99)],dt[(int)(ticks*0.999)],dt[ticks-1]);
-    { int bv=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].pop>vil[bv].pop) bv=v; camX=vil[bv].x*8-128; camY=vil[bv].y*8-96; if(camX<0) camX=0; if(camY<0) camY=0; paused=0; zBmp=0; view3d=0; menuOn=0; titleOn=0; page=0; winX=-99; refillWindow();
+    { int bv=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].pop>vil[bv].pop) bv=v; camX=vil[bv].x*8-128; camY=vil[bv].y*8-96; if(camX<0) camX=0; if(camY<0) camY=0; paused=0; zBmp=0; menuOn=0; titleOn=0; page=0; winX=-99; refillWindow();
       int N=3000; double a,b;
       a=now(); for(int i=0;i<N;i++){ towerFire(); } b=now(); printf("FRAME towerFire: %.4f ms\n",(b-a)*1000/N);
       a=now(); for(int i=0;i<N;i++){ hud(); } b=now(); printf("FRAME hud: %.4f ms\n",(b-a)*1000/N);

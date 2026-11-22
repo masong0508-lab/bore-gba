@@ -1,6 +1,7 @@
 // PC test of step 8 (speed): the kingdom answer cache gives the answers a fresh walk would (built with -DKD_CHECK every cached answer is compared), the globe is redrawn only when something it shows
 // changed and a skipped frame equals a fresh drawing, the fast shim renderer gives the plain renderer's picture byte for byte on the real program (menus, world, text) and says truthfully which screen
 // changed, and a crowd costs about the same per tick however big it is.
+// Add -DGG_LEGACY_GLOBE_TEST to also time the legacy software globe.
 //   gcc -O2 -DNDSSHIM -DKD_CHECK -Icompat -Isource -Wno-all -include unistd.h -o pc_speed pc_speed.c -lm && ./pc_speed
 #define main ds_main
 #include "source/main.c"
@@ -36,15 +37,17 @@ int main(void){
     { double a=now(); long s=0; for(int rep=0;rep<4000;rep++) for(int k=0;k<KN_N;k++) if(kd[k].on){ int c,p,w; kdStatsRaw(k,&c,&p,&w); s+=w; for(int o=0;o<KN_N;o++) if(kd[o].on) s+=kdDistRaw(k,o); } double b=now();
       for(int rep=0;rep<4000;rep++) for(int k=0;k<KN_N;k++) if(kd[k].on){ int c,p,w; kdStats(k,&c,&p,&w); s+=w; for(int o=0;o<KN_N;o++) if(kd[o].on) s+=kdDist(k,o); } double c2=now();   // (KD_CHECK makes this one slow: the number below is for a build without it)
       printf("kingdom page, 4000 redraws: fresh %.1f ms, cached %.1f ms%s (%ld)\n",(b-a)*1000,(c2-b)*1000,"",s&1); }
+#ifdef GG_HAS_GLOBE
     // 2. the globe: a skipped frame equals a fresh drawing (the world held still), and a still planet is not redrawn
     for(int v=0;v<=1;v++){ view3d=1; globePalette(); rotX=20; rotY=0; zoom3=40; walkOn=0; gClouds=1; weather=0; gKeyOk=0; long drawn0=gDrawN; int bad=0, frames=3000;
         for(int f=0;f<frames;f++){ tick++; if(v==0){ if((f%5)==0) rotY=(rotY+1)%360; } else { unsigned r=frnd()%100; if(r<3) rotY=(rotY+5)%360; if(r==3) rotX=(rotX+7)%80; if(r==4) zoom3=30+(int)(frnd()%60); if(r==5) gClouds^=1; if(r==6) weather=(int)(frnd()%4); if(r==7) walkOn^=1; }
             int d=globeDraw(0); static u8 keep[sizeof gbuf]; memcpy(keep,gbuf,sizeof gbuf); globeDrawNow(); if(memcmp(keep,gbuf,sizeof gbuf)) bad++; (void)d; }
         printf("globe %s: %d frames, redrawn %ld times, %d frames showed a stale picture\n",v==0?"turning slowly":"random views",frames,gDrawN-drawn0,bad); CHECK(bad==0,"a skipped globe frame differs from a fresh drawing"); CHECK(gDrawN-drawn0<frames,"the globe is redrawn every frame"); }
     { long d0=gDrawN; paused=1; rotX=20; for(int f=0;f<500;f++){ globeDraw(0); } CHECK(gDrawN-d0<=1,"a still planet was redrawn %ld times",gDrawN-d0); printf("globe still: 500 frames, %ld redraws\n",gDrawN-d0); view3d=0; }
+#endif
     // 3. a crowd costs about the same per tick whatever its size
     { int sizes[3]={1500,6000,15000}; double per[3]; for(int z=0;z<3;z++){ planetSize=192; rs=4242; makeSpecies(); makeItems(); newWorld(); monOn=0; paused=0; int guard=0; while(nCr<sizes[z]&&guard++<400000){ int s_=(int)(rnd()%8); addCr(s_,(int)(rnd()%WW),(int)(rnd()%WH)); }
             int n0=nCr; double a=now(); for(int t=1;t<=300;t++){ tick=t; simulate(); } double b=now(); per[z]=(b-a)*1000/300; printf("crowd: %d creatures, %.3f ms a tick\n",n0,per[z]); }
         CHECK(per[2]<per[0]*4.0+0.5,"a crowd 10x bigger costs far more a tick"); }
     // 4. the real program, drawn both ways
-    view3d=0; paused=0; power=0; frs=99; ds_main(); return 0; }
+    paused=0; power=0; frs=99; ds_main(); return 0; }

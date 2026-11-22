@@ -81,6 +81,39 @@ def orbit(frame, d, t, lost=False):
             d.point((x, y), fill=AMBER if i%5 == 0 else RUST)
 
 
+# A flat map cut for DS/DSi. The outline stays fixed as ripples travel
+# along the bays and a trail of lights points to the far bank.
+def atlas(d, t, lost=False):
+    edge = ((0, 54), (14, 52), (26, 43), (36, 43), (49, 34),
+            (65, 32), (76, 37), (91, 35), (99, 26), (111, 19), (127, 20))
+    sea = WINE if lost else SEA
+    shore = CLAY if lost else TAN
+    land = RUST if lost else LEAF
+    forest = WINE if lost else PINE
+    d.rectangle((0, 0, 127, 71), fill=sea)
+    d.polygon(((0, 0), (127, 0), *reversed(edge)), fill=land)
+    d.line(edge, fill=shore, width=3)
+    d.line(tuple((x, y+3) for x, y in edge), fill=RUST if lost else TEAL)
+    d.polygon(((0, 10), (13, 7), (25, 11), (33, 23), (27, 30),
+               (13, 28), (0, 35)), fill=forest)
+    d.polygon(((67, 0), (99, 0), (104, 9), (91, 16), (80, 13),
+               (72, 21), (62, 13)), fill=forest)
+    d.polygon(((59, 55), (68, 50), (78, 51), (85, 58), (79, 63),
+               (66, 60)), fill=shore)
+    d.polygon(((63, 55), (69, 52), (77, 53), (81, 57), (75, 60),
+               (67, 58)), fill=land)
+    d.line((4, 44, 20, 40, 34, 31, 46, 31, 56, 24, 72, 25, 88, 20),
+           fill=WOOD if lost else OLIVE, width=2)
+    for i in range(14):
+        x = (i*29+3*(t//2))%128
+        y = 58+(i*5)%13 if x < 90 else 35+(i*5)%33
+        if not (57 <= x <= 86 and 48 <= y <= 64):
+            d.line((x, y, x+2+i%4, y), fill=RUST if lost else JADE)
+    for i, (x, y) in enumerate(((19, 40), (44, 31), (56, 24), (87, 20))):
+        if not lost or i == 0 and (t//6)&1:
+            d.point((x, y), fill=SUN if (i+t//9)%5 else CREAM)
+
+
 def ridge(d, index, offset, color):
     d.polygon([(x-offset, y) for x, y in RIDGES[index]] +
               [(160, 59), (-30, 59)], fill=color)
@@ -434,12 +467,15 @@ def quill_close(d, t):
     d.point((x, 59), fill=INK)
 
 
-def render(name, t):
+def render(name, t, flat=False):
     f = canvas((WIDTH, HEIGHT))
     d = ImageDraw.Draw(f)
     if name == "opening":
         if t < 38:
-            orbit(f, d, t)
+            if flat:
+                atlas(d, t)
+            else:
+                orbit(f, d, t)
         elif t < 74:
             coast(d, t-38)
             actor(f, WISP, 49+(t-38)//2, 50-min(20, (t-38)//2), t, 17)
@@ -579,7 +615,10 @@ def render(name, t):
             actor(f, WISP, 85, 47, t, 17)
     elif name == "old_god":
         if t < 31:
-            orbit(f, d, t, lost=True)
+            if flat:
+                atlas(d, t, lost=True)
+            else:
+                orbit(f, d, t, lost=True)
         else:
             landscape(d, t, "night")
             d.rounded_rectangle((12, 47, 73, 70), radius=5, fill=PLUM, outline=INK, width=2)
@@ -618,9 +657,14 @@ def render(name, t):
         elif t < 87:
             cup_close(d, t-69, dry=True)
         else:
-            orbit(f, d, t-87)
-            spark(d, 45, 23, MINT, WHITE, 2)
-            spark(d, 80, 33, AMBER, WHITE, 2)
+            if flat:
+                atlas(d, t-87)
+                spark(d, 44, 31, MINT, WHITE, 2)
+                spark(d, 87, 20, AMBER, WHITE, 2)
+            else:
+                orbit(f, d, t-87)
+                spark(d, 45, 23, MINT, WHITE, 2)
+                spark(d, 80, 33, AMBER, WHITE, 2)
     else:
         raise ValueError(name)
     return f
