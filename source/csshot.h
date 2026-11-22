@@ -50,7 +50,7 @@ static const CsShot csShots[]={
     {6,4,1,   0,120, 330,-40,86, 560,-30,88},
     {6,5,1,   0,100, 560,-30,88, 760,-20,88},
     {6,6,0,   0, 60, 560, 40,56, 700, 36,50},
-    {6,8,1,   0, 50, 900,  0,92,1024,  0,92},
+    {6,8,1,   0, 50, 480,-20,84, 600,-19,85},
     // the empty chair, HERE TODAY (scene 5, beat 9): from the singer, a slow drift down the front row to the one seat nobody takes
     {5,9,0,   0,170, 330,172,80, 700,121,97},
     // here today shots (cutscene redo 9): a slow push in and drift back on the singer for each sung line (one shot per line of the song, tools/make_heretoday_midi.py), tight pushes on the two high lines, then a long drift to the empty seat and a pull out to the wide shot
@@ -92,23 +92,23 @@ static const CsShot csShots[]={
     {5,45,0,  0,40, 568,127,95, 600,121,97},
     {5,46,0,  0,581, 600,121,97, 296,120,68},
     {5,47,0,  0,41, 296,120,68, 256,120,64},
-    // waking shots (cutscene redo 7): WAKING UP (scene 3): a slow push into the room (0), Mamesy's plea (4), the held hand (7), her grief (8), the monitor (11-12), a hard cut to the fingers (14), Missy's face (16), the shout (17), the coffee and lawyer (21), "I heard you" (28), the rain (29-30), a last push (33)
-    {3,0,0,   0,150, 256,120,64, 300,120,70},
-    {3,3,0,   0,110, 280,120,69, 325,120,73}, // hold doctor and patient in the same framed bedside geography
-    {3,20,0,  0,110, 285,120,69, 335,120,72}, // Okafor returns: repeat the two-shot instead of clipping Missy's head
+    // waking shots (cutscene redo 7): WAKING UP (scene 3): a held room establishing shot (0), Mamesy's plea (4), the held hand (7), her grief (8), the monitor (11-12), a hard cut to the fingers (14), Missy's face (16), the shout (17), the coffee and lawyer (21), "I heard you" (28), the rain (29-30), a last push (33)
+    {3,0,0,   0,150, 256,120,64, 256,120,64},
+    {3,3,0,   0,110, 256,120,64, 280,120,68}, // wider room geography keeps doctor, compact bed and IV in view
+    {3,20,0,  0,110, 256,120,64, 280,120,68}, // repeat the same doctor/patient two-shot on his return
     {3,4,2,   0, 90, 560,  0,80, 620,  0,80},
-    {3,7,1,   0,120, 330,-40,86, 560,-30,88},
+    {3,7,1,   0,120, 330,-20,84, 600,-15,89},
     {3,8,2,   0,120, 520,  0,80, 700,  0,82},
     {3,11,0,  0,100, 300, 60,60, 560, 36,50},
     {3,12,0,  0, 50, 560, 36,50, 760, 31,46},
-    {3,14,1,  0, 50, 900, 10,94,1024, 10,94},
-    {3,16,1,  0,100, 560,-12,90, 700,-12,89}, // speaking face: enough bed/neck in frame to read anatomy
+    {3,14,1,  0, 50, 900,-13,92,1024,-13,92},
+    {3,16,1,  0,100, 900,-42,85,1024,-38,85}, // profile and collar, with the visitor outside the face close-up
     {3,17,2,  0, 60, 560,  0,80, 620,  0,80},
-    {3,21,1,  0, 80, 480,-12,90, 620,-12,90}, // keep doctor/patient relationship
-    {3,28,1,  0,120, 640,-14,92, 780,-14,92},
+    {3,21,1,  0, 80, 640,-30,85, 800,-32,85}, // keep doctor/patient relationship
+    {3,28,1,  0,120, 900,-42,85,1024,-38,85},
     {3,29,0,  0,120, 500,150,80, 300,130,70},
     {3,30,0,  0,150, 300,130,70, 256,120,64},
-    {3,33,0,  0,200, 256,120,64, 420,164,86},
+    {3,33,0,  0,200, 256,120,64, 420,145,86},
     // news shots (cutscene redo 6): THE NEWS (scene 4): a slow push into the dressing room (0), the mirror rehearsal (2), her laugh (8), the heartfelt line (9), a wide two-shot for the jinx (11), the clock and the late call (15-17), the ring and the news (19-22), a long pull out into silence (23), the cry (25), the mirror line (27), the offer (28), the one minute (30), the last pull (31)
     {4,0,0,   0,150, 256,120,64, 320,108,76},
     {4,2,1,   0, 90, 330,  0,80, 420,  0,82},

@@ -465,6 +465,22 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
 // MAMESY'S LOOK: fixed, so the game and the cutscenes (csart.h csface.h) show the same woman: a slim-average build, Missy's skin (they are sisters), long brown hair, a teal long-sleeve top, jeans.
 static const u8 stMamesyLook[LK_N]={[LK_SHAPE]=0,[LK_SKIN]=1,[LK_EYES]=1,[LK_MOUTH]=1,[LK_EARS]=1,[LK_HSTYLE]=2,[LK_HCOL]=1,[LK_TOP]=0,[LK_BOT]=0,[LK_BROW]=1,[LK_NOSE]=1,[LK_CHEEK]=1,[LK_TOPSTY]=1};
 static u8 stTvWant, stTvWarn;
+static void stTvUidRemoved(int uid){
+    if(stId!=STY_TVSHOW) return;
+    int patient=stKid<HU_N&&uid==(int)stKid, sister=stPart<HU_N&&uid==(int)stPart;
+    if(!patient&&!sister) return;
+    // The old UID may be assigned to the next person who moves in. An
+    // unfinished story cannot silently make that stranger one of its leads.
+    if(stCh<5&&(patient||(sister&&stCh<4))){
+        stOff(); stTvWant=stTvWarn=0; stModal=stShown=0;
+        lnote=patient?"MISSY IS GONE. STORY ENDED.":"MAMESY IS GONE. STORY ENDED."; lnoteT=300;
+        liveInvalidate(); return;
+    }
+    // Mamesy's chapter-five absence, and a completed story, need no new cast.
+    if(patient) stKid=255;
+    if(sister) stPart=255;
+    stSave();
+}
 static int stTvStoryAbsentUid(int uid){ // house.h calls this before any household AI decisions
     if(stId!=STY_TVSHOW) return 0;
     if(stCh==3&&stKid!=255&&hhPUid!=(int)stKid&&uid==(int)stKid) return 1; // Missy is in hospital
@@ -494,11 +510,22 @@ static int stTvMamesyMember(int patientUid){
     }
     return -1;
 }
+static int stTvMamesyUid(int patientUid){
+    if(patientUid<0||patientUid>=HU_N) return -1;
+    // The active Sim lives outside hhM. She may already be Mamesy when the
+    // chapter ends, including after a save/reload of an existing household.
+    if(hhPUid>=0&&hhPUid<HU_N&&kin[patientUid][hhPUid]==KN_SISTER){
+        const char*nm="MAMESY", *name=hhPName; int n=0;
+        while(n<HH_NM&&nm[n]&&nm[n]==name[n]) n++;
+        if(!nm[n]&&!name[n]) return hhPUid;
+    }
+    int m=stTvMamesyMember(patientUid);
+    return m>=0?hhM[m].uid:-1;
+}
 static void stTvControl(void){
     if(stId!=STY_TVSHOW||!stTvWant){ stTvWant=0; return; }
     if(stTvWant==1){   // chapter 4: be Mamesy
         if(stCh!=3){ stTvWant=0; return; }
-        if(stPart!=255&&hhPUid==(int)stPart){ stTvWant=0; return; }   // already her
         int patientUid=(int)msPatientUid((unsigned)stKid,(unsigned)hhPUid);
         if(patientUid>=HU_N){ if(!stTvWarn){ stTvWarn=1; toast("MISSY'S SAVE ID NEEDS REPAIR"); } return; }
         int patientMember=patientUid==hhPUid?-1:stMember(patientUid);
@@ -508,10 +535,14 @@ static void stTvControl(void){
         }
         int m=stPart!=255?stMember(stPart):-1;
         if(m<0&&stPart==255){ // reuse a known sister instead of duplicating cast
-            m=stTvMamesyMember(patientUid);
-            if(m>=0){ stPart=hhM[m].uid; stTvPatientRest(m); stSave(); }
+            int uid=stTvMamesyUid(patientUid);
+            if(uid>=0){
+                stPart=(u8)uid; m=stMember(uid);
+                if(m>=0) stTvPatientRest(m);
+                stSave();
+            }
         }
-        if(m<0){   // the cast arrives: Mamesy, the way the cutscenes draw her (stMamesyLook)
+        if(m<0&&hhPUid!=(int)stPart){   // the cast arrives: Mamesy, the way the cutscenes draw her (stMamesyLook)
             u8 lk[LK_N]; for(int i=0;i<LK_N;i++) lk[i]=stMamesyLook[i];
             m=stAddSim(lk,AG_ADULT,patientUid==hhPUid?hhPLast:hhM[patientMember].last);
             if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("No room for Mamesy. Make some space."); } return; }
@@ -520,16 +551,18 @@ static void stTvControl(void){
             for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
             toast("One moment. Mamesy is moving in."); hhBakeAll(); hhSave(); liveInvalidate(); stSave();
         }
-        if(!stTvCan(m)) return;
-        int me=hhPUid; hhSwitchTo(m);
-        if(hhPUid!=(int)stPart) return;   // it did not switch: try again later
-        stKid=(u8)msPatientUid((unsigned)stKid,(unsigned)me); stTvWant=0;
+        if(hhPUid!=(int)stPart){
+            if(!stTvCan(m)) return;
+            hhSwitchTo(m);
+            if(hhPUid!=(int)stPart) return;   // it did not switch: try again later
+        }
+        stKid=(u8)patientUid; stTvWant=0;
         { int patient=stMember(stKid); if(patient>=0){
             HhSim*p=&hhM[patient]; p->act=HA_AWAY; p->use=HN_REST; p->item=0;
             p->pn=p->pi=0; hhUp[patient]=0;
         } } // no single frame where a newly switched comatose Missy can be selected
     } else {   // chapter 5: return to Missy, even if the player selected a different housemate
-        if(stCh<4||stPart==255||stKid==255){ stTvWant=0; return; }
+        if(stCh<4||stKid==255){ stTvWant=0; return; }
         if(hhPUid==(int)stKid){ stTvWant=0; return; }
         int m=stMember(stKid); if(m<0) return;  // never delete the pending handover
         if(hhM[m].act==HA_AWAY&&!hhUp[m]) stTvPatientRest(m);
@@ -777,7 +810,7 @@ static void stqPage(void){   // the journal page of TV SHOW & TELL (L R): what t
     text(14,34,stTvBrief[stCh][0],RGB(20,26,31),1); text(14,43,stTvBrief[stCh][1],RGB(20,26,31),1);
     rect(14,54,212,1,RGB(14,26,31)); text(14,58,"ALL OF THESE AT THE SAME TIME",RGB(17,29,31),1);
     stqList(14,70,10);
-    if(stCh==2&&hhN>=HH_MAX) text(14,124,"MAMESY NEEDS A FREE HOUSEHOLD SLOT",RGB(31,20,22),1);
+    if(stCh==2&&hhN>=HH_MAX&&stTvMamesyUid((int)msPatientUid((unsigned)stKid,(unsigned)hhPUid))<0) text(14,124,"MAMESY NEEDS A FREE HOUSEHOLD SLOT",RGB(31,20,22),1);
     else if(stCh==3) text(14,124,"AS MAMESY  KEEP PRESSURE 60 OR LESS",RGB(17,29,31),1);
     else if(stCh==1||stCh==2||stCh==4) text(14,124,"A PUFF OR A FAINT STARTS THE CLOCK AGAIN",RGB(31,20,22),1);
     text(14,136,"L OR R  BACK TO THE STORY",RGB(12,18,24),1);
@@ -910,7 +943,7 @@ static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over o
     int kind=stModal; stRunModal0(); if(kind==3) return;   // (3 = chapter 4 lost: lifeModeRun leaves play when sgDiscard is 2)
     if(stId!=STY_TVSHOW) return;
     if(stCh==3&&(stPart==255||hhPUid!=(int)stPart)) stTvWant=1;  // reload mid-handover must still give Mamesy control
-    else if(stCh==4&&stPart!=255&&stKid!=255&&hhPUid!=(int)stKid) stTvWant=2;
+    else if(stCh==4&&stKid!=255&&hhPUid!=(int)stKid) stTvWant=2;
     stTvControl();
 }
 // STORY CAST (story step 1): STORY MODE does not make you build a Sim. Every story has its own pre-made lead, who is who you play (the creator is for CREATE A BORE).

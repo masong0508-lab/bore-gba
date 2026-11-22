@@ -46,9 +46,25 @@ IWRAM_OVL2 static void csCamD(int x,int y,int r,u16 c){
     disc(cx,cy,rr,c);
 }
 IWRAM_OVL2 static void csCamL(int x0,int y0,int x1,int y1,u16 c){
-    if(csCz==256){ if(csFtrack) csTrack(x0<x1?x0:x1,y0<y1?y0:y1,(x0>x1?x0:x1)+1,(y0>y1?y0:y1)+1); line(x0,y0,x1,y1,c); return; }
+    if(csCz==256){
+        int lx=x0<x1?x0:x1, hx=x0>x1?x0:x1, ly=y0<y1?y0:y1, hy=y0>y1?y0:y1;
+        if(csFtrack) csTrack(lx,ly,hx+1,hy+1);
+        if(hx<cX0||lx>=cX0+(int)cW||hy<cY0||ly>=cY0+(int)cH) return;
+        if(y0==y1) rect(lx,y0,hx-lx+1,1,c);
+        else if(x0==x1) rect(x0,ly,1,hy-ly+1,c);
+        else line(x0,y0,x1,y1,c);
+        return;
+    }
     int ax=csCamX(x0), ay=csCamY(y0), bx=csCamX(x1), by=csCamY(y1), n=(csCz+128)>>8;
     if(csFtrack) csTrack((ax<bx?ax:bx)-n,(ay<by?ay:by)-n,(ax>bx?ax:bx)+n+1,(ay>by?ay:by)+n+1);
+    // A tracked offscreen arm/tube cannot paint a pixel. Avoid walking its
+    // entire Bresenham line, particularly in the tight bedside close-ups.
+    if((ax>bx?ax:bx)+n<cX0||(ax<bx?ax:bx)-n>=cX0+(int)cW||
+       (ay>by?ay:by)+n<cY0||(ay<by?ay:by)-n>=cY0+(int)cH) return;
+    // Inclusive horizontal/vertical strokes are a single clipped rectangle.
+    // This preserves the old n parallel lines without per-pixel clipping.
+    if(ax==bx){ int u=ay<by?ay:by; rect(ax-n/2,u,n,(ay>by?ay:by)-u+1,c); return; }
+    if(ay==by){ int l=ax<bx?ax:bx; rect(l,ay-n/2,(ax>bx?ax:bx)-l+1,n,c); return; }
     int steep=(by>ay?by-ay:ay-by)>=(bx>ax?bx-ax:ax-bx);
     for(int i=0;i<n;i++){ int o=i-n/2; if(steep) line(ax+o,ay,bx+o,by,c); else line(ax,ay+o,bx,by+o,c); }   // a line as thick as the zoom
 }

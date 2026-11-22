@@ -72,62 +72,68 @@ static int csStepLift(int t,int per,int mx){ int p=((t%per)+per)%per, h=per/2; i
 static void csGlassAt(int x,int y){ csR(x-1,y-6,3,6,RGB(15,21,29)); csR(x-1,y-6,3,1,RGB(31,31,31)); csR(x-1,y-3,3,3,RGB(9,16,26)); csR(x-2,y-1,2,2,RGB(24,16,10)); }   // a glass in a hand at (x,y): the rim, the water, the fingers round it
 static int csFigNowX(int who,int x){ if(who<=0||who>=7) return x; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->x:x; }   // where a figure is right now (on its way to a new spot), for the camera
 static int csFigNowY(int who,int y){ if(who<=0||who>=7) return y; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->y:y; }
-// PROPORTION-FIRST BEDSIDE MODEL. The head, neck, shoulder, cover and
-// pillow share one WORLD coordinate system. No enlarged circular head pasted
-// on top of another one. No new image files, heap blocks or framebuffers.
+// A shared, supported bedside figure. All dimensions are quarter-world
+// pixels projected through the same camera as the standing cast and bed.
 static int csWardAwake(void){ return csCurSc==3&&csCurBi>=16&&csCurBi<34; }
 static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     int flat=csBgNow==CB_FLAT, awake=csWardAwake()&&!flat;
-    int stir=pose==CP_STIR&&!flat, breath=flat?0:((t/38)&1);
-    int lift=stir?(t<24?t/12:2+((t>>5)&1)):0;
-    u16 edge=RGB(7,11,19), gown=RGB(12,19,27);
-    u16 sheet=RGB(12,19,27), sheetHi=RGB(19,27,30), fold=RGB(8,14,23);
-    // A real supine SIDE SILHOUETTE, not a face-on floating head.
-    // Shared world landmarks: hair x-42, skull x-33, nape x-23,
-    // shoulder x-17, waist x+10, feet x+46. All lie on one mattress.
-    // The whole patient fits the bed's x=115..211 at x=164.
-    csR(x-54,y-20,39,17,RGB(8,16,23));  // pillow under head
-    csR(x-52,y-18,37,13,RGB(23,28,30));
-    csR(x-50,y-16,33,10,RGB(28,30,30));
-    csLn(x-47,y-6,x-17,y-6,RGB(17,24,28));
-    csR(x-41,y-4,87,3,RGB(8,15,21));    // body meets mattress
-
-    // Nape is a 7px connection, not a long exposed horizontal arm.
-    csR(x-24,y-10,8,5,edge);
-    csR(x-23,y-9,8,3,csSh(sk,2));
-    csR(x-22,y-9,7,3,sk);
-    // Shoulder flows down into a reclining hospital gown.
-    // Only the upper chest, never the pillow and skull, breathes.
-    csR(x-18,y-11-breath,5,10+breath,edge);
-    csR(x-16,y-12-breath,29,12+breath,edge);
-    csR(x-15,y-11-breath,27,10+breath,gown);
-    csR(x-14,y-11-breath,22,2,csLt(gown,5));
-    csR(x-16,y-6-breath,22,3,csSh(gown,2));
-    csR(x-17,y-9,5,2,sk);               // gown's open collar
-    csLn(x-15,y-9,x-10,y-7,RGB(21,28,30));
-
-    // Drape the legs with a low blanket from waist through foot.
-    // The bed frame must be longer than the patient, not shorter.
-    csR(x+10,y-10,37,11,edge);
-    csR(x+11,y-9,34,9,sheet);
-    csR(x+12,y-9,12,2,sheetHi);
-    csLn(x+13,y-10,x+24,y-11,sheetHi);
-    csLn(x+24,y-11,x+36,y-10,sheetHi);
-    csLn(x+23,y-3,x+36,y-2,fold);
-    csR(x+44,y-7,2,8,csSh(sheet,2));
-
-    // Relaxed elbow: upper arm descends to the near ribs and returns
-    // diagonally to the lower abdomen. Most of the arm is in the gown.
-    csR(x-10,y-5-breath,8,4,csSh(gown,3)); // sleeve
-    csR(x-4,y-3,5,2,csSh(sk,2));          // elbow beside the ribs
-    csR(x-1,y-5-lift,6,3,csSh(sk,1));     // short bent forearm
-    csR(x,y-5-lift,5,2,sk);
-    csR(x+5,y-7-lift,5,3,sk);             // hand resting by waist
-    if(stir) csR(x+8,y-8-lift,2,1,csLt(sk,2));
-
-    // One consistent profile at every camera distance. No two eyes, no
-    // second full-screen portrait and no bobbing skull in the pillow.
-    csFaceBed(x-33,y-12,t,sk,hr,awake);
+    int stir=pose==CP_STIR&&!flat;
+    int breath=flat?0:(csSw(t,150)+127)/85; // less than one world pixel
+    int lift=stir?(t<30?t/6:5+csSw(t,90)/64):0;
+    u16 edge=RGB(7,12,16), gown=RGB(10,18,22);
+    u16 sheet=RGB(18,25,27), seam=RGB(10,17,21);
+    (void)who;
+    csBedOrigin(x,y);
+    // Low, compressed pillow: the skull rests in its centre, not upright
+    // against a tall rectangular panel.
+    csFTrap(-47,-37,-182,-103,-190,-96,RGB(14,21,24));
+    csFTrap(-37,-9,-190,-96,-180,-101,RGB(24,28,28));
+    csFTrap(-43,-29,-180,-104,-185,-100,RGB(29,30,28));
+    csFTrap(-29,-15,-185,-100,-178,-104,RGB(27,29,28));
+    csFLn(-179,-16,-151,-12,RGB(18,24,25));
+    csFLn(-111,-25,-104,-17,RGB(20,25,26));
+    // Body contact is on the mattress surface. Shoulder to hip is a
+    // continuous curved gown, narrower than the previous block torso.
+    csFTrap(-35-breath,-17,-108,-51,-116,-40,edge);
+    csFTrap(-17,-7,-116,-40,-105,-34,edge);
+    csFTrap(-37-breath,-26,-97,-73,-109,-50,gown);
+    csFTrap(-26,-12,-109,-50,-109,-38,gown);
+    csFTrap(-12,-8,-109,-38,-103,-35,csSh(gown,2));
+    csFTrap(-35-breath,-29-breath,-97,-73,-106,-57,csLt(gown,3));
+    csFLn(-96,-29,-81,-20,csLt(gown,2));
+    csFLn(-63,-19,-40,-13,csSh(gown,3));
+    csFTrap(-34,-27,-108,-101,-105,-94,sk); // collar, under the neck
+    csFLn(-108,-30,-99,-23,RGB(22,27,27));
+    csFLn(-99,-23,-91,-27,RGB(22,27,27));
+    // Blanket drapes over hip, low knee and toes, inside the mattress.
+    csFTrap(-31,-24,-48,-26,-56,3,seam);
+    csFTrap(-27,-17,28,37,24,44,seam); // toe under a rounded fold
+    csFTrap(-24,-14,-56,3,-52,47,seam);
+    csFTrap(-14,-4,-52,47,-46,47,seam);
+    csFTrap(-30,-23,-45,-27,-52,5,sheet);
+    csFTrap(-25,-16,29,36,24,42,sheet);
+    csFTrap(-23,-12,-52,5,-48,43,sheet);
+    csFTrap(-12,-6,-48,43,-45,44,sheet);
+    csFLn(-49,-26,-32,-28,RGB(26,29,28));
+    csFLn(-31,-28,-8,-23,RGB(25,29,28));
+    csFLn(-9,-23,2,-24,RGB(24,28,28));
+    csFLn(2,-24,17,-18,RGB(24,28,28));
+    csFLn(29,-25,36,-24,RGB(25,29,28));
+    csFLn(-32,-21,-18,-15,RGB(14,22,25));
+    csFLn(-18,-15,9,-13,RGB(15,23,25));
+    csFLn(23,-13,39,-10,RGB(13,21,24));
+    // Sleeve -> elbow -> wrist form one connected bent arm. The elbow
+    // remains supported while the hand stirs by at most 1.5 world pixels.
+    csFTrap(-26,-17,-102,-91,-92,-76,csSh(gown,3));
+    csFTrap(-17,-9,-92,-76,-77,-65,csSh(gown,3));
+    csFTrap(-19,-10,-77,-69,-78,-66,csSh(sk,3));
+    csFTrap(-23-lift,-12,-58,-48,-76,-67,csSh(sk,2));
+    csFTrap(-22-lift,-14,-58,-49,-73,-67,sk);
+    csFE(-49,-23-lift,7,4,sk);
+    csFLn(-52,-26-lift,-44,-25-lift,csLt(sk,2));
+    if(stir) csFLn(-45,-25-lift,-41,-27-lift,csLt(sk,1));
+    // Stable head/pillow contact across breathing, speech and hand motion.
+    csFaceBed(x-36,y-13,t,sk,hr,awake);
 }
 
 static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
@@ -251,6 +257,13 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     else {
     csR(x-4+ls,y-12,3,12,ol); csR(x+1-ls,y-12,3,12,ol); csR(x-3+ls,y-11,2,11,lc); csR(x+1-ls,y-11,2,11,lc);               // legs: a third of the figure, trousers or jeans (bare under Missy's skirt)
     csR(x-5+ls,y-2,4,2,dk); csR(x+1-ls,y-2,4,2,dk); csR(x-4+ls,y-2,2,1,csLt(dk,5)); }                                      // shoes
+    // At the far side of the bed, Mamesy holds the patient's near hand.
+    // Override only this hand after blending/gestures; the other arm and
+    // expression can still react. While approaching, she reaches naturally.
+    if(who==CA_MAME&&(csBgNow==CB_HOSP||csBgNow==CB_FLAT)&&x>=154&&
+       (csOth==CP_LIE||csOth==CP_STIR)){
+        lh=152-(x+lean); lv=(csOth==CP_STIR&&csBgNow!=CB_FLAT?91:92)-sy;
+    }
     u16 ac=(who==CA_CREW)?RGB(14,14,16):cl;                                                                // arms: a sleeve (Hal: a grey work shirt under the vest)
     csArm(x+lean-ax,sy,x+lean+lh,sy+lv,-1,ac,ol,sk); csArm(x+lean+ax,sy,x+lean+rh,sy+rv,1,ac,ol,sk);                    // arms: shoulder, elbow, hand
     if(csSeat&&who==CA_HOST) csR(x+lean+lh-3,sy+lv-2,5,3,RGB(28,28,26));                                                   // Dex: his cue cards in hand

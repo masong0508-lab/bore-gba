@@ -556,9 +556,11 @@ static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new me
     hhJoinCash();
     return hhN++;
 }
+static void stTvUidRemoved(int uid);   // story.h: release story identity before a household UID can be reused
 static void hhRemove(int m){   // moves out: their sprites and relationships go with them
     if(m<0||m>=hhN) return;
-    int a=hhM[m].uid; for(int u=0;u<RU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
+    int a=hhM[m].uid; stTvUidRemoved(a);
+    for(int u=0;u<RU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
     famForget(a); nrForget(a);   // (their town friendships go with them)
     hhSprFree(m);   // their sprites go back to the pool; the others only move their descriptors
     for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; hhFl[k]=hhFl[k+1]; hhUp[k]=hhUp[k+1]; hhSp[k]=hhSp[k+1]; for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }

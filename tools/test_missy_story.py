@@ -64,13 +64,13 @@ for needle in [
     "int patientUid=(int)msPatientUid((unsigned)stKid,(unsigned)hhPUid);",
     "static int stTvMamesyMember(int patientUid)",
     "kin[patientUid][hhM[k].uid]==KN_SISTER",
-    "m=stTvMamesyMember(patientUid);",
+    "int uid=stTvMamesyUid(patientUid);",
     "if(s==STY_TVSHOW&&stTvMamesyMember(hhPUid)>=0) need=0;",
     "stRel(patientUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF)",
     "int patientMember=patientUid==hhPUid?-1:stMember(patientUid);",
     "if(patientUid!=hhPUid&&patientMember<0)",
     "m=stAddSim(lk,AG_ADULT,patientUid==hhPUid?hhPLast:hhM[patientMember].last)",
-    "stKid=(u8)msPatientUid((unsigned)stKid,(unsigned)me)",
+    "stKid=(u8)patientUid; stTvWant=0;",
     "s==STY_ICE||s==STY_SPARKS||s==STY_TVSHOW)?1:s==STY_FRIEND?2:0;",
     "MAMESY NEEDS A FREE HOUSEHOLD SLOT",
     "AS MAMESY  KEEP PRESSURE 60 OR LESS",
@@ -92,7 +92,7 @@ for needle in [
     "if(s==STY_TVSHOW&&custom)",
     "plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=plugNight=0;",
     "if(s==STY_TVSHOW) stmPut(0);",
-    "m=stTvMamesyMember(patientUid);",
+    "int uid=stTvMamesyUid(patientUid);",
     "if(stId==STY_TVSHOW&&stCh==4&&stKid!=255",
     "if((cl!=8&&cl!=12)", "slwPut(w,(u8)(stId==STY_TVSHOW?stmGet():0))",
     "SRAM_BASE[STB_OFF+i]=c.p[9+i]",
@@ -108,26 +108,31 @@ assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
 assert "int blink=((t+37)%180)<5" in face
-# One anatomy at every zoom, with only ONE profile eye, small nose, and
-# a short neck against the gown. No front-facing second eye.
+# The patient uses one renderer and one world transform at every distance.
+# Anatomy itself is judged with actual frames, not assertions of paint calls.
 assert art.count("csFaceBed(")==1
-assert "csFaceBed(x-33,y-12,t,sk,hr,awake)" in art
-assert "csR(wx-9,wy-4,12,11,outline)" in face
-assert "csR(wx+1,wy-5,3,blink?1:2" in face
-assert "csR(wx+2,wy-11,3,4,skin)" in face
-assert "csR(wx+6,wy+2,6,3,shadow)" in face
-assert "csR(wx,wy-1,2" not in face, "front-facing far eye must not reappear"
-assert "if(csCz<560) return" not in face[face.index("static void csFaceBed("):]
-assert "csFcx=csCamX(wx)" not in face[face.index("static void csFaceBed("):]
-assert "csR(x-24,y-10,8,5,edge)" in art, "short supported nape"
-assert "csR(x-16,y-12-breath,29,12+breath,edge)" in art, "level chest and shoulder"
-assert "csR(x-52,y-18,37,13" in art, "pillow supports back of head"
-assert "csR(x+10,y-10,37,11,edge)" in art, "blanket starts at waist"
-assert "csR(x-4,y-3,5,2,csSh(sk,2))" in art, "elbow beside ribs"
-assert "csR(x+5,y-7-lift,5,3,sk)" in art, "hand by waist, not reaching beyond bed"
-assert "csR(115,90,96,15" in cut, "mattress remains below patient"
-assert "csR(118,107,96,2" in cut, "foreground rail below patient"
-assert "{3,16,1,  0,100, 560,-12,90, 700,-12,89}" in shots
+assert "csFaceBed(x-36,y-13,t,sk,hr,awake)" in art
+bed_face=face[face.index("static void csFaceBed("):]
+assert "csBedOrigin(wx,wy)" in bed_face
+assert "csCz" not in bed_face, "no differently proportioned zoom-only head"
+assert "awake=csWardAwake()&&!flat" in art
+assert "int stir=pose==CP_STIR&&!flat" in art
+assert "breath=flat?0:" in art
+assert "csR(115,90,68,15" in cut, "patient-supporting mattress"
+assert "csR(118,107,68,2" in cut, "rail must not cross the patient"
+# Both ends of key face shots must keep the whole head inside the picture,
+# allowing two world pixels for the scene's deliberate handheld/shake motion.
+for sc,bi in ((3,16),(3,21),(3,28),(6,8)):
+    match=re.search(r"\{"+str(sc)+r","+str(bi)+r",([^}]+)\}", shots)
+    assert match, (sc,bi)
+    anchor,start,duration,z0,x0,y0,z1,x1,y1=map(int,match.group(1).split(','))
+    assert anchor==1
+    for z,x,y in ((z0,x0,y0),(z1,x1,y1)):
+        cx=164+x
+        assert (116-cx)*z/256+120>=0, (sc,bi,"head left")
+        assert (139-cx)*z/256+120<240, (sc,bi,"head right")
+        assert (76-y)*z/256+64>=12, (sc,bi,"head top")
+        assert (94-y)*z/256+64<116, (sc,bi,"head bottom")
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut

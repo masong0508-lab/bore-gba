@@ -25,6 +25,9 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Werror tools/test_missyrules.c -o /tmp/bore-missyrules
           /tmp/bore-missyrules
           python3 tools/test_missy_story.py
+          python3 tools/test_missy_handover.py
+          python3 tools/test_cslighting.py
+          bash tools/render_cutscene.sh --check-patient
       - name: Skate feel host regression
         run: |
           if ! command -v cc >/dev/null 2>&1; then apt-get update && apt-get install -y gcc; fi
