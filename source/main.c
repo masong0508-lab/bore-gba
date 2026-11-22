@@ -311,7 +311,9 @@ __attribute__((noinline)) IWRAM_ARM static void fill32(u32*q,u32 v,int m){   // 
                      "2: subs %1,%1,#1\n strge %2,[%0],#4\n bgt 2b\n"
                      : "+r"(q), "+r"(m) : "r"(v) : "r4","r5","r6","r7","r8","r9","r10","r11","cc","memory");
 }
-IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){
+// ARM conditional clipping is faster here; size optimization keeps this shared
+// primitive smaller than the Thumb version without changing its pixel loop.
+__attribute__((optimize("Os"))) IWRAM_ARM static void rect(int x,int y,int w,int h,u16 c){
     int x1=x+w, y1=y+h; if(x<cX0)x=cX0; if(y<cY0)y=cY0; if(x1>cX0+(int)cW)x1=cX0+(int)cW; if(y1>cY0+(int)cH)y1=cY0+(int)cH;
     if(x>=x1||y>=y1) return;
     u32 cc=(u32)c|((u32)c<<16);   // two pixels a store
@@ -1062,9 +1064,11 @@ static int signOf(void){   // the sign whose traits are nearest to the creature'
 }
 static void setSign(int s){ for(int i=0;i<TR_N;i++) pTr[i]=signTr[s][i]; }
 static int persValid(int asp,int ltw,const u8*tr){
-    int s=0; if(asp>=AS_PICK||ltw>=LTN) return 0;
-    for(int i=0;i<TR_N;i++){ if(tr[i]>10) return 0; s+=tr[i]; }
-    return s<=TR_POINTS;
+    // Generated housemates can have more than the creator's 25-point budget.
+    // Saves retain those personalities; trLeft()/persStep enforce creator spending.
+    if(asp>=AS_PICK||ltw>=LTN) return 0;
+    for(int i=0;i<TR_N;i++) if(tr[i]>10) return 0;
+    return 1;
 }
 // ---- Spore: DNA, parts and abilities ----
 // Like the Spore creature editor, the body is not just a look: every part changes what the creature can do. Five ABILITIES 0..5

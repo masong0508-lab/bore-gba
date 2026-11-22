@@ -236,7 +236,7 @@ static const char* const stBlurb[STY_N][3]={{0,0,0},{"Jad moves into a flatshare
 static u16 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
 #include "missyrules.h"
-static u8 stTkL, stPending;   // tasks: bits 3-5; Missy's unwatched transition scene: spare bit 6 (persisted through an interrupted cutscene)
+static u8 stTkL, stPending;   // tasks: bits 3-5 (TV: MS_DAY_255); Missy's unwatched transition scene: spare bit 6
 static const StB* stBkNow(void){ return (stCh<5&&stId>=1&&stId!=STY_TVSHOW&&stId<STY_N)?&stBk[stId<STY_TVSHOW?stId-1:stId-2][stCh]:0; }   // (TV SHOW & TELL has no task rows: the ten stories after it follow the first ten)
 static int stTkN(const StB*b){ int n=0; if(b) while(n<3&&b->t[n].k) n++; return n; }
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
@@ -341,7 +341,16 @@ static const char* const stqBeat[5][5]={
     {"The days at her bedside finally count.","Friends take shifts at the bedside.","Her care is funded another week.","You find the strength to stay.","Okafor grants the review appeal."},
     {"Ten days. The longest she has gone.","Four friends. Front row, all of them.","Loud dinners at home again.","The comeback money is real.","Happy. Not for a camera."} };
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
-static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
+static void stqStartDay(void){
+    stKidDay=stqDay();
+    if(stId==STY_TVSHOW) stTkL=(u8)((stTkL&~MS_DAY_255)|((simDay&255)==255?MS_DAY_255:0));
+}
+static int stqDays(void){
+    if(stKidDay==255) return 0;
+    int day=stKidDay;
+    if(stId==STY_TVSHOW&&day==254&&(stTkL&MS_DAY_255)) day=255;
+    return ((simDay&255)-day)&255;
+}
 static int stqVal(const StQ*q){
     switch(q->k){
     case TQ_CLEAN: return stqDays();
@@ -374,7 +383,7 @@ static void stTvEvent(int ev){   // sims.h simEventV calls this for every game e
         plugRestore(); int d=ev==SE_BFF?15:10; plugV=(u8)msPressureEase(plugV,(unsigned)d); plugRemember(plugV); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
-    stmSlip(stCh); stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
+    stmSlip(stCh); stqStartDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
 }
 static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
     switch(c->goal){
@@ -643,7 +652,7 @@ static void stTick0(void){   // once per logic step in the life game: is this ch
     if(stId==STY_TVSHOW&&stCh==3&&(stPart==255||hhPUid!=(int)stPart)){ stTvWant=1; return; }
     if(stId==STY_TVSHOW&&stCh==4&&stKid!=255&&hhPUid!=(int)stKid){ stTvWant=2; return; }
     if(c->goal==SG_DAYS&&stKidDay==255){ u8 b=(u8)(simDay&255); stKidDay=b==255?254:b; stSave(); return; }   // the clock starts when the chapter does
-    if(c->goal==SG_MULTI&&stKidDay==255){ stKidDay=stqDay(); stGuest=0; stSave(); return; }   // (the chapter clock starts with the chapter)
+    if(c->goal==SG_MULTI&&stKidDay==255){ stqStartDay(); stGuest=0; stSave(); return; }   // (the chapter clock starts with the chapter)
     if(c->goal==SG_KID){   // a day after the chapter starts the child comes home
         if(stKidDay==255){ stKidDay=(u8)((simDay+1)&255); stSave(); return; }
         if((u8)simDay!=stKidDay) return;
@@ -896,13 +905,18 @@ static void stPlugLose(void){
         s2pill(5,147,40,"A OK");
         present();
     }
-    if(back) sgDiscard=2; else { stKidDay=stqDay(); stGuest=0; stSave(); toast("No save to go back to. Try again."); }
+    if(back) sgDiscard=2; else {
+        // There is no player file to restore. Reset the saved review state too,
+        // or plugRestore immediately brings back terminal pressure and no reprieve.
+        stmPut(msPressurePack((unsigned)stmGet()&~MS_ONE_MORE_NIGHT,PLUG_START));
+        stqStartDay(); stGuest=0; stSave(); toast("No save to go back to. Try again.");
+    }
 }
 // the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
 static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
-    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ stmPut(0); stbSet(); csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
+    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ stmPut(0); stbSet(); csPlay(7); stqStartDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5){   // the scenes that close the chapter just finished and open the next (cutscene.h): the bars (preceded by THE REFILL, followed by THE OFFER), the sweater (then THE GATE), the fall, waking up (then THE DRIVE and the news), here today (after THE WINGS)
         static const u8 seq[6][4]={{255},{12,0,8,255},{1,9,255},{2,255},{3,10,4,255},{11,5,255}};
         csStoryMemory=(u8)stmGet();
