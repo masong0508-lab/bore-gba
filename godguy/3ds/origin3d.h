@@ -1,7 +1,7 @@
 // GodGuy: The Unwritten Reign - 3DS original opening and character creator.
 // The playable character is born ordinary to everyone who knows them.
 // Their dormant demigod nature is revealed at age 22, not at birth.
-// All artwork is lightweight procedural pixel scenery / original cel shapes.
+// The opening uses projected scenery and the original character cels.
 // Uses the existing 400x240 top buffer; no heap or extra framebuffer.
 #ifndef GG_ORIGIN3D_H
 #define GG_ORIGIN3D_H
@@ -161,38 +161,6 @@ static int ggOriginStep(int raw){
     }
     return 0;
 }
-// Fixed-work animated art. Everything is painted onto the live top RGB
-// surface, so the original DS story art and 3DS video RAM are untouched.
-static void ggOriginSky(u8 *out,int dusk,int f){
-    for(int y=0;y<240;y++){
-        int r=dusk?25+y/7:50+y/3;
-        int g=dusk?39+y/5:75+y/3;
-        int b=dusk?69+y/6:97+y/3;
-        ggExpRect(out,0,y,400,1,r,g,b);
-    }
-    ggExpRect(out,0,171,400,69,dusk?24:46,dusk?47:79,dusk?45:52);
-    for(int i=0;i<6;i++){
-        int x=i*88-35+(f/8)%8;
-        ggExpRect(out,x,162+(i*7)%19,110,10,
-                  dusk?37:68,dusk?55:99,dusk?64:76);
-    }
-}
-static void ggOriginTree(u8 *out,int x,int y,int f){
-    ggExpRect(out,x-3,y-29,6,30,80,66,56);
-    ggExpRect(out,x-15,y-50,30,24,36,82,59);
-    ggExpRect(out,x-24,y-43,18,18,43,97,58);
-    ggExpRect(out,x+8,y-38,20,16,51,101,63);
-    if((f/16)&1)ggExpRect(out,x+13,y-40,4,5,101,139,77);
-}
-static void ggOriginHouse(u8 *out,int x,int y,int scale){
-    int w=65*scale/2,h=46*scale/2;
-    ggExpRect(out,x,y-h,w,h,152,128,96);
-    ggExpRect(out,x-6,y-h-10,w+12,10,91,61,61);
-    ggExpRect(out,x+w/2-9,y-25*scale/2,18,25*scale/2,69,57,61);
-    ggExpRect(out,x+8,y-h+10,12,13,207,184,124);
-    ggExpRect(out,x+10,y-h+12,8,9,66,90,109);
-    ggExpRect(out,x+14,y-h+12,2,9,142,115,88);
-}
 // The playable demigod is an original hand-authored 16x24 portrait cel
 // (not a cube or block-headed avatar). Player palettes and body proportions
 // change the actual animated character, with no new 3DS image buffers.
@@ -222,8 +190,7 @@ static const char *const ggOriginHumanCel[24]={
     ".....bb..bb.....",
     "....bbb..bbb...."
 };
-static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame,int small){
-    (void)small;
+static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame){
     const u8 *skin=ggOriginSkinRGB[ggOrigin.skin];
     const u8 *hair=ggOriginHairRGB[ggOrigin.hair];
     const u8 *coat=ggOriginClothesRGB[ggOrigin.garment];
@@ -256,6 +223,78 @@ static void ggOriginPortrait(u8 *out,int x,int y,int scale,int frame,int small){
         }
     }
 }
+typedef struct { int x,feet,scale; } GgOriginMark;
+
+static GgOriginMark ggOriginSet(u8 *out,int phase,int frame){
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    int birth=phase==GG_ORIGIN_BIRTH;
+    FilmBeat take={0};
+    take.place=birth?F_PORCH:F_VILLAGE;
+    take.camera=F_TRACK;
+    take.lead=take.other=F_OFFSCREEN;
+    take.prop=F_NO_PROP;
+    int move=frame>120?256:frame*256/120;
+    GgFilmCamera cam=ggFilmCameraAt(&take,move);
+    // The globe and zoom buffer is idle while the first-person mode owns
+    // the top LCD. Rendering the set there leaves the DS UI page intact.
+    cam.page=gbuf;
+    ggFilmWorldDraw(cam,&take,frame,0,1,0);
+    GgV3 foot=ggV3(phase==GG_ORIGIN_YOUTH?48+move/2:96,0,700);
+    if(birth){
+        ggFilmBox(cam,-116,0,690,10,57,99,24,20,25);
+        ggFilmBox(cam,-12,0,690,10,57,99,24,20,25);
+        ggFilmBox(cam,-64,49,690,121,17,101,25,24,26);
+        ggFilmBox(cam,-64,63,689,102,7,71,23,21,22);
+        ggFilmBox(cam,-116,59,689,8,37,92,25,24,26);
+        ggFilmBox(cam,-12,59,689,8,29,92,25,24,26);
+        foot=ggV3(-62,70,676);
+    }
+    ggExpRect(out,0,0,400,240,17,24,36);
+    u8 rgb[256][3]={0};
+    for(unsigned ink=0;ink<sizeof fmvSlots;ink++){
+        unsigned c=fmvPalette[ink],slot=fmvSlots[ink];
+        rgb[slot][0]=(u8)((c&31)*255/31);
+        rgb[slot][1]=(u8)((c>>5&31)*255/31);
+        rgb[slot][2]=(u8)((c>>10&31)*255/31);
+    }
+    for(int y=39;y<187;y++){
+        const u8 *row=gbuf+(FILM_TOP+(y-39)*FILM_H/148)*256;
+        u8 *dst=out+y*400*3;
+        for(int x=0;x<400;x++,dst+=3){
+            const u8 *c=rgb[row[x*256/400]];
+            dst[0]=c[0];dst[1]=c[1];dst[2]=c[2];
+        }
+    }
+    GgS2 point=ggFilmProject(cam,foot);
+    return (GgOriginMark){point.x*400/256,39+(point.y-FILM_TOP)*148/FILM_H,
+                         phase==GG_ORIGIN_YOUTH?2:1};
+#else
+    // The standalone exploration harness and diagnostic build can render
+    // these shots with the existing first-person world camera.
+    (void)phase;(void)frame;
+    ggExpRenderMode(out,1);
+    return (GgOriginMark){239,165,2};
+#endif
+}
+static void ggOriginNewborn(u8 *out,int x,int feet){
+    static const char *const swaddle[]={
+        "...hhh........", "..hsssh.......", "..ssessttt....",
+        "...ssstttttt..", "...ttttcttttt.", "....ttctttttt.",
+        ".....ttttttt..",
+    };
+    const u8 *skin=ggOriginSkinRGB[ggOrigin.skin];
+    const u8 *hair=ggOriginHairRGB[ggOrigin.hair];
+    for(int row=0;row<7;row++)
+        for(int col=0;col<14;col++){
+            int ink=swaddle[row][col];
+            if(ink=='.')continue;
+            int px=x+(col-7)*2,py=feet+(row-7)*2;
+            if(ink=='s')ggExpRect(out,px,py,2,2,skin[0],skin[1],skin[2]);
+            else if(ink=='h'||ink=='e')ggExpRect(out,px,py,2,2,hair[0],hair[1],hair[2]);
+            else if(ink=='c')ggExpRect(out,px,py,2,2,142,157,171);
+            else ggExpRect(out,px,py,2,2,196,209,201);
+        }
+}
 static void ggOriginStrip(u8 *out,const char *headline,const char *lineA,
                           const char *lineB,int frame){
     ggExpRect(out,0,0,400,39,17,24,36);
@@ -269,10 +308,8 @@ static void ggOriginStrip(u8 *out,const char *headline,const char *lineA,
 }
 static void ggOriginCreator(u8 *out){
     char value[80];
-    ggOriginSky(out,0,ggOrigin.frame);
-    ggOriginTree(out,341,183,ggOrigin.frame);
-    ggOriginHouse(out,254,177,2);
-    ggOriginPortrait(out,300,177,4,(ggOrigin.frame/16)&1,0);
+    ggOriginSet(out,GG_ORIGIN_CREATE,ggOrigin.frame);
+    ggOriginPortrait(out,300,177,4,(ggOrigin.frame/16)&1);
     ggExpRect(out,0,0,218,240,18,30,42);
     ggExpRect(out,0,0,218,3,194,147,84);
     ggExpText(out,12,13,"YEAR 22 / YOUR ORDINARY LIFE",241,217,164);
@@ -297,20 +334,13 @@ static void ggOriginDraw(u8 *out){
     int f=ggOrigin.frame,p=ggOrigin.phase;
     if(p==GG_ORIGIN_CREATE){ggOriginCreator(out);return;}
     if(p>=GG_ORIGIN_AWAKEN){
-        ggExpRender(out); // The real world, not an imaginary new map.
+        int angle=ggExplore.angle;
+        if(p==GG_ORIGIN_AWAKEN)ggExplore.angle=(angle+f/12-6)&255;
+        ggExpRenderMode(out,1);
+        ggExplore.angle=angle;
         ggExpRect(out,0,0,400,40,16,25,41);
         ggExpRect(out,0,39,400,2,193,147,90);
         ggExpText(out,12,11,"YEAR 22 / THE HIDDEN HALF",242,220,162);
-        int bolt=(f*7)%400;
-        // The first miracle is a gust that stops falling debris.
-        // It does not imply the child had visible powers at birth.
-        if(p==GG_ORIGIN_AWAKEN){
-            for(int i=0;i<6;i++){
-                int x=(bolt+i*71)%400,y=77+(i*19)%88;
-                ggExpRect(out,x,y,20+(i%3)*8,2,202,202,180);
-            }
-            if((f/6)%4==0)ggExpRect(out,192,77,13,48,237,210,150);
-        }
         ggExpRect(out,0,175,400,65,13,23,36);
         ggExpRect(out,0,175,400,2,185,130,70);
         if(p==GG_ORIGIN_AWAKEN){
@@ -323,42 +353,19 @@ static void ggOriginDraw(u8 *out){
         }
         return;
     }
-    ggOriginSky(out,p==GG_ORIGIN_BIRTH,f);
+    GgOriginMark cast=ggOriginSet(out,p,f);
     if(p==GG_ORIGIN_BIRTH){
-        ggExpRect(out,36,65,330,124,127,101,84);
-        ggExpRect(out,39,69,325,8,92,76,73);
-        ggExpRect(out,70,133,240,10,110,76,67);
-        ggExpRect(out,86,146,110,30,79,70,74);
-        ggExpRect(out,102,140,70,11,194,185,168);
-        ggExpRect(out,117,133,29,17,215,160,122);
-        ggExpRect(out,115,131,31,6,77,56,53);
-        ggExpRect(out,278,96,14,82,67,72,78);
-        ggExpRect(out,257,87,52,12,119,104,86);
+        ggOriginNewborn(out,cast.x,cast.feet);
         ggOriginStrip(out,"YEAR 0 / NO SIGN IN THE SKY",
             "A CHILD WAS BORN UNDER AN ORDINARY ROOF.",
             "NEITHER PARENT SPOKE OF GODS. THERE WAS NO OMEN.",f);
     }else if(p==GG_ORIGIN_CHILD){
-        ggOriginHouse(out,49,169,2);
-        ggOriginTree(out,318,176,f);
-        ggExpRect(out,205,157,65,7,119,111,78);
-        ggOriginPortrait(out,242,176,2,(f/12)&1,1);
+        ggOriginPortrait(out,cast.x,cast.feet,cast.scale,(f/12)&1);
         ggOriginStrip(out,"YEAR 8 / SMALL FOOTSTEPS",
             "YOU LEARNED THE FIELDS, THE WEATHER, AND THE ROAD.",
             "WHEN OTHERS CALLED YOU ORDINARY, YOU BELIEVED THEM.",f);
     }else{
-        // Years later, this is still the SAME house, tree and road
-        // from the childhood shot. Age progression must not magically
-        // reverse geography or throw the player into a new background.
-        ggOriginHouse(out,49,169,2);
-        ggOriginTree(out,318,176,f);
-        for(int i=0;i<8;i++){
-            int x=110+i*13;
-            ggExpRect(out,x,155+(i&1)*2,2,19,101,130,63);
-            ggExpRect(out,x-2,150+(i&1)*2,6,8,173,157,71);
-        }
-        int walk=ggExpClamp(f/5,0,16);
-        ggOriginPortrait(out,220+walk,180,3,
-                         walk<16?(f/10)&1:0,0);
+        ggOriginPortrait(out,cast.x,cast.feet,cast.scale,(f/10)&1);
         ggOriginStrip(out,"YEAR 16 / AN UNREMARKABLE FUTURE",
             "WORK, FRIENDS, AND SMALL AMBITIONS FILLED THE YEARS.",
             "NO ONE KNEW WHAT SLEPT IN YOUR BLOOD. NOT EVEN YOU.",f);

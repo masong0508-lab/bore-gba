@@ -8,10 +8,6 @@
 #include <time.h>
 #include <stdlib.h>
 typedef uint8_t u8;
-enum { T_DEEP,T_WATER,T_SAND,T_GRASS,T_FOREST,T_HILL,T_MOUNT,
-       T_SNOW,T_LAVA,T_DESERT,T_SWAMP,T_JUNGLE,T_DIRT,T_N };
-enum { B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,B_DOCK,
-       B_TEMPLE,B_STATUE,B_LIBRARY,B_BORDER,B_N };
 enum { FILM_TOP=24, FILM_BOTTOM=168, FILM_H=144 };
 enum { F_ORBIT,F_SHORE,F_STORM,F_VILLAGE,F_FORD,F_GATE,F_FORGE,
        F_HALL,F_ARCHIVE,F_HEARTH,F_THRONE,F_COUCH,F_PORCH,F_RUINS,F_SET_N };
@@ -43,7 +39,6 @@ static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
             if(y>=FILM_TOP&&y<FILM_BOTTOM&&px>=0&&px<256)
                 uiBuf[y*256+px]=(u8)(who+34);
 }
-#include "source/story_vistas.h"
 #include "source/story_world3d.h"
 
 static void require(int condition,const char *why){
@@ -55,17 +50,20 @@ static unsigned long hashFrame(void){
         h=(h^uiBuf[i])*16777619u;
     return h;
 }
+static void drawWorld(const FilmBeat *beat,int t,int move,int chapter,int roof,int winter){
+    ggFilmWorldDraw(ggFilmCameraAt(beat,move),beat,ggFilmSceneTime(t),chapter,roof,winter);
+}
 static unsigned long frame(int place,int camera,int t){
     FilmBeat b={place,camera,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&b,t,filmEase(t,420),t/300,1,0);
+    drawWorld(&b,t,filmEase(t,420),t/300,1,0);
     return hashFrame();
 }
 int main(void){
     memset(picture.before,0xa6,sizeof picture.before);
     memset(picture.after,0x6d,sizeof picture.after);
     for(int i=0;i<32;i++)fmvSlots[i]=(u8)(i+1);
-    GgFilmCamera center={0,0},moved={64,20};
+    GgFilmCamera center={0,0,0,uiBuf},moved={64,20,18,uiBuf};
     GgS2 near=ggFilmProject(center,ggV3(120,0,560));
     GgS2 far=ggFilmProject(center,ggV3(120,0,1450));
     require(near.x>far.x&&far.x>128,"perspective does not reduce far displacement");
@@ -75,87 +73,72 @@ int main(void){
     memset(uiBuf,0,sizeof picture.page);
     unsigned long empty=hashFrame();
     int populated=0;
-    for(int p=F_SHORE;p<F_SET_N;p++){
+    for(int p=F_ORBIT;p<F_SET_N;p++){
         unsigned long h=frame(p,F_WIDE,0);
         populated+=(h!=empty);
+        for(int i=FILM_TOP*256;i<FILM_BOTTOM*256;i++)
+            require(uiBuf[i]!=0,"the world shot leaves part of its backdrop unpainted");
         require(picture.before[0]==0xa6&&picture.before[31]==0xa6&&
                 picture.after[0]==0x6d&&picture.after[31]==0x6d,
                 "world renderer wrote outside the 256x192 film surface");
     }
-    require(populated>=10,"set geometry missing in most locations");
+    require(populated==F_SET_N,"an original location lacks projected 3DS scenery");
     require(frame(F_PORCH,F_NEAR,0)!=frame(F_COUCH,F_NEAR,0),
             "the first-rain porch is still a generic couch stage");
     FilmBeat porch={F_PORCH,F_NEAR,F_MIRA,F_WISP,F_CUP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&porch,40,128,1,1,0);
+    drawWorld(&porch,40,128,1,1,0);
     unsigned long rainPorch=hashFrame();
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&porch,40,128,14,1,0);
+    drawWorld(&porch,40,128,14,1,0);
     require(hashFrame()!=rainPorch,
             "porch window never clears after the first-rain chapter");
     // The worksite has visibly exposed rafters before its completed roof.
     FilmBeat village={F_VILLAGE,F_WIDE,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,0,128,2,0,0);
+    drawWorld(&village,0,128,2,0,0);
     unsigned long roofOpen=hashFrame();
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,0,128,2,1,0);
+    drawWorld(&village,0,128,2,1,0);
     require(hashFrame()!=roofOpen,
             "the house roof did not change when construction finished");
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,44,128,14,1,1);
+    drawWorld(&village,44,128,14,1,1);
     unsigned long snowVillage=hashFrame();
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&village,44,128,14,1,0);
+    drawWorld(&village,44,128,14,1,0);
     require(snowVillage!=hashFrame(),
             "bonus winter stories have the same environment as summer");
-    // This is the *same renderer* used by the player-world snapshot
-    // integration. A genuine town blueprint changes the stage geometry.
-    // Without real buildings, the founding house remains the fallback.
-    FilmBeat actualTown={F_VILLAGE,F_NEAR,F_ELOWEN,F_HOLLOW,F_NO_PROP,0};
-    memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&actualTown,0,128,10,1,0);
-    unsigned long defaultVillage=hashFrame();
-    filmVista[FILM_VISTA_TOWN].valid=1;
-    for(int j=0;j<FILM_VISTA_H;j++)for(int i=0;i<FILM_VISTA_W;i++){
-        int k=j*FILM_VISTA_W+i;
-        filmVista[FILM_VISTA_TOWN].terrain[k]=T_GRASS;
-        filmVista[FILM_VISTA_TOWN].buildings[k]=0;
-    }
-    filmVista[FILM_VISTA_TOWN].buildings[4*FILM_VISTA_W+12]=B_HALL;
-    filmVista[FILM_VISTA_TOWN].buildings[3*FILM_VISTA_W+8]=B_TOWER;
-    memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&actualTown,0,128,10,1,0);
-    require(hashFrame()!=defaultVillage,
-            "saved castle/hall and tower never changed the rendered village");
-    filmVista[FILM_VISTA_TOWN].valid=0;
-    // A real sandy shoreline should have physically different ground
-    // depth and elevations from a steep rocky coast in the same 3DS
-    // projection, rather than a fixed flat 2D film plate in both cases.
-    FilmVista *shore=&filmVista[FILM_VISTA_COAST];
-    shore->valid=1;
-    for(int j=0;j<FILM_VISTA_H;j++)
-        for(int i=0;i<FILM_VISTA_W;i++)
-            shore->terrain[j*FILM_VISTA_W+i]=
-                j<4?T_GRASS:j<6?T_SAND:T_WATER;
-    memset(uiBuf,0,sizeof picture.page);
-    ggFilmLandmarkTerrain(center,F_SHORE,84);
-    unsigned long sandyTerrain=hashFrame();
-    for(int j=0;j<6;j++)
-        for(int i=0;i<FILM_VISTA_W;i++)
-            shore->terrain[j*FILM_VISTA_W+i]=
-                (j<4&&i%3==0)?T_MOUNT:T_HILL;
-    memset(uiBuf,0,sizeof picture.page);
-    ggFilmLandmarkTerrain(center,F_SHORE,84);
-    require(hashFrame()!=sandyTerrain,
-            "world cliffs and beaches still use identical flat geometry");
-    require(picture.before[0]==0xa6&&picture.after[0]==0x6d,
-            "world terrain pushed outside the existing film framebuffer");
-    shore->valid=0;
+    FilmBeat ford={F_FORD,F_WIDE,F_GRUUL,F_MIRA,F_CUP,NULL};
+    GgFilmCamera fordCam=ggFilmCameraAt(&ford,128);
+    FilmBlocking onFord={0},onBridge={0};
+    ggFilmWorldBlocking(fordCam,&ford,180,3,&onFord);
+    ggFilmWorldBlocking(fordCam,&ford,180,9,&onBridge);
+    GgS2 deck=ggFilmProject(fordCam,ggV3(-65,GG_FILM_BRIDGE_TOP,690));
+    require(onBridge.otherX==deck.x&&onBridge.otherFeet==deck.y&&
+            onBridge.otherFeet<onFord.otherFeet,
+            "the sprite does not stand on its projected bridge deck");
+    GgS2 window=ggFilmPropSupport(fordCam,F_PORCH,1);
+    GgS2 tabletop=ggFilmProject(fordCam,ggV3(0,36,583));
+    require(window.x==tabletop.x&&window.y==tabletop.y,
+            "the cup loses its physical resting surface during camera movement");
     require(frame(F_SHORE,F_NEAR,0)!=frame(F_SHORE,F_NEAR,180),
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
             "world-space rain did not animate");
+    GgS2 post=ggFilmProject(fordCam,ggV3(-103,50,500));
+    uiBuf[post.y*256+post.x]=255;
+    ggFilmWorldForeground(fordCam,&ford,128,9);
+    require(uiBuf[post.y*256+post.x]!=255,
+            "the near bridge post cannot occlude a sprite behind it");
+
+    static u8 alternate[256*192];
+    memset(uiBuf,0x9b,sizeof picture.page);
+    memset(alternate,0,sizeof alternate);
+    fordCam.page=alternate;
+    ggFilmWorldDraw(fordCam,&ford,40,9,1,0);
+    require(alternate[FILM_TOP*256]!=0&&uiBuf[FILM_TOP*256]==0x9b,
+            "an origin set overwrote the shared chapter film page");
     // Coverage continuity: two unrelated lines spoken by the SAME actor
     // should reuse the familiar three-quarter angle. A response from the
     // other side uses the companion angle; a wide two-shot restores the
@@ -188,35 +171,35 @@ int main(void){
     backgroundSpriteCalls=0;
     ggFilmWorldClock=280;
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&life,0,128,10,1,0);
+    drawWorld(&life,0,128,10,1,0);
     unsigned long firstStreet=hashFrame();
     require(backgroundSpriteCalls>=2,
             "town workers reverted to primitive polygon people");
     ggFilmWorldClock=460;
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&life,0,128,10,1,0);
+    drawWorld(&life,0,128,10,1,0);
     require(hashFrame()!=firstStreet,
             "market, foliage and villagers freeze when the shot time restarts");
     FilmBeat speaker={F_VILLAGE,F_NEAR,F_MIRA,F_THORGRIM,F_NO_PROP,NULL};
     backgroundSpriteCalls=0;
-    ggFilmWorldDraw(&speaker,0,128,10,1,0);
+    drawWorld(&speaker,0,128,10,1,0);
     require(backgroundSpriteCalls==1,
             "same character duplicated as speaker and background worker");
     // The door has a real physical arc during the first rain sequence.
     ggFilmWorldClock=0;
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&porch,0,128,1,1,0);
+    drawWorld(&porch,0,128,1,1,0);
     unsigned long entryClosed=hashFrame();
     ggFilmWorldClock=370;
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&porch,0,128,1,1,0);
+    drawWorld(&porch,0,128,1,1,0);
     require(hashFrame()!=entryClosed,
             "first-rain porch door and curtains remain frozen");
     ggFilmWorldClock=-1;
     FilmBeat walk={F_VILLAGE,F_WIDE,F_MIRA,F_THORGRIM,F_NO_PROP};
     FilmBlocking a={85,171,156,156,45,45},b=a;
-    ggFilmWorldBlocking(&walk,0,0,&a);
-    ggFilmWorldBlocking(&walk,180,256,&b);
+    ggFilmWorldBlocking(ggFilmCameraAt(&walk,0),&walk,0,2,&a);
+    ggFilmWorldBlocking(ggFilmCameraAt(&walk,256),&walk,180,2,&b);
     require(a.leadHeight<b.leadHeight&&a.leadFeet<b.leadFeet,
             "walking actor never approaches in Z");
     unsigned long checksum=0;

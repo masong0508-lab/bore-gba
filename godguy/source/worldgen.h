@@ -3,6 +3,8 @@
 // where plates are apart there is deep ocean between them. Plates are placed with a gap (continents), in clusters (archipelagos) or small and many (islands).
 // All noise is tileable (period = the planet), so with EDGE = WRAP there is no seam. Integer maths only.
 static int cEdge;      // what happens at the edge of the map: 0 walls, 1 vanish, 2 wrap round
+enum { GW_MARCH=6 };
+#include "worldgen_march.h"
 static int wnoise(int x,int y,int cell,int s){   // value noise 0..255 that repeats every planet width
     int px=WW/cell, py=WH/cell; if(px<1) px=1; if(py<1) py=1;
     int gx=x/cell, gy=y/cell, fx=x%cell, fy=y%cell; int gx1=(gx+1)%px, gy1=(gy+1)%py; gx%=px; gy%=py;
@@ -59,6 +61,7 @@ static void gwSetup(int s){
     }
 }
 static void genWorld(u32 seed){ bioClear(); atmoReset();
+    if(cShape==GW_MARCH){ genMarch(seed); return; }
     int s=(int)(seed&0xFFFF); gwSetup(s); int lakes=cShape==5;
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
         int wp=10+cCoast*5; int hn=wfbm(x,y,s), m=wfbm(x,y,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(wfbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;

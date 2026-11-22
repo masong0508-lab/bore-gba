@@ -81,6 +81,84 @@ static const unsigned base[][5]={
 static int count(int t){ int n=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) n+=world[y][x]==t; return n; }
 static int coast(void){ int n=0; for(int y=1;y<WH-1;y++) for(int x=1;x<WW-1;x++){ int l=world[y][x]>T_WATER; if(l&&(world[y][x+1]<=T_WATER||world[y+1][x]<=T_WATER)) n++; } return n; }
 static int masses(int minsz){ static u8 seen[MAXD][MAXD]; memset(seen,0,sizeof seen); static int stk[MAXD*MAXD]; int n=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){ if(seen[y][x]||world[y][x]<=T_WATER) continue; int sp=0,sz=0; stk[sp++]=y*MAXD+x; seen[y][x]=1; while(sp){ int c=stk[--sp]; int cx=c%MAXD, cy=c/MAXD; sz++; for(int d=0;d<4;d++){ int nx=cx+dxs[d], ny=cy+dys[d]; if(nx<0||ny<0||nx>=WW||ny>=WH||seen[ny][nx]||world[ny][nx]<=T_WATER) continue; seen[ny][nx]=1; stk[sp++]=ny*MAXD+nx; } } if(sz>=minsz) n++; } return n; }
+
+static int marchIn(int x0,int y0,int x1,int y1,int mask){
+    int hits=0, area=0;
+    for(int y=y0*WH/1024;y<y1*WH/1024;y++) for(int x=x0*WW/1024;x<x1*WW/1024;x++){
+        hits+=(mask>>world[y][x])&1;
+        area++;
+    }
+    return hits*100/area;
+}
+
+// Walk with the human terrain rules, optionally inside a narrow band across a ford.
+static int marchReach(int x,int y,int x1,int x2,int y1,int y2){
+    static u8 seen[MAXD][MAXD];
+    static int queue[MAXD*MAXD];
+    memset(seen,0,sizeof seen);
+    if(!walkable(&sp[0],x,y)) return 0;
+    seen[y][x]=1;
+    int read=0, written=0;
+    queue[written++]=y*MAXD+x;
+    while(read<written){
+        int i=queue[read++], cx=i%MAXD, cy=i/MAXD;
+        for(int d=0;d<4;d++){
+            int nx=cx+dxs[d], ny=cy+dys[d];
+            if(nx<x1||nx>=x2||ny<y1||ny>=y2||seen[ny][nx]||!walkable(&sp[0],nx,ny)) continue;
+            seen[ny][nx]=1;
+            queue[written++]=ny*MAXD+nx;
+        }
+    }
+    if(x2==WW) return written*100/(WW*WH);
+    for(int iy=y1;iy<y2;iy++) if(seen[iy][x2-1]) return 1;
+    return 0;
+}
+
+static int marchTest(void){
+    cShape=6;   // the seventh LAND option in Create a Planet
+    cEdge=cSea=cClim=cWet=cCoast=cMtn=0;
+    int fails=0;
+    for(int i=0;i<SZ_N;i++){
+        gW=gH=szList[i];
+        genWorld(4242);
+        unsigned baseHash=gh();
+        int clearStart=buildable(WW/2,WH/2);
+        int connected=marchReach(WW/2,WH/2,0,WW,0,WH);
+        int north=marchIn(255,140,765,320,(1<<T_MOUNT)|(1<<T_HILL)|(1<<T_SNOW));
+        int west=marchIn(146,320,376,590,1<<T_FOREST);
+        int east=marchIn(685,392,810,622,(1<<T_DESERT)|(1<<T_HILL)|(1<<T_MOUNT));
+        int south=marchIn(465,680,695,798,1<<T_SWAMP);
+        int river=marchIn(490,425,600,575,1<<T_WATER);
+        int upper=marchReach(472*WW/1024,362*WH/1024,472*WW/1024,581*WW/1024,346*WH/1024,380*WH/1024);
+        int lower=marchReach(462*WW/1024,666*WH/1024,462*WW/1024,621*WW/1024,650*WH/1024,682*WH/1024);
+        rs=5; genWorld(4242);
+        int repeat=gh()==baseHash;
+        genWorld(4243);
+        int varies=gh()!=baseHash;
+        int ok=clearStart&&connected>=35&&north>=20&&west>=35&&east>=35&&south>=8&&river>=3&&upper&&lower&&repeat&&varies;
+        printf("Riven March %d: %s (start %d, walk %d%%, north %d%%, west %d%%, east %d%%, marsh %d%%, river %d%%, fords %d/%d, seeds %d/%d)\n",WW,ok?"OK":"FAIL",clearStart,connected,north,west,east,south,river,upper,lower,repeat,varies);
+        fails+=!ok;
+    }
+    return fails;
+}
+
+static int marchSettlements(void){
+    planetSize=MAXD;
+    seedFix=4242;
+    newWorld();
+    seedFix=0;
+    int home=-1;
+    for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race==0){ home=v; break; }
+    int nearCenter=home>=0&&abs(vil[home].x-WW/2)<=WW/32&&abs(vil[home].y-WH/2)<=WH/32;
+    int villages=nVilOn;
+    cLife=0;
+    newWorld();
+    cLife=2;
+    int ok=nearCenter&&villages>=5&&nVilOn==0;
+    printf("Riven March settlements: %s (central village %d, settled villages %d, empty villages %d)\n",ok?"OK":"FAIL",nearCenter,villages,nVilOn);
+    return !ok;
+}
+
 int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     int bad=0, n=(int)(sizeof base/sizeof base[0]); for(int i=0;i<n;i++){ cEdge=(int)base[i][0]; gW=gH=planetSize=(int)base[i][1]; cShape=(int)base[i][2]; genWorld(base[i][3]*977u); if(gh()!=base[i][4]) bad++; }
     printf("planets with COASTS and MOUNTAINS normal identical to before: %d of %d\n",n-bad,n); if(bad){ fails++; printf("  FAIL: the generator changed\n"); }
@@ -92,4 +170,6 @@ int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     cCoast=1; cMtn=1; genWorld(77u); a=gh(); genWorld(77u); b=gh(); genWorld(78u); unsigned c2=gh(); printf("same seed same planet: %s, other seed other planet: %s\n",a==b?"YES":"NO",a!=c2?"YES":"NO"); if(a!=b||a==c2){ fails++; printf("  FAIL: seeds\n"); }
     // the land share still follows SEA
     cCoast=cMtn=0; int lp[5]; for(int s=-2;s<=2;s++){ cSea=s; cShape=0; genWorld(4242u); int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) l+=world[y][x]>T_WATER; lp[s+2]=l*100/(WW*WH); } cSea=0; printf("land share DRY .. FLOODED: %d%% %d%% %d%% %d%% %d%%\n",lp[0],lp[1],lp[2],lp[3],lp[4]); if(!(lp[0]>lp[2]&&lp[2]>lp[4])){ fails++; printf("  FAIL: sea\n"); }
+    fails+=marchTest();
+    fails+=marchSettlements();
     printf("%s\n",fails?"GEN FAIL":"GEN OK"); return fails?1:0; }

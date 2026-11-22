@@ -1,47 +1,26 @@
 // The chapter reels dress shared illustrated sets with cels, camera moves and
 // timed subtitles. Playback draws into the same back page as the baked films.
 #include "story_reels.h"
-#include "story_vistas.h"
-#include "story_route.h"
 
-// The game world is the authoritative source for movie locations. Capture
-// just three small neighborhoods at the beginning of a chapter; cinematic
-// playback never scans or mutates the simulation map, its building arrays,
-// or the save file. All coordinates are the real player's world tiles.
-static char filmTownName[24]; // player's real settlement, no save field
-static int filmWorldCell(int x,int y,int building){
-    return building?bld[y][x]:world[y][x];
-}
-static void filmCaptureWorld(void){
-    if(WW<=0||WH<=0)return;
+// Snapshot a nearby settlement name for the location card.
+static char filmTownName[24];
+static void filmCaptureTownName(void){
     int cx=(camX+128)/8,cy=(camY+96)/8;
-    if(cx>=WW)cx=WW-1;if(cy>=WH)cy=WH-1;
-    int bx=cx,by=cy,best=-2147483647,bestVillage=-1;
+    int bestScore=-2147483647,bestVillage=-1;
     filmTownName[0]=0;
     for(int v=0;v<VIL_N;v++)if(vil[v].on){
         int dx=(int)vil[v].x-cx,dy=(int)vil[v].y-cy;
         int score=(int)vil[v].houses*6+(int)vil[v].towers*28+
                   (int)vil[v].lvl*18+(int)vil[v].pop/10-
                   (dx*dx+dy*dy)/14;
-        if(score>best){best=score;bx=vil[v].x;by=vil[v].y;bestVillage=v;}
+        if(score>bestScore){bestScore=score;bestVillage=v;}
     }
     if(bestVillage>=0){
-        // Reuse the game's real, localized settlement name generator,
-        // not a fabricated static "Castle of the Hollow King" title.
         char fullName[64];
         vilName(bestVillage,fullName);
         strncpy(filmTownName,fullName,20);
         filmTownName[20]=0;
     }
-    filmVistaCapture(WW,WH,bx,by,cx,cy,filmWorldCell);
-    // A journey is available only after the player genuinely founded a
-    // settlement and the actual planet contains a coastline or ridge.
-    // The route is fixed for the entire film and needs no frame scans.
-#ifdef __3DS__
-    filmRouteCapture(bestVillage>=0,18*60);
-#else
-    filmRouteCapture(bestVillage>=0,10*60);
-#endif
 }
 #ifdef __3DS__
 #include "story_film_hq_data.h"
@@ -119,7 +98,7 @@ static int fmvLength(const FmvClip *clip){
         return filmReelTicks(&filmBonusReels[filmBonusIndex]);
 #endif
     int id=(int)(clip-fmvClips);
-    int length=clip->frames*FMV_TICKS+filmRoute.duration+
+    int length=clip->frames*FMV_TICKS+
                filmReelTicks(&filmReels[id]);
 #ifdef __3DS__
     length+=filmReelTicks(&filmExtraReels[id]);
@@ -148,93 +127,7 @@ static FilmFraming filmFraming(const FilmBeat *beat,int move){
                        w*FILM_PLATE_SCALE,h*FILM_PLATE_SCALE*256/FILM_H};
     return frame;
 }
-#ifdef __3DS__
-// Real-world samples complement the projected 3DS landscape. On DS/DSi
-// the illustrated backdrop is self-contained, with real terrain confined
-// to its own overhead shot so it cannot obscure the sky or shoreline.
-static void filmDrawWorldVista(const FilmBeat *beat,int t){
-    int index=filmVistaPlace(beat->place);
-    if(index<0)return;
-    const FilmVista *v=&filmVista[index];
-    if(!v->valid)return;
-    int drawn=0;
-    for(int x=0;x<FILM_VISTA_W;x++){
-        int high=3,kind=T_GRASS,water=0,shore=0;
-        for(int y=1;y<FILM_VISTA_H-1;y++){
-            int terr=filmVistaRead(v,x,y,0);
-            int height=terr==T_MOUNT?27:terr==T_HILL?17:
-                       terr==T_SNOW?13:terr==T_FOREST?11:
-                       terr==T_JUNGLE?12:terr==T_GRASS?6:
-                       terr==T_SAND?4:terr==T_DESERT?5:
-                       terr==T_SWAMP?5:terr==T_DIRT?4:2;
-            if(filmVistaIsWater(terr))water++;
-            else shore++;
-            if(height>high){high=height;kind=terr;}
-        }
-        int px=28+x*8,upper=94-high;
-        int tone=kind==T_MOUNT?20:kind==T_HILL?21:
-                 kind==T_SNOW?22:kind==T_FOREST?16:
-                 kind==T_JUNGLE?17:kind==T_SAND?26:
-                 kind==T_DESERT?25:kind==T_SWAMP?13:
-                 kind==T_DIRT?24:18;
-        // Pixel-art stepped ridge: exact terrain samples, no aliasing and
-        // no screen-wide noisy texture. Water stays below dry hills.
-        uiRect(px,upper,8,94-upper,fmvSlots[tone]);
-        if(water&&index==FILM_VISTA_COAST){
-            uiRect(px,94,8,3,fmvSlots[13]);
-            if(((t/17+x*3)&3)==0)
-                uiRect(px+2,95,4,1,fmvSlots[15]);
-        }
-        // Midground is sampled from the *same* latitude and terrain
-        // cells as the skyline. A cliff now has a lower rocky ledge, a
-        // beach slopes toward real water, and an inland mountain has
-        // stone foothills. This inexpensive two-strip DS/DSi treatment
-        // uses only the existing palette and at most 50 small rectangles.
-        if(index==FILM_VISTA_COAST||index==FILM_VISTA_RIDGE){
-            int mid=filmVistaRead(v,x,4,0);
-            int near=filmVistaRead(v,x,6,0);
-            int midTone=mid==T_MOUNT?20:mid==T_HILL?21:
-                        mid==T_SNOW?23:mid==T_SAND?26:
-                        filmVistaIsWater(mid)?13:mid==T_FOREST?16:18;
-            int nearTone=near==T_MOUNT?20:near==T_HILL?21:
-                         near==T_SNOW?23:near==T_SAND?26:
-                         filmVistaIsWater(near)?13:near==T_FOREST?16:18;
-            int midRise=mid==T_MOUNT?10:mid==T_HILL?7:
-                        mid==T_FOREST?4:2;
-            int nearRise=near==T_MOUNT?12:near==T_HILL?8:
-                         near==T_FOREST?4:2;
-            uiRect(px,104-midRise,8,8+midRise,fmvSlots[midTone]);
-            uiRect(px,114-nearRise,8,10+nearRise,fmvSlots[nearTone]);
-            // Only draw breaking surf where the sampled beach actually
-            // meets water. Animation is continuous across dialogue cuts.
-            if(filmVistaIsWater(near)&&!filmVistaIsWater(mid)&&
-               ((t/24+x)&3)==0)
-                uiRect(px+1,113,6,1,fmvSlots[15]);
-        }
-        // Position real halls/towers/huts as seen in the player's world,
-        // rather than drawing a fictional castle when none was built.
-        for(int y=2;y<FILM_VISTA_H-1&&drawn<12;y++){
-            int b=filmVistaRead(v,x,y,1);
-            if(b!=B_HALL&&b!=B_TOWER&&b!=B_HOUSE&&
-               b!=B_HUT&&b!=B_DOCK&&b!=B_RUIN)continue;
-            int h=b==B_TOWER?17:b==B_HALL?12:
-                  b==B_HOUSE?8:b==B_HUT?6:b==B_DOCK?5:5;
-            int gy=90+(y-4)*2;
-            if(gy>101)gy=101;
-            int color=b==B_RUIN?21:b==B_DOCK?24:20;
-            uiRect(px+1,gy-h,6,h,fmvSlots[color]);
-            if(b==B_TOWER||b==B_HALL){
-                uiRect(px,gy-h-2,8,3,fmvSlots[25]);
-                uiRect(px+3,gy-h+4,2,3,fmvSlots[1]);
-            }else if(b==B_HOUSE||b==B_HUT){
-                uiRect(px,gy-h-1,8,2,fmvSlots[24]);
-            }
-            drawn++;
-        }
-        (void)shore;
-    }
-}
-#endif
+#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
 static void filmDrawSet(const FilmBeat *beat,int move){
     FilmFraming camera=filmFraming(beat,move);
     u8 columns[256];
@@ -280,6 +173,7 @@ static void filmDrawSet(const FilmBeat *beat,int move){
 #endif
     }
 }
+#endif
 static void filmDrawCel(const u8 *image,int sw,int sh,int center,int feet,int height,int flip){
     // Exact, centre-sampled 8.8 texel steps avoid cumulative rounding
     // drift and inconsistent left/right edge widths while scaling.
@@ -530,6 +424,7 @@ static void filmDSForeground(const FilmBeat *beat){
 
 // All atmosphere has an in-world source. No drifting particles in empty
 // rooms or random streaks crossing a character's face.
+#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
 static void filmAtmosphere(const FilmBeat *beat,int t){
     static const u8 lightX[F_SET_N]={30,160,221,32,145,42,193,210,221,128,129,205,206,63};
     static const u8 lightY[F_SET_N]={41,151,110,141,150,126,130,142,120,145,83,141,111,145};
@@ -565,6 +460,7 @@ static void filmAtmosphere(const FilmBeat *beat,int t){
         for(int i=0;i<3;i++) uiPx(189+i*8,135+((t/8+i)&3),fmvSlots[i&1?9:8]);
     }
 }
+#endif
 static void filmCaption(const FilmBeat *beat,int shown){
     uiRect(0,168,256,24,U_SHADOW);
     if(!shown||!beat->line) return;
@@ -717,13 +613,15 @@ static void filmGripOverlay(int who,FilmPoint hand,int prop){
     else
         uiRect(hand.x-2,hand.y-1,4,2,color);
 }
-static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int otherPose,FilmBlocking b){
+static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int otherPose,
+                               FilmBlocking b,const FilmPoint *support,const FilmPoint *goat){
     int prop=beat->prop;
     if(prop>=F_PROP_N)return;
     if(prop==F_GOAT){
         // The goat is a character on the floor, not a levitating hand prop.
         int walk=filmEase(elapsed,beat->seconds*FILM_SECOND);
-        filmDrawProp(prop,58+walk*49/256,157,24);
+        if(goat) filmDrawProp(prop,goat->x,goat->y,24);
+        else filmDrawProp(prop,58+walk*49/256,157,24);
         return;
     }
     int size=beat->camera==F_INSERT?27:beat->camera==F_WIDE?17:19;
@@ -731,8 +629,8 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
     int flipLead=paired&&b.leadX>b.otherX, flipOther=paired&&b.otherX>b.leadX;
     if(beat->camera==F_INSERT||beat->lead>=F_ACTOR_N){
         // Insert and establishing objects *start* on a named support.
-        FilmPoint table={128,149};
-        filmSurface(beat->place,table.x,table.y);
+        FilmPoint table=support?*support:(FilmPoint){128,149};
+        if(!support)filmSurface(beat->place,table.x,table.y);
         // Resting props use their literal lower edge on the table top.
         // Grip/pivot coordinates apply only while a character HOLDS one.
         int feet=table.y;
@@ -745,7 +643,7 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
     FilmPoint leadHand=filmHandPoint(beat->lead,leadPose,b.leadX,b.leadFeet,
                                    b.leadHeight,flipLead);
     FilmPoint grip=leadHand;
-    FilmPoint ground=filmSurfacePoint(beat,leadHand.x);
+    FilmPoint ground=support?*support:filmSurfacePoint(beat,leadHand.x);
     FilmPoint pivot=filmPropGripPoint(prop);
     FilmPoint restGrip={
         ground.x+(pivot.x-10)*size/FILM_PROP_SIZE,
@@ -753,13 +651,13 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
     };
     // Wisp has no fingers: seed, leaf and cup stay physically on the floor.
     if(beat->lead==F_WISP||action==F_ACT_APPROACH){
-        filmSurface(beat->place,ground.x,ground.y);
+        if(!support)filmSurface(beat->place,ground.x,ground.y);
         filmDrawProp(prop,ground.x,ground.y,size);
         return;
     }
     int holding=1, thumb=1;
     if(action==F_ACT_TAKE){
-        filmSurface(beat->place,ground.x,ground.y);
+        if(!support)filmSurface(beat->place,ground.x,ground.y);
         int lift=filmEase(elapsed>50?elapsed-50:0,145);
         grip.x=filmLerp(restGrip.x,leadHand.x,lift);
         grip.y=filmLerp(restGrip.y,leadHand.y,lift);
@@ -767,7 +665,7 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         holding=1;
         thumb=elapsed>=40;
     }else if(action==F_ACT_PUT){
-        filmSurface(beat->place,ground.x,ground.y);
+        if(!support)filmSurface(beat->place,ground.x,ground.y);
         int down=filmEase(elapsed>55?elapsed-55:0,170);
         grip.x=filmLerp(leadHand.x,restGrip.x,down);
         grip.y=filmLerp(leadHand.y,restGrip.y,down);
@@ -827,6 +725,7 @@ static const FilmBeat *filmPreviousBeat(const FmvClip *clip,const FilmBeat *beat
     return NULL;
 }
 #endif
+#if !defined(__3DS__) || defined(GG_FILM_2D_FALLBACK)
 static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int chapter=(int)(clip-fmvClips);
     if(chapter==1){
@@ -880,6 +779,7 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
     }
 }
 
+#endif
 #ifndef __3DS__
 // DS companion to filmDSLivingSets(): add *actors* and objects the
 // established environmental pass does not already draw. Duplicate
@@ -915,6 +815,7 @@ static void filmDSSetAction(const FilmBeat *beat,int t,int chapter){
 #ifdef __3DS__
 // Physically anchored shadows, reflections and practical light at 20 fps.
 // Never zoom a plate, create floating effects, or allocate a second surface.
+#ifdef GG_FILM_2D_FALLBACK
 static void filmStageLight(const FilmBeat *beat,int t){
     int p=beat->place, pulse=(t/21)&1;
     if(p==F_FORGE||p==F_HEARTH){
@@ -951,6 +852,7 @@ static void filmCastContact(int who,int x,int feet,int height){
     uiRect(x-height/3,feet+1,height*2/3,2,fmvSlots[20]);
     uiRect(x-height/5,feet+3,height*2/5,1,fmvSlots[21]);
 }
+#endif
 static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     // Speaking length follows the actual line, not the entire shot. A
@@ -1032,9 +934,6 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
 // DS/DSi always use the shared low-cost illustrated film director.
 #include "story_world3d.h"
 #endif
-// The shared flight renderer uses the same staged pixel-art interface;
-// high-end 3DS additionally projects low-poly geometry via story_world3d.
-#include "story_flight.h"
 
 // Sparse effects are synced to on-screen hand contact, not to unrelated
 // cuts. Use times divisible by both 3 (3DS) and 5 (DS) frame ticks.
@@ -1060,16 +959,20 @@ static int filmActionCue(const FilmBeat *beat,int elapsed){
     return -1;
 }
 
-static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
+static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,int move){
     static const char *const location[F_SET_N]={
         "THE WORLD","THE SHORE","THE STORM","THE VILLAGE","THE FORD",
         "THE WEST GATE","THE FORGE","THE GREAT HALL","THE ARCHIVE",
         "BY THE HEARTH","THE KING'S KEEP","DAVE'S COUCH","MIRA'S PORCH","THE OLD RUINS"
     };
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    int clipIndex=(int)(clip-fmvClips);
+    int stageChapter=filmBonusIndex>=0?14:clipIndex;
+#endif
     if(!elapsed){
-#ifdef __3DS__
+#if defined(__3DS__) && defined(GG_FILM_2D_FALLBACK)
         ggUnpack(filmWides[beat->place],uiNew,FMV_W*FMV_H*4);
-#else
+#elif !defined(__3DS__)
         ggUnpack(filmSets[beat->place],uiNew,FMV_W*FMV_H);
 #endif
         if(storyScore>=0) filmScoreTurn(beat);
@@ -1080,15 +983,18 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         filmBars(clip->title);
 #endif
         const char *place=location[beat->place];
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+        if(beat->place==F_ORBIT)place="THE HIGH LOOKOUT";
+#endif
         if(filmTownName[0]&&(beat->place==F_VILLAGE||beat->place==F_GATE))
             place=filmTownName;
         uiText(7,15,place,U_CYAN,1);
     }
     int total=beat->seconds*FILM_SECOND;
-    int move=filmEase(elapsed,total);
     FilmBlocking block=filmBlocking(beat,elapsed);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-    ggFilmWorldBlocking(beat,elapsed,move,&block);
+    GgFilmCamera camera=ggFilmCameraAt(beat,move);
+    ggFilmWorldBlocking(camera,beat,elapsed,stageChapter,&block);
 #endif
     int captionOn=beat->line&&elapsed>=100&&elapsed<total-20;
     int position=beat->lead<F_ACTOR_N?
@@ -1096,51 +1002,43 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     gmFilmMixSet(1,captionOn,position);
     int cue=filmActionCue(beat,elapsed);
     if(cue>=0)fxReq(cue);
-    filmDrawSet(beat,move);
-#ifdef __3DS__
-    filmDrawWorldVista(beat,filmSceneryClock);
-#endif
+    const FilmPoint *support=NULL,*goat=NULL;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-    // The geometry is projected through the same dollying camera as actors.
-    // Draw before cast so roofs, water and room floors form a stable world.
-    int chapter=(int)(clip-fmvClips),roofFinished=1;
-    if(chapter==2){
-        // Only the early construction takes show exposed rafters.
-        // Later angles, extras and subsequent films retain the new roof.
+    FilmPoint projectedSupport,projectedGoat;
+    int roofFinished=1;
+    if(clipIndex==2){
         for(int shot=0;shot<5;shot++)
             if(beat==roofBeats+shot)roofFinished=0;
     }
-    ggFilmWorldDraw(beat,elapsed,move,
-                    filmBonusIndex>=0?14:chapter,roofFinished,
+    ggFilmWorldDraw(camera,beat,ggFilmSceneTime(elapsed),stageChapter,roofFinished,
                     filmBonusIndex==0||filmBonusIndex==1);
-#endif
-#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-    // World geometry now owns the rain window, roof construction and
-    // ground. Keep only the intentionally grounded first seed/sprout from
-    // the 2D continuity pass; do not paint floating structural overlays
-    // on top of the coherent 3D set.
-    if(filmBonusIndex<0&&(beat->place==F_SHORE||beat->place==F_ORBIT))
-        filmWorldContinuity(clip,beat,elapsed);
-#elif defined(__3DS__)
-    if(filmBonusIndex<0)filmWorldContinuity(clip,beat,elapsed);
+    if(beat->prop<F_PROP_N){
+        GgS2 pos=ggFilmPropSupport(camera,beat->place,stageChapter);
+        projectedSupport=(FilmPoint){pos.x,pos.y};
+        support=&projectedSupport;
+    }
+    if(beat->prop==F_GOAT){
+        GgS2 pos=ggFilmProject(camera,ggV3(-168+move,0,780));
+        projectedGoat=(FilmPoint){pos.x,pos.y};
+        goat=&projectedGoat;
+    }
+    if(filmBonusIndex<0&&beat==firstLightBeats+6){
+        GgS2 pos=ggFilmPropSupport(camera,F_SHORE,stageChapter);
+        filmDrawProp(F_LEAF,pos.x,pos.y,14);
+    }
+
 #else
-    filmWorldContinuity(clip,beat,filmSceneryClock);
-    filmDSSetAction(beat,filmSceneryClock,(int)(clip-fmvClips));
-#endif
-#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-    // Environment, weather, tree sway and background people continue
-    // across edits. The spoken line, prop contact and actor poses remain
-    // local to the current shot, preserving exact timing.
-    filmAtmosphere(beat,ggFilmSceneTime(elapsed));
-    filmStageLight(beat,ggFilmSceneTime(elapsed));
-#elif defined(__3DS__)
-    // Low-cost diagnostic path cannot call the world-stage clock.
+    filmDrawSet(beat,move);
+#ifdef __3DS__
+    if(filmBonusIndex<0)filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
     filmStageLight(beat,elapsed);
 #else
-    // DS and DSi get independently moving, stage-anchored details too.
+    filmWorldContinuity(clip,beat,filmSceneryClock);
+    filmDSSetAction(beat,filmSceneryClock,(int)(clip-fmvClips));
     filmDSLivingSets(beat,filmSceneryClock,(int)(clip-fmvClips));
     filmAtmosphere(beat,filmSceneryClock);
+#endif
 #endif
 
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
@@ -1180,7 +1078,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #endif
 
     if(beat->camera!=F_INSERT){
-#ifdef __3DS__
+#if defined(__3DS__) && defined(GG_FILM_2D_FALLBACK)
         filmCastContact(beat->other,block.otherX,block.otherFeet,block.otherHeight);
         filmCastContact(beat->lead,block.leadX,block.leadFeet,block.leadHeight);
 #endif
@@ -1189,16 +1087,19 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
                       block.leadHeight,paired&&block.leadX>block.otherX);
     }
-    filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
+    filmDrawPropAction(beat,elapsed,leadPose,otherPose,block,support,goat);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // True near-camera geometry is composited last, so the actors and
     // gripped props are partially hidden when they move behind an obstacle.
-    ggFilmWorldForeground(beat,move,filmBonusIndex>=0?14:(int)(clip-fmvClips));
+    ggFilmWorldForeground(camera,beat,move,stageChapter);
 #endif
 #ifndef __3DS__
     filmDSForeground(beat);
 #endif
     filmCaption(beat,captionOn);
+}
+static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
+    filmDrawShot(clip,beat,elapsed,filmEase(elapsed,beat->seconds*FILM_SECOND));
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
     int baked=clip->frames*FMV_TICKS;
@@ -1207,24 +1108,27 @@ static int fmvRenderAt(const FmvClip *clip,int elapsed){
 #endif
     if(elapsed<baked){
         if(elapsed%FMV_TICKS) return 0;
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+        if(!elapsed)fmvSetPalette();
+        FilmBeat entrance=filmReels[clip-fmvClips].beats[0];
+        entrance.camera=F_TRACK;
+        entrance.prop=F_NO_PROP;
+        entrance.action=F_ACT_AUTO;
+        entrance.line=NULL;
+        entrance.sound=0;
+        entrance.seconds=(baked+FILM_SECOND-1)/FILM_SECOND;
+        ggFilmWorldClock=elapsed;
+        filmDrawShot(clip,&entrance,elapsed,elapsed*256/baked);
+        fmvCueFrame(clip,elapsed/FMV_TICKS);
+#else
         fmvDecode(clip,elapsed/FMV_TICKS);
+#endif
         return 1;
     }
     elapsed-=baked;
-    // A route is one continuous camera journey through actual map cells.
-    // It occurs before directed dialogue, and the existing chapter beats
-    // retain their original local/scenery clocks and action-cue timing.
-#ifdef __3DS__
-    if(filmBonusIndex<0)
-#endif
-    if(filmRoute.duration>0){
-        if(elapsed<filmRoute.duration)
-            return filmFlightDraw(clip,elapsed);
-        elapsed-=filmRoute.duration;
-    }
     filmSceneryClock=elapsed;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-    ggFilmWorldClock=elapsed;
+    ggFilmWorldClock=elapsed+baked;
 #endif
     const FilmBeat *beat=filmBeatAt(clip,&elapsed);
     if(!beat||elapsed%FILM_STAGE_TICKS) return 0;
