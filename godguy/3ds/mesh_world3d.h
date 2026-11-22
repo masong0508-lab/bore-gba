@@ -686,9 +686,12 @@ static void ggMeshDock(GgMeshContext*m,int tx,int ty,int ground,int detailed){
     }
     m->material=material;
 }
+enum { GG_MESH_BUILDING_MARGIN=28 };
 typedef struct { int x0,y0,x1,y1; } GgMeshBuildingFootprint;
 static inline GgMeshBuildingFootprint ggMeshBuildingFootprint(int tx,int ty,int build){
-    GgMeshBuildingFootprint p={tx*256+28,ty*256+28,tx*256+228,ty*256+228};
+    int margin=GG_MESH_BUILDING_MARGIN;
+    GgMeshBuildingFootprint p={tx*256+margin,ty*256+margin,
+                              (tx+1)*256-margin,(ty+1)*256-margin};
     // Building type changes actual footprint/volume, not merely a
     // pixel tint: small huts, strong towers, open ruins and temples
     // remain distinguishable even when viewed with flat materials.
@@ -697,6 +700,9 @@ static inline GgMeshBuildingFootprint ggMeshBuildingFootprint(int tx,int ty,int 
     if(build==B_FARM){p.y0+=33;p.y1-=35;}
     if(build==B_STATUE){p.x0+=42;p.x1-=42;p.y0+=38;p.y1-=38;}
     return p;
+}
+static inline int ggMeshBuildingFoundation(GgMeshBuildingFootprint p,int ground){
+    return ggMeshFoundationGround(p.x0-14,p.y0-14,p.x1+14,p.y1+14,ground);
 }
 static inline int ggMeshBuildingWallTop(GgMeshBuildingFootprint p,int tx,int ty,
                                        int build,int ground,int doorFloor[4]){
@@ -731,7 +737,7 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     }
     GgMeshBuildingFootprint bounds=ggMeshBuildingFootprint(tx,ty,build);
     int x0=bounds.x0,y0=bounds.y0,x1=bounds.x1,y1=bounds.y1;
-    int baseGround=ggMeshFoundationGround(x0-14,y0-14,x1+14,y1+14,ground);
+    int baseGround=ggMeshBuildingFoundation(bounds,ground);
     int doorFloor[4];
     int wallTop=ggMeshBuildingWallTop(bounds,tx,ty,build,ground,doorFloor);
     int wood=build==B_HOUSE||build==B_HUT||build==B_FARM;

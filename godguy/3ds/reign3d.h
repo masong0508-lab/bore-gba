@@ -426,7 +426,7 @@ static void ggReignBegin(void){
     ggReign.choice=ggReign.role;ggReign.selectedOrder=ggReign.order;
     ggReign.frame=0;ggReign.lastKeys=0;ggReign.squadN=0;
     ggReign.nextCivicAt=0;
-    ggReignNotice("YOU ARE GODBORN. YOUR SOCIAL DESTINY IS NOT FIXED.");
+    ggReignNotice("TAP COUNCIL TO MANAGE WORK AND ALLIES");
 }
 static int ggReignStep(int raw){
     int down=raw&~ggReign.lastKeys;
@@ -640,17 +640,15 @@ static void ggReignDraw(u8 *out){
         else ggSagaFateDraw(out);
         ggExpText(out,25,146,"LEFT/RIGHT PAGES   B/SELECT CLOSE  START RETREAT",
                   230,195,130);
-    }else{
-        char line[112];
-        ggExpRect(out,0,42,400,14,15,31,43);
-        snprintf(line,sizeof line,"%s  %s  CASH %d  DIVINE %d  SQUAD %d/%d  SELECT: COUNCIL",
-                 ggReignRoles[ggReign.role],ggReignOffices[ggReign.office],
-                 ggReign.credits,ggReign.divine,ggReign.squadN,GG_REIGN_SQUAD_MAX);
-        ggExpText(out,7,44,line,219,217,175);
+        snprintf(line,sizeof line,"%s   CASH %d   DIVINE %d   SQUAD %d/%d",
+                 ggReignRoles[ggReign.role],ggReign.credits,ggReign.divine,
+                 ggReign.squadN,GG_REIGN_SQUAD_MAX);
+        ggExpText(out,25,161,line,179,210,211);
     }
-    if(ggReign.noticeT>0){
-        ggExpRect(out,22,173,356,15,20,32,44);
-        ggExpText(out,26,177,ggReign.notice,239,212,155);
+    if(ggReign.menu&&ggReign.noticeT>0){
+        char notice[59];
+        snprintf(notice,sizeof notice,"%.58s",ggReign.notice);
+        ggExpText(out,26,177,notice,239,212,155);
     }
 }
 #endif

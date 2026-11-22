@@ -281,11 +281,10 @@ static void ggOutdoorHud(u8 *out){
     GgOutdoorTarget target=ggOutdoorTargetAt(ggExplore.lastTargetX,ggExplore.lastTargetY);
     char hint[28];
     snprintf(hint,sizeof hint,"L+A  %s",action[target.kind]);
-    ggExpText(out,250,229,hint,150,224,207);
     if(!ggExplore.feedbackT&&ggExplore.frame<ggOutdoorNoticeUntil){
-        ggExpRect(out,7,178,386,13,37,61,58);
-        ggExpRect(out,7,178,3,13,184,181,120);
-        ggExpText(out,15,181,ggOutdoorNotice,241,225,177);
-    }
+        char notice[64];
+        snprintf(notice,sizeof notice,"%.63s",ggOutdoorNotice);
+        ggExpText(out,9,230,notice,241,225,177);
+    }else ggExpText(out,9,230,hint,150,224,207);
 }
 #endif

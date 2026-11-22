@@ -144,6 +144,62 @@ static void meshNearArchitecture(unsigned char *pixels){
     meshRequire(abs(depth-65535/180)<=2,
                 "column disappeared while crossing the near plane");
 }
+static void meshArchitectureCover(unsigned char *pixels){
+    GgMeshContext *m=&ggMeshContext;
+    int tile=64,edge=tile*256,center=edge+128,ground=ggExpGround(T_GRASS);
+    int eye=ground+GG_WORLD_EYE_HEIGHT,passed=1;
+    // The two authored porches project west (temple) and north (hall).
+    // Aim along their center aisles and through the visible columns in
+    // the same world-space directions that the rasterizer sees.
+    for(int axis=0;axis<2;axis++){
+        int build=axis?B_HALL:B_TEMPLE;
+        int across=center+(axis?51:62);
+        int sx=edge-380,end=edge+(axis?16:-5);
+        bld[tile][tile]=build;
+        ggMeshBegin(m,pixels,2,axis?across:sx,axis?sx:across,eye,
+                    axis?0:4096,axis?4096:0,42,65,89);
+        ggMeshBuilding(m,tile,tile,build,ground,1);
+        int depth=m->depth[m->horizon*m->w+m->w/2];
+        meshRequire(depth>=170,"porch cover fixture missed the rendered shaft");
+        int column=ggChronCombatCover(axis?across:edge-15,
+                                       axis?edge-1:across,eye);
+        int blocked=!ggChronCombatLine(axis?across:sx,axis?sx:across,eye,
+                                       axis?across:end,axis?end:across,eye);
+        int aisle=ggChronCombatLine(axis?center:sx,axis?sx:center,eye,
+                                   axis?center:end,axis?end:center,eye);
+        if(!column||!blocked||!aisle){
+            fprintf(stderr,"3DS COVER FAIL: %s porch column %d, blocked ray %d, open aisle %d\n",
+                    axis?"hall":"temple",column,blocked,aisle);
+            passed=0;
+        }
+    }
+    bld[tile][tile]=B_STATUE;
+    static const struct {int dy,dz,solid;} statue[]={{48,13,0},{0,13,1},{0,36,1}};
+    for(unsigned i=0;i<sizeof statue/sizeof statue[0];i++){
+        int y=center+statue[i].dy,z=ground+statue[i].dz;
+        ggMeshBegin(m,pixels,2,center-400,y,z,4096,0,42,65,89);
+        ggMeshBuilding(m,tile,tile,B_STATUE,ground,1);
+        int solid=m->depth[m->horizon*m->w+m->w/2]!=0;
+        meshRequire(solid==statue[i].solid,"statue cover fixture missed its expected silhouette");
+        if(ggChronCombatCover(center,y,z)!=solid){
+            fprintf(stderr,"3DS COVER FAIL: statue at lateral %d, height %d (rendered %d)\n",
+                    statue[i].dy,statue[i].dz,solid);
+            passed=0;
+        }
+    }
+    bld[tile][tile]=B_RUIN;
+    int x=edge+50,y=edge+206,z=ground+11;
+    ggMeshBegin(m,pixels,2,edge-380,y,z,4096,0,42,65,89);
+    ggMeshBuilding(m,tile,tile,B_RUIN,ground,1);
+    meshRequire(m->depth[m->horizon*m->w+m->w/2],
+                "ruin cover fixture missed the taller intersecting wall");
+    if(!ggChronCombatCover(x,y,z)){
+        fputs("3DS COVER FAIL: shorter ruin wall masks intersecting cover\n",stderr);
+        passed=0;
+    }
+    bld[tile][tile]=B_NONE;
+    meshRequire(passed,"combat cover disagrees with visible architectural volumes");
+}
 static void meshRoundGeometryRegression(unsigned char *pixels){
     // Exercise the real final facet of every circular world primitive.
     // In particular, the six/eight-sided closing vertex used to read
@@ -195,6 +251,7 @@ int main(void){
     meshBuildingSilhouettes(pixels);
     meshPorticoRotation(pixels);
     meshNearArchitecture(pixels);
+    meshArchitectureCover(pixels);
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
                 "cinema is still a raycast image, not 3D mesh geometry");

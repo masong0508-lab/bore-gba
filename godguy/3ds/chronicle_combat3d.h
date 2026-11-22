@@ -4,7 +4,8 @@
 enum {
     GG_COMBAT_NONE, GG_COMBAT_HIT, GG_COMBAT_COVER, GG_COMBAT_MISS,
     GG_COMBAT_TOO_SOON, GG_COMBAT_STAMINA, GG_COMBAT_FOCUS,
-    GG_COMBAT_BLOCK, GG_COMBAT_PARRY, GG_COMBAT_WARD
+    GG_COMBAT_BLOCK, GG_COMBAT_PARRY, GG_COMBAT_WARD,
+    GG_COMBAT_SHOT_MISS, GG_COMBAT_RECOVERY, GG_COMBAT_BUSY
 };
 enum { GG_CHRON_BODY=GG_WORLD_PERSON_HEIGHT, GG_CHRON_SHOT_STEP=16,
        GG_CHRON_ARROW_FALL=35 };
@@ -32,7 +33,8 @@ static int ggChronRuinCover(GgMeshBuildingFootprint p,int top,int x,int y,int z)
             int a=w->u0+(w->u1-w->u0)*j/5,b=w->u0+(w->u1-w->u0)*(j+1)/5;
             if(across>b)continue;
             int lo=ggMeshBrokenWallCrown[j],hi=ggMeshBrokenWallCrown[j+1];
-            return z<=w->top+lo+(hi-lo)*(across-a)/(b-a);
+            if((z-w->top-lo)*(b-a)<=(hi-lo)*(across-a))return 1;
+            break; // Another ruin wall can be taller at this corner.
         }
     }
     return 0;
@@ -40,14 +42,29 @@ static int ggChronRuinCover(GgMeshBuildingFootprint p,int top,int x,int y,int z)
 static int ggChronStructureCover(int build,int tx,int ty,int x,int y,int z){
     if(!ggExpBuilding(build)||build==B_DOCK)return 0;
     GgMeshBuildingFootprint p=ggMeshBuildingFootprint(tx,ty,build);
-    int ground=ggExpGround(world[ty][tx]);
+    int ground=ggExpGround(ggMeshTerrainAt(tx,ty));
     int nominal=ground+ggExpBuilding(build)+(build==B_FARM?6:0);
     if(build==B_RUIN)return ggChronRuinCover(p,nominal,x,y,z);
+    if(build==B_STATUE){
+        int base=z<ground?ggMeshBuildingFoundation(p,ground):ground;
+        return ggMeshStatueContains(x-(p.x0+p.x1)/2,y-(p.y0+p.y1)/2,
+                                     z-ground,base-ground);
+    }
     int within=x>=p.x0&&x<=p.x1&&y>=p.y0&&y<=p.y1;
     if(within&&z<=nominal)return 1;
-    if(!within&&z<nominal-5)return 0;
+    int temple=build==B_TEMPLE,hall=build==B_HALL;
+    int plane=hall?p.y0:p.x0,normal=hall?y:x;
+    int reach=temple?GG_MESH_TEMPLE_REACH:GG_MESH_HALL_REACH;
+    int porch=(temple||hall)&&normal>=plane-reach-GG_MESH_PORTICO_STEP&&normal<=plane+8;
+    if(!within&&!porch&&z<nominal-5)return 0;
     int floors[4];
     int top=ggMeshBuildingWallTop(p,tx,ty,build,ground,floors);
+    if(porch){
+        int center=hall?(p.x0+p.x1)/2:(p.y0+p.y1)/2;
+        GgMeshPorticoShape shape=ggMeshPorticoLayout(hall,plane,center,
+            floors[hall?2:0],top-(temple?8:12),temple);
+        if(ggMeshPorticoContains(&shape,normal,hall?x:y,z,temple))return 1;
+    }
     if(within&&z<=top)return 1;
     if(build==B_TOWER)
         return z>=top-5&&z<=top+3&&x>=p.x0-22&&x<=p.x1+22&&
@@ -68,12 +85,27 @@ static int ggChronStructureCover(int build,int tx,int ty,int x,int y,int z){
     }
     return 0;
 }
+static int ggChronBuildingAt(int x,int y,int z,int relativeToGround){
+    int tx=x>>8,ty=y>>8;
+    if((unsigned)tx>=WW||(unsigned)ty>=WH)return 1;
+    int building=bld[ty][tx];
+    // The temple faces west and the hall faces north. Each porch
+    // can reach one neighboring tile on its authored entrance side.
+    int templeReach=GG_MESH_TEMPLE_REACH+GG_MESH_PORTICO_STEP-GG_MESH_BUILDING_MARGIN;
+    int hallReach=GG_MESH_HALL_REACH+GG_MESH_PORTICO_STEP-GG_MESH_BUILDING_MARGIN;
+    int temple=(x&255)>=256-templeReach&&tx+1<WW&&bld[ty][tx+1]==B_TEMPLE;
+    int hall=(y&255)>=256-hallReach&&ty+1<WH&&bld[ty+1][tx]==B_HALL;
+    if(!building&&!temple&&!hall)return 0;
+    if(relativeToGround)z+=ggMeshGroundAtQ8(x,y);
+    return (building&&ggChronStructureCover(building,tx,ty,x,y,z))||
+           (temple&&ggChronStructureCover(B_TEMPLE,tx+1,ty,x,y,z))||
+           (hall&&ggChronStructureCover(B_HALL,tx,ty+1,x,y,z));
+}
 static int ggChronCombatCover(int x,int y,int z){
     int tx=x>>8,ty=y>>8;
     if((unsigned)tx>=WW||(unsigned)ty>=WH)return 1;
     int ground=ggMeshGroundAtQ8(x,y);
-    if(z<=ground)return 1;
-    if(bld[ty][tx]&&ggChronStructureCover(bld[ty][tx],tx,ty,x,y,z))return 1;
+    if(z<=ground||ggChronBuildingAt(x,y,z,0))return 1;
     // Civilian bodies absorb a shot before it can reach a campaign foe.
     // Campaign weapons never apply damage to the underlying population.
     if(occ[ty][tx]&&abs((x&255)-128)<34&&abs((y&255)-128)<34&&
@@ -90,10 +122,28 @@ static int ggChronCombatLine(int ax,int ay,int az,int bx,int by,int bz){
     return 1;
 }
 
+enum { GG_CHRON_TARGET_COVER=-2 };
+
+static int ggChronChargeThreshold(int style){
+    return style==GG_CHRON_BLADE?19:style==GG_CHRON_BOW?8:10;
+}
+static int ggChronAttackCost(int style,int charge){
+    int charged=charge>=ggChronChargeThreshold(style);
+    if(style==GG_CHRON_BLADE)return charged?23:9;
+    if(style==GG_CHRON_BOW)return charged?8+charge/8:6+charge/4;
+    return charged?18+charge/5:12+charge/4;
+}
+static int ggChronCombatCanAfford(int style,int cost){
+    int ember=style==GG_CHRON_EMBER;
+    if((ember?ggChron.focus:ggChron.stamina)>=cost)return 1;
+    ggChronCombatNotice(ember?GG_COMBAT_FOCUS:GG_COMBAT_STAMINA);
+    return 0;
+}
+
 static int ggChronCombatTarget(int range,int wide,int *distance){
     int angle=ggExplore.angle&255;
     int cosine=ggExpCos[angle],sine=ggExpSin[angle];
-    int eye=ggChronCombatEye(),nearest=range+1,found=-1;
+    int eye=ggChronCombatEye(),nearest=range+1,found=-1,blocked=0;
     for(int i=0;i<ggChron.foeN;i++){
         const GgChronFoe*f=&ggChron.foe[i];
         if(f->hp<=0)continue;
@@ -107,12 +157,14 @@ static int ggChronCombatTarget(int range,int wide,int *distance){
             continue;
         int ground=ggMeshGroundAtQ8(x,y);
         if(wide&&abs(ground+GG_WORLD_EYE_HEIGHT-eye)>8)continue;
-        if(!ggChronCombatLine(ggExplore.px,ggExplore.py,eye,x,y,ground+10))
+        if(!ggChronCombatLine(ggExplore.px,ggExplore.py,eye,x,y,ground+10)){
+            blocked=1;
             continue;
+        }
         found=i;nearest=forward;
     }
     if(distance)*distance=nearest;
-    return found;
+    return found<0&&blocked?GG_CHRON_TARGET_COVER:found;
 }
 static void ggChronDamageFoe(int index,int damage,int stagger){
     GgChronFoe*f=&ggChron.foe[index];
@@ -136,8 +188,10 @@ static void ggChronIncomingHit(int index,int damage){
     int angle=ggExplore.angle&255;
     int front=dx*ggExpCos[angle]+dy*ggExpSin[angle];
     int side=dy*ggExpCos[angle]-dx*ggExpSin[angle];
-    if(ggChron.guardTicks&&ggChron.style==GG_CHRON_BLADE&&
-       front>0&&abs(side)<=front&&ggChron.stamina>=9){
+    int defending=ggChron.guardTicks&&!ggChron.charge&&!ggChron.swing;
+    int style=ggChron.style;
+    if(defending&&style==GG_CHRON_BLADE&&front>0&&abs(side)<=front&&
+       ggChronCombatCanAfford(style,9)){
         ggChron.stamina-=9;
         if(ggChron.guardTicks<=8){
             f->wait=(signed char)ggExpClamp(f->wait+8,12,63);
@@ -146,7 +200,7 @@ static void ggChronIncomingHit(int index,int damage){
         }
         damage=(damage+2)/3;
         ggChronCombatNotice(GG_COMBAT_BLOCK);
-    }else if(ggChron.guardTicks&&ggChron.style==GG_CHRON_EMBER&&ggChron.focus>=13){
+    }else if(defending&&style==GG_CHRON_EMBER&&ggChronCombatCanAfford(style,13)){
         ggChron.focus-=13;
         damage=(damage+3)/4;
         ggChronCombatNotice(GG_COMBAT_WARD);
@@ -178,43 +232,40 @@ static void ggChronShotsStep(void){
         if(!p->life)continue;
         int speed=abs(p->vx)>abs(p->vy)?abs(p->vx):abs(p->vy);
         int steps=(speed+GG_CHRON_SHOT_STEP-1)/GG_CHRON_SHOT_STEP;
-        --p->life;
+        int hit=0;
         for(int step=1;step<=steps;step++){
             int x=p->x+p->vx*step/steps,y=p->y+p->vy*step/steps;
             int z=(p->z+p->vz*step/steps)>>8;
-            if(ggChronShotHit(p,x,y,z)){p->life=0;break;}
+            if(ggChronShotHit(p,x,y,z)){hit=1;break;}
         }
+        if(hit)p->life=0;
+        else if(--p->life==0)ggChronCombatNotice(GG_COMBAT_SHOT_MISS);
         p->x+=p->vx;p->y+=p->vy;p->z+=p->vz;
         if(p->style==GG_CHRON_BOW)p->vz-=GG_CHRON_ARROW_FALL;
         ggChron.dirty=1;
     }
 }
-static int ggChronReleaseShot(int style,int charge){
-    int bow=style==GG_CHRON_BOW;
-    if(charge<(bow?8:10)){
-        ggChronCombatNotice(GG_COMBAT_TOO_SOON);
-        return 0;
-    }
-    int cost=bow?8+charge/8:18+charge/5;
+static int ggChronReleaseShot(int style,int charge,int steady){
+    int bow=style==GG_CHRON_BOW,charged=charge>=ggChronChargeThreshold(style);
+    int cost=ggChronAttackCost(style,charge);
     int *meter=bow?&ggChron.stamina:&ggChron.focus;
-    if(*meter<cost){
-        ggChronCombatNotice(bow?GG_COMBAT_STAMINA:GG_COMBAT_FOCUS);
-        return 0;
-    }
+    if(!ggChronCombatCanAfford(style,cost))return 0;
     GgChronShot *shot=NULL;
     for(int i=0;i<GG_CHRON_SHOTS;i++)if(!ggChron.shots[i].life){
         shot=&ggChron.shots[i];break;
     }
-    if(!shot)return 0;
+    if(!shot){ggChronCombatNotice(GG_COMBAT_BUSY);return 0;}
     int aim=ggExplore.angle&255;
-    int sway=bow&&!ggChron.guardTicks?(ggChron.frame%7)-3:0;
-    int a=(aim+sway)&255,speed=bow?68+charge:114;
-    int range=bow?8*256:6*256,forward;
+    int sway=bow&&!steady?(ggChron.frame%7)-3:0;
+    int a=(aim+sway)&255,speed=bow?68+charge:charged?114:96;
+    int range=(charged?(bow?8:6):(bow?4:3))*256,forward;
+    int damage=charged?(bow?13+charge/2:21+charge/3):
+                       (bow?9:13)+charge/2;
     int foe=ggChronCombatTarget(range,0,&forward);
     GgChronShot released={.x=ggExplore.px,.y=ggExplore.py,
         .z=(ggChronCombatEye()-2)*256,.vx=ggExpCos[a]*speed/4096,
         .vy=ggExpSin[a]*speed/4096,.life=(unsigned char)(range/speed+2),
-        .style=(unsigned char)style,.damage=(unsigned char)(bow?13+charge/2:21+charge/3),
+        .style=(unsigned char)style,.damage=(unsigned char)damage,
         .stagger=(unsigned char)(!bow&&charge>=20)};
     if(foe>=0){
         int frames=(forward+speed/2)/speed;
@@ -231,7 +282,7 @@ static int ggChronReleaseShot(int style,int charge){
     }else if(bow)released.vz=210;
     *shot=released;
     *meter-=cost;
-    ggChron.attackWait=bow?14:21;
+    ggChron.attackWait=charged?(bow?14:21):(bow?11:15);
     ggChron.attackFlash=5;
     ggChron.dirty=1;
     return 1;
@@ -249,33 +300,37 @@ static void ggChronCombatStep(int raw,int down){
         if(ggChron.attackWait<5)ggChron.attackWait=5;
         ggChron.dirty=1;
     }
-    if((raw&GG_3DS_ZL)&&(ggChron.guardTicks||(down&GG_3DS_ZL))&&
-       !ggChron.swing&&(!ggChron.charge||ggChron.style==GG_CHRON_BOW)){
-        if(ggChron.guardTicks<60)ggChron.guardTicks++;
+    if((raw&GG_3DS_ZL)&&(ggChron.guardTicks||(down&GG_3DS_ZL))){
+        // Defense resumes when the attack settles, without a new parry window.
+        int attacking=ggChron.style!=GG_CHRON_BOW&&(ggChron.swing||ggChron.charge);
+        if(attacking&&ggChron.guardTicks<=8)ggChron.guardTicks=9;
+        else if(ggChron.guardTicks<60)ggChron.guardTicks++;
     }else ggChron.guardTicks=0;
 
     if(ggChron.swing&&--ggChron.swing==0){
         int foe=ggChronCombatTarget(ggChron.heavy?410:336,1,NULL);
         int damage=(ggChron.heavy?31:16)+(ggChron.morale>=75?3:0);
         if(foe>=0)ggChronDamageFoe(foe,damage,ggChron.heavy);
-        else ggChronCombatNotice(GG_COMBAT_MISS);
+        else ggChronCombatNotice(foe==GG_CHRON_TARGET_COVER?GG_COMBAT_COVER:GG_COMBAT_MISS);
         ggChron.attackFlash=5;
     }
     if(ggChron.charge&&!(raw&KEY_A)){
         if(ggChron.style==GG_CHRON_BLADE){
-            ggChron.heavy=ggChron.charge>=19;
-            int cost=ggChron.heavy?23:9;
-            if(ggChron.stamina>=cost){
+            ggChron.heavy=ggChron.charge>=ggChronChargeThreshold(ggChron.style);
+            int cost=ggChronAttackCost(ggChron.style,ggChron.charge);
+            if(ggChronCombatCanAfford(ggChron.style,cost)){
                 ggChron.stamina-=cost;
                 ggChron.swing=ggChron.heavy?6:3;
                 ggChron.attackWait=ggChron.heavy?31:16;
-            }else ggChronCombatNotice(GG_COMBAT_STAMINA);
-        }else ggChronReleaseShot(ggChron.style,ggChron.charge);
+            }
+        }else ggChronReleaseShot(ggChron.style,ggChron.charge,
+                                wasGuarding||ggChron.guardTicks);
         ggChron.charge=0;
     }
-    if((down&KEY_A)&&!ggChron.attackWait&&!ggChron.charge){
-        ggChron.charge=1;
-        if(ggChron.style!=GG_CHRON_BOW)ggChron.guardTicks=0;
+    if((down&KEY_A)&&!ggChron.charge){
+        if(ggChron.attackWait)ggChronCombatNotice(GG_COMBAT_RECOVERY);
+        else if(ggChronCombatCanAfford(ggChron.style,ggChronAttackCost(ggChron.style,1)))
+            ggChron.charge=1;
     }else if((raw&KEY_A)&&ggChron.charge&&ggChron.charge<36)
         ggChron.charge++;
 

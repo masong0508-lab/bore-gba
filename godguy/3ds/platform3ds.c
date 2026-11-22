@@ -50,15 +50,24 @@ int plat_init(void){
 void plat_setCinema(int on){platCinema=on!=0;}
 // keys in the shim's layout (A B SELECT START RIGHT LEFT UP DOWN R L X Y, bit 12 = touch)
 int plat_keys(int*tx,int*ty){
+    enum { TOUCH_BEZEL=1, TOUCH_MAP, TOUCH_FILM, TOUCH_SUPPRESSED };
+    static int touchSource;
     hidScanInput(); u32 k=hidKeysHeld(); int h=(int)(k&0xFFF); if(k&KEY_CPAD_UP) h|=1<<6; if(k&KEY_CPAD_DOWN) h|=1<<7; if(k&KEY_CPAD_LEFT) h|=1<<5; if(k&KEY_CPAD_RIGHT) h|=1<<4;
     if(k&KEY_ZL)h|=GG_3DS_ZL;
     if(k&KEY_ZR)h|=GG_3DS_ZR;
     if(k&KEY_TOUCH){
         touchPosition t;hidTouchRead(&t);
-        int x=platCinema?t.px*4/5:t.px-32;
-        int y=platCinema?t.py*4/5:t.py-24;
-        if(x>=0&&x<256&&y>=0&&y<192){ *tx=x; *ty=y; h|=1<<12; }
-    }
+        if(!touchSource)touchSource=platCinema?TOUCH_FILM:
+            t.py<GG_3DS_MAP_TOP?TOUCH_BEZEL:TOUCH_MAP;
+        if((touchSource==TOUCH_FILM)!=platCinema)touchSource=TOUCH_SUPPRESSED;
+        if(touchSource==TOUCH_BEZEL){
+            *tx=t.px;*ty=t.py;h|=GG_3DS_SHORTCUT_TOUCH;
+        }else if(touchSource!=TOUCH_SUPPRESSED){
+            int x=platCinema?t.px*4/5:t.px-32;
+            int y=platCinema?t.py*4/5:t.py-GG_3DS_MAP_TOP;
+            if(x>=0&&x<256&&y>=0&&y<192){ *tx=x; *ty=y; h|=1<<12; }
+        }
+    }else touchSource=0;
     if(!aptMainLoop()) exit(0); return h; }
 // src: W x 240 pixels, RGB, row by row.  fb: the 3DS screen, BGR, column by column, the bottom row first.
 static void copyScreen(u8*fb,const unsigned char*src,int W){

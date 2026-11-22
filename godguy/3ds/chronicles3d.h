@@ -52,6 +52,7 @@ static const int ggChronRequires[GG_CHRON_ACTS]={3,5,8,14};
 
 // Resolved by the 3DS-only saga director after the player secures a final post.
 static void ggSagaStartChoice(void);
+static int ggSagaParleyCost(int post);
 static int ggSagaParley(int post);
 static int ggReignNearestGuard(int x,int y,int *gx,int *gy);
 static int ggReignGuardPosition(int index,int *x,int *y);
@@ -405,6 +406,12 @@ static void ggChronEnemiesStep(void){
         }else f->wait=25;
     }
 }
+static int ggChronWalksIntoBuilding(int oldX,int oldY,int x,int y){
+    int mx=(x+oldX)/2,my=(y+oldY)/2;
+    int blocked=ggChronBuildingAt(x,y,GG_CHRON_BODY/2,1)||
+                ggChronBuildingAt(mx,my,GG_CHRON_BODY/2,1);
+    return blocked&&!ggChronBuildingAt(oldX,oldY,GG_CHRON_BODY/2,1);
+}
 static int ggChronStep(int raw){
     if(!ggChron.active)return 0;
     int down=raw&~ggChron.lastKeys;
@@ -426,16 +433,16 @@ static int ggChronStep(int raw){
        (raw&GG_3DS_ZL))moving&=~KEY_B;
     int oldX=ggExplore.px,oldY=ggExplore.py;
     ggExpAdvance(moving,0,0,0);
-    if((oldX>>8)!=(ggExplore.px>>8)||(oldY>>8)!=(ggExplore.py>>8)){
-        for(int i=0;i<ggChron.foeN;i++){
-            const GgChronFoe*f=&ggChron.foe[i];
-            if(f->hp>0&&f->x==(ggExplore.px>>8)&&f->y==(ggExplore.py>>8)){
-                ggExplore.px=oldX;ggExplore.py=oldY;ggExplore.stepPhase=0;
-                break;
-            }
+    int moved=oldX!=ggExplore.px||oldY!=ggExplore.py;
+    if(moved){
+        int x=ggExplore.px>>8,y=ggExplore.py>>8;
+        int enteredFoe=((oldX>>8)!=x||(oldY>>8)!=y)&&ggChronFoeAt(x,y);
+        if(enteredFoe||ggChronWalksIntoBuilding(oldX,oldY,ggExplore.px,ggExplore.py)){
+            ggExplore.px=oldX;ggExplore.py=oldY;ggExplore.stepPhase=0;
+            moved=0;
         }
     }
-    if((moving&KEY_B)&&(moving&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT))){
+    if((moving&KEY_B)&&moved){
         ggChron.stamina=ggExpClamp(ggChron.stamina-2,0,100);
     }else if((ggChron.frame&1)==0&&!ggChron.charge&&!ggChron.guardTicks&&
              !ggChron.swing&&!(raw&GG_3DS_ZL))
@@ -557,18 +564,10 @@ static void ggChronDrawCombat(u8*out){
     }
     ggChronCombatWeaponDraw(out,style,phase,progress,ggChron.frame);
     int hit=ggChron.combatNoticeT>33&&ggChron.combatNotice==GG_COMBAT_HIT;
-    ggChronCombatReticle(out,style,hit,ggChron.charge*255/36);
-    static const char *const response[]={
-        "","HIT","STOPPED BY COVER","OUT OF REACH","HOLD A LONGER",
-        "LOW STAMINA","LOW FOCUS","BLOCKED","PARRY","WARDED"
-    };
-    if(ggChron.combatNoticeT>0&&ggChron.combatNotice>GG_COMBAT_NONE){
-        const char *line=response[ggChron.combatNotice];
-        ggExpRect(out,7,178,(int)strlen(line)*6+8,13,16,25,32);
-        ggExpText(out,11,181,line,248,219,152);
-    }
+    int threshold=ggChronChargeThreshold(style);
+    ggChronCombatReticle(out,style,hit,ggExpClamp(ggChron.charge*255/threshold,0,255));
 }
-static void ggChronDraw(u8 *out){
+static void ggChronDraw(u8 *out,const char *context,int modal){
     if(!ggChron.active)return;
     // Draw the bounded encounter from far to near.
     int order[GG_CHRON_FOES],depth[GG_CHRON_FOES],count=0;
@@ -630,7 +629,6 @@ static void ggChronDraw(u8 *out){
         ggExpRect(out,blade-2,grip,6,2,147,121,72);
         ggExpRect(out,x-w/3,y-h/2,ggExpClamp(w/5,3,10),
                   ggExpClamp(h/5,3,14),120,51,62);
-        ggExpRect(out,x-bar/2,barY,bar,3,34,29,35);
         // Spawn places the chapter's single captain first at the last
         // post. The captain is distinctly tougher; its bar must show
         // actual damage from the first hit, not only after 65 HP vanish.
@@ -640,8 +638,11 @@ static void ggChronDraw(u8 *out){
                     (i==0||ggChron.foe[i-1].post!=f->post);
         int maxHp=captain?105:20+ggChron.act*6+f->post*3;
         if(maxHp<1)maxHp=40;
-        ggExpRect(out,x-bar/2,barY,
-                  bar*ggExpClamp(f->hp,0,maxHp)/maxHp,3,196,76,64);
+        if(bob||(f->hp<maxHp&&abs(x-200)<45)){
+            ggExpRect(out,x-bar/2,barY,bar,3,34,29,35);
+            ggExpRect(out,x-bar/2,barY,
+                      bar*ggExpClamp(f->hp,0,maxHp)/maxHp,3,196,76,64);
+        }
         if(bob)ggExpRect(out,x-2,barY-6,5,4,247,175,68);
         ggExpFilmDrawDepth=0;
     }
@@ -663,67 +664,82 @@ static void ggChronDraw(u8 *out){
         }
     }
     ggChronDrawShots(out);
-    ggChronDrawCombat(out);
-    // Replace the free-build UI completely. A commander must read the
-    // tactical situation, not a block inventory.
-    ggExpRect(out,0,0,400,37,13,23,34);
-    ggExpRect(out,0,35,400,2,177,128,71);
-    char line[100];
-    snprintf(line,sizeof line,"UNWRITTEN REIGN %d/4  %.24s",
-             ggChron.act+1,ggChronActName[ggChron.act]);
-    ggExpText(out,9,5,line,248,220,165);
-    const char *styleName=ggChron.style==GG_CHRON_BOW?"BOW":
-                          ggChron.style==GG_CHRON_EMBER?"EMBER":"BLADE";
-    snprintf(line,sizeof line,"HP %d  STA %d  FOCUS %d  FOOD %d  RATIONS %d  %s",
-             ggChron.hp,ggChron.stamina,ggChron.focus,ggChron.food,ggChron.rations,styleName);
-    ggExpText(out,9,20,line,211,222,216);
-    ggExpRect(out,0,195,400,45,12,22,34);
-    ggExpRect(out,0,195,400,2,177,128,71);
-    if(ggChron.won){
-        ggExpText(out,9,204,"VICTORY - THE ROAD IS SECURE. A NEW ACT IS AVAILABLE.",244,211,146);
-    }else if(ggChron.lost){
-        ggExpText(out,9,204,"EXPEDITION LOST - RETREAT AND REGROUP.",248,132,116);
-    }else{
-        int p=ggChron.post;
-        int distance=ggChronNear(ggExplore.px>>8,ggExplore.py>>8,
-                               ggChron.px[p],ggChron.py[p]);
-        int dx=ggChron.px[p]-(ggExplore.px>>8);
-        int dy=ggChron.py[p]-(ggExplore.py>>8);
-        const char *dir=abs(dx)>abs(dy)?(dx>=0?"EAST":"WEST"):
-                                             (dy>=0?"SOUTH":"NORTH");
+    if(!modal)ggChronDrawCombat(out);
+    ggExpRect(out,0,0,400,19,13,23,34);
+    ggExpRect(out,0,18,400,1,177,128,71);
+    char line[66];
+    const char *objective="REIGN";
+    line[0]='\0';
+    if(ggChron.won)objective="VICTORY";
+    else if(ggChron.lost)objective="EXPEDITION LOST";
+    else if(ggChron.post<GG_CHRON_POSTS){
         static const char *const tasks[GG_CHRON_ACTS][GG_CHRON_POSTS]={
             {"RESCUE THE CARAVAN","REOPEN THE FORD","LIGHT THE WATCH FIRE"},
             {"HEAR THE GUARDS","FIND THE BROKEN ORDER","REBUILD THE OATH"},
             {"SAVE A WITNESS","SECURE THE ARCHIVE","READ THE NAMES"},
             {"DEFEND THE HOMES","BREAK THE SIEGE","FACE THE LAST CAPTAIN"}
         };
-        int nextX,nextY,routeSteps=0;
-        int routed=ggChronNavNext(ggExplore.px>>8,ggExplore.py>>8,
-                                  &nextX,&nextY,&routeSteps);
-        if(distance<=2&&ggChronEnemiesAt(p)==0){
-            snprintf(line,sizeof line,"%s - PRESS X TO SECURE",
-                     tasks[ggChron.act][p]);
-        }else if(distance<=2){
-            snprintf(line,sizeof line,"%s - %d GUARDS: FIGHT OR NEGOTIATE X",
-                     tasks[ggChron.act][p],ggChronEnemiesAt(p));
-        }else if(routed&&routeSteps>0){
-            int stepX=nextX-(ggExplore.px>>8);
-            int stepY=nextY-(ggExplore.py>>8);
-            const char *road=stepX>0?"EAST":stepX<0?"WEST":
-                              stepY>0?"SOUTH":"NORTH";
-            snprintf(line,sizeof line,"%s  PATH %s %d STEPS  GUARDS %d",
-                     tasks[ggChron.act][p],road,routeSteps,
-                     ggChronEnemiesAt(p));
-        }else snprintf(line,sizeof line,"%s  SEEK %s %d TILES  GUARDS %d",
-                       tasks[ggChron.act][p],dir,distance,
-                       ggChronEnemiesAt(p));
-        ggExpText(out,9,203,line,247,216,155);
+        int p=ggChron.post,x=ggExplore.px>>8,y=ggExplore.py>>8;
+        int dx=ggChron.px[p]-x,dy=ggChron.py[p]-y;
+        int dist=abs(dx)+abs(dy),nextX,nextY,steps;
+        objective=tasks[ggChron.act][p];
+        if(dist<=2){
+            int foes=ggChronEnemiesAt(p);
+            if(foes){
+                int parley=ggSagaParleyCost(p);
+                if(parley)snprintf(line,sizeof line,"%s",parley==1?"X OFFER RATION":"X NEGOTIATE");
+                else snprintf(line,sizeof line,"%d %s",foes,foes==1?"GUARD":"GUARDS");
+            }
+            else snprintf(line,sizeof line,"X SECURE");
+        }else{
+            if(ggChronNavNext(x,y,&nextX,&nextY,&steps)&&steps>0){
+                dx=nextX-x;dy=nextY-y;dist=steps;
+            }
+            const char *dir=abs(dx)>abs(dy)?(dx>0?"EAST":"WEST"):
+                                            (dy>0?"SOUTH":"NORTH");
+            snprintf(line,sizeof line,"%s %d",dir,dist);
+        }
     }
-    const char *controls=ggChron.style==GG_CHRON_BOW?"HOLD A DRAW  ZL AIM":
-                         ggChron.style==GG_CHRON_EMBER?"HOLD A CAST  ZL WARD":"A SWING  HOLD HEAVY  ZL GUARD";
-    ggExpText(out,9,217,controls,226,216,185);
-    ggExpText(out,9,229,"ZR GEAR  X SECURE  Y RATION  B RUN  SELECT COUNCIL  START 2D",201,214,224);
-    if(ggChron.briefTime>0){
+    ggExpText(out,10,6,objective,246,222,174);
+    ggExpText(out,390-(int)strlen(line)*6,6,line,189,219,224);
+    ggExpRect(out,0,195,400,45,12,22,34);
+    ggExpRect(out,0,195,400,1,177,128,71);
+    static const char *const stat[]={"HEALTH","STAMINA","FOCUS"};
+    static const u8 color[3][3]={{218,98,91},{207,174,87},{96,183,212}};
+    int value[]={ggChron.hp,ggChron.stamina,ggChron.focus};
+    for(int i=0;i<3;i++){
+        int x=10+i*99,v=ggExpClamp(value[i],0,100);
+        snprintf(line,sizeof line,"%s %d",stat[i],v);
+        ggExpText(out,x,201,line,222,232,231);
+        ggExpRect(out,x,213,82,4,40,52,62);
+        ggExpRect(out,x,213,82*v/100,4,color[i][0],color[i][1],color[i][2]);
+    }
+    static const char *const gear[]={"SWORD","BOW","EMBER"};
+    ggExpText(out,298,201,gear[ggChron.style],241,213,153);
+    snprintf(line,sizeof line,"%d FOOD %d RATIONS",ggChron.food,ggChron.rations);
+    ggExpText(out,298,213,line,168,193,197);
+    static const char *const response[]={
+        "","HIT","STOPPED BY COVER","OUT OF REACH","HOLD A LONGER",
+        "LOW STAMINA","LOW FOCUS","BLOCKED","PARRY","WARDED",
+        "SHOT MISSED","RECOVERING","SHOTS IN FLIGHT"
+    };
+    static const char *const cues[]={"A SWING   HOLD A HEAVY   ZL GUARD",
+        "A SHOOT   HOLD A DRAW   ZL AIM","A CAST   HOLD A CHANNEL   ZL WARD"};
+    int result=ggChron.combatNotice;
+    const char *cue=cues[ggChron.style];
+    if(modal)cue="";
+    else if(ggChron.won)cue="START WORLD MAP";
+    else if(ggChron.lost)cue="START RETREAT";
+    else if(ggChron.charge)cue=ggChron.charge>=ggChronChargeThreshold(ggChron.style)?
+        "RELEASE A FOR POWER":"RELEASE A FOR QUICK ATTACK";
+    else if(ggChron.combatNoticeT>0&&result>0&&(unsigned)result<sizeof response/sizeof *response)
+        cue=response[result];
+    else if(ggChron.food<35&&ggChron.rations>0)cue="Y EAT A RATION";
+    else if(context&&*context)cue=context;
+    else if(ggChron.food<35)cue="LOW FOOD   SECURE A POST FOR RATIONS";
+    snprintf(line,sizeof line,"%.63s",cue);
+    ggExpText(out,10,227,line,230,211,163);
+    if(ggChron.briefTime>0&&!modal){
         ggExpRect(out,22,69,356,65,17,31,44);
         ggExpRect(out,22,69,356,2,187,139,79);
         ggExpText(out,38,82,ggChron.won?"THE ROAD BELONGS TO THE LIVING.":
@@ -732,7 +748,7 @@ static void ggChronDraw(u8 *out){
             ggChron.post==2?"THE WATCH HOLDS. THE LAST BANNER WAITS.":
                              "THE THREE STANDARDS STAND TOGETHER.",
             243,214,166);
-        ggExpText(out,38,105,"ZR CHANGES GEAR. ZL GUARDS, AIMS, OR WARDS.",
+        ggExpText(out,38,105,"TAP CONTROLS BELOW FOR HELP.",
                   180,207,225);
     }
     ggChron.dirty=0;
