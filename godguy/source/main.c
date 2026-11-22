@@ -1413,7 +1413,7 @@ static const Dl dl13[]={
     {W_HOLLOW,"Mira offered me a cup at the gate. The lamps are still burning in houses I gave orders to attack. I'll help keep the town standing."},
     {W_WISP,"Reach year sixteen and a hundred and fifty monsters slain. Both totals are on the Story page. Then we can put down the tools for supper."},{0,0}};
 static const Dl dl14[]={
-    {W_HOLLOW,"Thorgrim handed me a hammer. We fixed the west hinge before supper. Tomorrow I'll take the watch with Gruul, if he'll have me."},
+    {W_HOLLOW,"Thorgrim set a hammer aside for me. I'll help with the west hinge before supper. Tomorrow I'd like to take the watch with Gruul."},
     {W_MIRA,"He will. Leave your cup by the door. Someone on the next watch will want a drink."},
     {W_DAVE,"Great. One chair leans and the other is a goat. I am willing to negotiate with either."},{0,0}};
 static const Dl*const dlgTab[15]={dl0,dl1,dl2,dl3,dl4,dl5,dl6,dl7,dl8,dl9,dl10,dl11,dl12,dl13,dl14};
@@ -3166,10 +3166,7 @@ static void uiDialog(void){
     }else uiText(86,57,"EPILOGUE",U_CYAN,1);
     uiTextR(244,57,count,U_DIM);
     uiFrame(8,84,240,94,U_PANEL,U_BHI,U_BLO);
-    char buf[160];
-    memcpy(buf,d->txt,cc);
-    buf[cc]=0;
-    uiWrap(15,93,37,5,buf,U_WHITE);
+    uiWrapReveal(15,93,37,5,d->txt,cc,U_WHITE);
     if(chapter<CHAP_N){
         uiRect(15,139,226,1,U_BHI);
         uiText(15,145,chap[chapter].goal,U_GOLD,1);

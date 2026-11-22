@@ -402,11 +402,19 @@ static void checkStoryEditorial(void){
         if(ch<CHAP_N) check(uiTextW(chap[ch].goal,1)<=226,
                             "chapter objective clips on the dialogue popup");
         for(const Dl *d=dlgTab[ch];d->txt;d++){
-            check(strlen(d->txt)<160,"a story dialogue card exceeds its reveal buffer");
             check(uiWrap(0,192,37,6,d->txt,U_WHITE)<=5,
                   "a story dialogue card overflows its five-line panel");
         }
     }
+
+    memset(uiBuf,U_BG,9*256);
+    const char *reveal="1234567890123456789012345678901234 WORD";
+    uiWrapReveal(0,0,37,2,reveal,37,U_WHITE);
+    u8 row[9*256];
+    memcpy(row,uiBuf,sizeof row);
+    memset(uiBuf,U_BG,sizeof row);
+    uiWrap(0,0,37,2,reveal,U_WHITE);
+    check(!memcmp(row,uiBuf,sizeof row),"revealing the next word changed an earlier line");
 
     const FilmBeat *cut=hearthBeats+7;
     filmDrawBeat(&fmvClips[8],cut,0);
