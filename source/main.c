@@ -1876,6 +1876,14 @@ static MVoice mvc[MUS_VOICES];
 typedef struct { const u8*d; u32 n,pos; int pred,idx,gain; } WinnerSinger;
 static WinnerSinger winnerSinger[2] EWRAM_BSS;
 static u8 winnerNext;
+// Subtle, GBA-cheap song-local ambience: a 4 KiB 8-bit comb/early-reflection
+// bus in EWRAM. Distinct tap lengths decorrelate the two speakers; the room
+// send is high-passed so kick/bass remain centered and punchy. This replaces
+// none of the original Koala FX, but avoids a completely dry tracker mix.
+#define WINNER_ROOM_MASK 4095u
+static s8 winnerRoom[4096] EWRAM_BSS;
+static u16 winnerRoomPos;
+static int winnerRoomLow;
 // STEMS: every tracker channel has its own gain (256 full) gliding to a target, so the menu music can drop and bring back its layers as you go through
 // menus and tools (musStemPick). A new song starts with every stem in (deckInit).
 static u8 mStemsOk; static u16 mChanSeen;   // mChanSeen: the channels the song has really played (the stems are picked among those)   // 1 while the main menus' song plays: only it changes its mix (a song in the game or the Toukebox always plays whole)
@@ -1987,6 +1995,27 @@ static inline __attribute__((always_inline)) int softClip(int x){
     if(x<-96){ int d=-96-x; if(d>1023) d=1023; return -96-scKnee[1][d]; }
     return x;
 }
+// Song-local early reflections stay in ROM, not IWRAM (tight interrupt budget).
+// Original dry transients remain in front; only mids/highs feed this tiny room.
+__attribute__((noinline,long_call)) static void winnerRoomMix(s8*outL,s8*outR){
+    u32 rp=winnerRoomPos;
+    int low=winnerRoomLow;
+    for(int i=0;i<MUS_N;i++){
+        u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16);
+        int d=(l+r)>>3;
+        low+=(d-low)>>4;  // ~185 Hz high-pass: keep bass/kick out of ambience
+        int eL=winnerRoom[(rp-1567u)&WINNER_ROOM_MASK]; // ~86ms
+        int eR=winnerRoom[(rp-3181u)&WINNER_ROOM_MASK]; // ~175ms
+        int feed=((d-low)*3+eL+eR)>>3;
+        if(feed>127) feed=127; else if(feed< -128) feed= -128;
+        winnerRoom[rp]=(s8)feed;
+        rp=(rp+1)&WINNER_ROOM_MASK;
+        outL[i]=(s8)softClip((l>>2)+((eL*21+eR*9)>>7));
+        outR[i]=(s8)softClip((r>>2)+((eR*21+eL*9)>>7));
+    }
+    winnerRoomPos=(u16)rp;
+    winnerRoomLow=low;
+}
 IWRAM_ARM static void musMix(s8*outL,s8*outR){
     int done=0;
     while(done<MUS_N){
@@ -2020,7 +2049,11 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
         if(mSong==&xm_winner_koala && (winnerSinger[0].d||winnerSinger[1].d)) winnerVocalMix(a,n);
         mLeft-=n; done+=n;
     }
-    for(int i=0;i<MUS_N;i++){ u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16); outL[i]=(s8)softClip(l>>2); outR[i]=(s8)softClip(r>>2); }
+    if(mSong==&xm_winner_koala) winnerRoomMix(outL,outR);
+    else for(int i=0;i<MUS_N;i++){
+        u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16);
+        outL[i]=(s8)softClip(l>>2); outR[i]=(s8)softClip(r>>2);
+    }
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
@@ -2335,6 +2368,10 @@ static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main d
     for(int i=0;i<MUS_VOICES;i++){ mvc[i].d=0; mvc[i].ol=mvc[i].orr=0; mStemT[i]=mStemG[i]=256; } mStemsOk=0; mChanSeen=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     winnerNext=0; for(int i=0;i<2;i++){ winnerSinger[i].d=0; winnerSinger[i].n=winnerSinger[i].pos=0; winnerSinger[i].pred=winnerSinger[i].idx=winnerSinger[i].gain=0; }
+    // Clear the room on each newly selected deck to prevent previous songs'
+    // echoes from bleeding into the new jukebox selection.
+    winnerRoomPos=0; winnerRoomLow=0;
+    for(int i=0;i<4096;i++) winnerRoom[i]=0;
     aLoop=0; aPred0=0; aIdx0=0;
     if(kind==2) csInit(adp);
     else if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;

@@ -152,3 +152,51 @@ the game bank under a new checksum. The GBA still has just 16 channels
 and approximately 29-millisecond row timing, so some active-voice
 preemption and sub-row timing limitations remain. Human review of an
 actual GBA audio capture is still required before calling this final.
+
+
+## Six-stem reference correction (2026-11-22)
+
+The user supplied **aligned 364.061-second, 44.1-kHz stereo** source-separation
+stems: bass, drums, guitar, other, piano and vocals. Their absolute source
+starts must not be treated as six separately trimmed clips. The original
+isolated-vocal clips recorded in tools/corporations/digital.json already have
+absolute source start times. No additional vocal assets are needed.
+
+| Reference layer | Stem entrance (approx.) | Original Koala arrangement |
+| --- | ---: | --- |
+| Guitar / opening | 0-1 s | Opening pads from bar 0 |
+| Sung intro phrases | 1.49 s, 7.68 s | Vocal rows 54, 271 |
+| Drums | 18 s | First Koala percussion at 18.579 s |
+| Bass | 32.6 s | First pad-4 hit at 34.100 s |
+| Brief vocal ad-lib | 31.94 s | Vocal row 1118, 32.9 s |
+| Piano/full verse | Around 47 s, lead vocal 46.44 s | Rhodes starts 48.681 s, lead voice row 1623 at 47.74 s |
+
+**Root cause:** The previous pass appended 18 bars / 1,152 tracker rows to
+*every* vocal clip, making the 1.49-second opening vocal play at ~35.47 seconds,
+exactly as the bass started. This made the main groove appear to have an
+early singing entrance. We removed that artificial shift. Every source
+phrase onset is mapped separately from source 131 BPM to Koala 127.565 BPM
+with the original 62% swing. Source pitch, phrase durations and samples are
+preserved. The first full verse now starts around 47.74 seconds.
+
+**Dryness:** BORE's GBA tracker still cannot implement the entire original
+Koala DSP chain. A Winner-only 4 KiB 8-bit EWRAM short stereo room was added
+after note declick and original-vocal mixing. The room has decorrelated
+86/175-ms reflections and light feedback with a ~185-Hz high-passed
+send to keep bass and kick transients predominantly dry. The original
+Koala BUS A used flanger (mix 0.71), tempo delay (mix 0.203) and
+FREEVERB (dry/wet 0.20, size 0.834), while bass/drum pads mostly
+bypassed that bus; this GBA compromise is not a full FX reconstruction. The helper lives in ROM instead of tight IWRAM,
+and the other jukebox songs retain their existing mix path.
+This is a restrained approximation, not full native Koala FX parity.
+
+### Verification requirements
+
+- First vocal cue rows: 54, 271; brief ad-lib: 1118; main lead verse: 1623;
+  last cue: 10585.
+- The old +18-bar shift must not return; all 56 clips retain their original
+  encoded audio; all 8,813 source note attacks and existing source note-off
+  corrections remain in place.
+- Run the Winner regression, full GBA/creator builds, mGBA smoke test and
+  **audition the ROM at ~18, ~34 and ~48 seconds**. Build/boot tests alone
+  cannot certify subjective vocal phrasing or effects quality.
