@@ -76,7 +76,11 @@ def assert_project():
     # No artificial pitch or time-stretching of the isolated original singing.
     from winner_voice import make as make_vocal_cues
     cues=make_vocal_cues()
-    assert len(cues)==56 and cues[0][0]==1206 and cues[-1][0]==11737, (cues[0],cues[-1])
+    assert len(cues)==56 and cues[0][0]==54 and cues[-1][0]==10585, (cues[0],cues[-1])
+    # Stem evidence: an opening singer before drums, short ad-lib with
+    # bass entry, and the actual full verse after drums/bass/rhodes arrive.
+    assert cues[1][0]==271 and cues[5][0]==1118 and cues[6][0]==1623, (cues[1],cues[5],cues[6])
+    assert not any(19*64 <= row < 24*64 for row,gain,off in cues), 'no early full verse on bass entry'
     assert all(cues[i][0]<cues[i+1][0] for i in range(55))
     assert (ROOT/"source/winner_vocals.h").exists()
     main=(ROOT/"source/main.c").read_text()
