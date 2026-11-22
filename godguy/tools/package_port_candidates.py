@@ -146,7 +146,7 @@ def readme(kind, commit, package_files, alternates=None):
             "godguy_hw.nds: recommended DS build; saves use cartridge or",
             "  emulator backup memory. Target flashcart behavior still",
             "  needs testing. See the verification notes below.",
-            "godguy_dsi.nds: DSi-tuned ROM running in compatible DS mode.",
+            "godguy_dsi.nds: DSi-compatible ROM running in DS mode.",
         ]
     else:
         lines += [

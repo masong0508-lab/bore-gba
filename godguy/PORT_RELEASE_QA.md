@@ -92,7 +92,9 @@ The source tests exercise failures as well as normal play:
   packed buffer until ARM7 completes; large saves cannot race a later
   transfer because an arbitrary ARM9 spin counter expired. SPI transfer
   and readiness waits are bounded, and a transfer error stops the
-  current operation. A completely unresponsive ARM7 still requires a
+  current operation. Cartridge programming is in place: verification
+  detects failed writes but does not make them atomic or power-loss
+  safe. A completely unresponsive ARM7 still requires a
   device reset; this synchronous protocol is not a hardware watchdog.
 - `pc_3ds.c`: 400-frame framebuffer/stereo parity, twelve audio allocation
   failure positions, DSP failure, repeated initialization/shutdown,
@@ -138,6 +140,12 @@ frames and 1,800 interpreter frames. It is therefore included only as
 an experimental alternative; this observation does not establish how
 other loaders behave. Enhanced DSi mode and the New 3DS binary require
 their own target-device runtime checks.
+
+An isolated build of `godguy_dsi.nds` also passed header and segment
+validation. Its ARM9/ARM7 bytes, load addresses, entrypoints and complete
+0x4000-byte header match the reviewed DS ROM; only 92 title/banner bytes
+differ. This establishes DS-mode executable equivalence without claiming
+physical DSi testing or enhanced-mode compatibility.
 
 ## On-device acceptance checklist
 
