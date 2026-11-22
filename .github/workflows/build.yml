@@ -19,6 +19,14 @@ jobs:
         run: |
           command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
           python3 tools/check_here_today.py | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Verify original Koala Winner import and install Python audio tools
+        run: |
+          python3 tools/test_winner_koala.py
+          python3 -c 'import numpy, scipy' || {
+            apt-get update
+            apt-get install -y python3-numpy python3-scipy
+          }
+          python3 -c 'import numpy, scipy; print("Koala native pad sample processing ready")'
       - name: Missy story and cinema regression
         run: |
           if ! command -v cc >/dev/null 2>&1; then apt-get update && apt-get install -y gcc; fi

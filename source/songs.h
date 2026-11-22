@@ -112,6 +112,14 @@ SONG_XM(here_today_gone_tomorrow,"HERE TODAY GONE TOMORROW","tools/here_today_go
 // OHIO HOE: a VaninBlack hyperpop drum & bass song built from three sketches (tools/ohio_hoe.mid, hsu1.mid, woover.mid): 172 BPM two-step,
 // a reese on the hsu1 line, the E6/9 hook on supersaws and a pitched-up vocal synth, a "HOE" vowel sliding down an octave (tools/make_ohio_hoe.py, about 2:40)
 SONG_XM(ohio_hoe,"OHIO HOE","tools/ohio_hoe.xm")
-SONG_ADP(corporations,"CORPORATIONS (YOU'RE WINNER)","source/music/corporations.adp")
+// Fresh Koala Sampler project import (Winner.koala): all 8,813 sequenced hits
+// and 23 original sound pads, no guessed stem-only synth/bass transcription.
+// The live jukebox/radio song. tools/install_winner_koala.py creates the XM and
+// appends its instruments to the bank before building any ROM.
+SONG_XM(winner_koala,"CORPORATIONS (YOU'RE WINNER)","tools/winner_koala.xm")
+// Prior 4-bit audio/stem arrangement is retained only as a SECRET. Like the
+// earlier XM transcription, this appears ONLY after the title-screen debug
+// code, never through a lifetime-want unlock or regular radio/shuffle.
+SONG_ADP(corporations,"CORPORATIONS (ORIGINAL)","source/music/corporations.adp")
 // DUCK & COVER: a Koala Sampler project (145 BPM) rebuilt as a 174 BPM drum & bass tracker song (tools/make_duckcover.py): the sampled chops are 4-bit ADPCM-quality samples
 SONG_XM(duck_cover_dnb,"DUCK & COVER (ORIGINAL)","tools/duckcover/duck_cover_dnb.xm")
