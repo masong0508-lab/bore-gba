@@ -171,13 +171,13 @@ static void ggFilmBeam(GgFilmCamera cam,int x,int y,int z,int w,int h,int d,
                        u8 face){ggFilmBox(cam,x,y,z,w,h,d,face,24,25);}
 
 #include "story_world3d_material.h"
-
-#include "story_world3d_exterior.h"
-
 static int ggFilmRoom(int p){
     return p==F_FORGE||p==F_ARCHIVE||p==F_HALL||p==F_THRONE||
            p==F_COUCH||p==F_PORCH||p==F_HEARTH;
 }
+#include "story_world3d_ground.h"
+#include "story_world3d_exterior.h"
+
 static void ggFilmBackdrop(GgFilmCamera cam,int place,int t,int winter){
     int room=ggFilmRoom(place),storm=place==F_STORM;
     int evening=place==F_SHORE||place==F_GATE||place==F_RUINS;
@@ -208,8 +208,6 @@ static void ggFilmBackdrop(GgFilmCamera cam,int place,int t,int winter){
     ggFilmRidge(cam,third,2320,-210,evening?GG_SLATE:GG_PINE,
                 evening?3:16,31);
 }
-#include "story_world3d_ground.h"
-
 static void ggFilmFloor(GgFilmCamera cam,int p,int t,int chapter,int winter){
     int wet=p==F_FORD||p==F_SHORE||p==F_STORM;
     u8 base=p==F_FORD?13:wet?GG_WATER_DARK:winter?22:
@@ -575,13 +573,19 @@ static GgFilmFootprints ggFilmWorldBlocking(GgFilmCamera cam,const FilmBeat *bea
     int approach=165;
     if(beat->place==F_FORGE&&beat->prop==F_HAMMER)
         approach=GG_FILM_ANVIL_Z-GG_FILM_ANVIL_D/2-690-32;
-    int lz=690+away*approach/256;
     int oz=690;
     if(active){
         int travel=beat->place==F_FORD?16:66;
-        int drift=journey?(lx<0?-1:1)*away*travel/256:0;
-        int ground=ggFilmSurfaceHeight(beat->place,chapter,lx+drift,lz);
-        GgV3 foot=ggV3(lx+drift,ground+(beat->lead==F_WISP?84:0),lz);
+        int stride=(lx<0?-travel:travel);
+        int drift=stride*away/256;
+        int x=lx+drift;
+        if((beat->place==F_SHORE||beat->place==F_STORM)&&beat->lead!=F_WISP){
+            int dryApproach=ggFilmBeachEdge(lx+stride)-54-oz;
+            if(approach>dryApproach)approach=dryApproach;
+        }
+        int lz=oz+away*approach/256;
+        int ground=ggFilmSurfaceHeight(beat->place,chapter,x,lz);
+        GgV3 foot=ggV3(x,ground+(beat->lead==F_WISP?84:0),lz);
         if(beat->lead!=F_WISP)marks.lead=ggV3(foot.x,ground,foot.z);
         GgS2 pt=ggFilmProject(cam,foot);
         marks.leadDepth=pt.depth;
@@ -626,10 +630,10 @@ static GgFilmFootprints ggFilmWorldBlocking(GgFilmCamera cam,const FilmBeat *bea
     }
     return marks;
 }
-static void ggFilmCastShadow(GgFilmCamera cam,GgV3 mark,int place,int chapter){
-    if(!mark.z)return;
+static void ggFilmContactShadow(GgFilmCamera cam,GgV3 mark,int place,int chapter,
+                                int half,int depth,int tail){
     cam.shadow=1;
-    int x=mark.x,y=mark.y+1,z=mark.z;
+    int x=mark.x,z=mark.z;
     int indoor=ggFilmRoom(place);
     int castX=50,castZ=38;
     // Keep the floor shadow's direction tied to the light visible in the set.
@@ -642,26 +646,35 @@ static void ggFilmCastShadow(GgFilmCamera cam,GgV3 mark,int place,int chapter){
     }
     u8 shadow=place==F_SHORE?26:place==F_STORM?GG_SLATE:
               indoor||place==F_FORD?24:place==F_GATE||place==F_RUINS?20:GG_PINE;
-    GgV3 nearL=ggV3(x-22,y,z-18),nearR=ggV3(x+20,y,z-15);
-    GgV3 farL=ggV3(x+castX-18,y,z+castZ+2);
-    GgV3 farR=ggV3(x+castX+18,y,z+castZ-2);
-    int contact=24;
+    int limit=0;
     if(place==F_FORD&&mark.y>1){
-        // Neither the contact core nor the tail can spill across the
-        // edge of a deck board into the water.
-        int limit=chapter>=GG_FILM_BRIDGE_CHAPTER?GG_FILM_BRIDGE_HALF:GG_FILM_FORD_HALF;
-        GgV3 *corners[]={&nearL,&nearR,&farL,&farR};
+        limit=chapter>=GG_FILM_BRIDGE_CHAPTER?GG_FILM_BRIDGE_HALF:GG_FILM_FORD_HALF;
+    }
+    for(int part=0;part<=tail;part++){
+        GgV3 corners[4];
+        if(part==0&&tail){
+            corners[0]=ggV3(x-22,0,z-18);
+            corners[1]=ggV3(x+20,0,z-15);
+            corners[2]=ggV3(x+castX+18,0,z+castZ-2);
+            corners[3]=ggV3(x+castX-18,0,z+castZ+2);
+        }else{
+            corners[0]=ggV3(x-half,0,z-depth/4);
+            corners[1]=ggV3(x+half*2/3,0,z-depth/2);
+            corners[2]=ggV3(x+half,0,z+depth/4);
+            corners[3]=ggV3(x-half*2/3,0,z+depth/2);
+        }
         for(int i=0;i<4;i++){
-            GgV3 *p=corners[i];
-            if(p->x<-limit)p->x=(short)-limit;
-            if(p->x>limit)p->x=(short)limit;
+            GgV3 *p=&corners[i];
+            if(limit&&p->x<-limit)p->x=(short)-limit;
+            if(limit&&p->x>limit)p->x=(short)limit;
             p->y=(short)(ggFilmSurfaceHeight(place,chapter,p->x,p->z)+1);
         }
-        if(contact>x+limit)contact=x+limit;
-        if(contact>limit-x)contact=limit-x;
+        u8 ink=indoor&&part==tail?GG_OXBLOOD:shadow;
+        ggFilmQuad(cam,corners[0],corners[1],corners[2],corners[3],ink);
     }
-    ggFilmQuad(cam,nearL,nearR,farR,farL,shadow);
-    ggFilmGroundPatch(cam,x,y,z,2*contact,37,indoor?GG_OXBLOOD:shadow);
+}
+static void ggFilmCastShadow(GgFilmCamera cam,GgV3 mark,int place,int chapter){
+    if(mark.z)ggFilmContactShadow(cam,mark,place,chapter,24,37,1);
 }
 #endif
 #endif

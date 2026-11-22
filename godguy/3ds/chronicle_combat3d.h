@@ -8,7 +8,7 @@ enum {
     GG_COMBAT_SHOT_MISS, GG_COMBAT_RECOVERY, GG_COMBAT_BUSY
 };
 enum { GG_CHRON_BODY=GG_WORLD_PERSON_HEIGHT, GG_CHRON_SHOT_STEP=16,
-       GG_CHRON_ARROW_FALL=35 };
+       GG_CHRON_ARROW_FALL=35, GG_CHRON_STRIKE_FRAMES=5 };
 
 static void ggChronCombatNotice(int notice){
     ggChron.combatNotice=notice;
@@ -179,7 +179,6 @@ static void ggChronDamageFoe(int index,int damage,int stagger){
         if(f->wait<7)f->wait=7;
     }
     if(f->hp>0)ggChron.foeAlert[index]=60;
-    ggChron.attackFlash=5;
     ggChronCombatNotice(GG_COMBAT_HIT);
 }
 static void ggChronIncomingHit(int index,int damage){
@@ -193,6 +192,7 @@ static void ggChronIncomingHit(int index,int damage){
     if(defending&&style==GG_CHRON_BLADE&&front>0&&abs(side)<=front&&
        ggChronCombatCanAfford(style,9)){
         ggChron.stamina-=9;
+        ggChron.attackFlash=0;
         if(ggChron.guardTicks<=8){
             f->wait=(signed char)ggExpClamp(f->wait+8,12,63);
             ggChronCombatNotice(GG_COMBAT_PARRY);
@@ -202,6 +202,7 @@ static void ggChronIncomingHit(int index,int damage){
         ggChronCombatNotice(GG_COMBAT_BLOCK);
     }else if(defending&&style==GG_CHRON_EMBER&&ggChronCombatCanAfford(style,13)){
         ggChron.focus-=13;
+        ggChron.attackFlash=0;
         damage=(damage+3)/4;
         ggChronCombatNotice(GG_COMBAT_WARD);
     }
@@ -283,12 +284,14 @@ static int ggChronReleaseShot(int style,int charge,int steady){
     *shot=released;
     *meter-=cost;
     ggChron.attackWait=charged?(bow?14:21):(bow?11:15);
-    ggChron.attackFlash=5;
+    ggChron.attackFlash=GG_CHRON_STRIKE_FRAMES;
+    ggChron.recoverySpan=ggChron.attackWait-GG_CHRON_STRIKE_FRAMES;
     ggChron.dirty=1;
     return 1;
 }
 static void ggChronCombatStow(void){
     ggChron.charge=ggChron.swing=ggChron.guardTicks=0;
+    ggChron.attackFlash=ggChron.recoverySpan=0;
 }
 static void ggChronCombatStep(int raw,int down){
     int wasGuarding=ggChron.guardTicks!=0,priorCharge=ggChron.charge;
@@ -297,6 +300,7 @@ static void ggChronCombatStep(int raw,int down){
     if((down&GG_3DS_ZR)&&!ggChron.swing){
         ggChron.style=(ggChron.style+1)%GG_CHRON_STYLES;
         ggChron.charge=ggChron.guardTicks=0;
+        ggChron.attackFlash=ggChron.recoverySpan=0;
         if(ggChron.attackWait<5)ggChron.attackWait=5;
         ggChron.dirty=1;
     }
@@ -312,7 +316,7 @@ static void ggChronCombatStep(int raw,int down){
         int damage=(ggChron.heavy?31:16)+(ggChron.morale>=75?3:0);
         if(foe>=0)ggChronDamageFoe(foe,damage,ggChron.heavy);
         else ggChronCombatNotice(foe==GG_CHRON_TARGET_COVER?GG_COMBAT_COVER:GG_COMBAT_MISS);
-        ggChron.attackFlash=5;
+        ggChron.attackFlash=GG_CHRON_STRIKE_FRAMES;
     }
     if(ggChron.charge&&!(raw&KEY_A)){
         if(ggChron.style==GG_CHRON_BLADE){
@@ -322,6 +326,7 @@ static void ggChronCombatStep(int raw,int down){
                 ggChron.stamina-=cost;
                 ggChron.swing=ggChron.heavy?6:3;
                 ggChron.attackWait=ggChron.heavy?31:16;
+                ggChron.recoverySpan=ggChron.attackWait-ggChron.swing-GG_CHRON_STRIKE_FRAMES;
             }
         }else ggChronReleaseShot(ggChron.style,ggChron.charge,
                                 wasGuarding||ggChron.guardTicks);
@@ -337,6 +342,7 @@ static void ggChronCombatStep(int raw,int down){
     if(!ggChron.charge&&!ggChron.guardTicks&&(ggChron.frame&7)==0&&ggChron.focus<100)
         ggChron.focus++;
     if(ggChron.swing||ggChron.charge!=priorCharge||ggChron.attackFlash||
+       (ggChron.recoverySpan&&ggChron.attackWait>0&&!(ggChron.attackWait&1))||
        wasGuarding!=(ggChron.guardTicks!=0)||
        (ggChron.guardTicks>0&&ggChron.guardTicks<=8))
         ggChron.dirty=1;

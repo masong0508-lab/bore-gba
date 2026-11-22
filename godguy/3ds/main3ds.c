@@ -463,6 +463,7 @@ void shimPresent(void){
                     const char *context=modal?NULL:ggReign.noticeT?ggReign.notice:
                                         ggQuestFieldHint(hint,sizeof hint);
                     ggReignSceneDraw(topBuf);
+                    ggReignDrawSquad(topBuf);
                     ggChronDraw(topBuf,context,modal);
                     ggReignDraw(topBuf);
                     ggQuestDraw(topBuf);

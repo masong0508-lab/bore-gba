@@ -918,6 +918,7 @@ static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
 // There is no intermediate cel surface or integer zoom change.
 enum { GG_SAGA_ART_SCALE=2, GG_SAGA_ART_HEIGHT=32*GG_SAGA_ART_SCALE };
 static struct {int x,y,height;} ggSagaArt;
+static int ggSagaTerrainContact;
 static int ggSagaArtOffset(int pixels,int height){
     return pixels*height/GG_SAGA_ART_HEIGHT;
 }
@@ -946,10 +947,12 @@ static int ggSagaShadowSize(int pixels){
 // Use the same foreground span test for the direct RGB shadow blend.
 #define GG_FILM_SHADOW_MASKED(x,y) ggExpFilmPixelHidden((x),(y))
 #define GG_FILM_SHADOW_SIZE(pixels) ggSagaShadowSize(pixels)
+#define GG_FILM_SHADOW_ON_TERRAIN ggSagaTerrainContact
 #define ggExpRect ggSagaArtRect
 #include "film_acting3d.h"
 #undef GG_FILM_SHADOW_MASKED
 #undef GG_FILM_SHADOW_SIZE
+#undef GG_FILM_SHADOW_ON_TERRAIN
 static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
                                 int style,int talking){
     static const u8 palette[6][3][3]={
@@ -991,9 +994,7 @@ static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
     }
 }
 // World-linked story props. A wagon by the ford, watch standards, records
-// in the archive, and lamps or provisions in living towns. These are
-// small screen-space cel arrangements PROJECTED from actual ground tiles,
-// never screen-anchored stickers or a second 3D asset renderer.
+// in the archive, and lamps or provisions in living towns.
 enum { GG_FILM_PROP_CART,GG_FILM_PROP_BANNER,GG_FILM_PROP_RECORDS,
        GG_FILM_PROP_CRATES,GG_FILM_PROP_LANTERN };
 static int ggSagaPropKind(void){
@@ -1016,6 +1017,60 @@ static int ggSagaPropKind(void){
     case 2:return GG_FILM_PROP_RECORDS;
     default:return GG_FILM_PROP_LANTERN;
     }
+}
+static void ggSagaWorldProp(GgMeshContext *mesh,int x,int y,int kind){
+    int floor=ggMeshGroundAtQ8(x,y),material=mesh->material;
+    ggMeshContactShadow(mesh,x,y,kind==GG_FILM_PROP_CART?47:31,11);
+    mesh->material=GG_MAT_WOOD;
+    switch(kind){
+    case GG_FILM_PROP_CART:
+        // Reuse the same chassis, two terrain-sampled wheels and stand
+        // seen in the playable world.
+        ggMeshCart(mesh,x,y,mesh->detailQuality);
+        break;
+    case GG_FILM_PROP_BANNER:
+        ggMeshGroundBox(mesh,x-9,y-9,x+9,y+9,floor+2,97,94,82);
+        ggMeshGroundBox(mesh,x-2,y-2,x+2,y+2,floor+24,122,102,69);
+        ggMeshBox(mesh,x-2,y-2,x+29,y+2,floor+20,floor+22,139,114,75);
+        mesh->material=GG_MAT_FABRIC;
+        ggMeshQuad(mesh,ggMeshV(x+2,y-2,floor+20),ggMeshV(x+28,y-2,floor+20),
+                        ggMeshV(x+27,y+1,floor+11),ggMeshV(x+2,y+1,floor+8),140,64,77);
+        ggMeshQuad(mesh,ggMeshV(x+8,y-3,floor+17),ggMeshV(x+21,y-3,floor+17),
+                        ggMeshV(x+20,y-1,floor+14),ggMeshV(x+9,y-1,floor+14),200,159,82);
+        break;
+    case GG_FILM_PROP_RECORDS:{
+        int table=floor+8;
+        for(int dx=-21;dx<=21;dx+=42)for(int dy=-13;dy<=13;dy+=26){
+            int ground=ggMeshGroundAtQ8(x+dx,y+dy)+6;
+            if(ground>table)table=ground;
+        }
+        for(int dx=-21;dx<=21;dx+=42)for(int dy=-13;dy<=13;dy+=26)
+            ggMeshGroundBox(mesh,x+dx-3,y+dy-3,x+dx+3,y+dy+3,table,117,86,57);
+        ggMeshBox(mesh,x-26,y-17,x+26,y+17,table-2,table+1,154,111,68);
+        ggMeshBox(mesh,x-11,y-8,x+13,y+8,table+1,table+2,112,68,62);
+        ggMeshBox(mesh,x-10,y-7,x+12,y+7,table+2,table+3,220,198,151);
+        ggMeshBox(mesh,x-2,y-7,x,y+7,table+3,table+4,157,119,78);
+        break;
+    }
+    case GG_FILM_PROP_CRATES:
+        for(int i=0;i<2;i++){
+            int left=i?12:-29,right=i?34:7;
+            int depth=i?9:14;
+            int top=ggMeshGroundAtQ8(x+(left+right)/2,y)+(i?8:12);
+            ggMeshGroundBox(mesh,x+left,y-depth,x+right,y+depth,top,145,101,61);
+            ggMeshBox(mesh,x+left-1,y-depth-1,x+right+1,y+depth+1,top-2,top,173,125,76);
+        }
+        break;
+    default:
+        ggMeshGroundBox(mesh,x-8,y-8,x+8,y+8,floor+2,97,94,82);
+        ggMeshGroundBox(mesh,x-2,y-2,x+2,y+2,floor+20,108,83,58);
+        mesh->material=GG_MAT_NONE;
+        ggMeshBox(mesh,x-7,y-6,x+7,y+6,floor+16,floor+18,123,101,69);
+        ggMeshBox(mesh,x-5,y-4,x+5,y+4,floor+18,floor+24,230,185,99);
+        ggMeshBox(mesh,x-7,y-6,x+7,y+6,floor+24,floor+26,117,98,66);
+        break;
+    }
+    mesh->material=material;
 }
 static void ggSagaPropDraw(u8*out,int cx,int feet,int scale,int kind){
     int s=ggExpClamp(scale,1,3);
@@ -1079,6 +1134,9 @@ static int ggSagaPairProjectedContact(int ax,int ay,int ah,int bx,int by,int bh)
     ggSagaPairHandAt(bx,by,bh,ax,&b,&bhx,&bhy);
     return ggFilmPairTouch(ahx,ahy,bhx,bhy);
 }
+static void ggSagaCastContact(int x,int y){
+    if(ggSagaTerrainContact)ggMeshContactShadow(&ggMeshContext,x,y,18,10);
+}
 static void ggSagaDraw(u8 *out){
     if(!ggSaga.mode)return;
     int index=ggSaga.mode==GG_SAGA_CHOICE?5:
@@ -1120,6 +1178,7 @@ static void ggSagaDraw(u8 *out){
     // Only the live world raycaster paints cinematic architecture;
     // no second floating facade decal layer or separate perspective.
     ggExpRenderMode(out,1);
+    ggSagaTerrainContact=ggExpMeshActive&&ggMeshContext.scale==1;
     if(!ggSagaShot.pairResolved){
         ggSagaShot.pairKind=GG_FILM_PAIR_NONE;
         ggSagaShot.pairSourceHero=0;
@@ -1172,6 +1231,7 @@ static void ggSagaDraw(u8 *out){
             ggFilmPairPosition(stageWX,stageWY,guestWX,guestWY,
                                pairInset,1,&wx,&wy);
         if(ggSagaProjectActor(wx,wy,&x,&y,&size)){
+            ggSagaCastContact(wx,wy);
             actors[actorCount++]=(GgFilmStageItem){
                 GG_STAGE_HERO,x,y,size,
                 ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
@@ -1191,6 +1251,7 @@ static void ggSagaDraw(u8 *out){
                 ggFilmPairPosition(stageWX,stageWY,guestWX,guestWY,
                                    pairInset,0,&wx,&wy);
             if(!ggSagaProjectActor(wx,wy,&x,&y,&size))continue;
+            ggSagaCastContact(wx,wy);
             actors[actorCount++]=(GgFilmStageItem){
                 slot?GG_STAGE_GUEST_TWO:GG_STAGE_GUEST_ONE,
                 x,y,size,
@@ -1207,12 +1268,14 @@ static void ggSagaDraw(u8 *out){
     if(propSide){
         int wx,wy,x,y,size;
         ggSagaSidePosition(propSide,&wx,&wy);
-        if(ggSagaProjectActor(wx,wy,&x,&y,&size))
-            actors[actorCount++]=(GgFilmStageItem){
-                GG_STAGE_PROP,x,y,size,
-                ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
-                                 filmCos,filmSin)
-            };
+        if(ggSagaProjectActor(wx,wy,&x,&y,&size)){
+            if(ggExpMeshActive)ggSagaWorldProp(&ggMeshContext,wx,wy,propKind);
+            else actors[actorCount++]=(GgFilmStageItem){
+                    GG_STAGE_PROP,x,y,size,
+                    ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
+                                     filmCos,filmSin)
+                };
+        }
     }
     // Apply one world-sampled climate light value to all performers in
     // this take. It shares the environment's material grade; no new
@@ -1341,6 +1404,7 @@ static void ggSagaDraw(u8 *out){
         }
     }
     ggExpFilmDrawDepth=0;
+    ggSagaTerrainContact=0;
     ggFilmArtAmbient=256;
     // World-anchored foreground foliage, poles and market clutter can
     // properly cover an actor only when PHYSICALLY nearer than the cast.

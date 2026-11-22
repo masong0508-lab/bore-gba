@@ -25,9 +25,11 @@ typedef struct {
     short px[GG_CHRON_POSTS],py[GG_CHRON_POSTS];
     GgChronFoe foe[GG_CHRON_FOES];
     unsigned char foeWindup[GG_CHRON_FOES],foeAlert[GG_CHRON_FOES];
+    unsigned char foeStrikeHeading[GG_CHRON_FOES];
     signed char foeGuard[GG_CHRON_FOES];
+    int foeStruckAt[GG_CHRON_FOES];
     GgChronShot shots[GG_CHRON_SHOTS];
-    int style,focus,charge,swing,heavy,guardTicks;
+    int style,focus,charge,swing,heavy,guardTicks,recoverySpan;
     int combatNotice,combatNoticeT;
     int foeN;
 } GgChronicles;
@@ -58,6 +60,7 @@ static int ggReignNearestGuard(int x,int y,int *gx,int *gy);
 static int ggReignGuardPosition(int index,int *x,int *y);
 static void ggReignGuardDamage(int index,int damage);
 static void ggReignBlockGuardCells(unsigned char *dist,int width,int ox,int oy);
+static int ggChronActorHeading(int dx,int dy);
 static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
@@ -257,11 +260,12 @@ static int ggChronBegin(int x,int y,int oldPause){
     ggChron.hp=100;ggChron.stamina=100;ggChron.food=100;
     ggChron.rations=3;ggChron.morale=70;ggChron.score=0;
     ggChron.post=0;ggChron.won=ggChron.lost=0;
-    ggChron.attackWait=ggChron.attackFlash=0;
+    ggChron.attackWait=ggChron.attackFlash=ggChron.recoverySpan=0;
     ggChron.style=GG_CHRON_BLADE;ggChron.focus=100;
     ggChron.charge=ggChron.swing=ggChron.heavy=ggChron.guardTicks=0;
     ggChron.combatNotice=ggChron.combatNoticeT=0;
     memset(ggChron.foeWindup,0,sizeof ggChron.foeWindup);
+    memset(ggChron.foeStruckAt,0,sizeof ggChron.foeStruckAt);
     memset(ggChron.foeAlert,0,sizeof ggChron.foeAlert);
     memset(ggChron.foeGuard,-1,sizeof ggChron.foeGuard);
     memset(ggChron.shots,0,sizeof ggChron.shots);
@@ -373,13 +377,17 @@ static void ggChronEnemiesStep(void){
             if(--ggChron.foeWindup[i])continue;
             int guard=ggChron.foeGuard[i],damage=4+ggChron.act;
             ggChron.foeGuard[i]=-1;
+            ggChron.foeStruckAt[i]=ggChron.frame+1;
+            int x,y,aimX=ggExplore.px,aimY=ggExplore.py;
+            int guardPresent=guard>=0&&ggReignGuardPosition(guard,&x,&y);
+            if(guardPresent){aimX=x*256+128;aimY=y*256+128;}
+            ggChron.foeStrikeHeading[i]=(unsigned char)ggChronActorHeading(
+                aimX-ggChronFoeX(f),aimY-ggChronFoeY(f));
             f->wait=(signed char)(33+(i&3)*5);
             ggChron.dirty=1;
             // A committed attack can miss if its target moves or takes cover.
             if(guard>=0){
-                int x,y;
-                if(ggReignGuardPosition(guard,&x,&y)&&
-                   ggChronEnemyCanHit(f,x*256+128,y*256+128))
+                if(guardPresent&&ggChronEnemyCanHit(f,aimX,aimY))
                     ggReignGuardDamage(guard,damage);
             }else if(ggChronEnemyCanHit(f,ggExplore.px,ggExplore.py))
                 ggChronIncomingHit(i,damage);
@@ -553,22 +561,59 @@ static void ggChronDrawShots(u8*out){
 static void ggChronDrawCombat(u8*out){
     if(ggChron.lost||ggChron.won||ggChron.briefTime)return;
     int style=ggChron.style,phase=0,progress=0;
-    if(ggChron.attackFlash){phase=2;progress=(5-ggChron.attackFlash)*51;}
-    else if(ggChron.swing){phase=2;progress=(6-ggChron.swing)*42;}
-    else if(ggChron.charge){
+    if(ggChron.swing){
+        int span=ggChron.heavy?6:3;
+        phase=2;progress=(span-ggChron.swing)*110/(span-1);
+    }else if(ggChron.attackFlash){
+        int start=style==GG_CHRON_BLADE?128:0;
+        phase=2;
+        progress=start+(GG_CHRON_STRIKE_FRAMES-ggChron.attackFlash)*(255-start)/
+                       (GG_CHRON_STRIKE_FRAMES-1);
+    }else if(ggChron.charge){
         phase=1;progress=ggExpClamp(ggChron.charge*255/36,0,255);
     }else if(ggChron.guardTicks){
         phase=3;progress=ggExpClamp(ggChron.guardTicks*38,0,255);
-    }else if(ggChron.attackWait){
-        phase=4;progress=ggExpClamp(255-ggChron.attackWait*8,0,255);
+    }else if(ggChron.attackWait&&ggChron.recoverySpan){
+        phase=4;progress=ggExpClamp(255-ggChron.attackWait*255/ggChron.recoverySpan,0,255);
     }
     ggChronCombatWeaponDraw(out,style,phase,progress,ggChron.frame);
     int hit=ggChron.combatNoticeT>33&&ggChron.combatNotice==GG_COMBAT_HIT;
     int threshold=ggChronChargeThreshold(style);
     ggChronCombatReticle(out,style,hit,ggExpClamp(ggChron.charge*255/threshold,0,255));
 }
+#include "chronicle_actor_art3d.h"
+
+static void ggChronDrawBanner(int x,int y){
+    GgMeshContext*m=&ggMeshContext;
+    int ground=ggMeshGroundAtQ8(x,y),top=ground+GG_CHRON_BODY*3/2;
+    GgMeshCameraVertex view=ggMeshCameraPoint(m,ggMeshV(x,y,ground));
+    if(view.f<m->near||view.f>15*256||abs(view.s)*5>view.f*6)return;
+    int material=m->material;
+    ggMeshGroundShadows(m,x,y,15,15,0);
+    m->material=GG_MAT_STONE;
+    ggMeshArchitectureSupport(m,x-10,y-10,x+10,y+10,ground+2,137,126,104);
+    m->material=GG_MAT_WOOD;
+    ggMeshArchitectureBlock(m,x-2,y-2,x+2,y+2,ground,top,171,142,85);
+    int sway=ggFilmScenicWind(ggFilmScenicHash(x>>8,y>>8,19),ggChron.frame)*5;
+    GgMeshVertex a=ggMeshV(x,y,top-2),b=ggMeshV(x+23,y+29+sway/2,top-2);
+    GgMeshVertex c=ggMeshV(x+24,y+29+sway/2,top-9),d=ggMeshV(x,y,top-10);
+    m->material=GG_MAT_FABRIC;
+    GgMeshVertex tip=ggMeshV(x+51,y+63+sway,top-4);
+    if((m->cx-x)*(29+sway/2)>(m->cy-y)*23){
+        ggMeshQuad(m,a,b,c,d,211,150,56);
+        ggMeshTriangle(m,b,tip,c,217,151,51);
+    }else{
+        ggMeshQuad(m,d,c,b,a,211,150,56);
+        ggMeshTriangle(m,c,tip,b,217,151,51);
+    }
+    m->material=material;
+}
+
 static void ggChronDraw(u8 *out,const char *context,int modal){
     if(!ggChron.active)return;
+    if(ggExpMeshActive&&!ggChron.won&&ggChron.post<GG_CHRON_POSTS)
+        ggChronDrawBanner(ggChron.px[ggChron.post]*256+128,
+                          ggChron.py[ggChron.post]*256+128);
     // Draw the bounded encounter from far to near.
     int order[GG_CHRON_FOES],depth[GG_CHRON_FOES],count=0;
     for(int i=0;i<ggChron.foeN;i++){
@@ -589,18 +634,27 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
         int x,y,h,w,forward=ggChronProjectFoe(f,&x,&y,&h,&w);
         if(!forward||(ggExpMeshActive&&forward>11*256))continue;
         int bob=ggChron.foeWindup[i]>0;
+        int captain=ggChron.act==GG_CHRON_ACTS-1&&f->post==GG_CHRON_POSTS-1&&
+                    (i==0||ggChron.foe[i-1].post!=f->post);
         if(ggExpMeshActive){
-            static const u8 coat[3][3]={{22,7,9},{13,6,9},{28,20,11}};
-            int wx=ggChronFoeX(f),wy=ggChronFoeY(f),ground=ggMeshGroundAtQ8(wx,wy);
-            GgMeshContext*m=&ggMeshContext;
-            int dx=ggExplore.px-wx,dy=ggExplore.py-wy;
-            int heading=abs(dx)>abs(dy)*2?(dx>0?0:128):
-                        abs(dy)>abs(dx)*2?(dy>0?64:192):
-                        dy>0?(dx>0?32:96):(dx>0?224:160);
-            GgMeshCameraVertex view=ggMeshCameraPoint(m,ggMeshV(wx,wy,ground));
-            ggMeshPersonDraw(m,wx,wy,ground,view.f,view.s,
-                0xc5000000u+(unsigned)(ggChron.act*32+i),i&7,heading,
-                ggChron.frame,bob,coat);
+            int wx=ggChronFoeX(f),wy=ggChronFoeY(f);
+            int heading=ggChronActorHeading(ggExplore.px-wx,ggExplore.py-wy);
+            int pose=GG_CHRON_ACTOR_READY,phase=0;
+            int elapsed=ggChron.frame+1-ggChron.foeStruckAt[i];
+            if(bob){
+                pose=GG_CHRON_ACTOR_WINDUP;
+                phase=(4-ggChron.foeWindup[i])*64+(ggChron.frame%5)*12;
+                int guard=ggChron.foeGuard[i],gx,gy;
+                if(guard>=0&&ggReignGuardPosition(guard,&gx,&gy))
+                    heading=ggChronActorHeading(gx*256+128-wx,gy*256+128-wy);
+            }else if(ggChron.foeStruckAt[i]&&elapsed<14){
+                pose=elapsed<8?GG_CHRON_ACTOR_STRIKE:GG_CHRON_ACTOR_RECOVER;
+                phase=elapsed<8?elapsed*255/7:(elapsed-8)*255/5;
+                heading=ggChron.foeStrikeHeading[i];
+            }
+            if(!ggChronActorDraw(wx,wy,0xc5000000u+(unsigned)(ggChron.act*32+i),
+                captain?GG_CHRON_ACTOR_CAPTAIN:GG_CHRON_ACTOR_FOE,
+                heading,pose,phase))continue;
             ggExpFilmDrawDepth=forward;
         }else{
             int shape=(ggChron.act==3&&(i&1))?16:(i&1)?26:5;
@@ -622,20 +676,18 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
         }
         int bar=ggExpClamp(w,10,46),barY=y-h-7;
         if(ggExpFilmPixelHidden(x,y-h/2)){ggExpFilmDrawDepth=0;continue;}
-        int blade=x+w/3,grip=y-h/3;
-        if(bob)grip-=h/4;
-        int bladeHeight=ggExpClamp(h/3,4,29);
-        ggExpRect(out,blade,grip-bladeHeight,2,bladeHeight,183,200,207);
-        ggExpRect(out,blade-2,grip,6,2,147,121,72);
-        ggExpRect(out,x-w/3,y-h/2,ggExpClamp(w/5,3,10),
-                  ggExpClamp(h/5,3,14),120,51,62);
+        if(!ggExpMeshActive){
+            int blade=x+w/3,grip=y-h/3;
+            if(bob)grip-=h/4;
+            int bladeHeight=ggExpClamp(h/3,4,29);
+            ggExpRect(out,blade,grip-bladeHeight,2,bladeHeight,183,200,207);
+            ggExpRect(out,blade-2,grip,6,2,147,121,72);
+            ggExpRect(out,x-w/3,y-h/2,ggExpClamp(w/5,3,10),
+                      ggExpClamp(h/5,3,14),120,51,62);
+        }
         // Spawn places the chapter's single captain first at the last
         // post. The captain is distinctly tougher; its bar must show
         // actual damage from the first hit, not only after 65 HP vanish.
-        int captain=ggChron.act==GG_CHRON_ACTS-1&&
-                    f->post==GG_CHRON_POSTS-1&&
-                    i>=0&&i<ggChron.foeN&&
-                    (i==0||ggChron.foe[i-1].post!=f->post);
         int maxHp=captain?105:20+ggChron.act*6+f->post*3;
         if(maxHp<1)maxHp=40;
         if(bob||(f->hp<maxHp&&abs(x-200)<45)){
@@ -646,7 +698,7 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
         if(bob)ggExpRect(out,x-2,barY-6,5,4,247,175,68);
         ggExpFilmDrawDepth=0;
     }
-    if(!ggChron.won){
+    if(!ggExpMeshActive&&!ggChron.won){
         int p=ggChron.post;
         if(p<GG_CHRON_POSTS){
             int x,y,h,w;

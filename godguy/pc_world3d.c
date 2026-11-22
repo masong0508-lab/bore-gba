@@ -104,6 +104,15 @@ int main(void){
     GgS2 hallProp=ggFilmPropSupport(center,F_HALL,6);
     GgS2 hallFloor=ggFilmProject(center,ggV3(0,5,760));
     require(hallProp.y<hallFloor.y-8,"the hall's props sit on the floor instead of a work table");
+    require(ggFilmSurfaceHeight(F_VILLAGE,2,0,780)==3&&
+            ggFilmSurfaceHeight(F_VILLAGE,2,-168,780)==0,
+            "the village road and meadow incorrectly share one contact height");
+    FilmBeat stormRoute={F_STORM,F_TRACK,F_HOLLOW,F_SERIN,F_LAMP,NULL};
+    FilmBlocking stormCast={0};
+    GgFilmFootprints stormArrival=ggFilmWorldBlocking(center,&stormRoute,0,4,&stormCast);
+    require(ggFilmSurfaceHeight(F_STORM,4,-191,855)==0&&
+            stormArrival.lead.z<839&&stormArrival.lead.y==3,
+            "the storm walker starts in the surf at the height of dry sand");
     FilmBeat forgeTrack={F_FORGE,F_TRACK,F_NESSA,F_THORGRIM,F_HAMMER,NULL};
     FilmBlocking smithStart={0},smithEnd={0};
     GgFilmCamera smithCam=ggFilmCameraAt(&forgeTrack,0);

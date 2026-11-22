@@ -72,13 +72,39 @@ static void ggMeshOriginalCreature(GgMeshContext*m,int x,int y,int ground,
         }
     }
     if(soleRow<0)return;
-    int left=a.x*step-(soleFirst+soleLast+1)*size/16;
-    int top=a.y*step-((soleRow+1)*size/8)/step*step;
+    int center=a.x*step,feet=a.y*step;
+    int footHeight=(soleRow+1)*size/8/step*step;
+    int left=center-(soleFirst+soleLast+1)*size/16;
+    int top=feet-footHeight;
     if(step>1){
         left=left>=0?left/step*step:-((-left+step-1)/step)*step;
         top=top>=0?top/step*step:-((-top+step-1)/step)*step;
     }
-    if(left>=400||left+size<=0||top>=240||top+size<=0)return;
+    if(left>=400||left+size<=0)return;
+    // The authored sole rows keep their silhouette on flat terrain.
+    // On a grade each foot follows its own column of the same ground.
+    int pivot=footHeight/2/step*step;
+    int lower=footHeight-pivot;
+    int rough=lower>0&&ggMeshBillboardUneven(m,x,y,ground,forward,size);
+    short soleOffset[GG_MESH_MAX_W];
+    int rise=0,lowest=feet;
+    if(rough){
+        const char*sole=shpRow(shape,frame,soleRow);
+        int highest=feet;
+        int x0=left<0?0:left,x1=left+size>400?400:left+size;
+        for(int px=x0;px<x1;px+=step){
+            int sx=((px-left+step)*8-1)/size;
+            if(sole[sx]=='.'){soleOffset[px]=0;continue;}
+            int row=ggMeshBillboardFloorY(m,x,y,forward,px-center);
+            soleOffset[px]=(short)(row-feet);
+            if(row<highest)highest=row;
+            if(row>lowest)lowest=row;
+        }
+        int room=lower/2/step*step;
+        rise=ggMeshClamp(feet-highest-room,0,feet-highest);
+    }
+    top-=rise;
+    if(top>=240||lowest<=0)return;
     ggMeshContactShadow(m,x,y,32,4);
     int light=ggMeshClamp(m->ambientLight+12,128,256);
     int haze=ggMeshFogAmount(forward,m->fogMax);
@@ -91,9 +117,8 @@ static void ggMeshOriginalCreature(GgMeshContext*m,int x,int y,int ground,
     int inverse=65535/forward;
     for(int yy=0;yy<8;yy++){
         const char*row=shpRow(shape,frame,yy);
-        int y0=top+(yy*size/8)/step*step;
-        int y1=top+((yy+1)*size/8)/step*step;
-        if(y0<0)y0=0;if(y1>240)y1=240;
+        int from=(yy*size/8)/step*step;
+        int to=((yy+1)*size/8)/step*step;
         for(int xx=0;xx<8;xx++){
             int k=row[xx]=='b'?0:row[xx]=='d'?1:
                   row[xx]=='a'?2:row[xx]=='e'?3:-1;
@@ -101,17 +126,25 @@ static void ggMeshOriginalCreature(GgMeshContext*m,int x,int y,int ground,
             int x0=left+(xx*size/8)/step*step;
             int x1=left+((xx+1)*size/8)/step*step;
             if(x0<0)x0=0;if(x1>400)x1=400;
-            for(int py=y0;py<y1;py+=step)
-              for(int px=x0;px<x1;px+=step){
-                int z=(py/step)*m->w+px/step;
-                if(inverse+1<m->depth[z])continue;
-                for(int oy=0;oy<step;oy++)for(int ox=0;ox<step;ox++){
-                    u8*dst=m->rgb+((py+oy)*400+px+ox)*3;
-                    dst[0]=ink[k][0];dst[1]=ink[k][1];dst[2]=ink[k][2];
+            for(int px=x0;px<x1;px+=step){
+                int y0=top+from,y1=top+to;
+                if(rough){
+                    int change=rise+soleOffset[px];
+                    if(from>pivot)y0+=(from-pivot)*change/lower/step*step;
+                    if(to>pivot)y1+=(to-pivot)*change/lower/step*step;
                 }
-                if(m->depth[z]<(uint16_t)inverse)
-                    m->depth[z]=(uint16_t)inverse;
-              }
+                if(y0<0)y0=0;if(y1>240)y1=240;
+                for(int py=y0;py<y1;py+=step){
+                    int z=(py/step)*m->w+px/step;
+                    if(inverse+1<m->depth[z])continue;
+                    for(int oy=0;oy<step;oy++)for(int ox=0;ox<step;ox++){
+                        u8*dst=m->rgb+((py+oy)*400+px+ox)*3;
+                        dst[0]=ink[k][0];dst[1]=ink[k][1];dst[2]=ink[k][2];
+                    }
+                    if(m->depth[z]<(uint16_t)inverse)
+                        m->depth[z]=(uint16_t)inverse;
+                }
+            }
         }
     }
 }

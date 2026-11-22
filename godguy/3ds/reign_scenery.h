@@ -1,7 +1,8 @@
 // The Unwritten Reign: distinctive settlement decorations in live 3D.
 // Every object here belongs to an EXISTING bld[][] tile. No Minecraft block
 // inventory, no fabricated scenery, no texture uploads, no heap allocation.
-// Projected painter's decals are bounded to 16 visible structures per frame.
+// Projected painter's decals belong to the fallback renderer. The native
+// renderer already models the same buildings with physical depth.
 #ifndef GG_REIGN_SCENERY_H
 #define GG_REIGN_SCENERY_H
 enum { GG_REIGN_SCENE_RADIUS=8, GG_REIGN_SCENE_CAP=16 };
@@ -104,7 +105,7 @@ static void ggReignSceneAt(u8*out,int build,int x,int y,int u,int f){
 static int ggReignSceneDrawn;
 static void ggReignSceneDraw(u8*out){
     ggReignSceneDrawn=0;
-    if(!ggChron.active)return;
+    if(!ggChron.active||ggExpMeshActive)return;
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
     // Choose the closest *visible* real buildings first. The old
     // far-first cap spent its 16 decals on distant huts, omitted nearby

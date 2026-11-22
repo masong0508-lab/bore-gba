@@ -665,7 +665,7 @@ static void filmGripOverlay(int who,FilmPoint hand,int prop){
 }
 static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int otherPose,
                                FilmBlocking b,const FilmPoint *support,const FilmPoint *goat,
-                               int supportDepth,int otherDepth){
+                               int supportDepth,int otherDepth,int goatHeight){
     int prop=beat->prop;
     if(prop>=F_PROP_N)return;
     u8 pixels[FILM_PROP_SIZE*FILM_PROP_SIZE];
@@ -675,9 +675,9 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         int walk=filmEase(elapsed,beat->seconds*FILM_SECOND);
         int x=goat?goat->x:58+walk*49/256,feet=goat?goat->y:157;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
-        if(goat)feet+=filmCelBottomPadding(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,24,0);
+        if(goat)feet+=filmCelBottomPadding(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,goatHeight,0);
 #endif
-        filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,x,feet,24,0);
+        filmDrawCel(pixels,FILM_PROP_SIZE,FILM_PROP_SIZE,x,feet,goatHeight,0);
         return;
     }
     int size=beat->camera==F_INSERT?27:beat->camera==F_WIDE?17:19;
@@ -1138,7 +1138,7 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     int cue=actionSound?filmActionCue(beat,elapsed):-1;
     if(cue>=0)fxReq(cue);
     const FilmPoint *support=NULL,*goat=NULL;
-    int supportDepth=0,otherDepth=0;
+    int supportDepth=0,otherDepth=0,goatHeight=24;
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     FilmPoint projectedSupport,projectedGoat;
     int scenic=ggFilmSceneTime(elapsed);
@@ -1165,10 +1165,13 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
     if(beat->prop==F_GOAT){
         int x=-168+move;
         int floor=ggFilmSurfaceHeight(beat->place,stageChapter,x,goatZ);
-        GgS2 pos=ggFilmProject(camera,ggV3(x,floor,goatZ));
+        GgV3 mark=ggV3(x,floor,goatZ);
+        GgS2 pos=ggFilmProject(camera,mark);
+        goatHeight=pos.y-ggFilmProject(camera,ggV3(x,floor+72,goatZ)).y;
         projectedGoat=(FilmPoint){pos.x,pos.y};
         goat=&projectedGoat;
         goatDepth=ggFilmReciprocalDepth(pos.depth);
+        ggFilmContactShadow(camera,mark,beat->place,stageChapter,31,27,0);
     }
     if(filmBonusIndex<0&&beat==firstLightBeats+6){
         GgS2 pos=ggFilmPropSupport(camera,F_SHORE,stageChapter);
@@ -1246,7 +1249,8 @@ static void filmDrawShot(const FmvClip *clip,const FilmBeat *beat,int elapsed,in
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     if(goat)ggFilmCelDepth=goatDepth;
 #endif
-    filmDrawPropAction(beat,elapsed,leadPose,otherPose,block,support,goat,supportDepth,otherDepth);
+    filmDrawPropAction(beat,elapsed,leadPose,otherPose,block,support,goat,
+                       supportDepth,otherDepth,goatHeight);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     ggFilmCelDepth=0;
 #endif

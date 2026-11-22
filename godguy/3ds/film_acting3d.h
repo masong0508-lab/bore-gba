@@ -342,12 +342,16 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
 #ifndef GG_FILM_SHADOW_SIZE
 #define GG_FILM_SHADOW_SIZE(pixels) (pixels)
 #endif
+#ifndef GG_FILM_SHADOW_ON_TERRAIN
+#define GG_FILM_SHADOW_ON_TERRAIN 0
+#endif
 // Feather the actual already-rendered terrain beneath each pair of boots.
 // A flat black oval used to look pasted over grass, snow and masonry.
 // Blend directly into the existing RGB film buffer; no additional image,
 // alpha buffer, allocations or world sampling. At 3x it touches at most
 // 72x6 pixels per actor, and never writes below the projected foot row.
 static void ggFilmArtContactShadow(u8*out,int x,int feet,int scale){
+    if(GG_FILM_SHADOW_ON_TERRAIN)return;
     int s=ggExpClamp(scale,1,3);
     int rx=GG_FILM_SHADOW_SIZE(12*s),ry=GG_FILM_SHADOW_SIZE(s);
     int area=rx*rx*ry*ry;
@@ -487,7 +491,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
         // Separate calf edge, boot sole and forward toe instead of a
         // single detached rectangle. Both remain above the ground row.
-        ggExpRect(out,lx-2*s,feet-s,4*s,1,52,54,57);
+        ggExpRect(out,lx-2*s,feet-s,4*s,s,52,54,57);
         ggExpRect(out,lx+2*s,feet-2*s,s,s,70,70,75);
     }
     // A far sleeve is occluded by the torso; the near sleeve will be

@@ -13,17 +13,19 @@ enum {
     GG_CHRON_STEEL_DARK, GG_CHRON_STEEL, GG_CHRON_STEEL_LIGHT,
     GG_CHRON_YEW_DARK, GG_CHRON_YEW, GG_CHRON_YEW_LIGHT,
     GG_CHRON_SKIN_DARK, GG_CHRON_SKIN, GG_CHRON_SKIN_LIGHT,
-    GG_CHRON_JADE_DARK, GG_CHRON_JADE, GG_CHRON_MINT, GG_CHRON_GLINT
+    GG_CHRON_COAL, GG_CHRON_COPPER, GG_CHRON_FIRE, GG_CHRON_FLAME,
+    GG_CHRON_GLINT
 };
 
 static const u8 ggChronArtColor[][3]={
-    {27,22,29}, {44,43,58}, {77,74,85},
-    {74,43,43}, {129,77,60},
+    {34,27,29}, {54,53,55}, {91,85,78},
+    {82,51,43}, {145,95,66},
     {104,68,45}, {180,127,65}, {247,199,116},
-    {58,73,88}, {138,171,182}, {218,238,236},
-    {109,55,41}, {179,96,58}, {234,155,87},
-    {120,63,56}, {193,119,85}, {239,168,116},
-    {32,73,80}, {69,155,140}, {151,231,183}, {237,252,221}
+    {70,80,88}, {143,161,165}, {225,234,224},
+    {106,57,41}, {161,98,60}, {229,165,98},
+    {128,75,57}, {191,126,89}, {233,170,116},
+    {91,49,45}, {173,84,49}, {239,137,59}, {255,194,93},
+    {255,238,169}
 };
 
 #define GG_CHRON_ART_PT(x,y) ((GgChronArtPoint){(x),(y)})
@@ -90,6 +92,10 @@ static int ggChronArtEase(int t){
     return t*t*(765-2*t)/65025;
 }
 
+static int ggChronArtEaseOut(int t){
+    return t*(510-t)/255;
+}
+
 static GgChronArtPose ggChronArtPose(GgChronArtPose a,GgChronArtPose b,int t){
     return (GgChronArtPose){
         ggChronArtTween(a.x,b.x,t),ggChronArtTween(a.y,b.y,t),
@@ -108,35 +114,58 @@ static void ggChronArtSpark(u8 *out,GgChronArtPoint p,int radius,int ink){
         ggChronArtAt(p,-radius/2-1,0));
 }
 
+static void ggChronArtRibbon(u8 *out,GgChronArtPoint a,GgChronArtPoint b,
+                            int nearWidth,int farWidth,int ink){
+    int dx=b.x-a.x,dy=b.y-a.y,length=abs(dx)>abs(dy)?abs(dx):abs(dy);
+    if(!length)return;
+    int ax=dy*nearWidth/(2*length),ay=-dx*nearWidth/(2*length);
+    int bx=dy*farWidth/(2*length),by=-dx*farWidth/(2*length);
+    GG_CHRON_ART_FACE(out,ink,ggChronArtAt(a,-ax,-ay),ggChronArtAt(b,-bx,-by),
+        ggChronArtAt(b,bx,by),ggChronArtAt(a,ax,ay));
+}
+
+static GgChronArtPose ggChronArtSwordSwing(int t){
+    const GgChronArtPose start={312,169,-54,-86},gather={283,164,-92,-82};
+    const GgChronArtPose strike={261,157,-114,-40},carry={224,174,-118,-46};
+    const GgChronArtPose end={227,186,-115,-27};
+    if(t<68)return ggChronArtPose(start,gather,t*255/68);
+    if(t<128)return ggChronArtPose(gather,strike,(t-68)*255/60);
+    if(t<208)return ggChronArtPose(strike,carry,(t-128)*255/80);
+    return ggChronArtPose(carry,end,(t-208)*255/47);
+}
+
 static void ggChronArtSword(u8 *out,int phase,int t,int bob){
-    const GgChronArtPose ready={306,171+bob,-41,-93},wound={329,183,48,-97};
-    const GgChronArtPose crossing={283,166,-103,-79},end={227,180,-117,-44};
-    const GgChronArtPose guard={293,157,-122,-21};
+    const GgChronArtPose ready={307,173+bob,-45,-91},wound={347,182,48,-100};
+    const GgChronArtPose guard={279,153,-119,-15};
     GgChronArtPose pose=ready;
     switch(phase){
-    case 1:pose=ggChronArtPose(ready,wound,ggChronArtEase(t));break;
-    case 2:
-        pose=t<128?ggChronArtPose(wound,crossing,t*2):
-                   ggChronArtPose(crossing,end,(t-128)*2+1);
-        break;
-    case 3:pose=guard;break;
-    case 4:pose=ggChronArtPose(end,ready,ggChronArtEase(t));break;
+    case 1:pose=ggChronArtPose(ready,wound,ggChronArtEaseOut(t));break;
+    case 2:pose=ggChronArtSwordSwing(t);break;
+    case 3:pose=ggChronArtPose(ready,guard,ggChronArtEaseOut(t));break;
+    case 4:pose=ggChronArtPose(ggChronArtSwordSwing(255),ready,ggChronArtEase(t));break;
     }
-    if(phase==2&&t>=42&&t<222){
-        int x=336-(t-42)*128/180;
-        GgChronArtPoint trail=GG_CHRON_ART_PT(x,140+(t-100)*(t-100)/900);
-        GG_CHRON_ART_FACE(out,GG_CHRON_BRASS,ggChronArtAt(trail,-43,18),
-            ggChronArtAt(trail,-15,-7),ggChronArtAt(trail,13,-13),
-            ggChronArtAt(trail,42,-5),ggChronArtAt(trail,11,-2),
-            ggChronArtAt(trail,-17,4));
-        GG_CHRON_ART_FACE(out,GG_CHRON_GOLD,ggChronArtAt(trail,-38,14),
-            ggChronArtAt(trail,-13,-5),ggChronArtAt(trail,13,-10),
-            ggChronArtAt(trail,35,-5),ggChronArtAt(trail,9,-5),
-            ggChronArtAt(trail,-14,1));
+    if(phase==2&&t>=45&&t<230){
+        GgChronArtPose old=ggChronArtSwordSwing(t-42);
+        GgChronArtPoint tip=ggChronArtBladePoint(pose,81,0);
+        GgChronArtPoint past=ggChronArtBladePoint(old,82,-4);
+        GgChronArtPoint inside=ggChronArtBladePoint(pose,35,1);
+        int crest=t<158?5:3;
+        GG_CHRON_ART_FACE(out,GG_CHRON_BRASS,
+            ggChronArtAt(tip,-3,3),ggChronArtAt(tip,-4,-crest),
+            ggChronArtAt(past,9,-3),ggChronArtAt(past,4,4),inside);
+        GG_CHRON_ART_FACE(out,GG_CHRON_GOLD,
+            ggChronArtAt(tip,-5,-4),ggChronArtAt(tip,1,1),
+            ggChronArtAt(past,3,-2),ggChronArtAt(past,8,-4));
+        if(t>=105&&t<179){
+            ggChronArtLine(out,ggChronArtAt(tip,-13,8),
+                ggChronArtAt(tip,6,-5),2,GG_CHRON_FLAME);
+            ggChronArtSpark(out,ggChronArtAt(tip,-7,4),4,GG_CHRON_GLINT);
+            ggChronArtSpark(out,ggChronArtAt(tip,-18,-3),2,GG_CHRON_GOLD);
+        }
     }
 #define GG_CHRON_BLADE_PT(a,s) ggChronArtBladePoint(pose,a,s)
     GgChronArtPoint hand=GG_CHRON_BLADE_PT(-18,0);
-    int sleeveX=hand.x+45;
+    int sleeveX=ggExpClamp(302+hand.x/7,330,372);
     GG_CHRON_ART_FACE(out,GG_CHRON_INK,ggChronArtAt(hand,-13,1),
         ggChronArtAt(hand,13,-8),GG_CHRON_ART_PT(sleeveX+35,212),
         GG_CHRON_ART_PT(sleeveX-20,218));
@@ -145,6 +174,13 @@ static void ggChronArtSword(u8 *out,int phase,int t,int bob){
         GG_CHRON_ART_PT(sleeveX-16,213));
     GG_CHRON_ART_FACE(out,GG_CHRON_SLEEVE_LIGHT,ggChronArtAt(hand,7,-3),
         GG_CHRON_ART_PT(sleeveX+27,211),GG_CHRON_ART_PT(sleeveX+9,208));
+    GgChronArtPoint cuff=ggChronArtAt(hand,10,8);
+    GgChronArtPoint cuffEdge=ggChronArtAt(cuff,17,11);
+    ggChronArtRibbon(out,ggChronArtAt(cuff,-11,4),ggChronArtAt(cuffEdge,-10,1),
+                     12,7,GG_CHRON_STEEL_DARK);
+    ggChronArtRibbon(out,cuff,cuffEdge,11,9,GG_CHRON_STEEL);
+    ggChronArtLine(out,ggChronArtAt(cuff,-10,6),ggChronArtAt(cuff,7,-1),
+                   2,GG_CHRON_BRASS);
     GG_CHRON_ART_FACE(out,GG_CHRON_INK,GG_CHRON_BLADE_PT(-2,-11),
         GG_CHRON_BLADE_PT(10,-12),GG_CHRON_BLADE_PT(62,-9),
         GG_CHRON_BLADE_PT(80,0),GG_CHRON_BLADE_PT(65,9),
@@ -158,6 +194,7 @@ static void ggChronArtSword(u8 *out,int phase,int t,int bob){
     GG_CHRON_ART_FACE(out,GG_CHRON_STEEL_DARK,GG_CHRON_BLADE_PT(14,0),
         GG_CHRON_BLADE_PT(69,1),GG_CHRON_BLADE_PT(46,3),
         GG_CHRON_BLADE_PT(14,3));
+    ggChronArtLine(out,GG_CHRON_BLADE_PT(12,-8),GG_CHRON_BLADE_PT(59,-6),1,GG_CHRON_GLINT);
     GG_CHRON_ART_FACE(out,GG_CHRON_INK,GG_CHRON_BLADE_PT(-34,-7),
         GG_CHRON_BLADE_PT(4,-8),GG_CHRON_BLADE_PT(4,8),
         GG_CHRON_BLADE_PT(-34,7));
@@ -177,9 +214,12 @@ static void ggChronArtSword(u8 *out,int phase,int t,int bob){
     GG_CHRON_ART_FACE(out,GG_CHRON_BRASS_DARK,GG_CHRON_BLADE_PT(-27,1),
         GG_CHRON_BLADE_PT(-11,-4),GG_CHRON_BLADE_PT(-12,8),
         GG_CHRON_BLADE_PT(-21,11),GG_CHRON_BLADE_PT(-29,5));
-    for(int n=-22;n<=-12;n+=5)
-        ggChronArtLine(out,GG_CHRON_BLADE_PT(n,-4),GG_CHRON_BLADE_PT(n+1,4),
-                      2,GG_CHRON_BRASS);
+    for(int n=-25;n<=-10;n+=5){
+        ggChronArtRibbon(out,GG_CHRON_BLADE_PT(n,-5),GG_CHRON_BLADE_PT(n+1,5),
+                         3,3,GG_CHRON_BRASS);
+        ggChronArtLine(out,GG_CHRON_BLADE_PT(n,-6),GG_CHRON_BLADE_PT(n,-2),
+                       1,GG_CHRON_GOLD);
+    }
     GG_CHRON_ART_FACE(out,GG_CHRON_INK,GG_CHRON_BLADE_PT(-5,-22),
         GG_CHRON_BLADE_PT(2,-20),GG_CHRON_BLADE_PT(6,-8),
         GG_CHRON_BLADE_PT(6,8),GG_CHRON_BLADE_PT(2,20),
@@ -195,20 +235,26 @@ static void ggChronArtSword(u8 *out,int phase,int t,int bob){
 #undef GG_CHRON_BLADE_PT
 }
 
-static void ggChronArtBowLimb(u8 *out,GgChronArtPoint grip,int sign,int bend){
-    GgChronArtPoint shoulder=ggChronArtAt(grip,4,sign*16);
-    GgChronArtPoint bendPt=ggChronArtAt(grip,14+bend/2,sign*31);
-    GgChronArtPoint tip=ggChronArtAt(grip,26+bend,sign*36);
-    ggChronArtLine(out,grip,shoulder,9,GG_CHRON_INK);
-    ggChronArtLine(out,shoulder,bendPt,8,GG_CHRON_INK);
-    ggChronArtLine(out,bendPt,tip,6,GG_CHRON_INK);
-    ggChronArtLine(out,grip,shoulder,5,GG_CHRON_YEW_DARK);
-    ggChronArtLine(out,shoulder,bendPt,5,GG_CHRON_YEW);
-    ggChronArtLine(out,bendPt,tip,3,GG_CHRON_YEW);
-    ggChronArtLine(out,ggChronArtAt(grip,-2,0),ggChronArtAt(shoulder,-2,0),2,GG_CHRON_YEW_LIGHT);
-    ggChronArtLine(out,ggChronArtAt(shoulder,-2,0),ggChronArtAt(bendPt,-2,0),2,GG_CHRON_YEW_LIGHT);
-    ggChronArtLine(out,ggChronArtAt(bendPt,0,sign),ggChronArtAt(tip,0,sign),1,GG_CHRON_GOLD);
-    ggChronArtLine(out,tip,ggChronArtAt(tip,3,-sign*3),3,GG_CHRON_BRASS);
+// A slight roll brings the bow square to the aim point as the arrow draws.
+static GgChronArtPoint ggChronArtBowPoint(GgChronArtPoint grip,int roll,int x,int y){
+    return ggChronArtAt(grip,x+y*roll/64,y-x*roll/128);
+}
+
+static void ggChronArtBowLimb(u8 *out,GgChronArtPoint grip,int roll,int sign,int bend){
+    GgChronArtPoint shoulder=ggChronArtBowPoint(grip,roll,4,sign*14);
+    GgChronArtPoint knee=ggChronArtBowPoint(grip,roll,14+bend/2,sign*28);
+    GgChronArtPoint tip=ggChronArtBowPoint(grip,roll,29+bend,sign*(36-bend/4));
+    ggChronArtRibbon(out,grip,shoulder,13,12,GG_CHRON_INK);
+    ggChronArtRibbon(out,shoulder,knee,12,9,GG_CHRON_INK);
+    ggChronArtRibbon(out,knee,tip,9,5,GG_CHRON_INK);
+    ggChronArtRibbon(out,grip,shoulder,9,8,GG_CHRON_YEW_DARK);
+    ggChronArtRibbon(out,shoulder,knee,8,6,GG_CHRON_YEW);
+    ggChronArtRibbon(out,knee,tip,6,3,GG_CHRON_YEW);
+    ggChronArtLine(out,ggChronArtAt(grip,-3,0),ggChronArtAt(shoulder,-3,0),2,GG_CHRON_YEW_LIGHT);
+    ggChronArtLine(out,ggChronArtAt(shoulder,-3,0),ggChronArtAt(knee,-2,1),2,GG_CHRON_YEW_LIGHT);
+    ggChronArtLine(out,ggChronArtAt(knee,-2,1),tip,1,GG_CHRON_GOLD);
+    ggChronArtLine(out,tip,ggChronArtAt(tip,4,-sign*3),3,GG_CHRON_BRASS);
+    ggChronArtLine(out,ggChronArtAt(shoulder,-4,0),ggChronArtAt(shoulder,3,-1),2,GG_CHRON_GOLD);
 }
 
 static void ggChronArtArrow(u8 *out,GgChronArtPoint nock,GgChronArtPoint tip,int flying){
@@ -230,63 +276,102 @@ static void ggChronArtArrow(u8 *out,GgChronArtPoint nock,GgChronArtPoint tip,int
     }
 }
 
-static void ggChronArtBow(u8 *out,int phase,int t,int bob){
-    int draw=0,raise=0;
-    switch(phase){
-    case 1:draw=raise=ggChronArtEase(t);break;
-    case 2:draw=ggExpClamp(255-t*5,0,255);raise=255-t/3;break;
-    case 3:draw=raise=210;break;
-    case 4:raise=ggChronArtTween(170,0,ggChronArtEase(t));break;
+static void ggChronArtBowHand(u8 *out,GgChronArtPoint hand,int loose){
+    GgChronArtPoint wrist=ggChronArtAt(hand,17,12);
+    ggChronArtRibbon(out,wrist,ggChronArtAt(hand,45,47),20,34,GG_CHRON_INK);
+    ggChronArtRibbon(out,wrist,ggChronArtAt(hand,45,47),16,28,GG_CHRON_SLEEVE);
+    ggChronArtRibbon(out,wrist,ggChronArtAt(hand,25,23),18,20,GG_CHRON_BRASS_DARK);
+    ggChronArtLine(out,ggChronArtAt(wrist,-6,5),ggChronArtAt(wrist,6,-4),2,GG_CHRON_YEW_LIGHT);
+    if(loose){
+        GgChronArtPoint index=ggChronArtAt(hand,-12,-12);
+        GgChronArtPoint middle=ggChronArtAt(hand,-14,-5);
+        ggChronArtLine(out,ggChronArtAt(hand,4,0),index,6,GG_CHRON_INK);
+        ggChronArtLine(out,ggChronArtAt(hand,2,4),middle,6,GG_CHRON_INK);
+        ggChronArtLine(out,ggChronArtAt(hand,4,0),index,4,GG_CHRON_LEATHER_LIGHT);
+        ggChronArtLine(out,ggChronArtAt(hand,2,4),middle,3,GG_CHRON_LEATHER_LIGHT);
     }
-    GgChronArtPoint grip=GG_CHRON_ART_PT(178+raise*34/255,163-raise*6/255+bob);
-    int bend=draw/30;
-    GgChronArtPoint top=ggChronArtAt(grip,26+bend,-36);
-    GgChronArtPoint bottom=ggChronArtAt(grip,26+bend,36);
-    GgChronArtPoint nock=ggChronArtAt(grip,26+draw*19/255,draw*18/255);
-    if(phase==2&&t>55&&t<142)nock.x+=t&8?2:-2;
-    ggChronArtLine(out,top,nock,2,GG_CHRON_INK);
-    ggChronArtLine(out,nock,bottom,2,GG_CHRON_INK);
+    GG_CHRON_ART_FACE(out,GG_CHRON_INK,ggChronArtAt(hand,-7,0),
+        ggChronArtAt(hand,1,-7),ggChronArtAt(hand,10,-6),
+        ggChronArtAt(hand,16,0),ggChronArtAt(hand,22,11),
+        ggChronArtAt(hand,13,17),ggChronArtAt(hand,2,12));
+    GG_CHRON_ART_FACE(out,GG_CHRON_LEATHER,ggChronArtAt(hand,-4,0),
+        ggChronArtAt(hand,1,-5),ggChronArtAt(hand,9,-4),
+        ggChronArtAt(hand,14,0),ggChronArtAt(hand,19,11),
+        ggChronArtAt(hand,12,14),ggChronArtAt(hand,3,10));
+    ggChronArtLine(out,ggChronArtAt(hand,-2,0),ggChronArtAt(hand,8,-3),2,GG_CHRON_LEATHER_LIGHT);
+    ggChronArtLine(out,ggChronArtAt(hand,4,5),ggChronArtAt(hand,13,2),2,GG_CHRON_LEATHER_LIGHT);
+}
+
+static void ggChronArtBow(u8 *out,int phase,int t,int bob){
+    int draw=0,raise=0,kick=0,bend=0;
+    if(phase==1){
+        draw=ggChronArtEaseOut(t);
+        raise=ggChronArtEaseOut(ggExpClamp(t+20,0,255));
+    }else if(phase==2){
+        raise=ggChronArtTween(245,130,t);
+        kick=t<55?ggChronArtTween(6,13,t*255/55):ggChronArtTween(13,0,(t-55)*255/200);
+        bend=t<65?-7+t/6:t<140?4-(t-65)/15:0;
+    }else if(phase==3){
+        raise=ggChronArtEaseOut(t);
+    }else if(phase==4){
+        raise=ggChronArtTween(130,0,ggChronArtEase(t));
+    }
+    bend+=draw/21;
+    int roll=ggChronArtTween(-32,-4,raise)-kick;
+    GgChronArtPoint grip=GG_CHRON_ART_PT(164+raise*47/255-kick,171-raise*22/255+bob+kick/2);
+    int halfHeight=36-bend/4;
+    GgChronArtPoint top=ggChronArtBowPoint(grip,roll,29+bend,-halfHeight);
+    GgChronArtPoint bottom=ggChronArtBowPoint(grip,roll,29+bend,halfHeight);
+    GgChronArtPoint nock=ggChronArtBowPoint(grip,roll,29+bend+draw*18/255,draw*13/255);
+    if(phase==2)nock.x+=bend/2;
+    ggChronArtLine(out,top,nock,3,GG_CHRON_INK);
+    ggChronArtLine(out,nock,bottom,3,GG_CHRON_INK);
     ggChronArtLine(out,top,nock,1,GG_CHRON_STEEL_LIGHT);
     ggChronArtLine(out,nock,bottom,1,GG_CHRON_STEEL_LIGHT);
-    ggChronArtBowLimb(out,grip,-1,bend);
-    ggChronArtBowLimb(out,grip,1,bend);
-    if(phase==1||phase==3){
-        ggChronArtArrow(out,nock,ggChronArtAt(grip,-25,-24-draw/20),0);
-    }else if(phase==2&&t<182){
-        GgChronArtPoint tip=GG_CHRON_ART_PT(193+t*7/182,125-t*5/182);
-        GgChronArtPoint tail=ggChronArtAt(tip,45-t*33/182,32-t*21/182);
-        ggChronArtArrow(out,tail,tip,1);
+    ggChronArtBowLimb(out,grip,roll,-1,bend);
+    ggChronArtBowLimb(out,grip,roll,1,bend);
+
+    if(phase==1){
+        GgChronArtPoint tip=ggChronArtAt(grip,12-draw/8,-26-draw/46);
+        ggChronArtArrow(out,nock,tip,0);
+        ggChronArtBowHand(out,ggChronArtAt(nock,3,2),0);
+    }else if(phase==2){
+        if(t<120){
+            GgChronArtPoint tip=GG_CHRON_ART_PT(198+t/51,124-t/19);
+            GgChronArtPoint tail=ggChronArtAt(tip,33-t/5,26-t/6);
+            ggChronArtArrow(out,tail,tip,1);
+        }
+        if(t<150){
+            int recoil=ggChronArtEaseOut(t*255/150);
+            GgChronArtPoint hand=GG_CHRON_ART_PT(255+recoil*34/255,169+recoil*36/255);
+            ggChronArtBowHand(out,hand,1);
+        }
     }
-    GG_CHRON_ART_FACE(out,GG_CHRON_INK,GG_CHRON_ART_PT(116,212),
-        ggChronArtAt(grip,-13,-7),ggChronArtAt(grip,7,-8),
-        ggChronArtAt(grip,12,5),GG_CHRON_ART_PT(grip.x-8,213));
-    GG_CHRON_ART_FACE(out,GG_CHRON_SLEEVE,GG_CHRON_ART_PT(121,212),
-        ggChronArtAt(grip,-12,2),ggChronArtAt(grip,2,12),
-        GG_CHRON_ART_PT(grip.x-12,211));
-    GG_CHRON_ART_FACE(out,GG_CHRON_LEATHER,ggChronArtAt(grip,-12,-5),
-        ggChronArtAt(grip,5,-5),ggChronArtAt(grip,9,3),
-        ggChronArtAt(grip,-1,13),ggChronArtAt(grip,-16,7));
-    for(int i=-4;i<=5;i+=3)
+    GgChronArtPoint wrist=ggChronArtAt(grip,-11,8);
+    GgChronArtPoint elbow=GG_CHRON_ART_PT(121,216);
+    ggChronArtRibbon(out,wrist,elbow,22,40,GG_CHRON_INK);
+    ggChronArtRibbon(out,wrist,elbow,18,34,GG_CHRON_SLEEVE);
+    ggChronArtRibbon(out,ggChronArtAt(wrist,5,3),ggChronArtAt(elbow,9,-2),6,17,GG_CHRON_SLEEVE_LIGHT);
+    ggChronArtRibbon(out,wrist,ggChronArtAt(wrist,-10,13),19,23,GG_CHRON_BRASS_DARK);
+    ggChronArtLine(out,ggChronArtAt(wrist,-15,9),ggChronArtAt(wrist,4,15),2,GG_CHRON_BRASS);
+    GG_CHRON_ART_FACE(out,GG_CHRON_INK,ggChronArtAt(grip,-16,-3),
+        ggChronArtAt(grip,-7,-9),ggChronArtAt(grip,7,-8),ggChronArtAt(grip,11,2),
+        ggChronArtAt(grip,3,11),ggChronArtAt(grip,-8,12),ggChronArtAt(grip,-17,6));
+    GG_CHRON_ART_FACE(out,GG_CHRON_LEATHER,ggChronArtAt(grip,-14,-2),
+        ggChronArtAt(grip,-7,-7),ggChronArtAt(grip,5,-6),ggChronArtAt(grip,9,2),
+        ggChronArtAt(grip,2,9),ggChronArtAt(grip,-12,8));
+    for(int i=-5;i<=4;i+=3){
         ggChronArtLine(out,ggChronArtAt(grip,-8,i),ggChronArtAt(grip,5,i-2),
                        2,GG_CHRON_LEATHER_LIGHT);
-    ggChronArtLine(out,ggChronArtAt(grip,-14,6),ggChronArtAt(grip,-3,13),
-                   3,GG_CHRON_BRASS);
-    if(phase==1||phase==3||(phase==2&&t<108)){
-        GgChronArtPoint hand=ggChronArtAt(nock,phase==2?t/8:0,phase==2?t/10:0);
-        GG_CHRON_ART_FACE(out,GG_CHRON_INK,ggChronArtAt(hand,-8,2),
-            ggChronArtAt(hand,-4,-5),ggChronArtAt(hand,5,-7),
-            ggChronArtAt(hand,14,-2),ggChronArtAt(hand,49,35),
-            ggChronArtAt(hand,19,36));
-        GG_CHRON_ART_FACE(out,GG_CHRON_LEATHER,ggChronArtAt(hand,-5,2),
-            ggChronArtAt(hand,-2,-3),ggChronArtAt(hand,6,-5),
-            ggChronArtAt(hand,12,0),ggChronArtAt(hand,17,12),
-            ggChronArtAt(hand,4,11));
-        ggChronArtLine(out,ggChronArtAt(hand,-2,0),ggChronArtAt(hand,7,-2),2,GG_CHRON_LEATHER_LIGHT);
-        ggChronArtLine(out,ggChronArtAt(hand,5,9),ggChronArtAt(hand,13,6),2,GG_CHRON_BRASS);
     }
 }
 
-static void ggChronArtSpellHand(u8 *out,GgChronArtPoint palm,int spread){
+static GgChronArtPoint ggChronArtPalmPoint(GgChronArtPoint palm,int turn,int x,int y){
+    return ggChronArtAt(palm,x-y*turn/80,y+x*turn/80);
+}
+
+static void ggChronArtSpellHand(u8 *out,GgChronArtPoint palm,int turn,int spread,
+                               int light){
     static const signed char fingers[5][7]={
         {-10,5,-22,1,-27,-8,-6},
         {-10,-5,-17,-18,-21,-29,-7},
@@ -294,33 +379,35 @@ static void ggChronArtSpellHand(u8 *out,GgChronArtPoint palm,int spread){
         {5,-8,8,-20,9,-33,4},
         {12,-4,18,-13,20,-24,8}
     };
-#define GG_CHRON_PALM_PT(x,y) ggChronArtAt(palm,x,y)
+#define GG_CHRON_PALM_PT(x,y) ggChronArtPalmPoint(palm,turn,x,y)
     GG_CHRON_ART_FACE(out,GG_CHRON_INK,GG_CHRON_PALM_PT(5,12),
         GG_CHRON_PALM_PT(18,5),GG_CHRON_PALM_PT(58,45),
         GG_CHRON_PALM_PT(23,49));
     GG_CHRON_ART_FACE(out,GG_CHRON_SLEEVE,GG_CHRON_PALM_PT(8,12),
         GG_CHRON_PALM_PT(18,8),GG_CHRON_PALM_PT(54,45),
         GG_CHRON_PALM_PT(25,45));
-    GG_CHRON_ART_FACE(out,GG_CHRON_JADE_DARK,GG_CHRON_PALM_PT(7,13),
+    GG_CHRON_ART_FACE(out,GG_CHRON_COAL,GG_CHRON_PALM_PT(7,13),
         GG_CHRON_PALM_PT(18,5),GG_CHRON_PALM_PT(38,24),
         GG_CHRON_PALM_PT(18,37));
-    GG_CHRON_ART_FACE(out,GG_CHRON_JADE,GG_CHRON_PALM_PT(9,13),
+    GG_CHRON_ART_FACE(out,GG_CHRON_COPPER,GG_CHRON_PALM_PT(9,13),
         GG_CHRON_PALM_PT(18,8),GG_CHRON_PALM_PT(34,24),
         GG_CHRON_PALM_PT(21,30));
-    ggChronArtLine(out,GG_CHRON_PALM_PT(19,31),GG_CHRON_PALM_PT(34,22),2,GG_CHRON_BRASS);
+    ggChronArtLine(out,GG_CHRON_PALM_PT(18,27),GG_CHRON_PALM_PT(31,19),2,GG_CHRON_BRASS);
+    ggChronArtSpark(out,GG_CHRON_PALM_PT(20,19),3,GG_CHRON_GOLD);
     for(int i=0;i<5;i++){
         const signed char *f=fingers[i];
         int shift=f[6]*spread/255;
         GgChronArtPoint base=GG_CHRON_PALM_PT(f[0],f[1]);
-        GgChronArtPoint joint=GG_CHRON_PALM_PT(f[2]+shift/2,f[3]);
-        GgChronArtPoint tip=GG_CHRON_PALM_PT(f[4]+shift,f[5]);
-        int width=i==0?9:i==4?5:7;
-        ggChronArtLine(out,base,joint,width+2,GG_CHRON_INK);
-        ggChronArtLine(out,joint,tip,width,GG_CHRON_INK);
-        ggChronArtLine(out,base,joint,width,GG_CHRON_SKIN_DARK);
-        ggChronArtLine(out,joint,tip,width-2,GG_CHRON_SKIN);
-        ggChronArtLine(out,ggChronArtAt(joint,-1,-1),ggChronArtAt(tip,-1,0),
-                       1,GG_CHRON_SKIN_LIGHT);
+        int curl=(255-spread)*(i==0?4:9+i)/255;
+        GgChronArtPoint joint=GG_CHRON_PALM_PT(f[2]+shift/2,f[3]+curl/3);
+        GgChronArtPoint tip=GG_CHRON_PALM_PT(f[4]+shift,f[5]+curl);
+        int width=i==0?9:i==4?5:8;
+        ggChronArtRibbon(out,base,joint,width+3,width+1,GG_CHRON_INK);
+        ggChronArtRibbon(out,joint,tip,width+1,width-1,GG_CHRON_INK);
+        ggChronArtRibbon(out,base,joint,width,width-1,GG_CHRON_SKIN_DARK);
+        ggChronArtRibbon(out,joint,tip,width-1,width-3,GG_CHRON_SKIN);
+        ggChronArtLine(out,ggChronArtAt(joint,-1,-1),ggChronArtAt(tip,-1,0),1,
+                       light&&i<3?GG_CHRON_FLAME:GG_CHRON_SKIN_LIGHT);
     }
     GG_CHRON_ART_FACE(out,GG_CHRON_INK,GG_CHRON_PALM_PT(-16,-6),
         GG_CHRON_PALM_PT(-2,-12),GG_CHRON_PALM_PT(12,-10),
@@ -332,7 +419,7 @@ static void ggChronArtSpellHand(u8 *out,GgChronArtPoint palm,int spread){
         GG_CHRON_PALM_PT(16,-1),GG_CHRON_PALM_PT(16,9),
         GG_CHRON_PALM_PT(21,16),GG_CHRON_PALM_PT(10,19),
         GG_CHRON_PALM_PT(-11,7));
-    GG_CHRON_ART_FACE(out,GG_CHRON_SKIN_LIGHT,GG_CHRON_PALM_PT(-11,-4),
+    GG_CHRON_ART_FACE(out,light?GG_CHRON_FLAME:GG_CHRON_SKIN_LIGHT,GG_CHRON_PALM_PT(-11,-4),
         GG_CHRON_PALM_PT(-1,-8),GG_CHRON_PALM_PT(9,-6),
         GG_CHRON_PALM_PT(5,4),GG_CHRON_PALM_PT(-6,7));
     ggChronArtLine(out,GG_CHRON_PALM_PT(-8,4),GG_CHRON_PALM_PT(0,0),1,GG_CHRON_SKIN_DARK);
@@ -340,53 +427,85 @@ static void ggChronArtSpellHand(u8 *out,GgChronArtPoint palm,int spread){
 #undef GG_CHRON_PALM_PT
 }
 
-static void ggChronArtWard(u8 *out,GgChronArtPoint center){
+static void ggChronArtWard(u8 *out,GgChronArtPoint center,int t){
     static const signed char ring[8][2]={
         {0,-22},{19,-15},{28,0},{19,13},{0,19},{-19,13},{-28,0},{-19,-15}
     };
+    int size=110+ggChronArtEaseOut(t)*145/255;
     for(int i=0;i<8;i++){
         int next=(i+1)&7;
-        GgChronArtPoint a=ggChronArtAt(center,ring[i][0],ring[i][1]);
-        GgChronArtPoint b=ggChronArtAt(center,ring[next][0],ring[next][1]);
-        ggChronArtLine(out,a,b,4,GG_CHRON_JADE_DARK);
-        ggChronArtLine(out,a,b,1,GG_CHRON_MINT);
-        ggChronArtSpark(out,a,i%2?2:4,i%2?GG_CHRON_JADE:GG_CHRON_GLINT);
+        GgChronArtPoint a=ggChronArtAt(center,ring[i][0]*size/255,ring[i][1]*size/255);
+        GgChronArtPoint b=ggChronArtAt(center,ring[next][0]*size/255,ring[next][1]*size/255);
+        ggChronArtLine(out,a,b,3,GG_CHRON_COPPER);
+        ggChronArtLine(out,a,b,1,GG_CHRON_FLAME);
+        ggChronArtSpark(out,a,i%2?2:4,i%2?GG_CHRON_FIRE:GG_CHRON_GLINT);
     }
 }
 
+static void ggChronArtFlame(u8 *out,GgChronArtPoint p,int r,int lean){
+    GG_CHRON_ART_FACE(out,GG_CHRON_COPPER,ggChronArtAt(p,-r,-1),
+        ggChronArtAt(p,lean-r/3,-r-3),ggChronArtAt(p,lean+r/3,-r/2),
+        ggChronArtAt(p,r+2,1),ggChronArtAt(p,r/2,r/2+2),ggChronArtAt(p,-r/2,r/2+1));
+    GG_CHRON_ART_FACE(out,GG_CHRON_FIRE,ggChronArtAt(p,-r+2,0),
+        ggChronArtAt(p,lean-r/3,-r),ggChronArtAt(p,lean+r/4,-r/2),
+        ggChronArtAt(p,r,1),ggChronArtAt(p,r/2,r/2),ggChronArtAt(p,-r/2,r/2));
+    GG_CHRON_ART_FACE(out,GG_CHRON_FLAME,ggChronArtAt(p,-r/2,1),
+        ggChronArtAt(p,lean/2,-r*3/4),ggChronArtAt(p,r*2/3,0),
+        ggChronArtAt(p,r/3,r/2),ggChronArtAt(p,-r/3,r/2));
+    ggChronArtSpark(out,p,r/3+1,GG_CHRON_GLINT);
+}
+
 static void ggChronArtSpell(u8 *out,int phase,int t,int frame,int bob){
-    int reach=0,spread=0;
-    switch(phase){
-    case 1:spread=ggChronArtEase(t);reach=spread/3;break;
-    case 2:spread=255;reach=ggChronArtTween(85,255,ggChronArtEase(ggExpClamp(t*2,0,255)));break;
-    case 3:spread=reach=212;break;
-    case 4:spread=reach=255-ggChronArtEase(t);break;
+    int reach=0,spread=0,turn=-7,kick=0;
+    if(phase==1){
+        reach=ggChronArtEaseOut(t)/2+14;
+        spread=95+ggChronArtEaseOut(t)*160/255;
+        turn=-18;
+    }else if(phase==2){
+        int travel=t<68?t*255/68:(t-68)*255/187;
+        reach=t<68?ggChronArtTween(181,255,travel):ggChronArtTween(255,108,travel);
+        spread=t<68?255:ggChronArtTween(255,87,travel);
+        turn=t<68?-38:ggChronArtTween(-38,-24,travel);
+        kick=t>88?(t-88)/16:0;
+    }else if(phase==3){
+        reach=57+ggChronArtEaseOut(t)*148/255;
+        spread=220;
+        turn=-15;
+    }else if(phase==4){
+        int recover=ggChronArtEase(t);
+        reach=ggChronArtTween(108,0,recover);
+        spread=ggChronArtTween(87,0,recover);
+        turn=ggChronArtTween(-24,-7,recover);
+        kick=ggChronArtTween(10,0,recover);
     }
-    GgChronArtPoint palm=GG_CHRON_ART_PT(281-reach*48/255,170-reach*12/255+bob);
-    ggChronArtSpellHand(out,palm,spread);
+    GgChronArtPoint palm=GG_CHRON_ART_PT(285-reach*62/255,
+                                  173-reach*20/255+bob+kick);
+    ggChronArtSpellHand(out,palm,turn,spread,
+                       (phase==1&&t>=34)||(phase==2&&t<123)||phase==3);
     if(phase==3){
-        ggChronArtWard(out,GG_CHRON_ART_PT(203,146));
-    }else if(phase==2&&t<205){
-        GgChronArtPoint source=ggChronArtAt(palm,-7,-5);
-        GgChronArtPoint flare=GG_CHRON_ART_PT(211-t/18,132-t/20);
-        int radius=13-t/18;
-        GG_CHRON_ART_FACE(out,GG_CHRON_JADE,ggChronArtAt(source,7,5),
-            ggChronArtAt(flare,-radius,0),ggChronArtAt(flare,0,-radius),
-            ggChronArtAt(flare,radius,0),ggChronArtAt(source,2,-6));
-        ggChronArtLine(out,source,flare,2,GG_CHRON_MINT);
-        ggChronArtSpark(out,flare,radius,GG_CHRON_MINT);
-        ggChronArtSpark(out,flare,radius/2,GG_CHRON_GLINT);
-    }else if(phase==1){
-        GgChronArtPoint source=ggChronArtAt(palm,-7,-3);
-        GgChronArtPoint ember=ggChronArtAt(source,-16-t/26,-12-t/48);
-        int radius=3+t/26;
-        ggChronArtLine(out,source,ember,1,GG_CHRON_JADE);
-        ggChronArtSpark(out,ember,radius,GG_CHRON_JADE);
-        ggChronArtSpark(out,ember,radius/2,GG_CHRON_MINT);
+        ggChronArtWard(out,ggChronArtAt(palm,-25,-5),t);
+    }else if(phase==2&&t<155){
+        GgChronArtPoint source=ggChronArtPalmPoint(palm,turn,-8,-6);
+        GgChronArtPoint flame=GG_CHRON_ART_PT(215-t/9,136-t/12);
+        int radius=11-t/17;
+        GG_CHRON_ART_FACE(out,GG_CHRON_COPPER,ggChronArtAt(source,4,4),
+            ggChronArtAt(flame,0,5),ggChronArtAt(flame,-4,-5),
+            ggChronArtAt(flame,5,-3),ggChronArtAt(source,-1,-6));
+        if(t<82)ggChronArtRibbon(out,source,flame,4,6,GG_CHRON_FLAME);
+        ggChronArtFlame(out,flame,radius,-4);
         for(int i=0;i<3;i++){
-            int orbit=(frame/3+i*9)%27;
-            int x=-13+orbit,y=orbit<14?-6+orbit/4:7-orbit/4;
-            ggChronArtSpark(out,ggChronArtAt(ember,x,y+(i-1)*9),2,GG_CHRON_GLINT);
+            GgChronArtPoint mote=ggChronArtAt(flame,(i-1)*10+i+t/14,
+                                             5+i*4-t/24);
+            ggChronArtSpark(out,mote,2+i%2,i==1?GG_CHRON_GLINT:GG_CHRON_FIRE);
+        }
+    }else if(phase==1){
+        GgChronArtPoint ember=ggChronArtPalmPoint(palm,turn,-13-t/42,-12-t/32);
+        int radius=3+t/25;
+        ggChronArtFlame(out,ember,radius,((frame/4)&3)-2);
+        for(int i=0;i<3;i++){
+            int drift=(frame/3+i*8)%22;
+            GgChronArtPoint mote=ggChronArtAt(ember,(i-1)*(radius+3),3-drift);
+            ggChronArtSpark(out,mote,2,i%2?GG_CHRON_FIRE:GG_CHRON_GLINT);
         }
     }
 }

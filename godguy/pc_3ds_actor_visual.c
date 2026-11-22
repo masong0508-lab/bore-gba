@@ -76,6 +76,12 @@ int main(void){
           "three-quarter view still stamps an unchanged front cutout");
     check(whites(front)>whites(side)&&whites(side)>0,
           "turning does not correctly occlude the far eye behind the nose");
+    int soles=0;
+    for(int x=170;x<230;x++){
+        const u8 *p=front+(149*400+x)*3;
+        soles+=p[0]==52&&p[1]==54&&p[2]==57;
+    }
+    check(soles>=8,"the boot soles stop above the projected floor row");
     static u8 shadedCast[400*240*3];
     memset(shadedCast,48,sizeof shadedCast);
     ggFilmArtAmbient=220;
