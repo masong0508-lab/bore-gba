@@ -175,6 +175,18 @@ static int ggReignNearestGuard(int x,int y,int *gx,int *gy){
     }
     return best;
 }
+static int ggReignGuardPosition(int index,int *x,int *y){
+    if(index<0||index>=ggReign.squadN||ggReign.squad[index].hp<=0)return 0;
+    *x=ggReign.squad[index].x;
+    *y=ggReign.squad[index].y;
+    return 1;
+}
+static void ggReignBlockGuardCells(unsigned char *dist,int width,int ox,int oy){
+    for(int i=0;i<ggReign.squadN;i++){
+        const GgReignGuard *g=&ggReign.squad[i];
+        if(g->hp>0)ggChronRouteBlockCell(dist,width,ox,oy,g->x,g->y);
+    }
+}
 static void ggReignGuardDamage(int index,int damage){
     if(index<0||index>=ggReign.squadN||damage<=0)return;
     GgReignGuard *g=&ggReign.squad[index];
@@ -193,8 +205,19 @@ static int ggReignRecruit(void){
     // Dead recruits occupy no permanent capacity. Compact only on
     // recruitment (never during combat/iteration or per-frame render).
     int live=0;
-    for(int k=0;k<ggReign.squadN;k++)if(ggReign.squad[k].hp>0)
-        ggReign.squad[live++]=ggReign.squad[k];
+    for(int k=0;k<ggReign.squadN;k++){
+        int alive=ggReign.squad[k].hp>0;
+        // Drop attacks aimed at the dead and keep surviving guards' locks
+        // with them when their squad slot changes.
+        if(!alive||live!=k){
+            for(int i=0;i<ggChron.foeN;i++){
+                if(!ggChron.foeWindup[i]||ggChron.foeGuard[i]!=k)continue;
+                ggChron.foeGuard[i]=(signed char)(alive?live:-1);
+                if(!alive){ggChron.foeWindup[i]=0;ggChron.dirty=1;}
+            }
+        }
+        if(alive)ggReign.squad[live++]=ggReign.squad[k];
+    }
     ggReign.squadN=live;
     if(ggReign.squadN>=GG_REIGN_SQUAD_MAX){
         ggReignNotice("YOUR FIELD SQUAD IS AT CAPACITY");return 0;
@@ -208,7 +231,7 @@ static int ggReignRecruit(void){
     static const signed char oy[8]={0,0,1,-1,1,-1,-2,2};
     for(int i=0;i<8;i++){
         int nx=x+ox[i],ny=y+oy[i];
-        if(!ggChronLand(nx,ny))continue;
+        if(!ggChronLand(nx,ny)||ggChronFoeAt(nx,ny))continue;
         int occupied=0;
         for(int k=0;k<ggReign.squadN;k++)
             if(ggReign.squad[k].x==nx&&ggReign.squad[k].y==ny)
@@ -466,12 +489,12 @@ static int ggReignGuardStep(int fromX,int fromY,int goalX,int goalY,
     unsigned char dist[N],first[N];
     unsigned char queue[N];
     memset(dist,255,sizeof dist);
+    ggChronRouteBlockActors(dist,W,fromX-R,fromY-R);
     dist[R*W+R]=0;first[R*W+R]=255;
     int front=0,back=0;queue[back++]=R*W+R;
     int best=R*W+R,bestScore=0x7fffffff;
     static const signed char dx[4]={1,0,-1,0};
     static const signed char dy[4]={0,1,0,-1};
-    int playerX=ggExplore.px>>8,playerY=ggExplore.py>>8;
     while(front<back){
         int p=queue[front++],lx=p%W,ly=p/W;
         int x=fromX+lx-R,y=fromY+ly-R;
@@ -479,23 +502,12 @@ static int ggReignGuardStep(int fromX,int fromY,int goalX,int goalY,
         // Maintain a one-tile personal-space gap; do not park on the
         // protagonist or enemy while companions are maneuvering.
         int score=gap*16+dist[p];
-        if((x!=playerX||y!=playerY)&&dist[p]>0&&
-           score<bestScore){bestScore=score;best=p;}
+        if(dist[p]>0&&score<bestScore){bestScore=score;best=p;}
         for(int k=0;k<4;k++){
             int nx=lx+dx[k],ny=ly+dy[k];
             if((unsigned)nx>=W||(unsigned)ny>=W)continue;
             int q=ny*W+nx,wx=fromX+nx-R,wy=fromY+ny-R;
             if(dist[q]!=255||!ggChronLand(wx,wy))continue;
-            if(wx==playerX&&wy==playerY)continue;
-            int squadBlocked=0;
-            for(int g=0;g<ggReign.squadN;g++)if(
-                ggReign.squad[g].hp>0&&
-                (ggReign.squad[g].x!=fromX||
-                 ggReign.squad[g].y!=fromY)&&
-                ggReign.squad[g].x==wx&&ggReign.squad[g].y==wy){
-                squadBlocked=1;break;
-            }
-            if(squadBlocked)continue;
             if(ggExpGround(world[wy][wx])-
                ggExpGround(world[y][x])>19)continue;
             dist[q]=dist[p]+1;
@@ -516,16 +528,27 @@ static void ggReignSquadTick(void){
     for(int i=0;i<ggReign.squadN;i++){
         GgReignGuard *g=&ggReign.squad[i];
         if(g->hp<=0)continue;
-        int enemy=-1,distance=999;
+        int enemy=-1,distance=999,strike=-1,reach=3;
         for(int j=0;j<ggChron.foeN;j++){
-            if(ggChron.foe[j].hp<=0)continue;
-            int d=ggChronNear(g->x,g->y,ggChron.foe[j].x,ggChron.foe[j].y);
+            const GgChronFoe *f=&ggChron.foe[j];
+            if(f->hp<=0)continue;
+            int d=ggChronNear(g->x,g->y,f->x,f->y);
             if(d<distance){enemy=j;distance=d;}
+            if(d<reach&&ggChronEnemyCanHit(f,g->x*256+128,g->y*256+128)){
+                strike=j;reach=d;
+            }
         }
-        if(enemy>=0&&distance<=2){
+        if(strike>=0){
             // Soldiers contribute bounded damage, creating a real
             // tactical advantage without spawning fake 2D world citizens.
-            ggChron.foe[enemy].hp-=4+(ggReign.order==GG_REIGN_ASSAULT?3:0);
+            GgChronFoe *f=&ggChron.foe[strike];
+            int damage=4+(ggReign.order==GG_REIGN_ASSAULT?3:0);
+            if(f->hp>damage)f->hp-=damage;
+            else{
+                f->hp=0;
+                ggChron.foeWindup[strike]=0;
+                ggChron.foeGuard[strike]=-1;
+            }
             ggChron.dirty=1;
             continue;
         }
@@ -539,12 +562,9 @@ static void ggReignSquadTick(void){
             tx=ggChron.foe[enemy].x;ty=ggChron.foe[enemy].y;
         }
         int nx=g->x,ny=g->y;
-        if(!ggReignGuardStep(g->x,g->y,tx,ty,&nx,&ny))continue;
-        int blocked=0;
-        for(int k=0;k<ggReign.squadN;k++)if(i!=k&&
-            ggReign.squad[k].hp>0&&ggReign.squad[k].x==nx&&
-            ggReign.squad[k].y==ny)blocked=1;
-        if(!blocked){g->x=(short)nx;g->y=(short)ny;}
+        if(ggReignGuardStep(g->x,g->y,tx,ty,&nx,&ny)){
+            g->x=(short)nx;g->y=(short)ny;
+        }
     }
 }
 // The journal is supplied by the lightweight quest module included after

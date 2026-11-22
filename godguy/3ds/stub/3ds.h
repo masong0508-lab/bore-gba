@@ -7,7 +7,7 @@
 #include <string.h>
 typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32; typedef int32_t Result;
 #define R_SUCCEEDED(x) ((x)>=0)
-enum { KEY_A=1<<0, KEY_B=1<<1, KEY_SELECT=1<<2, KEY_START=1<<3, KEY_DRIGHT=1<<4, KEY_DLEFT=1<<5, KEY_DUP=1<<6, KEY_DDOWN=1<<7, KEY_R=1<<8, KEY_L=1<<9, KEY_X=1<<10, KEY_Y=1<<11, KEY_TOUCH=1<<20,
+enum { KEY_A=1<<0, KEY_B=1<<1, KEY_SELECT=1<<2, KEY_START=1<<3, KEY_DRIGHT=1<<4, KEY_DLEFT=1<<5, KEY_DUP=1<<6, KEY_DDOWN=1<<7, KEY_R=1<<8, KEY_L=1<<9, KEY_X=1<<10, KEY_Y=1<<11, KEY_ZL=1<<14, KEY_ZR=1<<15, KEY_TOUCH=1<<20,
        KEY_CPAD_UP=1<<28, KEY_CPAD_DOWN=1<<29, KEY_CPAD_LEFT=1<<30, KEY_CPAD_RIGHT=1u<<31 };
 typedef struct { u16 px, py; } touchPosition;
 typedef enum { GFX_TOP=0, GFX_BOTTOM=1 } gfxScreen_t; typedef enum { GFX_LEFT=0, GFX_RIGHT=1 } gfx3dSide_t;

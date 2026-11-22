@@ -183,6 +183,104 @@ static void checkSagaMeshProjection(void){
         if(y==83)bld[y][x]=buildings[x-79];
     }
 }
+static void combatFixture(int style,int distance){
+    ggChron=(GgChronicles){.active=1,.hp=100,.stamina=100,.focus=100,
+        .food=100,.morale=70,.style=style,.foeN=1};
+    ggChron.foe[0]=(GgChronFoe){20+distance,20,80,0,120};
+    ggExplore.px=20*256+128;ggExplore.py=20*256+128;
+    ggExplore.angle=0;ggExplore.active=1;ggExplore.actorId=0;
+}
+static int combatShots(void){
+    int count=0;
+    for(int i=0;i<GG_CHRON_SHOTS;i++)count+=ggChron.shots[i].life!=0;
+    return count;
+}
+static void combatStyles(void){
+    GgChronicles savedChron=ggChron;
+    GgExplore3D savedExplore=ggExplore;
+    u8 terrain[5][13],buildings[5][13];
+    unsigned short inhabitants[5][13];
+    for(int y=0;y<5;y++)for(int x=0;x<13;x++){
+        terrain[y][x]=world[y+18][x+18];world[y+18][x+18]=T_GRASS;
+        buildings[y][x]=bld[y+18][x+18];bld[y+18][x+18]=0;
+        inhabitants[y][x]=occ[y+18][x+18];occ[y+18][x+18]=0;
+    }
+    combatFixture(GG_CHRON_BLADE,1);
+    for(int i=0;i<22;i++)ggChronStep(KEY_A);
+    check(ggChron.foe[0].hp==80,"holding the blade did damage before release");
+    ggChronStep(0);
+    check(ggChron.stamina==77,"heavy blade did not spend stamina");
+    for(int i=0;i<7;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==49,"heavy blade did not resolve once in reach");
+
+    combatFixture(GG_CHRON_BLADE,5);
+    ggChronStep(GG_3DS_ZR);
+    check(ggChron.style==GG_CHRON_BOW,"weapon cycle did not equip the bow");
+    for(int i=0;i<6;i++)ggChronStep(0);
+    ggChronStep(KEY_A);ggChronStep(0);
+    check(!combatShots()&&ggChron.combatNotice==GG_COMBAT_TOO_SOON,
+          "an undrawn bow released a combat projectile");
+    for(int i=0;i<22;i++)ggChronStep(KEY_A|GG_3DS_ZL);
+    ggChronStep(GG_3DS_ZL);
+    check(combatShots()==1&&ggChron.foe[0].hp==80&&ggChron.stamina<100,
+          "released arrow skipped flight time or bypassed stamina");
+    for(int i=0;i<31;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==56&&!combatShots(),
+          "aimed arrow missed a visible foe or struck it twice");
+
+    combatFixture(GG_CHRON_BOW,5);
+    bld[20][22]=B_HALL;
+    for(int i=0;i<24;i++)ggChronStep(KEY_A|GG_3DS_ZL);
+    ggChronStep(GG_3DS_ZL);
+    for(int i=0;i<30;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==80&&!combatShots()&&ggChron.combatNotice==GG_COMBAT_COVER,
+          "arrow passed through structural cover");
+    int x=22*256+128,y=20*256+128,ground=ggExpGround(T_GRASS);
+    int roof=ground+ggExpBuilding(B_HALL);
+    check(ggChronCombatCover(x,y,roof+6)&&!ggChronCombatCover(x,y,roof+17),
+          "roof collision ignores the rendered roof height");
+    bld[20][22]=B_RUIN;
+    check(ggChronCombatLine(x-320,y,ground+11,x+320,y,ground+11)&&
+          !ggChronCombatLine(x-320,y-54,ground+11,x+320,y-54,ground+11),
+          "ruin collision blocks a visible breach or leaks through a wall");
+    bld[20][22]=0;
+
+    combatFixture(GG_CHRON_EMBER,4);
+    for(int i=0;i<22;i++)ggChronStep(KEY_A);
+    ggChronStep(0);
+    check(combatShots()==1&&ggChron.focus==78&&ggChron.foe[0].hp==80,
+          "ember cast did not consume focus and launch a bolt");
+    for(int i=0;i<26;i++)ggChronStep(0);
+    check(ggChron.foe[0].hp==52,"ember bolt failed to hit at its world position");
+    ggChron.guardTicks=10;
+    int focus=ggChron.focus;
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==97&&ggChron.focus==focus-13&&ggChron.combatNotice==GG_COMBAT_WARD,
+          "ward did not trade focus for protection");
+
+    combatFixture(GG_CHRON_BLADE,1);
+    ggChron.guardTicks=1;
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==100&&ggChron.stamina==91&&ggChron.combatNotice==GG_COMBAT_PARRY,
+          "timed frontal sword parry failed");
+    ggExplore.angle=128;
+    ggChronIncomingHit(0,12);
+    check(ggChron.hp==88,"sword guard blocked a rear attack");
+    ggChronCombatStow();
+    ggChronCombatStep(GG_3DS_ZL,0);
+    check(!ggChron.guardTicks,"held overlay key rearmed a fresh parry");
+    ggExplore.angle=0;
+    ggExplore.px=21*256-6;
+    ggChronStep(KEY_UP);
+    check(ggExplore.px==21*256-6,"player movement entered a living foe's tile");
+
+    for(int y=0;y<5;y++)for(int x=0;x<13;x++){
+        world[y+18][x+18]=terrain[y][x];
+        bld[y+18][x+18]=buildings[y][x];
+        occ[y+18][x+18]=inhabitants[y][x];
+    }
+    ggChron=savedChron;ggExplore=savedExplore;
+}
 int main(void){
     // Real-world citizen sprites must use the same 250px lens,
     // physically projected foot row and 2px walking-camera bob.
@@ -488,8 +586,12 @@ int main(void){
     ggChron.foeN=1;
     ggChron.foe[0]=(GgChronFoe){cx+1,cy,25,0,0};
     ggChronStep(KEY_A);
+    check(ggChron.foe[0].hp==25,
+          "drawing a weapon hit the guard before the action committed");
+    for(int i=0;i<8&&ggChron.foe[0].hp==25;i++)ggChronStep(0);
     check(ggChron.foe[0].hp<25&&ggChron.attackWait>0,
           "real-time aimed melee did not hit a visible guard");
+    combatStyles();
     ggChronStep(0);
     ggChron.hp=55;
     int rations=ggChron.rations;
@@ -632,8 +734,13 @@ int main(void){
     ggReign.frame=ggReign.nextCivicAt;
     check(ggReignEnroll(GG_ROLE_SAILOR)&&!ggReignDeed(),
           "inland towns incorrectly offered sea voyages");
+    ggChron.foeN=1;
+    ggChron.foe[0]=(GgChronFoe){61,60,40,0,0};
     check(ggReignRecruit()&&ggReign.squadN==1 &&
           vil[0].stock>0,"real settlement could not provision a companion");
+    check(ggReign.squad[0].x!=61||ggReign.squad[0].y!=60,
+          "recruit spawned on a living foe");
+    ggChron.foeN=0;
     // A real village structure blocks the straight-line path. The
     // follower must route around it, without walking through houses.
     int gx=ggReign.squad[0].x,gy=ggReign.squad[0].y;
@@ -655,6 +762,19 @@ int main(void){
     for(int t=0;t<100;t++)ggReignSquadTick();
     check(ggChron.foe[0].hp<40,
           "tactical field squad did not damage an opposing soldier");
+    ggReign.squad[0]=(GgReignGuard){61,60,45};
+    ggReign.order=GG_REIGN_HOLD;
+    ggChron.foe[0]=(GgChronFoe){63,60,4,0,0};
+    ggChron.foeWindup[0]=4;ggChron.foeGuard[0]=0;
+    u8 guardWall=bld[60][62];
+    bld[60][62]=B_TOWER;
+    ggReign.frame=11;ggReignSquadTick();
+    check(ggChron.foe[0].hp==4,"guard attacked through a tower");
+    bld[60][62]=0;
+    ggReign.frame=11;ggReignSquadTick();
+    check(ggChron.foe[0].hp<=0&&!ggChron.foeWindup[0],
+          "guard kill left the foe's attack pending");
+    bld[60][62]=guardWall;
     // Foes must recognize followers as real battlefield participants:
     // a nearer guard can absorb attacks, fall and be replaced, while
     // the 2D creature population and player health remain untouched.
@@ -662,15 +782,50 @@ int main(void){
     ggChron.foe[0].x=62;ggChron.foe[0].y=60;ggChron.foe[0].wait=0;
     ggReign.squad[0].x=61;ggReign.squad[0].y=60;
     ggReign.squad[0].hp=6;ggReign.squadN=1;
-    ggExplore.px=67*256+128;ggExplore.py=60*256+128;
+    ggExplore.px=64*256+128;ggExplore.py=60*256+128;
     int healthBefore=ggChron.hp;
+    ggChronEnemiesStep();
+    check(ggReign.squad[0].hp==6&&ggChron.hp==healthBefore,
+          "enemy damaged a guard before the windup");
+    for(int t=0;t<3;t++){
+        ggChronEnemiesStep();
+        check(ggReign.squad[0].hp==6,"enemy windup ended too early");
+    }
     ggChronEnemiesStep();
     check(ggReign.squad[0].hp<6&&ggChron.hp==healthBefore,
           "enemy completely ignored closer living squad member");
+    int guardHealth=ggReign.squad[0].hp;
+    ggChronEnemiesStep();
+    check(ggReign.squad[0].hp==guardHealth,
+          "enemy attacked again while recovering");
     ggChron.foe[0].wait=0;
     ggChronEnemiesStep();
+    for(int t=0;t<4;t++)ggChronEnemiesStep();
     check(ggReign.squad[0].hp==0,
           "allies could not be defeated by real enemy AI");
+    // Step past sword reach within the same tile, then try a new wall.
+    int moraleBefore=ggChron.morale;
+    ggChron.foe[0].wait=0;
+    ggChronEnemiesStep();
+    check(ggChron.hp==healthBefore,"enemy damaged the hero before the windup");
+    ggExplore.px+=64;
+    for(int t=0;t<4;t++)ggChronEnemiesStep();
+    check(ggChron.hp==healthBefore&&ggChron.foe[0].wait>0,
+          "enemy hit a hero who moved out of reach or skipped miss recovery");
+    ggExplore.px=64*256+128;
+    ggChron.foe[0].wait=0;
+    ggChronEnemiesStep();
+    u8 combatWall=bld[60][63];
+    bld[60][63]=B_TOWER;
+    for(int t=0;t<4;t++)ggChronEnemiesStep();
+    check(ggChron.hp==healthBefore,"enemy hit through a blocking tower");
+    bld[60][63]=combatWall;
+    ggChron.foe[0].wait=0;
+    ggChronEnemiesStep();
+    for(int t=0;t<4;t++)ggChronEnemiesStep();
+    check(ggChron.hp<healthBefore,"wound-up enemy failed to hit an exposed hero");
+    ggChron.hp=healthBefore;
+    ggChron.morale=moraleBefore;
     ggExplore.px=60*256+128;ggExplore.py=60*256+128;
     ggChron.foeN=0;
     check(ggReignRecruit()&&ggReign.squadN==1&&
@@ -694,6 +849,20 @@ int main(void){
           !(rx==61&&ry==60),
           "bounded enemy pursuit cannot route around a built wall");
     for(int yy=59;yy<=62;yy++)bld[yy][61]=0;
+    GgReignGuard routeGuard=ggReign.squad[0];
+    ggReign.squad[0]=(GgReignGuard){61,60,45};
+    check(ggChronEnemyRoute(60,60,63,60,&rx,&ry)&&(rx!=61||ry!=60),
+          "pursuing foe planned a step into a guard");
+    ggReign.squad[0].x=64;
+    ggExplore.px=61*256+128;
+    check(ggChronEnemyRoute(60,60,63,60,&rx,&ry)&&(rx!=61||ry!=60),
+          "foe chasing a guard planned a step into the player");
+    ggExplore.px=64*256+128;
+    ggChron.foe[0].x=61;
+    check(ggReignGuardStep(60,60,63,60,&rx,&ry)&&(rx!=61||ry!=60),
+          "advancing guard planned a step into a foe");
+    ggReign.squad[0]=routeGuard;
+    ggExplore.px=60*256+128;
     ggChron.foeN=0;
     int storyChapter=chapter;
     ggReignStep(KEY_SELECT);

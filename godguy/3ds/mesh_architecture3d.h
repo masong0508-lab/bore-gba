@@ -132,12 +132,14 @@ static void ggMeshWatchtower(GgMeshContext*m,int x0,int y0,int x1,int y1,
     ggMeshArchitectureBlock(m,l,cy-13,l+12,cy+13,cap+4,cap+10,172,168,148);
     ggMeshArchitectureBlock(m,r-12,cy-13,r,cy+13,cap+4,cap+10,172,168,148);
 }
+static const int ggMeshBrokenWallCrown[6]={-4,1,-1,3,-2,-6};
 static void ggMeshBrokenWall(GgMeshContext*m,int axis,int p0,int p1,
                              int u0,int u1,int bottom,int top,
                              int r,int g,int b){
     int span=u1-u0;
     int u[6]={u0,u0+span/5,u0+span*2/5,u0+span*3/5,u0+span*4/5,u1};
-    int z[6]={top-4,top+1,top-1,top+3,top-2,top-6};
+    int z[6];
+    for(int i=0;i<6;i++)z[i]=top+ggMeshBrokenWallCrown[i];
     int across=axis?m->cx:m->cy,normal=axis?m->cy:m->cx;
     for(int i=0;i<5;i++){
         GgMeshVertex a=ggMeshFacadePoint(axis,p0,u[i],z[i]);
@@ -161,14 +163,31 @@ static void ggMeshBrokenWall(GgMeshContext*m,int axis,int p0,int p1,
         }
     }
 }
+typedef struct { int axis,p0,p1,u0,u1,top; } GgMeshRuinWall;
+typedef struct { int x0,y0,x1,y1,top; } GgMeshRuinPier;
+static inline void ggMeshRuinLayout(int x0,int y0,int x1,int y1,int top,
+                                    GgMeshRuinWall wall[3],GgMeshRuinPier pier[2]){
+    int cy=(y0+y1)/2;
+    wall[0]=(GgMeshRuinWall){0,x0,x0+24,y0,cy-34,top+2};
+    wall[1]=(GgMeshRuinWall){0,x0,x0+27,cy+42,y1-17,top-2};
+    wall[2]=(GgMeshRuinWall){1,y1-25,y1,x0+11,x1-15,top+4};
+    pier[0]=(GgMeshRuinPier){x1-32,y0,x1,y0+31,top+6};
+    pier[1]=(GgMeshRuinPier){x1-30,y1-33,x1,y1,top};
+}
 static void ggMeshRuin(GgMeshContext*m,int x0,int y0,int x1,int y1,
                        int ground,int wallTop,int base,int nearDetail){
     int cy=(y0+y1)/2;
-    ggMeshBrokenWall(m,0,x0,x0+24,y0,cy-34,base,wallTop+2,125,126,114);
-    ggMeshBrokenWall(m,0,x0,x0+27,cy+42,y1-17,base,wallTop-2,119,120,108);
-    ggMeshBrokenWall(m,1,y1-25,y1,x0+11,x1-15,base,wallTop+4,115,118,109);
-    ggMeshArchitectureBlock(m,x1-32,y0,x1,y0+31,base,wallTop+6,136,132,118);
-    ggMeshArchitectureBlock(m,x1-30,y1-33,x1,y1,base,wallTop,124,125,116);
+    GgMeshRuinWall wall[3];GgMeshRuinPier pier[2];
+    ggMeshRuinLayout(x0,y0,x1,y1,wallTop,wall,pier);
+    static const unsigned char c[5][3]={
+        {125,126,114},{119,120,108},{115,118,109},{136,132,118},{124,125,116}
+    };
+    for(int i=0;i<3;i++)
+        ggMeshBrokenWall(m,wall[i].axis,wall[i].p0,wall[i].p1,wall[i].u0,
+                         wall[i].u1,base,wall[i].top,c[i][0],c[i][1],c[i][2]);
+    for(int i=0;i<2;i++)
+        ggMeshArchitectureBlock(m,pier[i].x0,pier[i].y0,pier[i].x1,pier[i].y1,
+                                base,pier[i].top,c[i+3][0],c[i+3][1],c[i+3][2]);
     if(nearDetail){
         ggMeshArchitectureSupport(m,x0+12,cy-13,x0+33,cy+5,ground+3,135,128,115);
         ggMeshArchitectureSupport(m,x0-17,cy+18,x0+6,cy+36,ground+2,122,121,109);

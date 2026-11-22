@@ -250,29 +250,41 @@ static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
     m->near=priorNear;
     ggMeshTilesDrawn++;
 }
-static void ggMeshRoof(GgMeshContext*m,int build,
-                       int x0,int y0,int x1,int y1,int wallTop){
-    int prior=m->material;
+typedef struct { int left,right,hip,count,y[5],z[5]; } GgMeshRoofProfile;
+static inline GgMeshRoofProfile ggMeshRoofProfile(int build,int x0,int y0,
+                                                 int x1,int y1,int wallTop){
     int overhang=build==B_TEMPLE?17:14;
     int hip=build==B_HALL?50:build==B_LIBRARY?32:0;
     int rise=build==B_HOUSE?19:build==B_HUT?16:build==B_FARM?21:
               build==B_HALL?15:build==B_LIBRARY?17:9;
+    GgMeshRoofProfile p={x0-overhang,x1+overhang,hip,3,
+        {y0-overhang,(y0+y1)/2,y1+overhang},
+        {wallTop-2,wallTop+rise,wallTop-2}};
+    if(build==B_FARM){
+        // The steep lower pitch gives the barn a full-height loft.
+        p.count=5;
+        p.y[2]=p.y[1];p.y[1]=y0+24;
+        p.y[3]=y1-24;p.y[4]=y1+overhang;
+        p.z[2]=p.z[1];p.z[1]=p.z[3]=wallTop+16;p.z[4]=p.z[0];
+    }
+    return p;
+}
+static inline int ggMeshHasRoof(int build){
+    return build==B_HOUSE||build==B_HUT||build==B_FARM||
+           build==B_HALL||build==B_TEMPLE||build==B_LIBRARY;
+}
+static void ggMeshRoof(GgMeshContext*m,int build,
+                       int x0,int y0,int x1,int y1,int wallTop){
+    int prior=m->material;
+    GgMeshRoofProfile p=ggMeshRoofProfile(build,x0,y0,x1,y1,wallTop);
+    int hip=p.hip,count=p.count,left=p.left,right=p.right;
+    const int *y=p.y,*z=p.z;
+    int rise=z[count/2]-wallTop;
     int r=164,g=85,b=57;
     if(build==B_FARM){r=120;g=67;b=54;}
     if(build==B_TEMPLE){r=109;g=130;b=107;}
     if(build==B_HALL){r=110;g=119;b=91;}
     if(build==B_LIBRARY){r=78;g=105;b=123;}
-    int count=3;
-    int y[5]={y0-overhang,(y0+y1)/2,y1+overhang};
-    int z[5]={wallTop-2,wallTop+rise,wallTop-2};
-    if(build==B_FARM){
-        // The steep lower pitch gives the barn a full-height loft.
-        count=5;
-        y[2]=y[1];y[1]=y0+24;
-        y[3]=y1-24;y[4]=y1+overhang;
-        z[2]=z[1];z[1]=z[3]=wallTop+16;z[4]=z[0];
-    }
-    int left=x0-overhang,right=x1+overhang;
     m->material=GG_MAT_ROOF;
     for(int i=0;i<count-1;i++){
         int a=hip&&i==1?hip:0,bias=hip&&i==0?hip:0;
@@ -674,6 +686,36 @@ static void ggMeshDock(GgMeshContext*m,int tx,int ty,int ground,int detailed){
     }
     m->material=material;
 }
+typedef struct { int x0,y0,x1,y1; } GgMeshBuildingFootprint;
+static inline GgMeshBuildingFootprint ggMeshBuildingFootprint(int tx,int ty,int build){
+    GgMeshBuildingFootprint p={tx*256+28,ty*256+28,tx*256+228,ty*256+228};
+    // Building type changes actual footprint/volume, not merely a
+    // pixel tint: small huts, strong towers, open ruins and temples
+    // remain distinguishable even when viewed with flat materials.
+    if(build==B_HUT){p.x0+=35;p.x1-=35;p.y0+=30;p.y1-=30;}
+    if(build==B_TOWER){p.x0+=39;p.x1-=39;p.y0+=38;p.y1-=38;}
+    if(build==B_FARM){p.y0+=33;p.y1-=35;}
+    if(build==B_STATUE){p.x0+=42;p.x1-=42;p.y0+=38;p.y1-=38;}
+    return p;
+}
+static inline int ggMeshBuildingWallTop(GgMeshBuildingFootprint p,int tx,int ty,
+                                       int build,int ground,int doorFloor[4]){
+    int x0=p.x0,y0=p.y0,x1=p.x1,y1=p.y1;
+    int wallTop=ground+ggExpBuilding(build)+(build==B_FARM?6:0);
+    for(int i=0;i<4;i++)doorFloor[i]=ground;
+    if(wallTop-ground>=GG_WORLD_DOOR_HEIGHT+2&&build!=B_STATUE&&
+       !ggMeshShadowFlat(tx,tx,ty,ty,ground)){
+        doorFloor[0]=ggMeshDoorFloor(x0,0,1,y0,y1);
+        doorFloor[1]=ggMeshDoorFloor(x1,0,-1,y0,y1);
+        doorFloor[2]=ggMeshDoorFloor(y0,1,1,x0,x1);
+        doorFloor[3]=ggMeshDoorFloor(y1,1,-1,x0,x1);
+        for(int side=0;side<4;side++){
+            int top=doorFloor[side]+GG_WORLD_DOOR_HEIGHT+3;
+            if(top>wallTop)wallTop=top;
+        }
+    }
+    return wallTop;
+}
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     if(build<=B_NONE||build>=B_N)return;
@@ -687,29 +729,11 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
         ggMeshBuildingsDrawn++;
         return;
     }
-    int x0=tx*256+28,x1=tx*256+228;
-    int y0=ty*256+28,y1=ty*256+228;
-    // Building type changes actual footprint/volume, not merely a
-    // pixel tint: small huts, strong towers, open ruins and temples
-    // remain distinguishable even when viewed with flat materials.
-    if(build==B_HUT){x0+=35;x1-=35;y0+=30;y1-=30;}
-    if(build==B_TOWER){x0+=39;x1-=39;y0+=38;y1-=38;}
-    if(build==B_FARM){y0+=33;y1-=35;}
-    if(build==B_STATUE){x0+=42;x1-=42;y0+=38;y1-=38;}
+    GgMeshBuildingFootprint bounds=ggMeshBuildingFootprint(tx,ty,build);
+    int x0=bounds.x0,y0=bounds.y0,x1=bounds.x1,y1=bounds.y1;
     int baseGround=ggMeshFoundationGround(x0-14,y0-14,x1+14,y1+14,ground);
-    int wallTop=ground+ggExpBuilding(build)+(build==B_FARM?6:0);
-    int doorFloor[4]={ground,ground,ground,ground};
-    if(wallTop-ground>=GG_WORLD_DOOR_HEIGHT+2&&build!=B_STATUE&&
-       !ggMeshShadowFlat(tx,tx,ty,ty,ground)){
-        doorFloor[0]=ggMeshDoorFloor(x0,0,1,y0,y1);
-        doorFloor[1]=ggMeshDoorFloor(x1,0,-1,y0,y1);
-        doorFloor[2]=ggMeshDoorFloor(y0,1,1,x0,x1);
-        doorFloor[3]=ggMeshDoorFloor(y1,1,-1,x0,x1);
-        for(int side=0;side<4;side++){
-            int top=doorFloor[side]+GG_WORLD_DOOR_HEIGHT+3;
-            if(top>wallTop)wallTop=top;
-        }
-    }
+    int doorFloor[4];
+    int wallTop=ggMeshBuildingWallTop(bounds,tx,ty,build,ground,doorFloor);
     int wood=build==B_HOUSE||build==B_HUT||build==B_FARM;
     int stone=build==B_TEMPLE||build==B_HALL||
               build==B_TOWER||build==B_LIBRARY;
@@ -730,8 +754,7 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     }
     ggMeshArchitectureBlock(m,x0,y0,x1,y1,baseGround,wallTop,r,g,bl);
     if(build==B_TOWER)ggMeshWatchtower(m,x0,y0,x1,y1,wallTop,nearDetail);
-    if(build==B_HOUSE||build==B_HUT||build==B_FARM||
-       build==B_HALL||build==B_TEMPLE||build==B_LIBRARY)
+    if(ggMeshHasRoof(build))
         ggMeshRoof(m,build,x0,y0,x1,y1,wallTop);
     if(build==B_HOUSE||build==B_HUT)ggMeshChimney(m,x0,y0,x1,y1,wallTop,build);
     if(build==B_TEMPLE)ggMeshPortico(m,0,x0,cy,doorFloor[0],wallTop-8,1);

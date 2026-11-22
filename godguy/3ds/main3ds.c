@@ -147,6 +147,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         int sagaPaused=ggSaga.paused;
         int sagaAction=ggSagaStep(raw);
         if(sagaAction){
+            ggChronCombatStow();
             if(sagaAction==2){
                 ggReignSave();ggChron.active=0;ggExpFinish();
                 ggExpMessage("REIGN SAVED: RETURNED TO THE ORIGINAL STORY");
@@ -156,15 +157,19 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             ggChron.lastKeys=raw;ggReign.lastKeys=raw;ggQuest.lastKeys=raw;
             *held=0;*tx=*ty=0;return;
         }
-        // Talk and travel orders are contextual: a safe town's A
-        // interaction precedes melee, but enemies always take priority.
+        // Talks and travel orders use A in safe towns. Nearby enemies
+        // leave the attack control available.
         if(ggQuestStep(raw)){
+            ggChronCombatStow();
             ggChron.lastKeys=raw;
             ggReign.lastKeys=raw;
             ggExpRenderValid=0;
             *held=0;*tx=*ty=0;return;
         }
         if(ggReignStep(raw)){
+            ggChronCombatStow();
+            ggChron.lastKeys=raw;
+            ggExpRenderValid=0;
             *held=0;*tx=*ty=0;return;
         }
         int priorSaga=ggSaga.mode;
@@ -339,7 +344,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
         *held=0;*tx=*ty=0;return;
     }
-    *held=raw;
+    *held=raw&~(GG_3DS_ZL|GG_3DS_ZR);
 }
 void shimPresent(void){
     // Preserve wall-clock time across short rendering stalls instead of

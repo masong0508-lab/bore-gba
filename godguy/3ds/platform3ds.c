@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "../compat/stereo.h"
+#include "platform_keys3d.h"
 #define SR 32768
 #define NWB 12       // sound buffers queued ahead (one is a frame of 546 samples: about 200 ms in all)
 static ndspWaveBuf wb[NWB]; static short*abuf[NWB];
@@ -50,6 +51,8 @@ void plat_setCinema(int on){platCinema=on!=0;}
 // keys in the shim's layout (A B SELECT START RIGHT LEFT UP DOWN R L X Y, bit 12 = touch)
 int plat_keys(int*tx,int*ty){
     hidScanInput(); u32 k=hidKeysHeld(); int h=(int)(k&0xFFF); if(k&KEY_CPAD_UP) h|=1<<6; if(k&KEY_CPAD_DOWN) h|=1<<7; if(k&KEY_CPAD_LEFT) h|=1<<5; if(k&KEY_CPAD_RIGHT) h|=1<<4;
+    if(k&KEY_ZL)h|=GG_3DS_ZL;
+    if(k&KEY_ZR)h|=GG_3DS_ZR;
     if(k&KEY_TOUCH){
         touchPosition t;hidTouchRead(&t);
         int x=platCinema?t.px*4/5:t.px-32;
