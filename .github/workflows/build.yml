@@ -27,7 +27,9 @@ jobs:
           python3 tools/test_missy_story.py
           python3 tools/test_missy_handover.py
           python3 tools/test_missy_campaign.py
+          python3 tools/test_story_friends.py
           python3 tools/test_personality_save.py
+          python3 tools/test_flash_poll.py
           python3 tools/test_cslighting.py
           bash tools/render_cutscene.sh --check-patient
       - name: Skate feel host regression

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Exercise actual personality validation, person serialization and creator edits.
 
-The native UI generated Mamesy's [7,5,9,7,4] personality and saved it correctly,
-but the reader rejected its 32-point total. This extracts the real encoder,
-decoder, SRAM personality functions and creator spending guard. Rendering and
+The native UI saved Mamesy's 32-point personality and GOOD BOY's Grow Up lead
+Pippa, but the reader rejected both legitimate personas. This extracts the real
+encoder, decoder, SRAM personality functions and creator limits. Rendering and
 flash I/O are host boundaries; this is not an emulator or UI playthrough.
 """
 from pathlib import Path
@@ -67,6 +67,12 @@ captured = bytes.fromhex(
     "1100010101010201000000000000000000000001000001010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000100070509070400"
 )
 fixture = "static const u8 captured_mamesy[]={" + ",".join(str(v) for v in captured) + "};\n"
+# Exact format-17 C chunk from a new GOOD BOY game, saved through the native UI.
+# Pippa is an adult whose pre-made persona deliberately retains AS_GROW.
+captured_pippa = bytes.fromhex(
+    "1100020402010103050200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000500040708030300"
+)
+fixture += "static const u8 captured_pippa[]={" + ",".join(str(v) for v in captured_pippa) + "};\n"
 
 prefix = r'''
 #include <assert.h>
@@ -107,13 +113,14 @@ static void clear_person(void){
     memset(look,0,sizeof(look)); memset(pTr,0,sizeof(pTr));
     pAsp=pLtw=ageDays=custom=0; stage=AG_ADULT; pDna=123; pUnl=7;
 }
-static void round_trip(const u8 *traits,int aspiration,int want){
-    clear_person(); pAsp=(u8)aspiration; pLtw=(u8)want; memcpy(pTr,traits,TR_N);
+static void round_trip(const u8 *traits,int aspiration,int want,int life_stage){
+    clear_person(); pAsp=(u8)aspiration; pLtw=(u8)want; stage=(u8)life_stage; ageDays=7; memcpy(pTr,traits,TR_N);
     u8 encoded[256], second[256]; int length=encode(encoded,sizeof(encoded));
     assert(decode(encoded,length,0));
-    memset(pTr,0xff,TR_N); pAsp=pLtw=255;
+    memset(pTr,0xff,TR_N); pAsp=pLtw=stage=ageDays=255;
     assert(decode(encoded,length,1));
     assert(pAsp==aspiration&&pLtw==want&&!memcmp(pTr,traits,TR_N));
+    assert(stage==life_stage&&ageDays==7);
     assert(encode(second,sizeof(second))==length&&!memcmp(encoded,second,(size_t)length));
     persSave(); memset(pTr,0xff,TR_N); pAsp=pLtw=255; pDna=pUnl=0; persLoad();
     assert(pAsp==aspiration&&pLtw==want&&!memcmp(pTr,traits,TR_N)&&pDna==123&&pUnl==7);
@@ -130,21 +137,33 @@ static void captured_save(void){
     memset(pTr,0,TR_N); pAsp=0; persLoad();
     assert(pAsp==AS_KNOW&&!memcmp(pTr,mamesy_traits,TR_N));
 }
+static void captured_grow_save(void){
+    clear_person();
+    assert(sizeof(captured_pippa)==119);
+    assert(decode(captured_pippa,sizeof(captured_pippa),0));
+    assert(decode(captured_pippa,sizeof(captured_pippa),1));
+    assert(stage==AG_ADULT&&pAsp==AS_GROW&&pLtw==0&&!memcmp(pTr,signTr[2],TR_N));
+    u8 again[256]; int n=encode(again,sizeof(again));
+    assert(n==sizeof(captured_pippa)&&!memcmp(again,captured_pippa,(size_t)n));
+    memset(pTr,0,TR_N); pAsp=0; persLoad();
+    assert(pAsp==AS_GROW&&!memcmp(pTr,signTr[2],TR_N));
+}
 static void valid_fields(void){
     /* Every independently generated 0..10 combination is a valid saved persona. */
     unsigned count=0;
     for(int a=0;a<=10;a++) for(int b=0;b<=10;b++) for(int c=0;c<=10;c++)
     for(int d=0;d<=10;d++) for(int e=0;e<=10;e++){
         u8 traits[TR_N]={(u8)a,(u8)b,(u8)c,(u8)d,(u8)e};
-        for(int asp=0;asp<AS_PICK;asp++) for(int want=0;want<LTN;want++){
+        for(int asp=0;asp<AS_N;asp++) for(int want=0;want<LTN;want++){
             assert(persValid(asp,want,traits)); count++;
         }
     }
-    assert(count==3221020u);
+    assert(count==3865224u);
     const u8 zero[TR_N]={0}, high[TR_N]={10,10,10,10,10};
-    for(int asp=0;asp<AS_PICK;asp++) for(int want=0;want<LTN;want++){
-        round_trip(zero,asp,want); round_trip(high,asp,want); round_trip(mamesy_traits,asp,want);
-        for(int sign=0;sign<12;sign++) round_trip(signTr[sign],asp,want);
+    /* GROW UP belongs to young people and some pre-made adult story leads. */
+    for(int st=0;st<AG_N;st++) for(int asp=0;asp<AS_N;asp++) for(int want=0;want<LTN;want++){
+        round_trip(zero,asp,want,st); round_trip(high,asp,want,st); round_trip(mamesy_traits,asp,want,st);
+        for(int sign=0;sign<12;sign++) round_trip(signTr[sign],asp,want,st);
     }
 }
 static void invalid_fields(void){
@@ -157,9 +176,10 @@ static void invalid_fields(void){
         const u8 zero[TR_N]={0}; assert(!memcmp(pTr,zero,TR_N));
         bytes[traits+t]=captured_mamesy[traits+t];
     }
-    for(int bad=AS_PICK;bad<=255;bad++){
+    for(int bad=AS_N;bad<=255;bad++){
         assert(!persValid(bad,0,mamesy_traits)); bytes[asp]=(u8)bad;
         assert(!decode(bytes,sizeof(captured_mamesy),0));
+        clear_person(); assert(!decode(bytes,sizeof(captured_mamesy),1)); assert(pAsp==0);
     }
     bytes[asp]=captured_mamesy[asp];
     for(int bad=LTN;bad<=255;bad++){
@@ -189,10 +209,18 @@ static void creator_budget(void){
     assert(pTr[TR_NEAT]==0&&trLeft()==0); persStep(&trait,1); assert(pTr[TR_NEAT]==0);
     Row other=trait; other.id=TR_OUT; persStep(&other,-1); assert(trLeft()==1);
     persStep(&trait,1); assert(pTr[TR_NEAT]==1&&trLeft()==0);
+    /* Accepting a stored GROW UP persona does not add it to the creator picks. */
+    const Row aspiration={"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK};
+    for(int direction=-1;direction<=1;direction+=2){
+        pAsp=0;
+        for(int step=0;step<AS_PICK*2;step++){ persStep(&aspiration,direction); assert(pAsp<AS_PICK); }
+        assert(pAsp==0);
+        pAsp=AS_GROW; persStep(&aspiration,direction); assert(pAsp<AS_PICK);
+    }
 }
 int main(void){
-    captured_save(); valid_fields(); invalid_fields(); creator_budget();
-    puts("BORE person save: PASS (captured Mamesy save, exact person/SRAM round trips, all 3221020 valid field combinations, malformed bytes and actual creator spending guard)");
+    captured_save(); captured_grow_save(); valid_fields(); invalid_fields(); creator_budget();
+    puts("BORE person save: PASS (captured Mamesy and Pippa saves, exact person/SRAM round trips across all stages, all 3865224 valid field combinations, malformed bytes and actual creator limits)");
     return 0;
 }
 '''
