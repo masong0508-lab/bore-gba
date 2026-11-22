@@ -59,6 +59,13 @@ static unsigned long frame(int place,int camera,int t){
     drawWorld(&b,t,filmEase(t,420),t/300,1,0);
     return hashFrame();
 }
+static int materialColors(const u8 *page){
+    int used[256]={0};
+    for(int i=FILM_TOP*256;i<FILM_BOTTOM*256;i++) used[page[i]]=1;
+    int colors=0;
+    for(int i=0;i<GG_FILM_MATERIALS;i++) colors+=used[ggFilmMaterialSlots[i]];
+    return colors;
+}
 int main(void){
     memset(picture.before,0xa6,sizeof picture.before);
     memset(picture.after,0x6d,sizeof picture.after);
@@ -83,6 +90,11 @@ int main(void){
                 "world renderer wrote outside the 256x192 film surface");
     }
     require(populated==F_SET_N,"an original location lacks projected 3DS scenery");
+    for(int i=0;i<F_SET_N;i++){
+        frame(i,F_TRACK,420);
+        require(materialColors(uiBuf)>=3,
+                "a set still relies entirely on the shared actor and prop palette");
+    }
     require(frame(F_PORCH,F_NEAR,0)!=frame(F_COUCH,F_NEAR,0),
             "the first-rain porch is still a generic couch stage");
     FilmBeat porch={F_PORCH,F_NEAR,F_MIRA,F_WISP,F_CUP};
@@ -113,7 +125,7 @@ int main(void){
     GgFilmCamera fordCam=ggFilmCameraAt(&ford,128);
     FilmBlocking onFord={0},onBridge={0};
     ggFilmWorldBlocking(fordCam,&ford,180,3,&onFord);
-    ggFilmWorldBlocking(fordCam,&ford,180,9,&onBridge);
+    GgFilmFootprints marks=ggFilmWorldBlocking(fordCam,&ford,180,9,&onBridge);
     memset(uiBuf,0,sizeof picture.page);
     ggFilmFloor(fordCam,F_FORD,0,9,0);
     GgS2 nearBank=ggFilmProject(fordCam,ggV3(0,1,592));
@@ -127,6 +139,11 @@ int main(void){
     require(onBridge.otherX==deck.x&&onBridge.otherFeet==deck.y&&
             onBridge.otherFeet<onFord.otherFeet,
             "the sprite does not stand on its projected bridge deck");
+    require(marks.other.y==GG_FILM_BRIDGE_TOP,
+            "a bridge actor casts a shadow at river height");
+    ggFilmCastShadow(fordCam,marks.other,F_FORD);
+    require(uiBuf[deck.y*256+deck.x]==fmvSlots[24],
+            "a bridge cast shadow lost its projection onto the deck");
     GgS2 window=ggFilmPropSupport(fordCam,F_PORCH,1);
     GgS2 tabletop=ggFilmProject(fordCam,ggV3(0,36,583));
     require(window.x==tabletop.x&&window.y==tabletop.y,
@@ -136,9 +153,9 @@ int main(void){
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
             "world-space rain did not animate");
     GgS2 post=ggFilmProject(fordCam,ggV3(-103,50,500));
-    uiBuf[post.y*256+post.x]=255;
+    uiBuf[post.y*256+post.x]=253;
     ggFilmWorldForeground(fordCam,&ford,128,9);
-    require(uiBuf[post.y*256+post.x]!=255,
+    require(uiBuf[post.y*256+post.x]!=253,
             "the near bridge post cannot occlude a sprite behind it");
 
     static u8 alternate[256*192];
@@ -146,7 +163,8 @@ int main(void){
     memset(alternate,0,sizeof alternate);
     fordCam.page=alternate;
     ggFilmWorldDraw(fordCam,&ford,40,9,1,0);
-    require(alternate[FILM_TOP*256]!=0&&uiBuf[FILM_TOP*256]==0x9b,
+    require(alternate[FILM_TOP*256]!=0&&materialColors(alternate)>=3&&
+            uiBuf[FILM_TOP*256]==0x9b,
             "an origin set overwrote the shared chapter film page");
     // Coverage continuity: two unrelated lines spoken by the SAME actor
     // should reuse the familiar three-quarter angle. A response from the

@@ -831,13 +831,16 @@ static void kdAssign(void){
 static u16 warYr[KN_N][KN_N];   // the year each war began (not saved: the war records are only for the journal)
 static void renown(int k,int n){ int r=kx[k].renown+n; kx[k].renown=(u16)(r>65000?65000:r); }
 static void kdWar(int a,int b,int on){ if(on){ if(!(kd[a].war>>b&1)) warYr[a][b]=warYr[b][a]=(u16)year; kd[a].war|=(u16)(1<<b); kd[b].war|=(u16)(1<<a); kd[a].weary=kd[b].weary=0; } else { kd[a].war&=(u16)~(1<<b); kd[b].war&=(u16)~(1<<a); } }
+static inline int peopleVillagesAtWar(int ra,int rb,int va,int vb){
+    if(va<0||vb<0||!vilK[va]||!vilK[vb]) return ra!=rb&&warM[ra][rb];
+    int ka=vilK[va]-1,kb=vilK[vb]-1;
+    return ka!=kb&&kd[ka].on&&kd[kb].on&&((kd[ka].war>>kb)&1);
+}
 static int peopleKingdomsAtWar(int ia,int ib){
     if(ia<0||ib<0||ia>=nCr||ib>=nCr||!cr[ia].alive||!cr[ib].alive) return 0;
     int ra=sp[cr[ia].sp].a, rb=sp[cr[ib].sp].a; if(ra>=8||rb>=8) return 0;
     int va=vilNear(ra,cr[ia].x,cr[ia].y,20), vb=vilNear(rb,cr[ib].x,cr[ib].y,20);
-    if(va<0||vb<0||!vilK[va]||!vilK[vb]) return ra!=rb&&warM[ra][rb];
-    int ka=vilK[va]-1,kb=vilK[vb]-1;
-    return ka!=kb&&kd[ka].on&&kd[kb].on&&((kd[ka].war>>kb)&1);
+    return peopleVillagesAtWar(ra,rb,va,vb);
 }
 static const char* const knBr[6]={"GOVERNANCE","ZONE CONTROL","WARFARE","ECONOMY","ARCHITECTURE","EDUCATION"};
 static const char* const knN[6][3]={{"TRIBAL LAW","KINGS COURT","ROYAL CHARTER"},{"BOUNDARY STONES","BORDER FORTS","GRAND SURVEY"},{"DRILLED LEVIES","STEEL ARMS","SIEGECRAFT"},{"BARTER","COINAGE","BANKING"},{"MASONRY","ARCHES","CATHEDRALS"},{"WRITING","SCHOLARS","UNIVERSITIES"}};
@@ -1661,6 +1664,7 @@ static void usePower(int tx,int ty,int fresh){
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
+#include "march_landmarks.h"
 static void newWorld(void){
     mapPinMask=0;
     dlgPend=-1; joyInvalidate(); vilIndexInvalidate();
@@ -1684,6 +1688,7 @@ static void newWorld(void){
             break;
         }
     }
+    if(cShape==GW_MARCH){ marchLandmarks();winX=-99;refillWindow(); }
     info[0]=0; LOADING("READY",100); }
 // ---------------------------------------------------------------------------------------------- saving: the whole world, the villages and the story, to one file (the SD card on the DS)
 static int shape3;
@@ -2463,6 +2468,9 @@ static const char* const helpTxt[]={
 #endif
     "D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)",
     "SELECT   NEXT INFO PAGE","START    PAUSE MENU","L+R+SELECT    SAVE NOW","",
+#ifdef __3DS__
+    "3DS OUTDOOR WALKING","SELECT+L   WALK FROM MAP","L+A        USE TARGET","START      RETURN TO MAP","",
+#endif
     "STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.",
     "100%: MEET AND SLAY EVERY","MONSTER AFTER THE STORY.","",
     "TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","",
@@ -2679,7 +2687,7 @@ static void uiCreate(void){
     siprintf(b,"%dX%d",planetSize,planetSize); uiTextC(208,138,b,U_DIM,1);
     uiTextC(208,149,storyOn?"STORY":"FREE PLAY",U_GOLD,1); uiTextC(208,159,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL",diff==0?U_GREEN:diff==2?U_RED:U_LGREY,1);
     uiRound(170,168,76,11,U_PANELHI,cT>=0?U_ORANGE:U_GREEN); uiTextC(208,170,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
-    gfxHint(cSel==2&&cShape==GW_MARCH?"SNOWY PASSES, WOODS AND RIVER FORDS":cHelp[cSel],U_LGREY);
+    gfxHint(cSel==2&&cShape==GW_MARCH?"ISLANDS, RIVER FORDS AND OLD RUINS":cHelp[cSel],U_LGREY);
     uiFlush(); }
 enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON, MI_AUTOSAVE, MI_FILMS };
 static int fieldLedgerOpen;

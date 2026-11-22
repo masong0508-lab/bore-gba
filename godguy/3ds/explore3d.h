@@ -15,6 +15,7 @@
 #include "film_occlusion3d.h"
 #include "film_scenery3d.h"
 #include "mesh_raster3d.h"
+#include "outdoor_art3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -87,7 +88,7 @@ static int ggExpWalkable(int x,int y,int fromHeight,int climb){
     if(ggExplore.actorId){
         // The actor can begin inside their own home or water habitat.
         // Allow fractional travel there; ggHybridMove applies the true
-        // species-specific stepOk() rule at every tile boundary.
+        // species and trait rules at every tile boundary.
         if(x==(ggExplore.px>>8)&&y==(ggExplore.py>>8))return 1;
         return !bld[y][x]&&!occ[y][x];
     }
@@ -356,7 +357,7 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
     if(h<3)return;
     int widthRatio=kind==GG_SCENE_OAK||kind==GG_SCENE_STALL?7:
                    kind==GG_SCENE_PINE?5:
-                   kind==GG_SCENE_SHRUB?12:
+                   kind==GG_SCENE_SHRUB||kind==GG_SCENE_STONE?12:
                    kind==GG_SCENE_GRASS?6:4;
     int w=ggExpClamp(h*widthRatio/11,3,52);
     int trunk=ggExpClamp(h/9,1,5);
@@ -382,8 +383,10 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
                       kind==GG_SCENE_CROPS?181:92,
                       kind==GG_SCENE_CROPS?153:129,74);
         }else if(cls==3){
-            ggExpRect(out,x-2,foot-hh,4,hh,101,106,106);
-            ggExpRect(out,x-2,foot-hh,2,hh/2+1,152,149,134);
+            int natural=kind==GG_SCENE_STONE;
+            ggExpRect(out,x-(natural?4:2),foot-hh/2,
+                      natural?8:4,hh/2,101,106,106);
+            ggExpRect(out,x-2,foot-hh,natural?5:4,hh-hh/2,132,131,117);
         }else if(cls==4){
             ggExpRect(out,x,foot-hh+2,1,hh-2,89,81,68);
             ggExpRect(out,x-1,foot-hh,3,3,239,177,97);
@@ -495,26 +498,28 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
             // Occasional tiny flower/wild seed head, world-anchored.
             ggExpRect(out,x+breeze,foot-h,2,2,184,177,121);
         }
-    }else if(kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN){
-        int stone=kind==GG_SCENE_COLUMN;
-        int bw=stone?w/2:w;
+    }else if(kind==GG_SCENE_STONE){
+        // Faceted slopes and an eccentric peak keep rocks distinct
+        // from masonry even on the column renderer's coarse pixel grid.
+        int lean=(key&8u)?w/6:-w/6;
+        for(int face=0;face<4;face++){
+            int top=y+face*h/4,bottom=y+(face+1)*h/4;
+            int span=w*(3+face)/6;
+            int left=x-span/2+lean*(3-face)/3;
+            ggExpRect(out,left,top,span,bottom-top,111-face*9,115-face*8,113-face*6);
+            ggExpRect(out,left,top,span/2,bottom-top,157-face*8,151-face*7,131-face*5);
+        }
+    }else if(kind==GG_SCENE_COLUMN){
+        int bw=w/2;
         ggExpRect(out,x-bw/2,foot-h,bw,h,
                   96,102,104);
         ggExpRect(out,x-bw/2,foot-h,bw/3+1,h,
                   148,145,130);
         ggExpRect(out,x-bw/2,foot-h/2,bw,h/9+1,
                   74,80,88);
-        if(stone){
-            ggExpRect(out,x-w/2,foot-h,w,h/8+1,
-                      153,150,136);
-            ggExpRect(out,x-w/2,foot-h/8,w,h/8+1,
-                      91,92,94);
-            ggExpRect(out,x+w/4,foot-h,w/5,h/5,72,78,83);
-        }else{
-            ggExpRect(out,x-w/3,foot-h,w*2/3,h/5,
-                      129,132,132);
-            ggExpRect(out,x+w/5,foot-h/3,w/6,h/5,65,73,79);
-        }
+        ggExpRect(out,x-w/2,foot-h,w,h/8+1,153,150,136);
+        ggExpRect(out,x-w/2,foot-h/8,w,h/8+1,91,92,94);
+        ggExpRect(out,x+w/4,foot-h,w/5,h/5,72,78,83);
     }else if(kind==GG_SCENE_LAMP||kind==GG_SCENE_BRAZIER){
         int brazier=kind==GG_SCENE_BRAZIER;
         ggExpRect(out,x-trunk/2,y+(brazier?h/2:0),
@@ -575,6 +580,8 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
 // is used in both passes and no scenery object is ever cached.
 static GgFilmScenicItem ggExpScenicItems[GG_SCENE_LIMIT];
 static int ggExpScenicCount;
+static inline void ggMeshPropAnchor(int tx,int ty,int kind,uint32_t key,
+                                    int *wx,int *wy);
 static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
     if(!ggExpSceneryEnabled){
         if(!foreground){ggExpScenicCount=0;ggExpScenicVisible=0;}
@@ -594,20 +601,15 @@ static void ggExpScenicDraw(u8*out,int foreground,int nearestActorDepth){
             if((unsigned)ty>=WH)continue;
             for(int tx=cx-radius;tx<=cx+radius;tx++){
                 if((unsigned)tx>=WW)continue;
-                if(bld[ty][tx]||occ[ty][tx])continue;
+                if(bld[ty][tx])continue;
                 uint32_t key=ggFilmScenicHash(tx,ty,7);
                 // Fixed world-space thinning preserves bilateral density,
                 // and never depends on where the camera sweep begins.
                 if(((key>>24)&7u)>=5u)continue;
-                int near=0;
-                if(tx>0&&bld[ty][tx-1])near=bld[ty][tx-1];
-                else if(tx+1<WW&&bld[ty][tx+1])near=bld[ty][tx+1];
-                else if(ty>0&&bld[ty-1][tx])near=bld[ty-1][tx];
-                else if(ty+1<WH&&bld[ty+1][tx])near=bld[ty+1][tx];
-                int kind=ggFilmScenicKind(world[ty][tx],near,key);
+                int kind=ggOutdoorPropKind(tx,ty,ggMeshTerrainAt(tx,ty),key);
                 if(!kind)continue;
-                int wx=tx*256+128+(int)((key>>12)&95u)-48;
-                int wy=ty*256+128+(int)((key>>20)&95u)-48;
+                int wx,wy;
+                ggMeshPropAnchor(tx,ty,kind,key,&wx,&wy);
                 int dx=wx-ggExplore.px,dy=wy-ggExplore.py;
                 int forward=(dx*cosine+dy*sine)/4096;
                 if(forward<=128||forward>radius*256)continue;
@@ -770,6 +772,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
     if(cinematic){
         int rowDistance[240],rowMist[240];
         int cameraGround=ggExpGround(terrain);
+        uint32_t seed[T_N];
+        for(int i=0;i<T_N;i++)seed[i]=ggOutdoorGroundSeed(i,ggExplore.frame);
         for(int py=horizon+1;py<240;py++){
             rowDistance[py]=ggFilmFloorForward(py,horizon,
                 eye-cameraGround,GG_EXP_MAX_DEPTH*256);
@@ -795,16 +799,11 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 int type=(unsigned)tx<WW&&(unsigned)ty<WH?
                     world[ty][tx]:T_DIRT;
                 if((unsigned)type>=T_N)type=T_DIRT;
-                int r=(terrCol[type][0]*8*4+72)/5;
-                int g=(terrCol[type][1]*8*3+71)/4;
-                int b=(terrCol[type][2]*8*4+91)/5;
-                if(type==T_GRASS||type==T_FOREST){
-                    g=(g*4+r)/5;
-                    b=(b*3+g)/4;
-                }
-                int grain=ggFilmFloorGrain(wx,wy,ggExplore.frame);
-                int detail=ggFilmScenicFloorDetail(type,wx,wy);
-                r+=grain+detail;g+=grain+detail/2;b+=grain+detail/3;
+                int r,g,b;
+                ggOutdoorGroundColor(type,&r,&g,&b);
+                if(d<6*256)
+                    ggMatSample(ggMeshGroundMaterial(type),wx>>2,wy>>2,
+                                seed[type],&r,&g,&b);
                 int mist=rowMist[y];
                 r=(r*(256-mist)+mood.hazeR*mist)/256;
                 g=(g*(256-mist)+mood.hazeG*mist)/256;
@@ -889,24 +888,18 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 baseR=wood?160:139;baseG=wood?112:135;baseB=wood?83:144;
                 if(build==B_RUIN){baseR=102;baseG=102;baseB=108;}
             }else{
-                baseR=terrCol[type][0]*8;
-                baseG=terrCol[type][1]*8;
-                baseB=terrCol[type][2]*8;
+                ggOutdoorGroundColor(type,&baseR,&baseG,&baseB);
+                if(d<=5)
+                    ggMatSample(ggMeshGroundMaterial(type),wx>>2,wy>>2,
+                                ggOutdoorGroundSeed(type,ggExplore.frame),
+                                &baseR,&baseG,&baseB);
             }
-            if(cinematic){
+            if(cinematic&&build){
                 // Restrained painterly atmosphere: natural colors,
                 // cool distant stone and less neon-green grass.
                 baseR=(baseR*4+72)/5;
                 baseG=(baseG*3+71)/4;
                 baseB=(baseB*4+91)/5;
-            }
-            if(!build&&(type==T_GRASS||type==T_FOREST||
-                         type==T_JUNGLE)){
-                // Shared naturalistic color grading across both render
-                // modes. The playable POV no longer turns this world
-                // into a neon green lawn when leaving a cutscene.
-                baseG=(baseG*4+baseR)/5;
-                baseB=(baseB*3+baseG)/4;
             }
             int shade=256-d*3;
             if(shade<110)shade=110;
@@ -1188,13 +1181,17 @@ mesh_world_ready:
     ggExpText(top,111,202,"Y  CLEAR",239,218,163);
     ggExpText(top,208,202,"X  MATERIAL",239,218,163);
     ggExpText(top,305,202,"B  SPRINT",239,218,163);
-    ggExpText(top,9,216,"PAD MOVE   L/R LOOK",202,217,218);
+    const char *movement=ggExpBuildPreview?(ggExplore.actorId?
+        "PAD MOVE  L/R LOOK  TAP MAP: SWITCH":
+        "PAD MOVE  L/R LOOK  TAP MAP: TRAVEL"):"PAD MOVE   L/R LOOK";
+    ggExpText(top,9,216,movement,202,217,218);
     ggExpText(top,250,216,"SELECT SAVE  START EXIT",171,197,206);
     snprintf(buf,sizeof buf,"TARGET: %s",ggExpEditReason(targetStatus));
     ggExpText(top,9,229,buf,targetStatus==GG_EDIT_READY?147:236,
               targetStatus==GG_EDIT_READY?221:184,177);
-    ggExpText(top,250,229,ggExplore.actorId?"TAP MAP: SWITCH PERSON":
-                                           "TAP MAP: TRAVEL",171,197,206);
+    if(!ggExpBuildPreview)
+        ggExpText(top,250,229,ggExplore.actorId?"TAP MAP: SWITCH PERSON":
+                                              "TAP MAP: TRAVEL",171,197,206);
     if(ggExplore.feedbackT){
         const char *msg=ggExplore.feedback==2?"TERRAIN CHANGED":
                         ggExplore.feedback==3?ggExpEditReason(ggExplore.editStatus):

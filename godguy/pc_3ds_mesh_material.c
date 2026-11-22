@@ -7,7 +7,7 @@ static void ok(int pass,const char*reason){
 }
 int main(void){
     int changed=0;
-    for(int material=GG_MAT_MEADOW;material<=GG_MAT_FABRIC;material++){
+    for(int material=GG_MAT_MEADOW;material<GG_MAT_COUNT;material++){
         int min=255,max=0;
         for(int y=0;y<67;y++)for(int x=0;x<71;x++){
             int r=136,g=136,b=136;
@@ -33,6 +33,7 @@ int main(void){
     ggMatSample(GG_MAT_NONE,12,18,0,&a,&b,&c);
     ok(a==145&&b==145&&c==145,
        "legacy untextured geometry was unexpectedly changed");
-    puts("3DS MATERIAL OK: eleven authored, world-anchored, bounded deterministic procedural surfaces");
+    printf("3DS MATERIAL OK: %d world-anchored, bounded deterministic procedural surfaces\n",
+           GG_MAT_COUNT-1);
     return 0;
 }

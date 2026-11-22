@@ -188,6 +188,59 @@ static void artSceneryToggle(unsigned char *pixels){
                 "scenery toggle fails to restore the same underlying world frame");
     ggExpSceneryEnabled=previous;
 }
+static void artWaterline(unsigned char *pixels){
+    for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
+        world[y][x]=x<66?T_DEEP:x==66?T_WATER:T_GRASS;
+        bld[y][x]=0;occ[y][x]=0;
+    }
+    int level=ggExpGround(T_WATER);
+    artRequire(ggMeshGroundAtQ8(65*256+128,64*256+128)==level&&
+               ggMeshGroundAtQ8(66*256+128,64*256+128)==level&&
+               ggMeshGroundAtQ8(67*256,64*256+128)==level&&
+               ggMeshGroundAtQ8(67*256+128,64*256+128)>level,
+               "deep sea, shallows, and dry bank do not share a level shoreline");
+    uint32_t key=0;
+    artRequire(ggOutdoorPropKind(65,64,T_DEEP,key)==GG_SCENE_NONE&&
+               ggOutdoorPropKind(66,64,T_WATER,key)==GG_SCENE_REEDS,
+               "open water gets dry scenery or a nearby bank loses its reeds");
+    int x,y;
+    ggMeshPropAnchor(66,64,GG_SCENE_REEDS,key,&x,&y);
+    artRequire((x&255)>164&&x>>8==66&&y>>8==64,
+               "shore reeds use a tile-center anchor instead of the bank");
+    memset(world,T_DEEP,sizeof world);
+    nCr=0;ggExplore.px=64*256+128;ggExplore.py=64*256+128;ggExplore.angle=0;
+    ggExpScenicQuality=2;ggExplore.frame=0;
+    ggMeshWorldDraw(pixels,1);
+    static unsigned char first[400*240*3];
+    static uint16_t waterDepth[400*240];
+    memcpy(first,pixels,sizeof first);
+    memcpy(waterDepth,ggMeshDepthStorage,sizeof waterDepth);
+    ggExplore.frame=54;
+    ggMeshWorldDraw(pixels,1);
+    int moving=0;
+    for(int i=0;i<400*240;i++)
+        if(waterDepth[i])moving+=memcmp(first+i*3,pixels+i*3,3)!=0;
+    artRequire(ggMeshPropsDrawn==0&&moving>2000&&
+               !memcmp(waterDepth,ggMeshDepthStorage,sizeof waterDepth),
+               "open water has scenery or animated highlights disrupt physical depth");
+}
+static void artNearBank(unsigned char *pixels){
+    for(int y=0;y<WH;y++){
+        memset(world[y],y<=64?T_HILL:T_MOUNT,WW);
+        memset(bld[y],0,WW);
+    }
+    ggExplore.px=64*256+128;ggExplore.py=64*256+176;
+    ggExplore.angle=64;
+    for(int detail=1;detail<=2;detail++){
+        ggExpScenicQuality=detail;
+        ggMeshWorldDraw(pixels,1);
+        for(int y=180;y<240;y++)for(int x=0;x<400;x++)
+            artRequire(ggMeshDepthStorage[y*400+x]!=0,
+                       "near terrain clipping opens a hole under a steep bank");
+        artRequire(ggMeshContext.near==GG_MESH_NEAR,
+                   "ground near clip changes later actor and prop projection");
+    }
+}
 int main(void){
     static unsigned char pixels[400*240*3];
     ggExpTrigInit();
@@ -212,6 +265,8 @@ int main(void){
     }
     artRequire(covered>2000&&max-min>=10,
                 "real slope normals lost visible directional light");
+    artWaterline(pixels);
+    artNearBank(pixels);
     // A coast and a crowded settlement exercise the new shore, crown
     // and architecture paths together, with the fixed native resources.
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){

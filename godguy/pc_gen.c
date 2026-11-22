@@ -92,7 +92,7 @@ static int marchIn(int x0,int y0,int x1,int y1,int mask){
 }
 
 // Walk with the human terrain rules, optionally inside a narrow band across a ford.
-static int marchReach(int x,int y,int x1,int x2,int y1,int y2){
+static int marchReach(int x,int y,int x1,int x2,int y1,int y2,int *sites){
     static u8 seen[MAXD][MAXD];
     static int queue[MAXD*MAXD];
     memset(seen,0,sizeof seen);
@@ -109,13 +109,21 @@ static int marchReach(int x,int y,int x1,int x2,int y1,int y2){
             queue[written++]=ny*MAXD+nx;
         }
     }
+    if(sites){
+        *sites=0;
+        for(int i=0;i<(int)(sizeof marchSites/sizeof marchSites[0]);i++){
+            int sx,sy;
+            marchSite(i,&sx,&sy);
+            *sites+=seen[sy][sx];
+        }
+    }
     if(x2==WW) return written*100/(WW*WH);
     for(int iy=y1;iy<y2;iy++) if(seen[iy][x2-1]) return 1;
     return 0;
 }
 
 static int marchTest(void){
-    cShape=6;   // the seventh LAND option in Create a Planet
+    cShape=GW_MARCH;
     cEdge=cSea=cClim=cWet=cCoast=cMtn=0;
     int fails=0;
     for(int i=0;i<SZ_N;i++){
@@ -123,22 +131,76 @@ static int marchTest(void){
         genWorld(4242);
         unsigned baseHash=gh();
         int clearStart=buildable(WW/2,WH/2);
-        int connected=marchReach(WW/2,WH/2,0,WW,0,WH);
+        int sites=0;
+        int connected=marchReach(WW/2,WH/2,0,WW,0,WH,&sites);
         int north=marchIn(255,140,765,320,(1<<T_MOUNT)|(1<<T_HILL)|(1<<T_SNOW));
         int west=marchIn(146,320,376,590,1<<T_FOREST);
         int east=marchIn(685,392,810,622,(1<<T_DESERT)|(1<<T_HILL)|(1<<T_MOUNT));
         int south=marchIn(465,680,695,798,1<<T_SWAMP);
         int river=marchIn(490,425,600,575,1<<T_WATER);
-        int upper=marchReach(472*WW/1024,362*WH/1024,472*WW/1024,581*WW/1024,346*WH/1024,380*WH/1024);
-        int lower=marchReach(462*WW/1024,666*WH/1024,462*WW/1024,621*WW/1024,650*WH/1024,682*WH/1024);
+        int upper=marchReach(472*WW/1024,362*WH/1024,472*WW/1024,581*WW/1024,346*WH/1024,380*WH/1024,NULL);
+        int lower=marchReach(462*WW/1024,666*WH/1024,462*WW/1024,621*WW/1024,650*WH/1024,682*WH/1024,NULL);
         rs=5; genWorld(4242);
         int repeat=gh()==baseHash;
         genWorld(4243);
         int varies=gh()!=baseHash;
-        int ok=clearStart&&connected>=35&&north>=20&&west>=35&&east>=35&&south>=8&&river>=3&&upper&&lower&&repeat&&varies;
-        printf("Riven March %d: %s (start %d, walk %d%%, north %d%%, west %d%%, east %d%%, marsh %d%%, river %d%%, fords %d/%d, seeds %d/%d)\n",WW,ok?"OK":"FAIL",clearStart,connected,north,west,east,south,river,upper,lower,repeat,varies);
+        int ok=clearStart&&connected>=35&&sites==8&&north>=20&&west>=35&&east>=35&&south>=8&&river>=3&&upper&&lower&&repeat&&varies;
+        printf("Riven March %d: %s (start %d, walk %d%%, sites %d, north %d%%, west %d%%, east %d%%, marsh %d%%, river %d%%, fords %d/%d, seeds %d/%d)\n",WW,ok?"OK":"FAIL",clearStart,connected,sites,north,west,east,south,river,upper,lower,repeat,varies);
         fails+=!ok;
     }
+    return fails;
+}
+
+static int marchVariety(void){
+    static u8 land[128][128];
+    static const u32 seeds[]={4243,69778,42,77,0xdeadbeef,0xffffffff};
+    int fails=0;
+    gW=gH=128;
+    genWorld(4242);
+    for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) land[y][x]=world[y][x]>T_WATER;
+    for(unsigned i=0;i<sizeof seeds/sizeof seeds[0];i++){
+        genWorld(seeds[i]);
+        int changed=0,sites=0;
+        for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) changed+=land[y][x]!=(world[y][x]>T_WATER);
+        int coastChange=changed*100/(WW*WH);
+        int islands=masses(WW*WH/2600)-1;
+        int tributary=marchIn(275,445,465,602,1<<T_WATER);
+        int walk=marchReach(WW/2,WH/2,0,WW,0,WH,&sites);
+        int ok=coastChange>=8&&islands>=3&&tributary>=4&&sites==8&&walk>=35;
+        printf("Riven March seed %u: %s (land/water change %d%%, islands %d, west tributary %d%%, sites %d)\n",seeds[i],ok?"OK":"FAIL",coastChange,islands,tributary,sites);
+        fails+=!ok;
+    }
+    return fails;
+}
+
+static int marchRoutesAtExtremes(void){
+    static const struct {
+        u32 seed;
+        int sea,climate,wet,coast,mountains;
+    } cases[]={
+        {1251615044u,2,0,-1,1,0}, // an inlet can otherwise cut off the high pass
+        {235539461u,2,0,1,1,-1},
+        {1094649946u,2,-1,-1,1,0},
+        {2412102358u,-2,2,1,0,1}, // the east escarpment needs a way through
+    };
+    int fails=0;
+    gW=gH=128;
+    for(unsigned i=0;i<sizeof cases/sizeof cases[0];i++){
+        cSea=cases[i].sea;
+        cClim=cases[i].climate;
+        cWet=cases[i].wet;
+        cCoast=cases[i].coast;
+        cMtn=cases[i].mountains;
+        genWorld(cases[i].seed);
+        int sites=0;
+        marchReach(WW/2,WH/2,0,WW,0,WH,&sites);
+        int upper=marchReach(472*WW/1024,362*WH/1024,472*WW/1024,581*WW/1024,346*WH/1024,380*WH/1024,NULL);
+        int lower=marchReach(462*WW/1024,666*WH/1024,462*WW/1024,621*WW/1024,650*WH/1024,682*WH/1024,NULL);
+        int ok=sites==8&&upper&&lower;
+        printf("Riven March extreme controls seed %u: %s (sites %d, fords %d/%d)\n",cases[i].seed,ok?"OK":"FAIL",sites,upper,lower);
+        fails+=!ok;
+    }
+    cSea=cClim=cWet=cCoast=cMtn=0;
     return fails;
 }
 
@@ -171,5 +233,7 @@ int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     // the land share still follows SEA
     cCoast=cMtn=0; int lp[5]; for(int s=-2;s<=2;s++){ cSea=s; cShape=0; genWorld(4242u); int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) l+=world[y][x]>T_WATER; lp[s+2]=l*100/(WW*WH); } cSea=0; printf("land share DRY .. FLOODED: %d%% %d%% %d%% %d%% %d%%\n",lp[0],lp[1],lp[2],lp[3],lp[4]); if(!(lp[0]>lp[2]&&lp[2]>lp[4])){ fails++; printf("  FAIL: sea\n"); }
     fails+=marchTest();
+    fails+=marchVariety();
+    fails+=marchRoutesAtExtremes();
     fails+=marchSettlements();
     printf("%s\n",fails?"GEN FAIL":"GEN OK"); return fails?1:0; }

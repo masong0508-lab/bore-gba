@@ -8,7 +8,9 @@
 enum {
     GG_MAT_NONE,GG_MAT_MEADOW,GG_MAT_STONE,GG_MAT_WOOD,
     GG_MAT_ROOF,GG_MAT_SAND,GG_MAT_SNOW,GG_MAT_ROCK,
-    GG_MAT_WATER,GG_MAT_LEAVES,GG_MAT_FABRIC
+    GG_MAT_WATER,GG_MAT_LEAVES,GG_MAT_FABRIC,
+    GG_MAT_TRACK,GG_MAT_LOAM,GG_MAT_MARSH,GG_MAT_LAVA,
+    GG_MAT_COUNT
 };
 static inline uint32_t ggMatHash(int u,int v,uint32_t seed){
     uint32_t k=(uint32_t)u*0x9e3779b9u+
@@ -19,27 +21,30 @@ static inline uint32_t ggMatHash(int u,int v,uint32_t seed){
 static inline int ggMatClamp(int v){
     return v<0?0:v>255?255:v;
 }
+static inline int ggMatWave(int v,int mask){
+    int phase=v&mask;
+    return phase<=mask/2?phase:mask-phase;
+}
 static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
                                 int *r,int *g,int *b){
-    if(mat<=GG_MAT_NONE||mat>GG_MAT_FABRIC)return;
+    if(mat<=GG_MAT_NONE||mat>=GG_MAT_COUNT)return;
     // Small low-frequency forms before high-frequency detail: avoid
     // turning the ground into television static at native 400x240.
-    uint32_t block=ggMatHash(u>>4,v>>4,seed);
+    uint32_t block=ggMatHash(u>>4,v>>4,mat==GG_MAT_WATER?113u:seed);
     int grain=(int)(block&15u)-7;
     int rr=*r,gg=*g,bb=*b;
     int shade=0;
     switch(mat){
     case GG_MAT_MEADOW:{
-        // Broad low-contrast growth bands cross tile boundaries. Tiny
-        // clustered blades sit over that coherent colour, so distant
-        // meadows read as land instead of random square paving slabs.
-        int wave=(u+v/3+(int)(seed&63u))&127;
-        wave=wave<64?wave:127-wave;
-        shade=(wave-32)/7+grain/3;
-        int tuftU=(u+(int)((block>>12)&7u))&15;
+        // Intersecting broad growth patterns keep the meadow coherent
+        // across cell edges without repeating narrow diagonal stripes.
+        int growth=ggMatWave(u+v/2,255)+ggMatWave(v-u/2,127)-96;
+        rr+=growth/6;gg+=growth/7;bb-=growth/12;
+        shade=grain/2;
+        int tuftU=(u+(int)((block>>12)&7u)-(v&3)/2)&15;
         int tuftV=(v+(int)((block>>17)&7u))&15;
-        if(tuftU<2&&tuftV<5){rr-=4;gg+=8;bb-=3;}
-        if(tuftU==2&&tuftV==1){rr+=7;gg+=12;bb+=2;}
+        if(tuftU<2&&tuftV<7){rr-=7;gg+=9;bb-=7;}
+        if(tuftU==2&&tuftV<2){rr+=12;gg+=14;bb+=2;}
         break;
     }
     case GG_MAT_STONE:{
@@ -75,31 +80,37 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
         break;
     }
     case GG_MAT_SAND:{
-        int dune=(u+v/3)&63;
-        dune=dune<32?dune:63-dune;
-        shade=(dune-16)/4+grain/3;
-        if(((u+v/4)&31)<2)shade+=5;
-        rr+=4;gg+=2;bb-=3;
+        int crest=ggMatWave(u+v*2+ggMatWave(u/3-v/5,63),63);
+        shade=(crest-16)/4+grain/3;
+        if(crest>27&&((block>>13)&3u)!=0)shade+=8;
+        if(crest<4)shade-=4;
+        rr+=6;gg+=3;bb-=4;
         break;
     }
     case GG_MAT_SNOW:{
-        shade=grain/3;
-        if(((u*3-v*5+(int)(block>>19))&63)<2)
-            {rr+=11;gg+=12;bb+=16;}
+        int drift=ggMatWave(v+u/3+ggMatWave(u/2-v/3,127),127);
+        shade=(drift-32)/4+grain/3;
+        if(drift<18){rr-=12;gg-=5;bb+=5;}
+        if(((u*3-v*5+(int)(block>>19))&63)<2){rr+=13;gg+=14;bb+=17;}
         break;
     }
     case GG_MAT_ROCK:{
-        int strata=(v+u/7)&31;
-        shade=strata<3?-12:grain/2;
-        if(((block>>11)&7u)==0u)shade-=6;
+        int strata=(v+u/5+ggMatWave(u/2+v/3,63)/3)&31;
+        int cracks=(u-v/3+(int)((block>>13)&7u))&31;
+        shade=strata<2?-18:strata<6?8:grain/2;
+        if(cracks==0&&((block>>11)&3u)!=0u)shade-=10;
+        if((block&48u)==0u){rr+=6;gg+=5;bb-=5;}
         break;
     }
     case GG_MAT_WATER:{
-        int bend=(v>>3)&15;
-        bend=bend<8?bend:15-bend;
-        int ripple=(u+v/4+bend+(int)(seed&15u))&63;
-        shade=ripple<3?12:grain/4;
-        if(ripple<2&&((v>>4)&3)!=0){gg+=8;bb+=12;}
+        int phase=(int)(seed&127u);
+        int bend=ggMatWave(u/3-v/3,63);
+        int swell=ggMatWave(u+v/3+bend/2+phase,63);
+        int chop=ggMatWave(v-u/3+bend-phase,63);
+        shade=(swell-16)/3+grain/4;
+        if(swell<8)bb+=5;
+        if(swell>27&&chop>18){rr+=9;gg+=18;bb+=18;}
+        if(swell>29&&chop>25){rr+=16;gg+=22;bb+=15;}
         break;
     }
     case GG_MAT_LEAVES:{
@@ -112,6 +123,43 @@ static inline void ggMatSample(int mat,int u,int v,uint32_t seed,
     case GG_MAT_FABRIC:
         shade=((u+v)&7)<2?-7:grain/3;
         break;
+    case GG_MAT_TRACK:{
+        // Packed earth, with irregular flat gravel and worn shallow ruts.
+        int worn=ggMatWave(u+v/3+ggMatWave(v-u/2,127)/4,127);
+        int pebbleU=(u+(int)((block>>15)&7u))&15;
+        int pebbleV=(v+(int)((block>>19)&7u))&15;
+        shade=(worn-32)/4+grain/2;
+        if(worn<10){rr-=9;gg-=7;bb-=4;}
+        if((block&48u)==16u&&pebbleU<5&&pebbleV<4)
+            shade+=pebbleV<2?22:-11;
+        break;
+    }
+    case GG_MAT_LOAM:{
+        int patch=ggMatWave(u-v/2,127)+ggMatWave(v+u/3,63);
+        rr+=(46-patch)/4;gg+=(patch-46)/4;
+        shade=grain/2;
+        if(((u+v*2+(int)(block>>20))&31)<4&&
+           ((v+(int)((block>>14)&15u))&15)<7){
+            rr+=24;gg+=15;bb+=5;
+        }
+        break;
+    }
+    case GG_MAT_MARSH:{
+        int basin=ggMatWave(u+v/3,127)+ggMatWave(v-u/2,63);
+        shade=grain/2;
+        if(basin<24){rr-=13;gg-=7;bb+=18;}
+        else if(basin<32){rr+=9;gg+=10;bb+=13;}
+        else if(basin>58){rr+=10;gg+=15;bb-=8;}
+        break;
+    }
+    case GG_MAT_LAVA:{
+        int joint=ggMatWave(u+v/2+ggMatWave(v/2,63),63);
+        int breakage=ggMatWave(v-u/3+ggMatWave(u/2,63),127);
+        if(joint<3||breakage<4){rr+=60;gg+=55;bb+=20;}
+        else if(joint>23&&breakage>12){rr-=29;gg-=17;bb-=6;}
+        shade=grain;
+        break;
+    }
     }
     *r=ggMatClamp(rr+shade);
     *g=ggMatClamp(gg+shade);
