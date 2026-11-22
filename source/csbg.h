@@ -74,10 +74,12 @@ static void csBgFx(int bg,int t,int fx){
     default: break;
     }
 }
+// Inline the fixed vignette edge calls into its ARM loop so their shifts and
+// spans specialize; the full loop still fits the existing overlay allocation.
 #ifndef CS_HOST
-__attribute__((target("arm")))
+__attribute__((target("arm"),always_inline))
 #endif
-IWRAM_OVL2 static void csDk(int y,int x0,int x1,int s){                                                             // darken a screen row segment by 1/2, 1/4 or 1/8
+static inline void csDk(int y,int x0,int x1,int s){                                                             // darken a screen row segment by 1/2, 1/4 or 1/8
     if((unsigned)(y-cY0)>=cH) return; if(x0<cX0) x0=cX0; if(x1>cX0+(int)cW) x1=cX0+(int)cW; if(x0>=x1) return;   // (inside the clip: a part redraw must not darken a pixel twice)
     u16*p=&fb[y*SW+x0]; int n=x1-x0; u16 m=csGm(s); u32 mm=(u32)m|((u32)m<<16);
     // An odd clip edge needs only one scalar pixel, not a scalar whole row.
@@ -95,7 +97,10 @@ IWRAM_OVL2 static void csDk(int y,int x0,int x1,int s){                         
     for(;n>=2;n-=2,q++){ u32 v=*q; *q=v-((v>>s)&mm); }
     if(n){ p=(u16*)q; u16 c=*p; *p=(u16)(c-((c>>s)&m)); }
 }
-static void csVig(int bg){
+#ifndef CS_HOST
+__attribute__((target("arm")))
+#endif
+IWRAM_OVL2 static void csVig(int bg){
     if(bg==CB_RATE||bg==CB_BLACK) return;
     // A partial picture cannot change rows outside its active clip. Avoid
     // entering five row kernels there just to reject each call again.

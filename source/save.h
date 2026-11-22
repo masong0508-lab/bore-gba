@@ -33,7 +33,14 @@ static volatile u8* svBase=(volatile u8*)0x0E000000;
 // ---- the flash commands (in IWRAM, so nothing on the cartridge bus runs between the steps) ----
 IWRAM_THUMB static void flCmd(int c){ SVB[0x5555]=0xAA; SVB[0x2AAA]=0x55; SVB[0x5555]=(u8)c; }
 IWRAM_THUMB static int flWait(int a,int want,int tmo){ while(tmo-->0) if(SVB[a]==(u8)want) return 1; SVB[0x5555]=0xF0; return 0; }
-IWRAM_THUMB static int flProgRaw(int a,int v){ flCmd(0xA0); SVB[a]=(u8)v; return flWait(a,v,60000); }
+IWRAM_THUMB static int flProgRaw(int a,int v){
+    flCmd(0xA0); SVB[a]=(u8)v;
+    // mGBA reports 0x5F while a program is busy, which can equal the data.
+    // These volatile reads outlast its 650-cycle busy window before polling;
+    // other values still take the ordinary fast path. Interrupts stay as set.
+    if((u8)v==0x5F) for(int n=0;n<128;n++) (void)SVB[a];
+    return flWait(a,v,60000);
+}
 IWRAM_THUMB static int flEraseRaw(int a){ flCmd(0x80); SVB[0x5555]=0xAA; SVB[0x2AAA]=0x55; SVB[a]=0x30; return flWait(a,0xFF,4000000); }
 IWRAM_THUMB static void flBankRaw(int b){ flCmd(0xB0); SVB[0]=(u8)b; }
 static void svWaitFrames(int n){ while(n-->0){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); } }

@@ -152,6 +152,8 @@ static int hhAdd(const u8*, int, int, int, const u8*);
 static void hhSwitchTo(int);
 static void hhSwitchFrom(int);
 static int simMoneyI(void){ return (int)simMoney; }
+/* This campaign fixture has no town friends; test_story_friends.py covers real town synchronization. */
+static int nrFriends(int u){ (void)u; return 0; }
 static void simMoneyAdd(money_t n){ simMoney+=n; }
 static int moodState(void){ return moods[hhPUid]; }
 static int secCount(char kind){ return kind=='n'?camera_count:gate_count; }

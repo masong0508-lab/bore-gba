@@ -1064,9 +1064,10 @@ static int signOf(void){   // the sign whose traits are nearest to the creature'
 }
 static void setSign(int s){ for(int i=0;i<TR_N;i++) pTr[i]=signTr[s][i]; }
 static int persValid(int asp,int ltw,const u8*tr){
+    // Stored personas include GROW UP; only creator choices stop at AS_PICK.
     // Generated housemates can have more than the creator's 25-point budget.
     // Saves retain those personalities; trLeft()/persStep enforce creator spending.
-    if(asp>=AS_PICK||ltw>=LTN) return 0;
+    if(asp>=AS_N||ltw>=LTN) return 0;
     for(int i=0;i<TR_N;i++) if(tr[i]>10) return 0;
     return 1;
 }

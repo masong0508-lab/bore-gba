@@ -356,7 +356,7 @@ static int stqVal(const StQ*q){
     case TQ_CLEAN: return stqDays();
     case TQ_DAYS: return (int)msDaysProgress((unsigned)stqDays(),
         stId==STY_TVSHOW&&stCh==3&&msNightUsed((unsigned)stmGet()));
-    case TQ_FRIENDS: { int me=hhPUid, ex=stCh==3?(int)stKid:(int)stPart, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&u!=ex&&(relF[me][u]&RF_FRIEND)) n++; return n; }   // (Missy's sister does not count once she is gone, and in chapter 4 Missy is in a coma)
+    case TQ_FRIENDS: { int me=hhPUid, ex=stCh==3?(int)stKid:(int)stPart, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&u!=ex&&(relF[me][u]&RF_FRIEND)) n++; return n+nrFriends(me); }   // Town friends include synced visitors once; absent Mamesy and the hospital patient remain excluded.
     case TQ_MONEY: return stbEarned();   // (earned this chapter: see stbGet)
     case TQ_HOUSE: { int n=hhN+1; if(stCh==4&&stPart!=255&&stMember(stPart)>=0) n--; return n; }
     case TQ_SECURE: { int c=secCount('n'), g=secCount('j'); return (c>2?2:c)+(g>2?2:g); }   // chapter 3: tight security = 2 SECURITY CAMERAS and 2 SECURITY GATES on the lot you are on
@@ -370,12 +370,14 @@ static int stqOk(const StQ*q){ return stqVal(q)>=(int)q->n; }
 static int stqDone(void){ if(stCh>=5) return 0; int n=0; for(int i=0;i<stqN[stCh];i++) n+=stqOk(&stqT[stCh][i]); return n; }
 static int stqAll(void){ return stCh<5&&stqDone()==stqN[stCh]; }
 static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long: "+ 5 OF 7 DAYS CLEAN" / "- 1 OF 4 FRIENDS"
-    int v=stqVal(q); char*e=slCat(b,stqOk(q)?"+ ":"- ");
+    int v=stqVal(q), target=(int)q->n; char*e=slCat(b,stqOk(q)?"+ ":"- ");
+    // A final night adds a bedside day; show the longer goal without erasing a day already spent.
+    if(q->k==TQ_DAYS&&stId==STY_TVSHOW&&stCh==3&&msNightUsed((unsigned)stmGet())){ v=stqDays(); target++; }
     const char*nm=stqNm[q->k]; { int ix=(int)(q-&stqT[stCh][0]); if(stCh<5&&ix>=0&&ix<stqN[stCh]&&stqL[stCh][ix]) nm=stqL[stCh][ix]; }   // (the story's own words for it)
     if(q->k==TQ_GUEST||q->k==TQ_HAPPY){ slCat(e,nm); return; }
     if(q->k==TQ_PLUG){ e=slCat(e,"PLUG PRESSURE "); e=slNum(e,plugV); slCat(e," OF 60 MAX"); return; }
-    if(v>(int)q->n) v=(int)q->n;
-    e=slNum(e,v); e=slCat(e," OF "); e=slNum(e,(int)q->n); e=slCat(e," "); slCat(e,nm);
+    if(v>target) v=target;
+    e=slNum(e,v); e=slCat(e," OF "); e=slNum(e,target); e=slCat(e," "); slCat(e,nm);
 }
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
@@ -390,7 +392,7 @@ static int stValue(const StCh*c){   // the number a goal counts (-1: the goal ha
         case SG_MONEY: return simMoneyI();      case SG_JOB: return jobLvl;      case SG_SKILL: return skillLvl;
         case SG_TRICKS: return simTricks;    case SG_WANTS: return simDone;   case SG_HOUSE: return hhN+1;
         case SG_DAYS: return stKidDay==255?0:((simDay&255)-stKidDay)&255;   // (the day the chapter began lives in stKidDay: no story has both this goal and a child)
-        case SG_FRIENDS: { int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
+        case SG_FRIENDS: { int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n+nrFriends(me); }
     }
     return -1;
 }
@@ -681,7 +683,7 @@ static int stTkNow(const StT*t){   // is a task's state met right now? (QK_EV on
     case QK_LOVE: return pu>=0&&(relF[me][pu]&RF_LOVE);
     case QK_STEADY: return pu>=0&&(relF[me][pu]&RF_STEADY);
     case QK_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
-    case QK_FRIENDS: { int n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n>=(int)t->n; }
+    case QK_FRIENDS: { int n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n+nrFriends(me)>=(int)t->n; }
     case QK_MONEY: return stbEarned()>=(int)t->n;   // (earned since the chapter began: no head start from the cash you came in with)
     case QK_JOB: return jobLvl>=(int)t->n;
     case QK_SKATE: return skillLvl>=(int)t->n;
@@ -934,7 +936,8 @@ static void stRunModal0(void){
         s2rr(8,22,224,116,RGB(16,27,31)); s2rr(9,23,222,114,RGB(2,6,13)); s2grad(10,24,220,112,3,9,19,1,4,10);
         stIcon(stId,16,32,4,RGB(31,20,22));
         text(60,30,stNm[stId],GOLD,1); text(60,40,stTag[stId],RGB(17,29,31),1);
-        { char b[24]; char*e=slCat(b,kind==2?"CHAPTER ":"CHAPTER "); e=slNum(e,kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
+        // The final END row is completion, not an additional playable chapter.
+        { char b[24]; char*e=slCat(b,"CHAPTER "); e=slNum(e,end?stLen[stId]-1:kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
         if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
         if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
         if(kind==2&&stCh==5) text(16,112,"NEW SONGS  HERE TODAY, EVERY VERSION",GOLD,1);
