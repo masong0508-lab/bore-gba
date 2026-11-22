@@ -89,6 +89,10 @@ def assert_project():
     assert 'winnerVocalMix(a,n)' in main and 'winnerVocalStart(mOrd*64+mRow)' in main
     assert 'XSW(u8,winnerNext,d->singerNext)' in main
     assert 'winnerNext=0' in main
+    # Winner-only ambience must not affect other XM/ADPCM songs or consume IWRAM.
+    assert 'static s8 winnerRoom[4096] EWRAM_BSS' in main
+    assert '__attribute__((noinline,long_call)) static void winnerRoomMix' in main
+    assert 'if(mSong==&xm_winner_koala) winnerRoomMix(outL,outR)' in main
 
     songs = (ROOT / "source/songs.h").read_text(encoding="utf8")
     assert len(re.findall(r"^SONG_(?:XM|ADP)\(", songs, re.M)) <= 64
