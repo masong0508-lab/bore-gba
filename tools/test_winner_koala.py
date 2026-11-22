@@ -67,6 +67,12 @@ def assert_project():
     assert len(cues)==56 and cues[0][0]==54 and cues[-1][0]==10585, (cues[0],cues[-1])
     assert all(cues[i][0]<cues[i+1][0] for i in range(55))
     assert (ROOT/"source/winner_vocals.h").exists()
+    main=(ROOT/"source/main.c").read_text()
+    assert '#include "winner_vocals.h"' in main
+    assert 'if(nt==96 && vol==0)' in main
+    assert 'winnerVocalMix(a,n)' in main and 'winnerVocalStart(mOrd*64+mRow)' in main
+    assert 'XSW(u8,winnerNext,d->singerNext)' in main
+    assert 'winnerNext=0' in main
 
     songs = (ROOT / "source/songs.h").read_text(encoding="utf8")
     assert len(re.findall(r"^SONG_(?:XM|ADP)\(", songs, re.M)) <= 64
