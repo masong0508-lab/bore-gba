@@ -22,11 +22,16 @@ def convert(path):
         assert len(parts) == 2, wh
         width, height = (int(x) for x in parts)
         assert 0 < width <= 2048 and 0 < height <= 2048, wh
-        # The 400x240 regression must remain native-resolution. Only
-        # the explicitly named 8-view source sprite atlas is larger.
+        # The 400x240 gameplay regression remains strict. The shared
+        # DS/DSi/3DS menu UI is natively 256x192, and only the two
+        # specifically named restored-globe snapshots use that size.
+        # The explicitly named 8-view sprite atlas remains larger.
         expected = ((GG_PERSON_ATLAS_W, GG_PERSON_ATLAS_H)
                     if path.name in ("procedural_people_turntable.ppm",
                                      "people_8_direction_turntable.ppm")
+                    else (256, 192)
+                    if path.name in ("title_globe_ds.ppm",
+                                     "title_globe_new3ds.ppm")
                     else (400, 240))
         assert (width, height) == expected, (path, wh, expected)
         assert f.readline() == b"255\n"
