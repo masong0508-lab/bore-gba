@@ -39,6 +39,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The New3DS title compiles against the real generated acting
+          # cels. This source header is intentionally not checked into git.
+          python3 -c 'from PIL import Image' 2>/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y python3-pil
+          }
+          python3 tools/make_story_hq.py
           for target in ds dsi16 new3ds; do
             flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST -DGG_HQVOX"
             case "$target" in
