@@ -514,6 +514,48 @@ static void meshGradeArchitecture(unsigned char *pixels){
                 "gate walkway ignores the mountain's three-dimensional slope");
     world[ty][tx]=T_GRASS;
 }
+static void meshResidentialApproach(unsigned char *pixels){
+    // Multi-plot houses come in both rotations. Their threshold is
+    // structural but the approach follows the actual sloped triangle fan.
+    const int tx=71,ty=73;
+    world[ty][tx]=T_MOUNT;
+    int ground=ggExpGround(T_MOUNT);
+    for(int rotated=0;rotated<2;rotated++){
+        int build=rotated?B_HOUSE_EW:B_HOUSE_NS;
+        GgLotPlan p;
+        ggMeshLotPlan(&p,tx,ty,build,ground,0);
+        meshRequire(p.rotate==rotated&&p.doorPlane>0,
+                    "multi-plot door loses its cardinal orientation");
+        for(int i=0;i<=3;i++)for(int side=-1;side<=1;side+=2){
+            int plane=p.doorPlane-42+i*23/3;
+            int across=p.doorCenter+side*29;
+            GgMeshVertex v=ggLotPathVertex(&p,plane,across);
+            meshRequire(v.z==ggMeshGroundAtQ8(v.x,v.y)+1,
+                        "rotated residential path does not follow real hillside");
+        }
+        int foundThreshold=0;
+        for(int i=0;i<p.mass.count;i++){
+            const GgSettlementPart*b=&p.mass.part[i];
+            if(b->type!=GG_SETTLE_FOOT||b->z1!=p.doorFloor)continue;
+            int first=rotated?b->y0:b->x0;
+            int last=rotated?b->y1:b->x1;
+            if(last-first==11&&first==27)foundThreshold++;
+        }
+        meshRequire(foundThreshold==1&&p.mass.count<GG_SETTLE_PART_LIMIT,
+                    "house front still projects a long elevated paving slab");
+        GgMeshContext*m=&ggMeshContext;
+        int center=p.doorCenter,plane=p.doorPlane;
+        ggMeshBegin(m,pixels,2,rotated?center:plane-350,
+                    rotated?plane-350:center,ground+38,
+                    rotated?0:4096,rotated?4096:0,42,65,89);
+        int prior=m->material,bias=m->depthBias;
+        ggLotEntrancePath(m,&p);
+        meshRequire(m->fragments>=16&&m->triangles>=2&&
+                    m->material==prior&&m->depthBias==bias,
+                    "residential approach is a flat decal or breaks render state");
+    }
+    world[ty][tx]=T_GRASS;
+}
 static void meshGateTraversal(void){
     GgExplore3D saved=ggExplore;
     const int tile=63,mid=tile*256+128,front=tile*256-24;
@@ -602,6 +644,7 @@ int main(void){
     meshNearArchitecture(pixels);
     meshArchitectureCover(pixels);
     meshGradeArchitecture(pixels);
+    meshResidentialApproach(pixels);
     meshGateTraversal();
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
