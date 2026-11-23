@@ -2852,14 +2852,52 @@ static void uiWorldPreview(int cx,int cy,int R){   // the planet as a lit ball (
     for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); uiZSet(cx+x,cy+y,3+PLZ(k)); }
     for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0]*R/B,cy+plHalo[a][1]*R/B,U_CYAN); }
 #else
+// Restore the original spherical planet to DS/DSi title and menus.
+// The playable 3DS keeps its existing higher-resolution depth-bearing
+// preview; on DS this ROM-resident hemisphere adds no buffers, runtime
+// sqrt/atan, shader, framebuffer, or extra heap allocation.
+#include "title_globe_lut.h"
 static void uiWorldPreview(int cx,int cy,int radius){
-    int w=radius*2, h=radius+radius/2;
-    int left=cx-w/2, top=cy-h/2;
-    uiFrame(left-2,top-2,w+4,h+4,U_SHADOW,U_CYAN,U_BLO);
-    for(int y=0;y<h;y++){
-        const u8 *row=world[y*WH/h];
-        u8 *dst=uiBuf+(top+y)*256+left;
-        for(int x=0;x<w;x++) dst[x]=(u8)(64+row[x*WW/w]);
+    if(radius<4)radius=4;
+    if(radius>54)radius=54;
+    int rim=radius+2, disc=radius*radius,outer=rim*rim;
+    int drift=(tick>>2)&127; // one complete, slow orbit per 1024 menu frames
+    for(int y=-rim;y<=rim;y++){
+        int py=cy+y;
+        if((unsigned)py>=192)continue;
+        int ly=(y+radius)*64/(2*radius);
+        if(ly<0)ly=0;
+        if(ly>64)ly=64;
+        for(int x=-rim;x<=rim;x++){
+            int px=cx+x,d=x*x+y*y;
+            if((unsigned)px>=256||d>outer)continue;
+            if(d>disc){
+                // A thin illuminated atmosphere, not a rectangular map.
+                uiPx(px,py,x<0&&y<radius/2?U_CYAN:U_BLUE);
+                continue;
+            }
+            int lx=(x+radius)*64/(2*radius);
+            if(lx<0)lx=0;
+            if(lx>64)lx=64;
+            unsigned packed=ggTitleGlobeLut[ly*GG_TITLE_GLOBE_SIDE+lx];
+            if(packed==0xffffu){
+                // Quantization affects only the outermost rim samples.
+                uiPx(px,py,U_BLUE);
+                continue;
+            }
+            int wx=(((int)((packed&127u)+drift)&127)*WW)>>7;
+            int wy=((int)((packed>>7)&127u)*WH)>>7;
+            if(wx>=WW)wx=WW-1;
+            if(wy>=WH)wy=WH-1;
+            int terr=world[wy][wx];
+            if((unsigned)terr>=T_N)terr=T_WATER;
+            int shade=(int)(packed>>14);
+            int col=100+terr*3+shade;
+            // A built town catches light as the globe turns. Keep its
+            // silhouette subtle enough not to hide the real terrain.
+            if(bld[wy][wx]&&shade>0&&(wx+wy&1))col=U_YELLOW;
+            uiPx(px,py,col);
+        }
     }
 }
 #endif
@@ -2918,9 +2956,10 @@ static void uiCreate(void){
         if(i==10){ uiRound(120,y+1,37,9,sel?U_SEL:U_PANEL,sel?U_GOLD:U_BHI); uiTextC(138,y+2,"ROLL",sel?U_WHITE:U_LGREY,1); uiBtn(120,y,40,12,KEY_A,0,&cSel,i); uiTextR(114,y+2,v[i],sel?U_GOLD:U_LGREY); continue; }
         int vc=i==9?(diff==0?U_GREEN:diff==2?U_RED:(sel?U_GOLD:U_LGREY)):(sel?U_GOLD:U_LGREY);
         int vw=uiTextW(v[i],1); if(sel){ uiIcon8(154-vw-14,y+2,IC8_LEFT); uiIcon8(150,y+2,IC8_RIGHT); } uiTextR(148,y+2,v[i],vc); }
-    // the preview of the planet as it will be, and what it is
+    // Live spherical preview: the same planet, lighting and orbit as
+    // the title screen, now restored on DS, DSi and New 3DS.
     uiFrame(163,18,90,90,U_SHADOW,U_BLO,U_BHI);
-    for(int y=0;y<88;y++) for(int x=0;x<88;x++){ int wx=x*WW/88, wy=y*WH/88; int t=world[wy][wx]; uiPx(164+x,19+y,100+t*3+((wx+wy)&1)); }
+    uiWorldPreview(208,63,39);
     char b[24]; uiBar(165,113,86,7,cLand,100,U_GREEN); siprintf(b,"LAND %d%%",cLand); uiTextC(208,123,b,U_WHITE,1);
     siprintf(b,"%dX%d",planetSize,planetSize); uiTextC(208,138,b,U_DIM,1);
     uiTextC(208,149,storyOn?"STORY":"FREE PLAY",U_GOLD,1); uiTextC(208,159,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL",diff==0?U_GREEN:diff==2?U_RED:U_LGREY,1);
