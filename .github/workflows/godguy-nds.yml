@@ -56,6 +56,22 @@ jobs:
           dkp-pacman -Q devkitarm-gcc devkitarm-newlib libnds calico ndstool libctru
           ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
 
+      - name: Verify animated spherical UI and restored DS planet mode across port layouts
+        working-directory: godguy
+        run: |
+          set -e
+          for target in ds dsi16 new3ds; do
+            flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST"
+            case "$target" in
+              dsi16) flags="$flags -DGG_DSI16";;
+              new3ds) flags="$flags -D__3DS__";;
+            esac
+            gcc -O1 -g -std=c11 -w -fsanitize=undefined,bounds -fno-sanitize-recover=all \
+              $flags -Icompat -Isource -include unistd.h \
+              pc_title_globe.c -lm -o "/tmp/gg-title-$target"
+            "/tmp/gg-title-$target"
+          done
+
       - name: Regenerate professionally mastered vocal chops and 168-track sequences
         working-directory: godguy
         run: |
