@@ -2861,7 +2861,7 @@ static void uiWorldPreview(int cx,int cy,int radius){
     if(radius<4)radius=4;
     if(radius>54)radius=54;
     int rim=radius+2, disc=radius*radius,outer=rim*rim;
-    int drift=(tick>>2)&127; // one complete, slow orbit per 1024 menu frames
+    int drift=(tick>>2)&127; // one smooth orbit per 512 menu frames
     for(int y=-rim;y<=rim;y++){
         int py=cy+y;
         if((unsigned)py>=192)continue;
@@ -2895,7 +2895,7 @@ static void uiWorldPreview(int cx,int cy,int radius){
             int col=100+terr*3+shade;
             // A built town catches light as the globe turns. Keep its
             // silhouette subtle enough not to hide the real terrain.
-            if(bld[wy][wx]&&shade>0&&(wx+wy&1))col=U_YELLOW;
+            if(bld[wy][wx]&&shade>0&&((wx+wy)&1))col=U_YELLOW;
             uiPx(px,py,col);
         }
     }
