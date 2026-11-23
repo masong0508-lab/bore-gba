@@ -495,6 +495,7 @@ static void meshGradeArchitecture(unsigned char *pixels){
                     last.z==ggMeshGroundAtQ8(last.x,last.y)+1,
                     "gate approach is floating or clipped below the live hillside");
         variation+=abs(first.z-crest.z)+abs(last.z-crest.z);
+        int reducedTris=0;
         for(int quality=1;quality<=2;quality++){
             GgMeshContext*m=&ggMeshContext;
             ggMeshBegin(m,pixels,quality,
@@ -508,6 +509,17 @@ static void meshGradeArchitecture(unsigned char *pixels){
                         m->material==priorMaterial&&
                         m->depthBias==priorBias,
                         "graded gate pavement is invisible or leaks raster state");
+            if(quality==1)reducedTris=m->triangles;
+            else meshRequire(m->triangles>reducedTris&&
+                             m->triangles<=reducedTris+36,
+                             "stone treads do not obey their fixed LOD polygon budget");
+        }
+        for(int i=1;i<GG_FORT_APPROACH_STEPS;i++){
+            int at=p-64+i*128/GG_FORT_APPROACH_STEPS;
+            GgMeshVertex v=ggMeshFortApproachVertex(axis,at,
+                                  u+GG_FORT_APPROACH_HALF-9);
+            meshRequire(v.z==ggMeshGroundAtQ8(v.x,v.y)+1,
+                        "gate stair-joint edge lost ground-plane contact");
         }
     }
     meshRequire(variation>=8,
@@ -556,6 +568,19 @@ static void meshResidentialApproach(unsigned char *pixels){
         meshRequire(m->fragments>=16&&m->triangles>=2&&
                     m->material==prior&&m->depthBias==bias,
                     "residential approach is a flat decal or breaks render state");
+        int detailTris=m->triangles;
+        ggMeshBegin(m,pixels,1,rotated?center:plane-350,
+                    rotated?plane-350:center,pathEye,
+                    rotated?0:4096,rotated?4096:0,42,65,89);
+        ggLotEntrancePath(m,&p);
+        meshRequire(m->triangles==0&&detailTris>=2,
+                    "stone entry path incorrectly renders during reduced-detail gameplay");
+        for(int seam=1;seam<3;seam++){
+            int at=plane-42+seam*23/3;
+            GgMeshVertex v=ggLotPathVertex(&p,at,center);
+            meshRequire(v.z==ggMeshGroundAtQ8(v.x,v.y)+1,
+                        "residential mortar joint lifts above the walkable terrain");
+        }
     }
     world[ty][tx]=T_GRASS;
 }
