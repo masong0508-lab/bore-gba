@@ -71,8 +71,8 @@ jobs:
               big) flags="-DGG_BIG";;
               new3ds) flags="-D__3DS__ -DGG_NEW3DS_ONLY";;
             esac
-            gcc -O2 -std=c11 -w -DNDSSHIM $flags -Icompat -Isource \\
-              -include unistd.h pc_title_globe.c -lm \\
+            gcc -O2 -std=c11 -w -DNDSSHIM $flags -Icompat -Isource \
+              -include unistd.h pc_title_globe.c -lm \
               -o "/tmp/gg-menu-globe-$layout"
             "/tmp/gg-menu-globe-$layout"
           done
