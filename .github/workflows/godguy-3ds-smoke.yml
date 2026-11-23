@@ -5,6 +5,8 @@ on:
       - 'godguy/3ds/**'
       - 'godguy/source/terrain_palette.h'
       - 'godguy/pc_explore3d.c'
+      - 'godguy/pc_title_globe.c'
+      - 'godguy/source/main.c'
       - 'godguy/pc_3ds_*.c'
       - '.github/workflows/godguy-3ds-smoke.yml'
   pull_request:
@@ -12,6 +14,8 @@ on:
       - 'godguy/3ds/**'
       - 'godguy/source/terrain_palette.h'
       - 'godguy/pc_explore3d.c'
+      - 'godguy/pc_title_globe.c'
+      - 'godguy/source/main.c'
       - 'godguy/pc_3ds_*.c'
       - '.github/workflows/godguy-3ds-smoke.yml'
   workflow_dispatch:
@@ -30,6 +34,22 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - name: Verify restored spherical title and planet view on DS, DSi and New3DS
+        working-directory: godguy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in ds dsi16 new3ds; do
+            flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST"
+            case "$target" in
+              dsi16) flags="$flags -DGG_DSI16";;
+              new3ds) flags="$flags -D__3DS__";;
+            esac
+            gcc -O1 -g -std=c11 -w -fsanitize=undefined,bounds -fno-sanitize-recover=all \
+              $flags -Icompat -Isource -include unistd.h \
+              pc_title_globe.c -lm -o "/tmp/gg-title-$target"
+            "/tmp/gg-title-$target"
+          done
       - name: Build and run bounded camera, actor and material regressions
         working-directory: godguy
         shell: bash
