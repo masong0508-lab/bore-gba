@@ -33,8 +33,11 @@ static GgOutdoorTarget ggOutdoorTargetAt(int x,int y){
     }
     int building=bld[y][x],terrain=world[y][x];
     if(building==B_FARM)target.kind=GG_OUTDOOR_FARM;
-    else if(building==B_HALL||ggBuildingIsHome(building)||building==B_TEMPLE||building==B_INN)
+    else if(building==B_HALL||ggBuildingIsHome(building)||ggBuildingIsWing(building)||
+            building==B_TEMPLE||building==B_INN){
         target.kind=GG_OUTDOOR_REST;
+        if(building==B_INN)target.site=ggBuildingName(building);
+    }
     else if(building==B_DOCK)target.kind=GG_OUTDOOR_DOCK;
     else{
         if(building==B_RUIN)target.site="OLD RUIN";
@@ -138,6 +141,19 @@ static void ggOutdoorWatch(const GgOutdoorTarget *target,Cr *actor){
 
 static void ggOutdoorStores(const GgOutdoorTarget *target,Cr *actor){
     int v=ggOutdoorTown(target->x,target->y);
+    if(v<0&&bld[target->y][target->x]==B_INN){
+        if(!actor){ ggOutdoorSurvey(target);return; }
+        int need=maxHp(actor)-actor->hp;
+        if(need<=0){ ggOutdoorSay("YOU ARE ALREADY RESTED");return; }
+        int rations=ggExpClamp((int)actor->food-16,0,6);
+        if(!rations){ ggOutdoorSay("YOU NEED PROVISIONS TO REST HERE");return; }
+        int heal=need<rations*3?need:rations*3;
+        actor->food-=(u8)((heal+2)/3);
+        actor->hp+=(u8)heal;
+        ggOutdoorSay("YOU SHARE YOUR PROVISIONS AND REST AT THE INN");
+        fxReq(FX_HEAL);
+        return;
+    }
     if(v<0){ ggOutdoorSay("THIS BUILDING HAS NO VILLAGE STORES");return; }
     if(!actor){
         char village[32],message[64];
@@ -277,7 +293,7 @@ static void ggOutdoorUse(void){
 static void ggOutdoorHud(u8 *out){
     static const char *const action[]={
         "LOOK", "TALK", "WATCH WILDLIFE", "FORAGE", "FARM STORES",
-        "VILLAGE REST", "TAKE FERRY", "SURVEY AND PIN", "READ TERRAIN"
+        "REST", "TAKE FERRY", "SURVEY AND PIN", "READ TERRAIN"
     };
     GgOutdoorTarget target=ggOutdoorTargetAt(ggExplore.lastTargetX,ggExplore.lastTargetY);
     char hint[28];

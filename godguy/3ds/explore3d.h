@@ -61,12 +61,7 @@ static void ggExpTrigInit(void){
     }
     ggExpTrigReady=1;
 }
-static int ggExpGround(int t){
-    static const u8 heights[T_N]={
-        0,1,5,10,16,25,48,31,6,8,7,18,8
-    };
-    return (unsigned)t<T_N?heights[t]:8;
-}
+#include "../source/world_height.h"
 static int ggExpBuilding(int b){
     switch(b){
     case B_HUT:return 21;
@@ -87,6 +82,9 @@ static int ggExpBuilding(int b){
     case B_KEEP:return 55;
     case B_WALL:return 28;
     case B_GATE_NS:case B_GATE_EW:return 36;
+    case B_HOUSE_EW:case B_HOUSE_NS:return 27;
+    case B_ESTATE:return 37;
+    case B_WING_E:case B_WING_S:case B_WING_SE:return 23;
     default:return 0;
     }
 }
@@ -103,7 +101,7 @@ static int ggExpWalkable(int x,int y,int fromHeight,int climb){
         return open&&!occ[y][x];
     }
     if(t<=T_WATER||t==T_LAVA||!open)return 0;
-    return ggExpGround(t)-fromHeight<=(climb?30:19);
+    return ggExpGround(t)-fromHeight<=(climb?30:GG_WORLD_WALK_RISE);
 }
 static int ggExpBegin(int x,int y,int priorPause){
     ggExpTrigInit();

@@ -19,7 +19,8 @@ enum { KEY_A=1,KEY_B=2,KEY_SELECT=4,KEY_START=8,
        KEY_TOUCH=4096 };
 #define WW 128
 #define WH 128
-static u8 world[WH][WW],bld[WH][WW];
+static u8 world[WH][WW],bld[WH][WW],bldv[WH][WW];
+#include "source/residential_plots.h"
 static unsigned short occ[WH][WW];
 static int camX,camY,editCalls;
 #include "source/terrain_palette.h"
