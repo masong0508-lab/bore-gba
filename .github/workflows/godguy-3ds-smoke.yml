@@ -69,7 +69,7 @@ jobs:
             case "$layout" in
               dsi16) flags="-DGG_DSI16";;
               big) flags="-DGG_BIG";;
-              new3ds) flags="-D__3DS__ -DGG_NEW3DS_ONLY";;
+              new3ds) flags="-DGG_LEGACY_GLOBE_TEST -DGG_NEW3DS_ONLY";;
             esac
             gcc -O2 -std=c11 -w -DNDSSHIM -DGG_HQVOX $flags -Icompat -Isource \
               -include unistd.h pc_title_globe.c -lm \
