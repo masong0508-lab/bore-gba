@@ -111,19 +111,28 @@ static inline int ggMeshGroundAtQ8(int wx,int wy){
     }
     return z;
 }
-// Every rendered terrain triangle stays at or above the lowest tile
-// height contributing to its shared corners. Use that bound for buried
-// skirts so even a recessed shelf between footing corners seals the wall.
+// The exact same ground vertices feed the renderer, point-height sampler,
+// and the buried skirt of every building, portico, wall and fortification.
+// The previous *neighboring tile centre* minimum was safe but needlessly
+// buried whole estates when a nearby low biome did not actually lower
+// their four shared surface corners. Sample each touched tile's own
+// center/corners instead. No generated shoulder or recessed shelf facet
+// falls below these vertices; one unit of overlap seals their interfaces.
 static inline int ggMeshFoundationGround(int x0,int y0,int x1,int y1,
                                           int nominal){
     int base=nominal;
+    if(x1<x0||y1<y0)return base-1;
     int left=x0>>8,right=x1>>8,top=y0>>8,bottom=y1>>8;
     if((left<0||top<0||right>=WW||bottom>=WH)&&base>8)base=8;
-    left=ggMeshClamp(left-1,0,WW-1);right=ggMeshClamp(right+1,0,WW-1);
-    top=ggMeshClamp(top-1,0,WH-1);bottom=ggMeshClamp(bottom+1,0,WH-1);
+    left=ggMeshClamp(left,0,WW-1);right=ggMeshClamp(right,0,WW-1);
+    top=ggMeshClamp(top,0,WH-1);bottom=ggMeshClamp(bottom,0,WH-1);
     for(int y=top;y<=bottom;y++)for(int x=left;x<=right;x++){
         int z=ggMeshGroundCenter(ggMeshTerrainAt(x,y));
         if(z<base)base=z;
+        for(int dy=0;dy<=1;dy++)for(int dx=0;dx<=1;dx++){
+            z=ggMeshCornerHeight(x+dx,y+dy);
+            if(z<base)base=z;
+        }
     }
     return base-1;
 }
