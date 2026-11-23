@@ -2969,7 +2969,10 @@ static void uiCreate(void){
         int vw=uiTextW(v[i],1); if(sel){ uiIcon8(154-vw-14,y+2,IC8_LEFT); uiIcon8(150,y+2,IC8_RIGHT); } uiTextR(148,y+2,v[i],vc); }
     // the preview of the planet as it will be, and what it is
     uiFrame(163,18,90,90,U_SHADOW,U_BLO,U_BHI);
-    for(int y=0;y<88;y++) for(int x=0;x<88;x++){ int wx=x*WW/88, wy=y*WH/88; int t=world[wy][wx]; uiPx(164+x,19+y,100+t*3+((wx+wy)&1)); }
+    // The seed and climate are previewed on the same lit, rotating
+    // sphere used by the title and loading screens. A rectangular
+    // equirectangular atlas is no longer passed off as a 3D globe.
+    uiWorldPreview(208,63,41);
     char b[24]; uiBar(165,113,86,7,cLand,100,U_GREEN); siprintf(b,"LAND %d%%",cLand); uiTextC(208,123,b,U_WHITE,1);
     siprintf(b,"%dX%d",planetSize,planetSize); uiTextC(208,138,b,U_DIM,1);
     uiTextC(208,149,storyOn?"STORY":"FREE PLAY",U_GOLD,1); uiTextC(208,159,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL",diff==0?U_GREEN:diff==2?U_RED:U_LGREY,1);
@@ -3046,6 +3049,13 @@ static void uiSlots(void){     // the SAVE SLOTS screen: every slot with the yea
 #ifdef NDSHW
     { char b[44]; siprintf(b,"CHIP %dK    %d SLOT%s OF %dK",(int)(hwCap/1024),hwSlots,hwSlots>1?"S":"",(int)(hwSlotSz/1024)); uiText(8,19+NSLOT*15+3,b,U_DIM,1); uiText(8,19+NSLOT*15+14,"L / R: HOW MANY SLOTS",U_LGREY,1); }
 #endif
+    // The lower half of the slot page is unused on 1-4 slot cartridges.
+    // Keep a small planet there without covering the selection buttons
+    // or the footer. The underlying world is not changed by this preview.
+    if(NSLOT<=4){
+        uiWorldPreview(208,144,25);
+        uiTextC(208,170,"YOUR WORLD",U_GOLD,1);
+    }
     gfxHint("A: USE THIS SLOT   X: ERASE   B: BACK",U_LGREY); }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
