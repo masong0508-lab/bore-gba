@@ -133,4 +133,7 @@ static void uiWorld(void){
     else if(wTab==1){ siprintf(b,"%d ALIVE",raceCnt(wPeo)); uiText(8,y,b,U_WHITE,1); }
     else if(wTab==4&&wn<=8){ siprintf(b,"TORNADOES %d  BLACK HOLES %d",hzCount(HZ_TORNADO),hzCount(HZ_HOLE)); uiText(8,y,b,U_WHITE,1); siprintf(b,"PLAGUED %d  IMMUNE %d",plagueCount(1),plagueCount(2)); uiText(8,y+10,b,plagueCount(1)?U_GREEN:U_DIM,1); }
     else if(wTab==5){ uiText(8,y,"PINS LAST UNTIL YOU LOAD OR RESTART",U_DIM,1); }
+    // The WORLD settings page keeps a tiny live 3D globe in the otherwise
+    // unused right gutter. No buttons, text, or touch targets are covered.
+    if(wTab==0)uiWorldPreview(243,46,9);
     uiWrap(8,160,38,2,wr[wSel].ds,U_DIM); uiFlush(); }
