@@ -36,6 +36,15 @@ static inline void ggOutdoorGroundColor(int type,int *r,int *g,int *b){
     *r=c[0];*g=c[1];*b=c[2];
 }
 
+static inline int ggOutdoorPaved(int type,int build){
+    // The well rests on the same masonry apron as its courtyard.
+    return type>T_WATER&&type!=T_LAVA&&(ggBuildingIsPaving(build)||build==B_WELL);
+}
+
+static inline void ggOutdoorPavingColor(int *r,int *g,int *b){
+    *r=139;*g=141;*b=140;
+}
+
 static inline uint32_t ggOutdoorGroundSeed(int type,int frame){
     if(type<=T_WATER)return (uint32_t)(frame/6);
     return (uint32_t)type*733u+17u;
@@ -59,7 +68,8 @@ static inline int ggOutdoorPropKind(int tx,int ty,int type,uint32_t key){
     int nearby=0;
     for(int side=0;side<4&&!nearby;side++){
         int x=tx+ggOutdoorSideX[side],y=ty+ggOutdoorSideY[side];
-        if((unsigned)x<WW&&(unsigned)y<WH)nearby=bld[y][x];
+        if((unsigned)x<WW&&(unsigned)y<WH&&!ggBuildingIsPaving(bld[y][x]))
+            nearby=bld[y][x];
     }
     int pick=(int)(key&15u);
     if(type==T_DEEP||type==T_LAVA)return GG_SCENE_NONE;

@@ -65,7 +65,7 @@ static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     if(world[y][x]<=T_WATER||world[y][x]==T_LAVA)return 0;
-    return (!bld[y][x]||ggBuildingIsGate(bld[y][x]))&&!occ[y][x];
+    return ggExpBuildingWalkable(bld[y][x])&&!occ[y][x];
 }
 static int ggChronGateRoute(int x,int y,int nx,int ny){
     int dx=nx-x,dy=ny-y;
@@ -365,7 +365,8 @@ static int ggChronEnemyCanHit(const GgChronFoe *f,int x,int y){
     int dx=x-fx,dy=y-fy;
     if(dx*dx+dy*dy>512*512||!ggExpLineClear(f->x,f->y,tx,ty))return 0;
     // A centered diagonal ray can pass exactly between two solid tiles.
-    if(tx!=f->x&&ty!=f->y&&bld[f->y][tx]&&bld[ty][f->x])return 0;
+    if(tx!=f->x&&ty!=f->y&&ggExpTallStructure(bld[f->y][tx])&&
+       ggExpTallStructure(bld[ty][f->x]))return 0;
     int fz=ggMeshGroundAtQ8(fx,fy)+GG_WORLD_EYE_HEIGHT;
     int z=ggMeshGroundAtQ8(x,y)+GG_WORLD_EYE_HEIGHT;
     return abs(z-fz)<=8&&ggChronCombatLine(fx,fy,fz,x,y,z);

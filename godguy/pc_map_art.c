@@ -34,10 +34,14 @@ static void artScene(void){
         if(x>coast+1&&x<17&&y>17)t=T_DESERT;
         world[y+48][x+48]=(u8)t;
     }
-    static const u8 buildings[][3]={{15,8,B_HALL},{12,10,B_HOUSE},{17,10,B_HOUSE},
+    static const u8 buildings[][3]={{15,8,B_HALL},{12,10,B_HOUSE},{15,10,B_HOUSE},
         {20,8,B_LIBRARY},{23,7,B_TEMPLE},{22,11,B_STATUE},{25,12,B_TOWER},
         {19,14,B_FARM},{20,14,B_FARM},{19,15,B_FARM},{20,15,B_FARM},
-        {14,14,B_HUT},{8,12,B_DOCK},{25,18,B_RUIN},{21,18,B_BORDER}};
+        {14,14,B_HUT},{8,12,B_DOCK},{25,18,B_RUIN},{21,18,B_BORDER},
+        {17,8,B_MARKET},{19,8,B_INN},{20,11,B_WORKSHOP},
+        {16,9,B_PAVING},{17,9,B_PAVING},{18,9,B_PAVING},{19,9,B_PAVING},{20,9,B_PAVING},
+        {17,10,B_PAVING},{18,10,B_WELL},{19,10,B_PAVING},
+        {17,11,B_PAVING},{18,11,B_PAVING},{19,11,B_PAVING},{18,12,B_PAVING}};
     for(unsigned i=0;i<sizeof buildings/sizeof *buildings;i++){
         int x=buildings[i][0]+48,y=buildings[i][1]+48;
         bld[y][x]=buildings[i][2];
@@ -56,6 +60,62 @@ static void artScene(void){
     memset(shimTiles+TB_BLANK*64,0,64);
     tick=2048;weather=WX_CLEAR;applyLight();refillWindow();
     bgSetScroll(0,camX,camY);drawSprites();
+}
+static void artPlazaInvariants(void){
+    const int x=16,y=17;
+    const u8 *paving=shimTiles+BTILE(B_PAVING,0)*64;
+    int stone=0,shades=0;
+    for(int i=0;i<64;i++)if(paving[i]/8==T_MOUNT){stone++;shades|=1<<(paving[i]&7);}
+    ART_CHECK(stone==64&&__builtin_popcount(shades)>=3,"paving lacks solid, shaded stonework");
+    int paveFar=bZoomCol(B_PAVING,0),wellFar=bZoomCol(B_WELL,0);
+    ART_CHECK(paveFar/8==T_MOUNT&&wellFar/8==T_MOUNT&&wellFar>paveFar,"far zoom loses plaza and well colors");
+
+    zSet(Z_NORMAL);
+    world[y][x]=T_GRASS;bld[y][x]=B_WELL;bldv[y][x]=1;
+    for(int r=0;r<8;r++){
+        const u8 *well=shimTiles+BTILE(B_WELL,r)*64;
+        const u8 *racePaving=shimTiles+BTILE(B_PAVING,r)*64;
+        int rim=0,mouth=0,timber=0,roof=0;
+        for(int i=0;i<64;i++){
+            rim+=well[i]==SH(T_MOUNT,7);
+            mouth+=well[i]==SH(T_MOUNT,0);
+            timber+=well[i]==137||well[i]==SH(T_DIRT,5);
+            roof+=well[i]==PX_ROOFL+r;
+        }
+        ART_CHECK(!memcmp(paving,racePaving,64),"paving changes color with the village race");
+        ART_CHECK(rim>=3&&mouth>=2&&timber>=2&&roof>=2,"well lacks a stone rim, opening or roof supports");
+        ART_CHECK(bZoomCol(B_PAVING,r)==paveFar&&bZoomCol(B_WELL,r)==wellFar,"far zoom uses race colors for plaza stone");
+
+        vil[0].race=(u8)r;
+        putCell(x,y);
+        ART_CHECK(mapPtr[y*32+x]==BTILE(B_WELL,r),"normal map selects the wrong well tile");
+        ART_CHECK(!memcmp(zArtOf(x,y),well,64),"close zoom selects the wrong well art");
+    }
+    // An odd race and the high bit of the building type used to overlap.
+    bld[y][x]=B_MANOR;
+    ART_CHECK(!memcmp(zArtOf(x,y),shimTiles+BTILE(B_MANOR,7)*64,64),"close zoom keeps the art of the previous building");
+    bld[y][x]=B_PAVING;
+    putCell(x,y);
+    ART_CHECK(mapPtr[y*32+x]==BTILE(B_PAVING,7),"normal map selects the wrong paving tile");
+    ART_CHECK(!memcmp(zArtOf(x,y),paving,64),"close zoom selects the wrong paving art");
+}
+static void artConstructionPreview(void){
+    zSet(Z_CLOSE);
+    zcx=66*8+4;zcy=58*8+4;zClamp();
+    constructionGhostX=66;constructionGhostY=58;
+    constructionGhost.count=1;
+    constructionGhost.cell[0]=(GgPlanCell){0,0,B_WELL};
+    constructionGhostValid=1;
+    int x=66*zS_-zOx(),y=58*zS_-zOy();
+    zForce=1;zDraw();
+    u8 ground=gbuf[y*256+x];
+    constructionGhostShown=1;
+    ART_CHECK(zDraw()&&gbuf[y*256+x]==UIP(U_GREEN),
+              "close zoom does not show a valid construction footprint");
+    constructionCancelAim();
+    ART_CHECK(zDraw()&&gbuf[y*256+x]==ground,
+              "canceling a zoomed footprint leaves a stale map outline");
+    zSet(Z_NORMAL);
 }
 static void artInvariants(void){
     // A roof's normal palette must remain intact across zoom and lighting.
@@ -76,6 +136,8 @@ static void artInvariants(void){
         int p=bldPix(b,r,x,y);ART_CHECK(p>=0&&p<GFX_PAL_N&&!UI_RESV(p),"building writes a reserved palette index");
         ART_CHECK(shimTiles[BTILE(b,r)*64+y*8+x]==p,"building tile upload differs from map art");
     }
+    artPlazaInvariants();
+    artConstructionPreview();
     // Magic-biome keys exceed16 bits. Repeated redraws must reuse their
     // transition tiles rather than consuming the entire484-slot cache.
     memset(trKey,0,sizeof trKey);trUsed=0;
@@ -117,7 +179,8 @@ int main(int argc,char**argv){
     tick=0;applyLight();if(!artSave(argv[1],"map_night"))return 3;
     tick=2048;applyLight();zSet(Z_CLOSE);zcx=66*8;zcy=59*8;zClamp();
     zForce=1;zDraw();zFlush();if(!artSave(argv[1],"map_close"))return 3;
-    zSet(Z_MICRO);zForce=1;zDraw();zFlush();if(!artSave(argv[1],"map_micro"))return 3;
+    zSet(Z_MICRO);zcx=66*8+4;zcy=58*8+4;zClamp();
+    zForce=1;zDraw();zFlush();if(!artSave(argv[1],"map_micro"))return 3;
     if(argc<3){artInvariants();if(artErrors)return 1;}
     printf("MAP ART OK: native captures; 13 terrains, %d buildings, 16 creature families\n",B_N-1);return 0;
 }

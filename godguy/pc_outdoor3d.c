@@ -56,10 +56,16 @@ int main(void){
     require(inputFrame(quickSave)==quickSave&&!ggExplore.active,
             "the existing three-button quick save reaches the map unchanged");
     inputFrame(0);
-    inputFrame(KEY_SELECT|KEY_L);
+    constructionAimPending=constructionGhostShown=1;
+    inputFrame(KEY_SELECT|KEY_L|KEY_TOUCH);
     require(ggExplore.active&&!ggExplore.actorId,"SELECT+L opens walking from the map without possessing anyone");
+    require(!constructionAimPending&&!constructionGhostShown,
+            "3DS mode changes cancel an aimed building instead of committing a masked touch release");
     inputFrame(0);
     aimEast();
+    bld[20][21]=B_PAVING;world[20][21]=T_DIRT;
+    require(ggOutdoorTargetAt(21,20).kind==GG_OUTDOOR_LANDSCAPE,
+            "paving is outdoor ground for field actions");
     bld[20][22]=B_RUIN;
     fieldAction();
     require(jrN==1&&mapPinMask,"surveying a ruin records a discovery and marks the map");
@@ -100,6 +106,13 @@ int main(void){
     require(ggExplore.active&&!ggHybridPicking&&ggHybridResolve()==person,
             "tapping a citizen immediately opens their point of view");
     Cr *citizen=&cr[person];
+    int ox=ggExplore.px,oy=ggExplore.py;
+    ggExplore.px=21*256+128;
+    require(ggHybridMove(ox,oy)&&citizen->x==21,
+            "possession cannot cross a paved walk");
+    ggExplore.px=ox;
+    require(ggHybridMove(21*256+128,oy)&&citizen->x==20,
+            "possession cannot leave a paved walk");
     citizen->food=40;
     aimEast();
     int town=vilFound(0,26,21);

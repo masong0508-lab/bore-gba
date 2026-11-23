@@ -150,6 +150,11 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     previousRaw=raw;
     int fieldMode=ggFieldMode();
     int button=(down&GG_3DS_SHORTCUT_TOUCH)?ggFieldButtonAt(fieldMode,*tx,*ty):-1;
+    // Mode switches can mask a held touch before the map receives it.
+    // Cancel the plan so this synthetic release cannot commit a build.
+    if(pressedView||pressedWalk||pressedPick||pressedChron||button>=0||
+       ggExplore.active||ggChron.active||ggHybridPicking||ggWalkHelp)
+        constructionCancelAim();
     if(ggWalkHelp){
         if(button==1||(down&(KEY_A|KEY_B|KEY_START|KEY_SELECT))){
             ggWalkHelp=0;

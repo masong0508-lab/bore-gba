@@ -20,36 +20,76 @@ static int ggBuildingFlag(int building){
     }
 }
 
-static int ggFortSite(int x,int y,int axis){
+#include "construction_plans.h"
+
+static void ggFortPlan(GgBuildPlan *plan,int axis){
+    plan->count=0;
     for(int dy=-GG_FORT_RADIUS;dy<=GG_FORT_RADIUS;dy++)
-        for(int dx=-GG_FORT_RADIUS;dx<=GG_FORT_RADIUS;dx++)
-            if(!ggOpenBuildingPlot(x+dx,y+dy))return 0;
-    // Both gates need a clear landing outside the perimeter.
+        for(int dx=-GG_FORT_RADIUS;dx<=GG_FORT_RADIUS;dx++){
+            int kind=B_PAVING;
+            if(!dx&&!dy)kind=B_KEEP;
+            else if(abs(dx)==GG_FORT_RADIUS||abs(dy)==GG_FORT_RADIUS){
+                int gate=axis==B_GATE_EW?!dy:!dx;
+                kind=gate?axis:B_WALL;
+            }
+            ggPlanAdd(plan,dx,dy,kind,0);
+        }
     int reach=GG_FORT_RADIUS+1;
     int dx=axis==B_GATE_EW?reach:0,dy=axis==B_GATE_NS?reach:0;
-    return ggOpenBuildingPlot(x-dx,y-dy)&&ggOpenBuildingPlot(x+dx,y+dy);
+    ggPlanAdd(plan,-dx,-dy,B_NONE,0);
+    ggPlanAdd(plan,dx,dy,B_NONE,0);
+}
+
+static int ggFortSite(int x,int y,int axis){
+    if(!ggOpenBuildingPlot(x,y))return 0;
+    GgBuildPlan plan;
+    ggFortPlan(&plan,axis);
+    return ggPlanCheck(&plan,x,y)==GG_SITE_CLEAR;
 }
 
 static int ggPlaceFort(int owner,int x,int y,int axis){
-    if(!ggBuildingIsGate(axis)||!ggFortSite(x,y,axis))return 0;
-    KD_DIRTY();
-    for(int dy=-GG_FORT_RADIUS;dy<=GG_FORT_RADIUS;dy++)
-        for(int dx=-GG_FORT_RADIUS;dx<=GG_FORT_RADIUS;dx++){
-            int wx=x+dx,wy=y+dy;
-            if(!dx&&!dy)putBld(owner,wx,wy,B_KEEP);
-            else if(abs(dx)==GG_FORT_RADIUS||abs(dy)==GG_FORT_RADIUS){
-                int gate=axis==B_GATE_EW?!dy:!dx;
-                if(gate)setCell(wx,wy,T_DIRT);
-                putBld(owner,wx,wy,gate?axis:B_WALL);
-            }else setCell(wx,wy,T_DIRT);
-        }
-    if(owner>=0)vilBf[owner]|=GG_BF_KEEP;
+    if(!ggBuildingIsGate(axis)||!ggOpenBuildingPlot(x,y))return 0;
+    GgBuildPlan plan;
+    ggFortPlan(&plan,axis);
+    if(ggPlanCheck(&plan,x,y)!=GG_SITE_CLEAR)return 0;
+    ggPlanCommit(&plan,owner,x,y);
     return 1;
+}
+
+static int ggGrowCivicPlan(int v,int kind,int cost){
+    Vil *city=&vil[v];
+    if(city->lvl<3||city->stock<cost)return 0;
+    static const s8 sites[8][2]={{0,-6},{6,0},{0,6},{-6,0},
+                                 {5,-5},{5,5},{-5,5},{-5,-5}};
+    // A well at a candidate center marks a previous town project, even
+    // after loading a save. Standalone shops can grow into a civic center.
+    for(unsigned i=0;i<8;i++){
+        int x=city->x+sites[i][0],y=city->y+sites[i][1];
+        if((unsigned)x<WW&&(unsigned)y<WH&&bld[y][x]==B_WELL&&bldv[y][x]==v+1)return 0;
+    }
+    unsigned start=hsh(city->x,city->y,(unsigned)tick>>9)&7u;
+    for(unsigned i=0;i<8;i++){
+        const s8 *site=sites[(start+i)&7u];
+        int x=city->x+site[0],y=city->y+site[1];
+        if(!ggOpenBuildingPlot(x,y))continue;
+        int turns=abs(site[0])>=abs(site[1])?(site[0]>0?1:3):(site[1]>0?2:0);
+        GgBuildPlan plan;
+        ggCompoundPlan(&plan,kind,turns);
+        if(ggPlanCheck(&plan,x,y)!=GG_SITE_CLEAR)continue;
+        ggPlanCommit(&plan,v,x,y);
+        city->stock-=(u16)cost;
+        logEv(kind==GG_MARKET_SQUARE?"A MARKET SQUARE OPENS":"A GUILD YARD OPENS");
+        return 1;
+    }
+    return 0;
 }
 
 static void ggSettlementGrow(int v,int population){
     Vil*V=&vil[v];
     if(V->lvl<2||population<8)return;
+    int market=!(vilBf[v]&GG_BF_MARKET);
+    if(population>=14&&ggGrowCivicPlan(v,market?GG_MARKET_SQUARE:GG_GUILD_YARD,market?54:58))
+        return;
     static const struct { u8 building,flag,folk,cost; } civic[]={
         {B_WORKSHOP,GG_BF_WORKSHOP,8,26},{B_INN,GG_BF_INN,10,30},
         {B_MARKET,GG_BF_MARKET,14,38},{B_BARRACKS,GG_BF_BARRACKS,18,42}

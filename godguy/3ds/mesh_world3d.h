@@ -216,16 +216,18 @@ static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
     // normal geometry near plane. Ground still has to cover the view
     // below it; keep the original clip distance for props and actors.
     m->near=24;
-    m->material=ggMeshGroundMaterial(type);
+    int paved=ggOutdoorPaved(type,bld[ty][tx]);
+    m->material=paved?GG_MAT_PAVING:ggMeshGroundMaterial(type);
     // One material field per biome; using the cell hash here made
     // neighbouring meadow tiles visibly reset their colour and grain.
-    m->materialSeed=(int)ggOutdoorGroundSeed(type,ggExplore.frame);
+    m->materialSeed=(int)ggOutdoorGroundSeed(paved?T_DIRT:type,ggExplore.frame);
     m->groundUV=1;
     GgMeshVertex center=ggMeshV(tx*256+128,ty*256+128,ggMeshGroundCenter(type));
     GgMeshVertex corners[4];
     for(int i=0;i<4;i++)corners[i]=ggMeshGroundCorner(tx,ty,i);
     int r,g,bl;
-    ggOutdoorGroundColor(type,&r,&g,&bl);
+    if(paved)ggOutdoorPavingColor(&r,&g,&bl);
+    else ggOutdoorGroundColor(type,&r,&g,&bl);
     for(int sector=0;sector<4;sector++){
         GgMeshVertex point[5]={center,corners[sector],corners[(sector+1)&3]};
         int detail=ggMeshGroundDetail(tx,ty,sector,type,point);
@@ -736,9 +738,73 @@ static inline int ggMeshBuildingWallTop(GgMeshBuildingFootprint p,int tx,int ty,
 #include "mesh_fort3d.h"
 #include "mesh_residential_lots3d.h"
 
+enum { GG_WELL_OUTER=62, GG_WELL_OUTER_CUT=34,
+       GG_WELL_SHAFT=54, GG_WELL_SHAFT_CUT=30,
+       GG_WELL_INNER=38, GG_WELL_INNER_CUT=22, GG_WELL_COPING_RISE=2 };
+
+static inline int ggMeshWellRing(int x,int y,int radius,int cut){
+    int ax=abs((x&255)-128),ay=abs((y&255)-128);
+    int axial=ax>ay?ax:ay,diagonal=ax+ay;
+    return axial<=radius&&diagonal<=radius+cut&&
+           (axial>=GG_WELL_INNER||diagonal>=GG_WELL_INNER+GG_WELL_INNER_CUT);
+}
+
+static inline int ggMeshWellFoundation(int x,int y,int ground){
+    return ggMeshFoundationGround(x-GG_WELL_OUTER,y-GG_WELL_OUTER,
+                                  x+GG_WELL_OUTER,y+GG_WELL_OUTER,ground);
+}
+
+static int ggMeshWellSolid(int x,int y,int z,int ground){
+    int top=ground+GG_WORLD_WELL_RIM;
+    if(z>top)return 0;
+    int lift=ggMeshClamp(z-top+GG_WELL_COPING_RISE,0,GG_WELL_COPING_RISE);
+    int radius=GG_WELL_SHAFT+(GG_WELL_OUTER-GG_WELL_SHAFT)*lift/GG_WELL_COPING_RISE;
+    int cut=GG_WELL_SHAFT_CUT+(GG_WELL_OUTER_CUT-GG_WELL_SHAFT_CUT)*lift/GG_WELL_COPING_RISE;
+    if(!ggMeshWellRing(x,y,radius,cut))return 0;
+    int cx=(x&~255)+128,cy=(y&~255)+128;
+    return z>=ground||z>=ggMeshWellFoundation(cx,cy,ground);
+}
+
+static inline GgMeshVertex ggMeshWellVertex(int side,int x,int y,int z,
+                                          int radius,int cut){
+    static const signed char ring[8][2]={
+        {-1,-2},{1,-2},{2,-1},{2,1},{1,2},{-1,2},{-2,1},{-2,-1}
+    };
+    int shift[5]={-radius,-cut,0,cut,radius};
+    return ggMeshV(x+shift[ring[side][0]+2],y+shift[ring[side][1]+2],z);
+}
+
+static void ggMeshWell(GgMeshContext*m,int tx,int ty,int ground,int detailed){
+    int x=tx*256+128,y=ty*256+128,top=ground+GG_WORLD_WELL_RIM;
+    int bottom=ggMeshWellFoundation(x,y,ground),basin=ground+4;
+    int neck=top-GG_WELL_COPING_RISE;
+    int prior=m->material,seed=m->materialSeed;
+    // Eight coping segments, outer and inner masonry, and a dark basin.
+    // Both detail levels use the same 72 triangles and cover silhouette.
+    for(int side=0;side<8;side++){
+        int next=(side+1)&7;
+        GgMeshVertex a=ggMeshWellVertex(side,x,y,top,GG_WELL_OUTER,GG_WELL_OUTER_CUT);
+        GgMeshVertex b=ggMeshWellVertex(next,x,y,top,GG_WELL_OUTER,GG_WELL_OUTER_CUT);
+        GgMeshVertex c=ggMeshWellVertex(next,x,y,top,GG_WELL_INNER,GG_WELL_INNER_CUT);
+        GgMeshVertex d=ggMeshWellVertex(side,x,y,top,GG_WELL_INNER,GG_WELL_INNER_CUT);
+        GgMeshVertex e=ggMeshWellVertex(side,x,y,neck,GG_WELL_SHAFT,GG_WELL_SHAFT_CUT);
+        GgMeshVertex f=ggMeshWellVertex(next,x,y,neck,GG_WELL_SHAFT,GG_WELL_SHAFT_CUT);
+        int variation=detailed?(side&1)*9:0;
+        m->material=GG_MAT_STONE;m->materialSeed=seed;
+        ggMeshQuad(m,ggMeshV(e.x,e.y,bottom),ggMeshV(f.x,f.y,bottom),f,e,122,127,128);
+        ggMeshQuad(m,e,f,b,a,173+variation,161+variation,139+variation);
+        ggMeshQuad(m,ggMeshV(c.x,c.y,basin),ggMeshV(d.x,d.y,basin),d,c,77,83,81);
+        ggMeshQuad(m,a,b,c,d,191+variation,187+variation,167+variation);
+        m->material=GG_MAT_WATER;m->materialSeed=ggExplore.frame/6;
+        ggMeshTriangle(m,ggMeshV(x,y,basin),ggMeshV(d.x,d.y,basin),
+                       ggMeshV(c.x,c.y,basin),40,89,93);
+    }
+    m->material=prior;m->materialSeed=seed;
+}
+
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
-    if(build<=B_NONE||build>=B_N)return;
+    if(build<=B_NONE||build>=B_N||ggBuildingIsPaving(build))return;
     if(ggMeshLotDraw(m,tx,ty,build,ground,nearDetail)||
        ggMeshSettlementDraw(m,tx,ty,build,ground,nearDetail)||
        ggMeshFortDraw(m,tx,ty,build,ground,nearDetail)){
@@ -752,6 +818,11 @@ static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
     }
     if(build==B_DOCK){
         ggMeshDock(m,tx,ty,ground,nearDetail);
+        ggMeshBuildingsDrawn++;
+        return;
+    }
+    if(build==B_WELL){
+        ggMeshWell(m,tx,ty,ground,nearDetail);
         ggMeshBuildingsDrawn++;
         return;
     }
@@ -1442,6 +1513,7 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
             uint32_t key=ggFilmScenicHash(tx,ty,17);
             ggMeshGroundTile(m,tx,ty,t,key);
             int build=bld[ty][tx];
+            if(ggBuildingIsPaving(build))continue;
             if(!build&&ggExpSceneryEnabled&&quality>=2&&
                forward>=0&&forward<4*256)
                 ggMeshGroundLife(m,tx,ty,t,key);
@@ -1496,7 +1568,7 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
         m->materialSeed=(int)ggFilmScenicHash(tx,ty,17);
         if(detailed&&forward>128&&build!=B_DOCK&&build!=B_BORDER&&
            build!=B_WALL&&!ggBuildingIsGate(build))
-            ggMeshContactShadow(m,tx*256+128,ty*256+128,105,
+            ggMeshContactShadow(m,tx*256+128,ty*256+128,build==B_WELL?GG_WELL_OUTER:105,
                                 ggExpBuilding(build));
         ggMeshBuilding(m,tx,ty,build,ggExpGround(ggMeshTerrainAt(tx,ty)),detailed);
     }

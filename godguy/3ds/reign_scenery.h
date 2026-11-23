@@ -119,7 +119,7 @@ static void ggReignSceneDraw(u8*out){
             for(int dx=-d;dx<=d;dx++){
                 if(abs(dx)+abs(dy)!=d)continue;
                 int x=px+dx;
-                if((unsigned)x>=WW||!bld[y][x])continue;
+                if((unsigned)x>=WW||!ggExpTallStructure(bld[y][x]))continue;
                 int sx,foot,size;
                 if(!ggChronProject(x,y,&sx,&foot,&size))continue;
                 int i=ggReignSceneDrawn++;
