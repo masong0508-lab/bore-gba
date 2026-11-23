@@ -196,8 +196,25 @@ static void ggLotEntrancePath(GgMeshContext*m,const GgLotPlan*p){
         int l=p->doorCenter-29,r=p->doorCenter+29;
         GgMeshVertex A=ggLotPathVertex(p,a,l),B=ggLotPathVertex(p,b,l);
         GgMeshVertex C=ggLotPathVertex(p,b,r),D=ggLotPathVertex(p,a,r);
-        if(p->rotate)ggMeshQuad(m,A,D,C,B,152,141,124);
-        else ggMeshQuad(m,A,B,C,D,152,141,124);
+        // Each stone stays a separate graded course; alternation adds
+        // recognizable hand-laid paving without texture assets.
+        int shade=(i&1)?8:0;
+        if(p->rotate)ggMeshQuad(m,A,D,C,B,152-shade,141-shade,124-shade);
+        else ggMeshQuad(m,A,B,C,D,152-shade,141-shade,124-shade);
+    }
+    // Two thin mortar joints remain attached to the live terrain, in
+    // both house orientations. Nothing here enters the gameplay collision
+    // query or changes the height used by residents.
+    for(int i=1;i<3;i++){
+        int at=p->doorPlane-42+i*23/3;
+        int l=p->doorCenter-25,r=p->doorCenter+25;
+        GgMeshVertex A=ggLotPathVertex(p,at-1,l);
+        GgMeshVertex B=ggLotPathVertex(p,at+1,l);
+        GgMeshVertex C=ggLotPathVertex(p,at+1,r);
+        GgMeshVertex D=ggLotPathVertex(p,at-1,r);
+        A.z++;B.z++;C.z++;D.z++;
+        if(p->rotate)ggMeshQuad(m,A,D,C,B,113,106,91);
+        else ggMeshQuad(m,A,B,C,D,113,106,91);
     }
     m->material=material;m->depthBias=bias;
 }
