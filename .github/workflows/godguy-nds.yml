@@ -30,8 +30,20 @@ jobs:
           [ -x /usr/bin/python3 ] || ln -sf "$(command -v python3)" /usr/bin/python3     # (the build scripts call /usr/bin/python3)
           # Both SDK builders must update the same package database and
           # libraries. A partial upgrade cannot qualify release images.
-          dkp-pacman -Syu --noconfirm
-          dkp-pacman -S --needed --noconfirm nds-dev ndstool
+          # pkg.devkitpro.org occasionally returns transient 403 on its
+          # database mirrors. Retry the FULL upgrade + SDK installation;
+          # never silently use stale or partially synchronized libraries.
+          for attempt in 1 2 3 4; do
+            if dkp-pacman -Syu --noconfirm &&
+               dkp-pacman -S --needed --noconfirm nds-dev ndstool; then
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "devkitPro DS SDK installation failed after four complete attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
 
       - name: Regenerate professionally mastered vocal chops and 168-track sequences
@@ -326,8 +338,20 @@ jobs:
         run: |
           # Match the mixed-port builder: installing without -Syu kept
           # libctru 2.7.0 here while that job linked 2.7.1, changing the ROM.
-          dkp-pacman -Syu --noconfirm
-          dkp-pacman -S --needed --noconfirm 3ds-dev
+          # Match the DS job's exact database upgrade, including retries
+          # for transient server 403 responses. The package versions and
+          # final binary-reproducibility gate remain mandatory.
+          for attempt in 1 2 3 4; do
+            if dkp-pacman -Syu --noconfirm &&
+               dkp-pacman -S --needed --noconfirm 3ds-dev; then
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "devkitPro New3DS SDK installation failed after four complete attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
           /usr/bin/python3 -c 'from PIL import Image' 2>/dev/null || { apt-get update && apt-get install -y python3-pil; }
           /usr/bin/python3 -c 'import numpy,scipy,mido' 2>/dev/null || { apt-get update && apt-get install -y python3-numpy python3-scipy python3-mido; }
