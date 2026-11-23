@@ -31,6 +31,7 @@ enum { GG_AMBIENT_TOWN,GG_AMBIENT_FOREST,GG_AMBIENT_COAST,
        GG_AMBIENT_OATH,GG_AMBIENT_DELIVERY,GG_AMBIENT_MIRACLE };
 typedef struct {
     int loaded,mode,frame,choice,ending,lastKeys;
+    int saveFailed;
     int paused; // film playback only; never alters the existing save format
     int event,eventX,eventY; // anchored real-world nonlinear scene
     u32 decisions,decided,seen;
@@ -44,7 +45,7 @@ static u32 ggSagaChecksum(const GgSagaDisk *d){
         h=(h^p[i])*16777619u;
     return h;
 }
-static void ggSagaSave(void){
+static int ggSagaSave(void){
     const GgSagaDisk d={
         0x47535341u,1,ggSaga.decisions,ggSaga.decided,ggSaga.seen,
         0 // checksum constructed below, not from padding
@@ -52,7 +53,9 @@ static void ggSagaSave(void){
     GgSagaDisk disk=d;
     disk.checksum=ggSagaChecksum(&disk);
     FILE *f=fopen(GG_SAGA_SAVE_PATH,"wb");
-    if(f){(void)fwrite(&disk,sizeof disk,1,f);fclose(f);}
+    if(!f)return 0;
+    int good=fwrite(&disk,sizeof disk,1,f)==1;
+    return !fclose(f)&&good;
 }
 static void ggSagaLoad(void){
     if(ggSaga.loaded)return;
@@ -79,6 +82,7 @@ static void ggSagaBegin(void){
     ggSagaLoad();
     ggSaga.mode=GG_SAGA_OPEN;ggSaga.frame=0;
     ggSaga.paused=0;
+    ggSaga.saveFailed=0;
     ggSaga.choice=0;ggSaga.ending=-1;
     // Past moral decisions affect the next mission's available supplies,
     // camp confidence and living people's trust; no artificial new world.
@@ -151,12 +155,22 @@ static void ggSagaStartChoice(void){
     ggSagaLoad();
     ggSaga.mode=GG_SAGA_CHOICE;
     ggSaga.frame=0;ggSaga.paused=0;
+    ggSaga.saveFailed=0;
     ggSaga.choice=(ggSaga.decisions>>ggChron.act)&1;
     ggSaga.lastKeys=0;
 }
 static void ggSagaCommitChoice(int choice){
     int act=ggChron.act;
-    if(act<0||act>=GG_CHRON_ACTS)return;
+    if(act<0||act>=GG_CHRON_ACTS||ggChron.won)return;
+    int cleared=ggChron.cleared;
+    if(cleared<act+1)ggChron.cleared=act+1;
+    // Progress must commit before a reward can be granted. An unwritable
+    // completed-act file leaves the saved decision pending for a retry.
+    if(!ggChronSave()){
+        ggChron.cleared=cleared;
+        ggSaga.saveFailed=1;
+        return;
+    }
     u32 bit=1u<<act;
     ggSaga.decided|=bit;
     if(choice)ggSaga.decisions|=bit;
@@ -176,11 +190,12 @@ static void ggSagaCommitChoice(int choice){
         if(town>=0)ggReignVillageLoyalty(town,-6);
     }
     ggChron.won=1;ggChron.briefTime=0;ggChron.dirty=1;
-    if(ggChron.cleared<act+1)ggChron.cleared=act+1;
-    ggChronSave();ggReignSave();
     ggSaga.ending=act==GG_CHRON_ACTS-1?ggSagaChooseEnding():-1;
     if(ggSaga.ending>=0)ggSaga.seen|=1u<<ggSaga.ending;
-    ggSagaSave();
+    int decisionSaved=ggSagaSave(),roleSaved=ggReignSave();
+    ggChron.checkpointWritten=decisionSaved&&roleSaved;
+    ggSaga.saveFailed=!ggChron.checkpointWritten;
+    if(ggChron.cleared==GG_CHRON_ACTS)ggChronClearCompletedCheckpoint();
     ggSaga.mode=GG_SAGA_OUTRO;ggSaga.frame=0;ggSaga.paused=0;
 }
 static const char *const ggSagaDecision[GG_CHRON_ACTS][2]={
@@ -1444,7 +1459,8 @@ static void ggSagaDraw(u8 *out){
                       i==ggSaga.choice?255:191,
                       i==ggSaga.choice?229:208,162);
         }
-        ggFilmText(out,10,198,"CHOOSE WITH THE PAD. PRESS A TO COMMIT.",
+        ggFilmText(out,10,198,ggSaga.saveFailed?"SAVE FAILED. PRESS A TO RETRY.":
+                  "CHOOSE WITH THE PAD. PRESS A TO COMMIT.",
                   241,225,188);
         ggFilmText(out,10,215,"START RETURNS TO 2D WITHOUT RECORDING A CHOICE.",
                   191,210,219);

@@ -72,68 +72,68 @@ static void ggLotChimney(GgLotPlan*p,int x,int y,int base,int top,int color){
     ggLotBox(p,x-15,y-16,x+15,y+16,top-3,top,GG_SETTLE_MASONRY);
 }
 static void ggLotHouse(GgLotPlan*p,int wing,int variant){
-    int g=p->mass.ground,front=58,end=wing?480:222;
-    int floor=ggLotEntranceLevel(p,front,122);
-    int eave=g+33,lintel=floor+GG_WORLD_DOOR_HEIGHT+6;
+    int g=p->mass.ground,front=46,end=wing?482:226;
+    int floor=ggLotEntranceLevel(p,front,128);
+    int eave=g+30,lintel=floor+GG_WORLD_DOOR_HEIGHT+6;
     if(eave<lintel)eave=lintel;
     static const unsigned char wall[]={GG_SETTLE_PLASTER,GG_SETTLE_GREEN,GG_SETTLE_CREAM};
     static const unsigned char roof[]={GG_SETTLE_TERRA,GG_SETTLE_SLATE,GG_SETTLE_SHINGLE};
     int ink=wall[variant],shingle=roof[variant];
-    ggLotWall(p,front,36,207,end,g,eave,ink,eave-12);
-    ggLotFoot(p,52,32,214,end+5,g+3,GG_SETTLE_FOUNDATION);
-    ggLotBox(p,54,32,211,end+4,eave-13,eave-11,GG_SETTLE_DARK_OAK);
-    ggLotRoof(p,40,24,227,end+15,eave-1,eave+19,1,
-               variant==2?164:128,variant==0?0:38,shingle,0);
-    ggLotEntrance(p,front,122,floor,ink);
-    ggLotPorch(p,16,65,72,179,floor+GG_WORLD_DOOR_HEIGHT+3,
+    ggLotWall(p,front,30,226,end,g,eave,ink,eave-11);
+    ggLotFoot(p,40,26,233,end+5,g+3,GG_SETTLE_FOUNDATION);
+    ggLotBox(p,42,26,230,end+4,eave-13,eave-11,GG_SETTLE_DARK_OAK);
+    ggLotRoof(p,33,16,242,end+14,eave-1,eave+16,1,
+               variant==2?154:128,variant==0?0:34,shingle,0);
+    ggLotEntrance(p,front,128,floor,ink);
+    ggLotPorch(p,13,61,62,195,floor+GG_WORLD_DOOR_HEIGHT+3,
                  GG_SETTLE_OAK,shingle,variant==0);
-    ggLotChimney(p,175,178,eave,eave+25,GG_SETTLE_LIMESTONE);
+    ggLotChimney(p,175,178,eave,eave+22,GG_SETTLE_LIMESTONE);
     if(wing){
         // The second room has an attached shed, dormer and chimney.
         ggLotBox(p,66,345,116,412,eave+3,eave+15,ink);
         ggLotRoof(p,59,335,124,421,eave+14,eave+23,0,128,0,shingle,0);
-        ggLotWall(p,188,315,236,454,g,g+22,GG_SETTLE_CEDAR,0);
-        ggLotRoof(p,177,304,246,465,g+21,g+32,1,0,0,shingle,0);
-        ggLotChimney(p,166,419,eave,eave+25,GG_SETTLE_LIMESTONE);
+        ggLotWall(p,208,310,240,461,g,g+21,GG_SETTLE_CEDAR,0);
+        ggLotRoof(p,203,299,251,472,g+20,g+29,1,0,0,shingle,0);
+        ggLotChimney(p,166,419,eave,eave+22,GG_SETTLE_LIMESTONE);
     }
 }
 static void ggLotEstate(GgLotPlan*p,unsigned mask,int variant){
-    int g=p->mass.ground,front=56,entry=121;
+    int g=p->mass.ground,front=47,entry=128;
     int floor=ggLotEntranceLevel(p,front,entry);
-    int eave=g+47,lintel=floor+GG_WORLD_DOOR_HEIGHT+12;
+    int eave=g+41,lintel=floor+GG_WORLD_DOOR_HEIGHT+12;
     if(eave<lintel)eave=lintel;
     int accent=variant==1?GG_SETTLE_TERRA:GG_SETTLE_SLATE;
-    ggLotWall(p,front,34,232,228,g,eave,GG_SETTLE_LIMESTONE,g+27);
-    ggLotBox(p,51,30,238,233,eave-4,eave-1,GG_SETTLE_MASONRY);
-    ggLotRoof(p,42,20,247,244,eave-1,eave+19,1,128,42,accent,0);
+    ggLotWall(p,front,24,237,232,g,eave,GG_SETTLE_LIMESTONE,g+24);
+    ggLotBox(p,42,20,241,236,eave-4,eave-1,GG_SETTLE_MASONRY);
+    ggLotRoof(p,32,10,251,246,eave-1,eave+16,1,128,42,accent,0);
     ggLotEntrance(p,front,entry,floor,GG_SETTLE_LIMESTONE);
-    ggLotFoot(p,17,72,43,172,floor-2,GG_SETTLE_FOUNDATION);
-    ggLotPorch(p,16,63,69,179,floor+GG_WORLD_DOOR_HEIGHT+5,
+    ggLotFoot(p,12,69,39,187,floor-2,GG_SETTLE_FOUNDATION);
+    ggLotPorch(p,12,58,64,198,floor+GG_WORLD_DOOR_HEIGHT+5,
                  GG_SETTLE_LIMESTONE,GG_SETTLE_TERRA,1);
-    ggLotChimney(p,192,160,eave,eave+26,GG_SETTLE_MASONRY);
+    ggLotChimney(p,192,160,eave,eave+22,GG_SETTLE_MASONRY);
     if(mask&GG_RES_EAST){
-        ggLotWall(p,214,48,476,219,g,g+34,GG_SETTLE_PLASTER,g+20);
-        ggLotRoof(p,202,34,491,233,g+33,g+47,0,128,35,accent,0);
+        ggLotWall(p,216,35,477,227,g,g+32,GG_SETTLE_PLASTER,g+19);
+        ggLotRoof(p,203,21,492,241,g+31,g+44,0,128,35,accent,0);
     }
     if(mask&GG_RES_SOUTH){
-        ggLotWall(p,54,211,221,474,g,g+37,GG_SETTLE_CREAM,g+22);
-        ggLotRoof(p,40,199,237,491,g+36,g+53,1,128,37,accent,0);
+        ggLotWall(p,40,215,232,477,g,g+34,GG_SETTLE_CREAM,g+20);
+        ggLotRoof(p,26,202,246,492,g+33,g+47,1,128,37,accent,0);
     }
     if(mask&GG_RES_CORNER){
         // Extend the garden wing toward the surviving neighbors.
-        int x=(mask&GG_RES_SOUTH)?207:278,y=(mask&GG_RES_EAST)?204:278;
-        ggLotWall(p,x,y,474,471,g,g+30,GG_SETTLE_GREEN,0);
-        ggLotRoof(p,x-11,y-12,488,486,g+29,g+42,(mask&GG_RES_SOUTH)?0:1,
+        int x=(mask&GG_RES_SOUTH)?211:276,y=(mask&GG_RES_EAST)?211:276;
+        ggLotWall(p,x,y,479,479,g,g+28,GG_SETTLE_GREEN,0);
+        ggLotRoof(p,x-11,y-12,493,493,g+27,g+39,(mask&GG_RES_SOUTH)?0:1,
                    128,29,GG_SETTLE_SHINGLE,0);
     }
 }
 static void ggLotOutbuilding(GgLotPlan*p,int variant){
-    int front=63,g=p->mass.ground,floor=ggLotEntranceLevel(p,front,127);
+    int front=46,g=p->mass.ground,floor=ggLotEntranceLevel(p,front,128);
     int eave=floor+GG_WORLD_DOOR_HEIGHT+4;
     int color=variant==1?GG_SETTLE_CEDAR:GG_SETTLE_MASONRY;
-    ggLotWall(p,front,56,199,198,g,eave,color,0);
-    ggLotRoof(p,50,44,212,211,eave-1,eave+13,0,128,0,GG_SETTLE_SHINGLE,0);
-    ggLotEntrance(p,front,127,floor,color);
+    ggLotWall(p,front,40,217,216,g,eave,color,0);
+    ggLotRoof(p,33,26,230,230,eave-1,eave+11,0,128,0,GG_SETTLE_SHINGLE,0);
+    ggLotEntrance(p,front,128,floor,color);
 }
 static void ggMeshLotPlan(GgLotPlan*p,int tx,int ty,int build,int ground,unsigned mask){
     p->mass.count=0;p->mass.ox=tx*256;p->mass.oy=ty*256;p->mass.ground=ground;

@@ -10,15 +10,52 @@ typedef struct { int kind,x,y,person; const char *site; } GgOutdoorTarget;
 
 static char ggOutdoorNotice[64];
 static int ggOutdoorNoticeUntil,ggOutdoorCaptureA;
+static int ggOutdoorWaypointX=-1,ggOutdoorWaypointY=-1;
+static int ggOutdoorBreath,ggOutdoorWinded;
 
 static void ggOutdoorReset(void){
     ggOutdoorNotice[0]=0;
     ggOutdoorNoticeUntil=ggOutdoorCaptureA=0;
+    ggOutdoorWaypointX=ggOutdoorWaypointY=-1;
+    ggOutdoorBreath=100;
+    ggOutdoorWinded=0;
 }
 
 static void ggOutdoorSay(const char *text){
     snprintf(ggOutdoorNotice,sizeof ggOutdoorNotice,"%s",text);
     ggOutdoorNoticeUntil=ggExplore.frame+175;
+}
+
+static void ggOutdoorSetWaypoint(int x,int y){
+    if((x==ggOutdoorWaypointX&&y==ggOutdoorWaypointY)||
+       (x==(ggExplore.px>>8)&&y==(ggExplore.py>>8))){
+        ggOutdoorWaypointX=ggOutdoorWaypointY=-1;
+        ggOutdoorSay("WAYPOINT CLEARED");
+        return;
+    }
+    if(x<1||y<1||x>=WW-1||y>=WH-1||world[y][x]<=T_WATER||world[y][x]==T_LAVA){
+        ggOutdoorSay("MARK A PLACE ON LAND");
+        return;
+    }
+    ggOutdoorWaypointX=x;ggOutdoorWaypointY=y;
+    ggOutdoorSay("WAYPOINT MARKED");
+}
+
+static int ggOutdoorPace(int keys){
+    if(!(keys&KEY_B))ggOutdoorWinded=0;
+    else if(ggOutdoorBreath<8)ggOutdoorWinded=1;
+    return ggOutdoorWinded?keys&~KEY_B:keys;
+}
+
+static void ggOutdoorMoveFeedback(int sprint,int oldX,int oldY){
+    int moved=ggExplore.px!=oldX||ggExplore.py!=oldY;
+    if(sprint&&moved)ggOutdoorBreath=ggExpClamp(ggOutdoorBreath-2,0,100);
+    else if(!sprint&&!(ggExplore.frame&1)&&ggOutdoorBreath<100)ggOutdoorBreath++;
+    if(ggOutdoorWaypointX>=0&&abs(ggOutdoorWaypointX-(ggExplore.px>>8))+
+                              abs(ggOutdoorWaypointY-(ggExplore.py>>8))<=1){
+        ggOutdoorWaypointX=ggOutdoorWaypointY=-1;
+        ggOutdoorSay("WAYPOINT REACHED");
+    }
 }
 
 static GgOutdoorTarget ggOutdoorTargetAt(int x,int y){
@@ -269,10 +306,8 @@ static void ggOutdoorFerry(const GgOutdoorTarget *target,Cr *actor){
     fxReq(FX_RAIN);
 }
 
-static void ggOutdoorUse(void){
+static void ggOutdoorUseAt(int x,int y){
     ggExplore.feedbackT=0;
-    int x,y;
-    ggExpTarget(&x,&y);
     GgOutdoorTarget target=ggOutdoorTargetAt(x,y);
     int who=ggHybridResolve();
     Cr *actor=who>=0?&cr[who]:NULL;
@@ -296,18 +331,41 @@ static void ggOutdoorUse(void){
     }
 }
 
-static void ggOutdoorHud(u8 *out){
+static void ggOutdoorHud(u8 *out,const char *contract,const char *interaction,int sculpt){
     static const char *const action[]={
         "LOOK", "TALK", "WATCH WILDLIFE", "FORAGE", "FARM STORES",
         "REST", "TAKE FERRY", "SURVEY AND PIN", "READ TERRAIN"
     };
     GgOutdoorTarget target=ggOutdoorTargetAt(ggExplore.lastTargetX,ggExplore.lastTargetY);
-    char hint[28];
-    snprintf(hint,sizeof hint,"L+A  %s",action[target.kind]);
-    if(!ggExplore.feedbackT&&ggExplore.frame<ggOutdoorNoticeUntil){
-        char notice[64];
-        snprintf(notice,sizeof notice,"%.63s",ggOutdoorNotice);
-        ggExpText(out,9,230,notice,241,225,177);
-    }else ggExpText(out,9,230,hint,150,224,207);
+    char hint[56];
+    if(!sculpt){
+        if(contract){
+            snprintf(hint,sizeof hint,"%.49s",contract);
+            ggExpText(out,9,217,hint,178,219,224);
+        }
+        else if(ggOutdoorWaypointX>=0){
+            int dx=ggOutdoorWaypointX-(ggExplore.px>>8);
+            int dy=ggOutdoorWaypointY-(ggExplore.py>>8);
+            const char *bearing=abs(dx)>abs(dy)?(dx>0?"EAST":"WEST"):(dy>0?"SOUTH":"NORTH");
+            snprintf(hint,sizeof hint,"WAYPOINT %s %d",bearing,abs(dx)+abs(dy));
+            ggExpText(out,9,217,hint,178,219,224);
+        }else{
+            int i=ggHybridResolve();
+            if(i>=0)snprintf(hint,sizeof hint,"HEALTH %d/%d   FOOD %u",
+                cr[i].hp,maxHp(&cr[i]),(unsigned)cr[i].food);
+            else snprintf(hint,sizeof hint,"TAP THE MAP TO MARK A PLACE");
+            ggExpText(out,9,217,hint,178,219,224);
+        }
+        if(ggOutdoorBreath<100){
+            ggExpRect(out,318,219,72,3,47,61,70);
+            ggExpRect(out,318,219,72*ggOutdoorBreath/100,3,215,173,83);
+        }
+    }
+    snprintf(hint,sizeof hint,"%s  %s",sculpt?"L+A":"A",interaction?interaction:action[target.kind]);
+    if(ggExplore.feedbackT&&(ggExplore.feedback==4||ggExplore.feedback==5))
+        ggExpText(out,9,230,ggExplore.feedback==4?"WORLD SAVED":"SAVE FAILED",241,225,177);
+    else if(!ggExplore.feedbackT&&ggExplore.frame<ggOutdoorNoticeUntil)
+        ggExpText(out,9,230,ggOutdoorNotice,241,225,177);
+    else ggExpText(out,9,230,hint,150,224,207);
 }
 #endif

@@ -11,7 +11,7 @@
 #include "chronicle_actor_art3d.h"
 
 enum { GG_REIGN_ROLES=13, GG_REIGN_PAGES=6, GG_REIGN_ORDERS=3,
-       GG_REIGN_SQUAD_MAX=6, GG_REIGN_OFFICES=5 };
+       GG_REIGN_SQUAD_MAX=GG_CHRON_SQUAD_MAX, GG_REIGN_OFFICES=5 };
 enum { GG_ROLE_WAYFINDER,GG_ROLE_SHADE,GG_ROLE_TRADER,
        GG_ROLE_SOLDIER,GG_ROLE_ENVOY,GG_ROLE_MYSTIC,
        GG_ROLE_FARMER,GG_ROLE_ARTISAN,GG_ROLE_HEALER,
@@ -103,8 +103,8 @@ static void ggReignLoad(void){
     ggReign.endorsements=(int)d.endorsements;
     memcpy(ggReign.support,d.support,sizeof ggReign.support);
 }
-static void ggReignSave(void){
-    if(!ggReign.loaded)return;
+static int ggReignSave(void){
+    if(!ggReign.loaded)return 0;
     GgReignDisk d;
     memset(&d,0,sizeof d);
     d.magic=0x47475245u;d.version=1;
@@ -116,9 +116,9 @@ static void ggReignSave(void){
     memcpy(d.support,ggReign.support,sizeof ggReign.support);
     d.checksum=ggReignChecksum(&d);
     FILE *f=fopen(GG_REIGN_SAVE_PATH,"wb");
-    if(!f)return;
-    (void)fwrite(&d,sizeof d,1,f);
-    fclose(f);
+    if(!f)return 0;
+    int good=fwrite(&d,sizeof d,1,f)==1;
+    return !fclose(f)&&good;
 }
 static int ggReignVillage(int x,int y,int radius){
     int chosen=-1,best=radius*radius+1;
@@ -168,7 +168,7 @@ static int ggReignNearestGuard(int x,int y,int *gx,int *gy){
     if(!ggChron.active)return -1;
     for(int i=0;i<ggReign.squadN;i++){
         const GgReignGuard *g=&ggReign.squad[i];
-        if(g->hp<=0)continue;
+        if(g->hp<=0||!g->x)continue;
         int d=ggChronNear(x,y,g->x,g->y);
         if(d<distance){distance=d;best=i;}
     }
@@ -179,7 +179,8 @@ static int ggReignNearestGuard(int x,int y,int *gx,int *gy){
     return best;
 }
 static int ggReignGuardPosition(int index,int *x,int *y){
-    if(index<0||index>=ggReign.squadN||ggReign.squad[index].hp<=0)return 0;
+    if(index<0||index>=ggReign.squadN||ggReign.squad[index].hp<=0||
+       !ggReign.squad[index].x)return 0;
     *x=ggReign.squad[index].x;
     *y=ggReign.squad[index].y;
     return 1;
@@ -187,7 +188,7 @@ static int ggReignGuardPosition(int index,int *x,int *y){
 static void ggReignBlockGuardCells(unsigned char *dist,int width,int ox,int oy){
     for(int i=0;i<ggReign.squadN;i++){
         const GgReignGuard *g=&ggReign.squad[i];
-        if(g->hp>0)ggChronRouteBlockCell(dist,width,ox,oy,g->x,g->y);
+        if(g->hp>0&&g->x)ggChronRouteBlockCell(dist,width,ox,oy,g->x,g->y);
     }
 }
 static void ggReignGuardDamage(int index,int damage){
@@ -253,6 +254,7 @@ static int ggReignRecruit(void){
             (unsigned char)ggChronActorHeading(x-nx,y-ny),GG_CHRON_ACTOR_READY};
         ggReignNotice("RECRUITED A FOLLOWER FROM THE REAL TOWN");
         ggReignSave();
+        ggChronCheckpoint();
         return 1;
     }
     ggReignNotice("NO SAFE PLACE FOR A RECRUIT");
@@ -438,10 +440,70 @@ static void ggReignBegin(void){
     ggReign.nextCivicAt=0;
     ggReignNotice("TAP COUNCIL TO MANAGE WORK AND ALLIES");
 }
+static void ggChronCaptureSquad(GgChronCheckpoint *c){
+    c->squadN=ggReign.squadN;
+    c->squadOrder=ggReign.order;
+    c->reignFrame=ggReign.frame;
+    c->civicAt=ggReign.nextCivicAt;
+    for(int i=0;i<ggReign.squadN;i++){
+        const GgReignGuard *g=&ggReign.squad[i];
+        const GgReignGuardArt *art=&ggReign.squadArt[i];
+        c->squad[i]=(GgChronSavedGuard){g->x,g->y,g->hp,art->heading,art->identity};
+    }
+}
+static int ggReignGuardCell(int x,int y){
+    if(!ggChronLand(x,y)||ggChronFoeAt(x,y)||
+       (x==(ggExplore.px>>8)&&y==(ggExplore.py>>8)))return 0;
+    for(int i=0;i<ggReign.squadN;i++){
+        const GgReignGuard *g=&ggReign.squad[i];
+        if(g->hp>0&&g->x==x&&g->y==y)return 0;
+    }
+    return 1;
+}
+static void ggReignRallyGuard(GgReignGuard *g){
+    int px=ggExplore.px>>8,py=ggExplore.py>>8;
+    // A zero coordinate reserves the slot until the commander reaches
+    // open ground. An ally need not be discarded on a crowded bridge.
+    for(int r=1;r<=4;r++)for(int dy=-r;dy<=r;dy++){
+        int dx=r-abs(dy),y=py+dy;
+        int x=px-dx;
+        if(!ggReignGuardCell(x,y)){
+            x=px+dx;
+            if(!dx||!ggReignGuardCell(x,y))continue;
+        }
+        g->x=(short)x;g->y=(short)y;
+        ggChron.dirty=1;
+        return;
+    }
+}
+static void ggChronRestoreSquad(void){
+    if(ggChron.resume==GG_CHRON_FRESH)return;
+    const GgChronCheckpoint *c=&ggChronSessionCheckpoint;
+    ggReign.order=ggReign.selectedOrder=c->squadOrder;
+    ggReign.frame=c->reignFrame;
+    ggReign.nextCivicAt=c->civicAt;
+    // Restore existing positions before rallying displaced allies, so a
+    // returning guard does not take another member's safe cell.
+    for(int i=0;i<c->squadN;i++){
+        const GgChronSavedGuard *saved=&c->squad[i];
+        if(saved->hp<=0)continue;
+        int j=ggReign.squadN++;
+        GgReignGuard *g=&ggReign.squad[j];
+        *g=(GgReignGuard){0,0,(signed char)saved->hp};
+        ggReign.squadArt[j]=(GgReignGuardArt){saved->identity,
+            (unsigned char)saved->heading,GG_CHRON_ACTOR_READY};
+        if(!ggChron.relocated&&ggReignGuardCell(saved->x,saved->y)){
+            g->x=(short)saved->x;g->y=(short)saved->y;
+        }
+    }
+    for(int i=0;i<ggReign.squadN;i++)
+        if(!ggReign.squad[i].x)ggReignRallyGuard(&ggReign.squad[i]);
+}
 static int ggReignStep(int raw){
     int down=raw&~ggReign.lastKeys;
     ggReign.lastKeys=raw;
     if(ggReign.noticeT)ggReign.noticeT--;
+    if(ggChron.won||ggChron.lost)return 0;
     if(!ggReign.menu){
         if(down&KEY_SELECT){
             ggReign.menu=1;
@@ -539,6 +601,7 @@ static void ggReignSquadTick(void){
     for(int i=0;i<ggReign.squadN;i++){
         GgReignGuard *g=&ggReign.squad[i];
         if(g->hp<=0)continue;
+        if(!g->x){ggReignRallyGuard(g);continue;}
         GgReignGuardArt *art=&ggReign.squadArt[i];
         art->pose=GG_CHRON_ACTOR_READY;
         int enemy=-1,distance=999,strike=-1,reach=3;
@@ -597,7 +660,7 @@ static void ggReignDrawSquad(u8 *out){
     if(!ggChron.active)return;
     for(int i=0;i<ggReign.squadN;i++){
         const GgReignGuard *g=&ggReign.squad[i];
-        if(g->hp<=0)continue;
+        if(g->hp<=0||!g->x)continue;
         if(ggExpMeshActive){
             const GgReignGuardArt *art=&ggReign.squadArt[i];
             int phase=ggReign.frame%12,pose=art->pose;

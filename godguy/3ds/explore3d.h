@@ -4,9 +4,8 @@
 // and live world. Bottom LCD retains the interactive 2D map.
 // Uses the SAME world[][], bld[][], occ[][] and setCell() as god-game play.
 //
-// Real-world voxel terrain, collision, first-person walking, live tile
-// editing, crosshair, world location and safe return to the 2D map.
-// It is a light sandbox foundation, not a claimed Minecraft block engine.
+// Walking and the explicit debug editor share collision and world
+// coordinates. The platform selects the active controls and HUD.
 #ifndef GG_EXPLORE3D_H
 #define GG_EXPLORE3D_H
 #include "world_scale3d.h"
@@ -48,6 +47,7 @@ static int ggExpTrigReady;
 // Campaign combat has its own target and HUD. Only sandbox exploration
 // shows terrain tools; the platform sets this before drawing that mode.
 static int ggExpBuildPreview=1;
+static int ggExpTravelHud;
 
 static int ggExpClamp(int n,int low,int high){
     return n<low?low:n>high?high:n;
@@ -225,7 +225,7 @@ static int ggExpAdvance(int held,int touchX,int touchY,int build){
     if(ggExplore.feedbackT>0)ggExplore.feedbackT--;
     if(down&KEY_START)return GG_EXP_EXIT;
     if(down&KEY_SELECT)return GG_EXP_SAVE;
-    if(down&KEY_X){
+    if(build&&(down&KEY_X)){
         ggExplore.material=(ggExplore.material+1)%GG_EXP_MATERIALS;
         ggExplore.feedback=1;ggExplore.feedbackT=90;
     }
@@ -1161,7 +1161,7 @@ mesh_world_ready:
     }
     // Smaller brass-bracketed aim marker; it communicates the true
     // editable world target without a huge retro-computer cross.
-    if(!ggExpBuildPreview)return;
+    if(!ggExpBuildPreview&&!ggExpTravelHud)return;
     ggExpRect(top,195,115,4,1,34,41,47);
     ggExpRect(top,201,115,4,1,34,41,47);
     ggExpRect(top,195,123,4,1,34,41,47);
@@ -1176,7 +1176,7 @@ mesh_world_ready:
     ggExpRect(top,0,0,400,19,13,24,35);
     ggExpRect(top,0,18,400,1,174,137,85);
     char buf[96];
-    if(ggExplore.actorId)snprintf(buf,sizeof buf,"FOLLOWING %.30s",ggExplore.actorName);
+    if(ggExplore.actorId)snprintf(buf,sizeof buf,"AS %.28s",ggExplore.actorName);
     else snprintf(buf,sizeof buf,"WORLD WALK");
     ggExpText(top,9,6,buf,242,220,164);
     static const char *const facing[8]={"E","SE","S","SW","W","NW","N","NE"};
@@ -1192,9 +1192,10 @@ mesh_world_ready:
                  localTerrain==T_DIRT?"ROADLAND":"GREEN COUNTRY";
     snprintf(buf,sizeof buf,"%s  %s",region,facing[((ggExplore.angle+16)&255)/32]);
     ggExpText(top,390-(int)strlen(buf)*6,6,buf,181,203,204);
-    int buildMat=(unsigned)ggExplore.material<GG_EXP_MATERIALS?ggExplore.material:0;
     ggExpRect(top,0,213,400,27,12,22,33);
     ggExpRect(top,0,213,400,1,178,143,91);
+    if(!ggExpBuildPreview)return;
+    int buildMat=(unsigned)ggExplore.material<GG_EXP_MATERIALS?ggExplore.material:0;
     snprintf(buf,sizeof buf,"X %s",ggExpMaterialNames[buildMat]);
     ggExpText(top,368-(int)strlen(buf)*6,218,buf,225,204,153);
     ggExpRect(top,376,217,15,8,

@@ -262,7 +262,7 @@ static inline GgMeshRoofProfile ggMeshRoofProfile(int build,int x0,int y0,
     int overhang=build==B_TEMPLE?17:14;
     int hip=build==B_HALL?50:build==B_LIBRARY?32:0;
     int rise=build==B_HOUSE?19:build==B_HUT?16:build==B_FARM?21:
-              build==B_HALL?15:build==B_LIBRARY?17:9;
+              build==B_HALL?12:build==B_LIBRARY?13:9;
     GgMeshRoofProfile p={x0-overhang,x1+overhang,hip,3,
         {y0-overhang,(y0+y1)/2,y1+overhang},
         {wallTop-2,wallTop+rise,wallTop-2}};
@@ -711,6 +711,10 @@ static inline GgMeshBuildingFootprint ggMeshBuildingFootprint(int tx,int ty,int 
     if(build==B_TOWER){p.x0+=39;p.x1-=39;p.y0+=38;p.y1-=38;}
     if(build==B_FARM){p.y0+=33;p.y1-=35;}
     if(build==B_STATUE){p.x0+=42;p.x1-=42;p.y0+=38;p.y1-=38;}
+    // Broaden street fronts along the entrance plane. The hall's north
+    // porch and the temple's west porch keep their column and aisle positions.
+    if(build==B_HALL){p.x0-=10;p.x1+=10;}
+    if(build==B_TEMPLE||build==B_LIBRARY){p.y0-=10;p.y1+=10;}
     return p;
 }
 static inline int ggMeshBuildingFoundation(GgMeshBuildingFootprint p,int ground){

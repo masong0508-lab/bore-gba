@@ -1509,6 +1509,9 @@ static void chapterDone(void){   // a chapter is finished (by play, or by the de
 static int slainCount(void){ int n=0; for(int m=0;m<MON_N;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; n+=(slainB[sI>>3]>>(sI&7))&1; } return n; }
 static void checkFull(void){ if(!fullDone&&storyDone&&seenN>=MON_N&&slainCount()>=MON_N){ fullDone=1; siprintf(info,"100%%! THE REMIXES ARE YOURS"); musReq(GM_GODHOOD); fxReq(FX_UNLOCK); } }
 static void unlockTiers(void){   // every 256 ticks: is the chapter you are on done?
+#ifdef GG_NATIVE_STORY_BUSY
+    if(GG_NATIVE_STORY_BUSY())return;
+#endif
     checkFull();
 #ifndef PCTEST
     // Keep a queued dialogue intact at high sim speeds. The story bot runs
@@ -1862,6 +1865,9 @@ static void newWorld(void){
         }
     }
     if(cShape==GW_MARCH){ marchLandmarks();winX=-99;refillWindow(); }
+#ifdef GG_3DS_QUEST_WORLD_RESET
+    GG_3DS_QUEST_WORLD_RESET(NULL);
+#endif
     info[0]=0; LOADING("READY",100); }
 // ---------------------------------------------------------------------------------------------- saving: the whole world, the villages and the story, to one file (the SD card on the DS)
 static int shape3;
@@ -1985,7 +1991,12 @@ static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexIn
 static int saveGame(const char*path){ char t[64], b[64]; siprintf(t,"%s.tmp",path); siprintf(b,"%s.bak",path);
     if(!saveGameRaw(t)){ remove(t); return 0; }
     remove(b); rename(path,b); if(rename(t,path)){ rename(b,path); remove(t); return 0; } return 1; }
-static int loadGame(const char*path){ char b[64]; if(loadGameRaw(path)) return 1; siprintf(b,"%s.bak",path); return loadGameRaw(b); }
+static int loadGame(const char*path){ char b[64]; int loaded=loadGameRaw(path);
+    if(!loaded){ siprintf(b,"%s.bak",path); loaded=loadGameRaw(b); }
+#ifdef GG_3DS_QUEST_WORLD_RESET
+    if(loaded) GG_3DS_QUEST_WORLD_RESET(path);
+#endif
+    return loaded; }
 #else
 static int saveGame(const char*p){ return saveGameRaw(p); } static int loadGame(const char*p){ return loadGameRaw(p); }
 #endif
@@ -2793,7 +2804,11 @@ static int slotErase(int k){     // empty slot k (its file and backup, or its fi
     char p[48], b[56]; if(k==0) strcpy(p,SAVE_PATH); else siprintf(p,"%s.%d",SAVE_PATH,k+1); siprintf(b,"%s.bak",p); remove(p); remove(b); return 1;
 #endif
 }
-static int doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return 0; } if(saveGame(savePath)){ savedYear=year; hasSave=1; siprintf(info,"SAVED"); fxReq(FX_SAVE); slotScan(); return 1; } else {
+static int doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return 0; } if(saveGame(savePath)){
+#ifdef GG_3DS_QUEST_WORLD_SAVED
+    GG_3DS_QUEST_WORLD_SAVED(savePath);
+#endif
+    savedYear=year; hasSave=1; siprintf(info,"SAVED"); fxReq(FX_SAVE); slotScan(); return 1; } else {
 #ifdef NDSHW
  if(svTooBig) siprintf(info,"TOO BIG: %dK NEEDED, SLOT HOLDS %dK",svTooBig,(int)(hwSlotSz/1024)); else
 #endif
@@ -3734,7 +3749,11 @@ int main(void){
         }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
         if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||(tick&15)==0) hud(); continue; }   // (redrawn when a button was pressed, and now and then for the clock: a full redraw and copy every frame took longer than a frame)
-        if(!titleOn&&!extrasView&&storyGoalT>0) storyGoalT--;
+        if(!titleOn&&!extrasView&&storyGoalT>0
+#ifdef GG_NATIVE_STORY_BUSY
+           &&!GG_NATIVE_STORY_BUSY()
+#endif
+          ) storyGoalT--;
         if(!titleOn&&!extrasView&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
         if(storyOn&&storyDone&&!endShown&&!titleOn&&!extrasView&&!dlgOn&&dlgPend<0){ startFinale(); continue; }
         if(titleOn&&!extrasView){

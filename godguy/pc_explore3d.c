@@ -92,13 +92,20 @@ static const char *shpRow(int shape,int frame,int row){
 }
  #include "3ds/population3d.h"
 static int chapter,storyDone;
+static u32 worldSeed,rs;
+static int tick;
 #define VIL_N 16
-typedef struct {int on,x,y;u16 stock;int lvl;} Vil;
+typedef struct {int on,x,y;u16 stock;int lvl,race,nm1,nm2;} Vil;
 static Vil vil[VIL_N];
 static s8 vilL[VIL_N];
+static void vilName(int v,char *name){
+    snprintf(name,24,"%s",v==0?"WESTFORD":"EASTFORD");
+}
 static int politicalDirty;
 #define KD_DIRTY() (politicalDirty++)
 #define GG_REIGN_SAVE_PATH "/tmp/godguy_unwritten_reign_pc_test.dat"
+#define GG_CHRON_SAVE_PATH "/tmp/godguy_chronicles_pc_test.dat"
+#define GG_CHRON_CHECKPOINT_PATH "/tmp/godguy_expedition_pc_test.dat"
 #include "3ds/chronicles3d.h"
 #include "3ds/reign3d.h"
 #define GG_ORIGIN_SAVE_PATH "/tmp/godguy_origin_pc_test.dat"
@@ -112,6 +119,7 @@ static int politicalDirty;
 #include "3ds/reign_ambient3d.h"
 static int testToolbarY=160;
 #define TB_Y testToolbarY
+static int ggOutdoorWaypointX=-1,ggOutdoorWaypointY=-1;
 #include "3ds/reign_map3d.h"
 #include "3ds/mode_input3d.h"
 static void check(int value,const char *message){
@@ -388,6 +396,7 @@ static void combatStyles(void){
     ggChron=savedChron;ggExplore=savedExplore;
 }
 int main(void){
+    remove(GG_CHRON_SAVE_PATH);remove(GG_CHRON_CHECKPOINT_PATH);
     // Real-world citizen sprites must use the same 250px lens,
     // physically projected foot row and 2px walking-camera bob.
     int npcX,npcFoot;
@@ -1043,52 +1052,130 @@ int main(void){
           "new 3DS civic HUD overflowed its sole allocated frame buffer");
     // The Skyrim-style foundation must be actual conversations and real
     // world-linked quests, not cosmetic text or a fabricated second map.
+    const char *questWorldSlot="host-native-slot";
+    u8 courierTerrain[35][35],courierBuildings[35][35],courierOwners[35][35];
     remove(GG_QUEST_SAVE_PATH);
     memset(&ggQuest,0,sizeof ggQuest);
-    vil[0]=(Vil){1,60,60,125};
-    vil[1]=(Vil){1,70,60,125};
+    memset(vil,0,sizeof vil);
+    vil[0]=(Vil){1,60,60,20};
+    vil[1]=(Vil){1,70,60,45};
+    worldSeed=1986;
+    for(int y=43;y<=77;y++)for(int x=44;x<=78;x++){
+        courierTerrain[y-43][x-44]=world[y][x];
+        courierBuildings[y-43][x-44]=bld[y][x];
+        courierOwners[y-43][x-44]=bldv[y][x];
+        world[y][x]=T_GRASS;
+        bld[y][x]=bldv[y][x]=0;
+    }
+    bld[60][60]=bld[60][70]=B_HALL;
+    bldv[60][60]=1;bldv[60][70]=2;
     ggChron.active=1;ggChron.won=0;ggChron.lost=0;
     ggChron.foeN=0;ggChron.briefTime=0;
     ggReign.menu=0;ggReign.noticeT=0;
-    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
-    // Regress a real progression soft-lock: all four exits are land,
-    // but too steep to climb. Never offer an undeliverable town job.
-    world[60][59]=world[60][61]=T_MOUNT;
-    world[59][60]=world[61][60]=T_MOUNT;
+    ggExplore.actorId=0;ggExplore.active=1;
+    ggExplore.px=61*256+128;ggExplore.py=60*256+128;
+    // The hall blocks one side and the three remaining exits are cliffs.
+    world[60][62]=world[59][61]=world[61][61]=T_MOUNT;
     check(ggQuestSource(0)<0,
           "courier assigned a town across an impassable cliff ring");
-    world[60][59]=world[60][61]=T_GRASS;
-    world[59][60]=world[61][60]=T_GRASS;
+    world[60][62]=world[59][61]=world[61][61]=T_GRASS;
+    for(int y=43;y<=77;y++)for(int x=44;x<66;x++)world[y][x]=T_SNOW;
+    check(ggQuestSource(0)<0,"courier assigned a one-way downhill route");
+    for(int y=43;y<=77;y++)for(int x=44;x<66;x++)world[y][x]=T_GRASS;
+    for(int y=43;y<=77;y++)bld[y][66]=B_WALL;
+    bld[60][66]=B_GATE_NS;
+    check(ggQuestSource(0)<0,"courier routed sideways through a gate pier");
+    bld[60][66]=B_GATE_EW;
+    check(ggQuestSource(0)==1,"courier rejected the open gate passage");
+    for(int y=43;y<=77;y++)bld[y][66]=B_NONE;
     check(ggQuestSource(0)==1,
           "courier never recovered after removing blocked terrain");
     ggQuestBegin();
     check(ggQuest.stage==GG_QUEST_IDLE&&!ggQuest.talk,
           "travel journal started with a fake completed quest");
-    check(ggQuestStep(KEY_A)&&ggQuest.talk&&ggQuest.talkVillage==0,
-          "A did not speak to the real starting settlement");
-    ggQuestStep(0);ggQuestStep(KEY_A);
+    ggChron.active=0;
+    ggExplore.angle=128;
+    check(ggQuestWalkActionAt(60,60)&&!ggQuestWalkOpen(70,60)&&
+          ggQuestWalkOpen(60,60)&&ggQuest.talkVillage==0,
+          "walking interaction did not use the actual aimed town hall");
+    ggQuest.lastKeys=KEY_A;
+    check(ggQuestWalkStep(KEY_A)&&ggQuest.stage==GG_QUEST_IDLE,
+          "held interaction skipped the courier menu");
+    ggQuestWalkStep(0);ggQuestWalkStep(KEY_A);
     check(ggQuest.stage==GG_QUEST_FETCH&&ggQuest.home==0&&
           ggQuest.target==1,
           "town dialogue failed to assign a reachable real trade route");
-    ggQuestStep(0);ggQuestStep(KEY_B);
-    ggExplore.px=70*256+128;ggExplore.py=60*256+128;
+    char courierHint[64];
+    check(ggQuestWalkHint(courierHint,sizeof courierHint)&&strstr(courierHint,"EASTFORD")&&
+          ggMapObjectiveSignature()!=0,
+          "walking courier had no named map objective");
+    int courierCamX=camX,courierCamY=camY;
+    camX=70*8+4-128;camY=60*8+4-80;
+    memset(guarded.img,0,sizeof guarded.img);
+    ggMapObjectivesDraw(guarded.img);
+    check(!memcmp(&guarded.img[(99*320+160)*3],(u8[]){88,221,234},3),
+          "walking courier did not draw the shared cyan settlement pin");
+    camX=courierCamX;camY=courierCamY;
+    ggQuestWalkStep(0);ggQuestWalkStep(KEY_B);
+    ggChron.active=1;
+    ggQuestBegin();
+    ggExplore.px=69*256+128;ggExplore.py=60*256+128;
     int sourceStock=vil[1].stock;
     ggQuestStep(0);ggQuestStep(KEY_A);ggQuestStep(0);ggQuestStep(KEY_A);
     check(ggQuest.stage==GG_QUEST_RETURN&&vil[1].stock==sourceStock-12,
           "collecting supplies did not change the source village stock");
     ggQuestStep(0);ggQuestStep(KEY_B);
-    ggQuestSave();
-    memset(&ggQuest,0,sizeof ggQuest);
-    ggQuestBegin();
+    ggQuestWorldSaved(questWorldSlot);
+    vil[1].stock=(u16)sourceStock;
+    ggQuestWorldReset(questWorldSlot);
+    check(ggQuest.stage==GG_QUEST_IDLE,"older native save recreated courier cargo");
+    vil[1].stock=(u16)(sourceStock-12);
+    ggQuestWorldReset("another-native-slot");
+    check(ggQuest.stage==GG_QUEST_IDLE,"another save slot inherited courier cargo");
+    worldSeed++;
+    ggQuestWorldReset(questWorldSlot);
+    check(ggQuest.stage==GG_QUEST_IDLE,"another planet inherited courier cargo");
+    worldSeed--;
+    ggQuestWorldReset(NULL);
+    check(ggQuest.stage==GG_QUEST_IDLE,"a newly created same-seed planet inherited cargo");
+    ggQuestWorldReset(questWorldSlot);
     check(ggQuest.stage==GG_QUEST_RETURN&&ggQuest.target==1,
           "quest cargo and destination were not persisted across sessions");
-    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
-    int homeStock=vil[0].stock,oldRenown=ggReign.renown;
-    ggQuestStep(0);ggQuestStep(KEY_A);ggQuestStep(0);ggQuestStep(KEY_A);
+    ggExplore.px=61*256+128;ggExplore.py=60*256+128;
+    ggChron.active=0;
+    int homeStock=vil[0].stock,oldRenown=ggReign.renown,oldCash=ggReign.credits;
+    int homeLoyalty=vilL[0];
+    int oldChapter=chapter,oldPost=ggChron.post;
+    vil[0].nm1++;
+    check(!ggQuestWalkHint(courierHint,sizeof courierHint)&&ggQuestWalkOpen(60,60),
+          "a reused settlement slot still displays the old contract");
+    ggQuestWalkStep(KEY_A);
+    check(vil[0].stock==homeStock&&ggReign.credits==oldCash,
+          "a reused settlement slot could receive cargo and pay");
+    vil[0].nm1--;
+    ggQuestWorldReset(questWorldSlot);
+    check(ggQuestWalkOpen(60,60),"could not return through ordinary walking");
+    ggQuestWalkStep(KEY_A);
+    check(ggQuest.stage==GG_QUEST_IDLE&&vil[0].stock==homeStock+12&&
+          ggReign.credits==oldCash&&ggQuest.completed==0,
+          "unsaved stock transfer already awarded durable courier pay");
+    vil[0].stock=(u16)homeStock;vilL[0]=(s8)homeLoyalty;
+    ggQuestWorldReset(questWorldSlot);
+    check(ggQuest.stage==GG_QUEST_RETURN&&ggReign.credits==oldCash&&
+          ggQuestWalkOpen(60,60),"reload did not restore only the unpaid shipment");
+    ggQuestWalkStep(KEY_A);
+    ggQuestWorldSaved(questWorldSlot);
+    ggQuestWorldSaved(questWorldSlot);
     check(ggQuest.stage==GG_QUEST_IDLE&&ggQuest.completed==1&&
-          vil[0].stock==homeStock+12&&ggReign.renown>oldRenown,
-          "delivery did not return cargo and reward the generated town");
-    ggQuestStep(0);ggQuestStep(KEY_B);
+          vil[0].stock==homeStock+12&&ggReign.renown>oldRenown&&
+          ggReign.credits==oldCash+16&&chapter==oldChapter&&ggChron.post==oldPost,
+          "saving the delivered stock failed to pay exactly once without advancing the main act");
+    ggQuestWalkStep(0);ggQuestWalkStep(KEY_A);
+    check(ggQuest.stage==GG_QUEST_IDLE&&ggReign.credits==oldCash+16,
+          "balanced town stores allow another paid delivery");
+    ggQuestWalkStep(0);ggQuestWalkStep(KEY_B);
+    ggChron.active=1;
+    ggQuestBegin();
     ggChron.rations=2;
     int localFood=vil[0].stock,localTrust=vilL[0];
     ggQuestStep(0);ggQuestStep(KEY_A);
@@ -1112,7 +1199,20 @@ int main(void){
     ggQuestDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "quest journal or town conversation overran 3DS RGB memory");
+    GgQuestDiskV1 legacy={0x47515154u,1,GG_QUEST_RETURN,0,1,7,0};
+    legacy.checksum=ggQuestChecksum(&legacy,sizeof legacy-sizeof legacy.checksum);
+    FILE *questFile=fopen(GG_QUEST_SAVE_PATH,"wb");
+    check(questFile&&fwrite(&legacy,sizeof legacy,1,questFile)==1&&fclose(questFile)==0,
+          "could not create legacy courier save fixture");
+    ggQuestWorldReset(questWorldSlot);
+    check(ggQuest.completed==7&&ggQuest.stage==GG_QUEST_IDLE,
+          "legacy save failed to keep history while dropping unbound cargo");
     remove(GG_QUEST_SAVE_PATH);
+    for(int y=43;y<=77;y++)for(int x=44;x<=78;x++){
+        world[y][x]=courierTerrain[y-43][x-44];
+        bld[y][x]=courierBuildings[y-43][x-44];
+        bldv[y][x]=courierOwners[y-43][x-44];
+    }
     // Branching-film regression: all four acts and nine alternate endings
     // must remain within one 400x240 buffer and persist a witnessed ending.
     remove(GG_SAGA_SAVE_PATH);

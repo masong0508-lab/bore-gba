@@ -2,6 +2,12 @@
 // through platform3ds.c. The touch screen shows the world and the toolbar, the top screen the status screen, as on the DS. The 3DS globe has extra atmospheric lighting and adaptive detail.
 #define SAVE_PATH "sdmc:/godguy.sav"
 #define GG_THEATRE 1
+static void ggJourneyWorldReset(const char *path);
+static void ggQuestWorldSaved(const char *path);
+static int ggJourneyOwnsStoryInput(void);
+#define GG_3DS_QUEST_WORLD_RESET ggJourneyWorldReset
+#define GG_3DS_QUEST_WORLD_SAVED ggQuestWorldSaved
+#define GG_NATIVE_STORY_BUSY() ggJourneyOwnsStoryInput()
 #define main ds_main
 #include "../source/main.c"
 #undef main
@@ -39,12 +45,27 @@ static Gg3dsFrameClock frameClock;
 // Then SELECT+R toggles its 2D tile/3D POV. SELECT+X opens the picker.
 // Persistent IDs avoid accidentally controlling another creature if the
 // simulation compacts its array after a save.
-static int ggHybridPicking,ggPickAndEnter,ggWalkHelp;
+static int ggHybridPicking,ggWalkHelp,ggWalkEditor;
 static u32 ggHybridSelectedId;
 static int ggHybridSelectedIndex=-1;
 static int ggExpRenderValid;
 static GgModeInputGuard gg3dModeInput;
 static int gg3dPhysicalKeys;
+static int ggJourneyOwnsStoryInput(void){
+    return ggExplore.active||ggChron.active||ggHybridPicking||ggWalkHelp;
+}
+static void ggJourneyWorldReset(const char *path){
+    ggQuestWorldReset(path);
+    ggHybridPicking=0;
+    ggWalkEditor=0;
+    ggHybridSelectedId=0;
+    ggHybridSelectedIndex=-1;
+    possessed=-1;
+    inspected=-1;inspIdx=-1;inspKind=0;inspT=0;
+}
+static int ggWalkCanSculpt(void){
+    return ggWalkEditor&&debugOn&&!storyOn&&!ggExplore.actorId;
+}
 static void ggExpRemember(int i){
     if(!ggHybridEligible(i))return;
     ggHybridSelectedId=crId[i];
@@ -86,16 +107,22 @@ static int ggExpCanEnter(void){
     return !titleOn&&!menuOn&&!extrasView&&!sceneOn&&!dlgOn&&
            !sceneClip&&!view3d&&!zBmp&&dlgPend<0;
 }
+static int ggFieldReignChapter(void){
+    if(!ggChronReady())return ggChronRequires[0];
+    ggChronLoad();
+    int act=ggChron.cleared<GG_CHRON_ACTS?ggChron.cleared:GG_CHRON_ACTS-1;
+    return ggChronUnlockedAct(act)?0:ggChronRequires[act];
+}
 static int ggFieldMode(void){
     if(shimSwap||sceneClip||(ggChron.active&&(ggOrigin.active||ggSaga.mode)))
         return GG_FIELD_HIDDEN;
     if(ggWalkHelp)return GG_FIELD_GUIDE;
-    if(ggChron.active&&(ggQuest.talk||ggReign.menu))return GG_FIELD_MODAL;
+    if((ggExplore.active&&ggQuest.talk)||(ggChron.active&&ggReign.menu))return GG_FIELD_MODAL;
     if(ggChron.active)return GG_FIELD_REIGN;
     if(ggExplore.active)return GG_FIELD_WALK;
     if(!ggExpCanEnter())return GG_FIELD_HIDDEN;
     if(ggHybridPicking)return GG_FIELD_PICK;
-    return ggChronReady()?GG_FIELD_MAP_READY:GG_FIELD_MAP_LOCKED;
+    return ggFieldReignChapter()?GG_FIELD_MAP_LOCKED:GG_FIELD_MAP_READY;
 }
 static int ggExpEnterPerson(int index){
     if(!ggHybridBegin(index,paused))return 0;
@@ -103,7 +130,9 @@ static int ggExpEnterPerson(int index){
     ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
     paused=1;
     ggHybridPicking=0;
+    ggWalkEditor=0;
     ggOutdoorReset();
+    ggQuestBegin();
     ggExpRenderValid=0;
     return 1;
 }
@@ -116,7 +145,8 @@ static void ggExpFinish(void){
         if(i>=0){ggHybridAfterSave();ggExpRemember(i);}
     }
     ggExplore.active=0;
-    ggWalkHelp=0;
+    ggWalkHelp=ggWalkEditor=0;
+    ggQuest.talk=0;
     ggOutdoorReset();
     paused=ggExplore.wasPaused;
     camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
@@ -125,10 +155,69 @@ static void ggExpFinish(void){
     ggExpRenderValid=0;
     shimExternalInvalidate=1;
 }
+static void ggSaveActiveExpedition(void){
+    if(ggChron.active)ggChronCheckpoint();
+}
 static void ggExpMessage(const char *m){
     snprintf(info,sizeof info,"%s",m);
     toastT=420;
 }
+static void ggExpLeaveReign(int saved){
+    ggReignSave();
+    ggChron.active=0;
+    ggExpFinish();
+    if(saved)ggExpMessage("EXPEDITION SAVED. BACK TO THE MAP.");
+    else if(ggChron.won)ggExpMessage("ACT CLEARED. SOME OUTCOMES COULD NOT BE SAVED.");
+    else ggExpMessage("BACK TO THE MAP. REIGN CAN RESUME THIS SESSION.");
+}
+static void ggExpEnterReign(int held){
+    GgExplore3D previous=ggExplore;
+    int fromWalk=previous.active;
+    int x=fromWalk?previous.px>>8:(camX+128)>>3;
+    int y=fromWalk?previous.py>>8:(camY+96)>>3;
+    int entered=ggChronBegin(x,y,fromWalk?previous.wasPaused:paused);
+    if(entered<=0){
+        if(fromWalk)ggExplore=previous;
+        if(entered==-2)ggExpMessage("NO SAFE REIGN ROUTE. CHOOSE A LAND REGION.");
+        else{
+            char text[56];
+            snprintf(text,sizeof text,"FINISH CHAPTER %d TO OPEN REIGN",ggFieldReignChapter());
+            ggExpMessage(text);
+        }
+        if(fromWalk){ggOutdoorSay(info);ggExpRenderValid=0;}
+        return;
+    }
+    ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+    ggOutdoorReset();
+    ggWalkEditor=0;
+    paused=1;
+    ggExpRenderValid=0;
+    ggReignBegin();
+    ggChronRestoreSquad();
+    ggReign.lastKeys=held;
+    ggQuestBegin();ggQuest.lastKeys=held;
+    if(ggChron.resume==GG_CHRON_FRESH)ggSagaBegin();
+    else{
+        ggSagaLoad();
+        ggSaga.mode=ggChron.resume==GG_CHRON_RESUME_OPEN?GG_SAGA_OPEN:GG_SAGA_IDLE;
+        ggSaga.frame=ggSaga.paused=ggSaga.choice=0;
+        ggSaga.saveFailed=0;
+        ggSaga.ending=-1;
+        if(ggChron.resume==GG_CHRON_RESUME_CHOICE)ggSagaStartChoice();
+    }
+    ggSaga.lastKeys=held;
+    ggAmbientBegin();
+    if(ggChron.resume==GG_CHRON_FRESH||ggChron.resume==GG_CHRON_RESUME_OPEN)
+        ggOriginBegin();
+    else ggOrigin.active=0;
+    ggOrigin.lastKeys=held;
+    if(ggChron.resume==GG_CHRON_RESUME_DEFEAT)
+        ggReignNotice("BACK AT CAMP. YOUR SUPPLIES AND MORALE TOOK A HIT.");
+    else if(ggChron.relocated)ggReignNotice("THE OLD CAMP CHANGED. YOUR ROUTE CONTINUES NEARBY.");
+    else if(ggChron.checkpointRejected)ggReignNotice("THE OLD ROUTE IS BLOCKED. A NEW ROUTE IS READY.");
+    else if(ggChron.resume==GG_CHRON_RESUME_FIELD)ggReignNotice("EXPEDITION RESUMED. FOLLOW THE GOLD MARKER.");
+}
+
 void shimInput(int frame,int*held,int*tx,int*ty){
     (void)frame;
     plat_setCinema(sceneClip!=0);
@@ -185,8 +274,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
     }
     raw&=~GG_3DS_SHORTCUT_TOUCH;
-    // A wholly separate, unlockable 3DS story. The main story stays on
-    // the original 2D tile UI and neither story's save format is changed.
+    // The expedition shares the live map and town contracts with travel.
     if(ggChron.active){
         // First entry begins the life-story opening and adult creator.
         // Neither the battle nor the career council advances until the
@@ -194,26 +282,39 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         if(ggOrigin.active){
             int before=ggOrigin.active;
             if(ggOriginStep(raw)){
+                ggChronCheckpoint();
                 ggChron.active=0;
                 ggExpFinish();
-                ggExpMessage("OPENING EXIT: ORIGINAL 2D STORY RESTORED");
-            }else if(before&&!ggOrigin.active)
+                ggExpMessage("BACK TO THE MAP. REIGN IS READY WHEN YOU RETURN.");
+            }else if(before&&!ggOrigin.active){
+                ggChronCheckpoint();
+                ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
                 ggExpRenderValid=0; // redraw real terrain after the reel
+            }
+            *held=0;*tx=*ty=0;return;
+        }
+        if(ggChron.lost&&(down&KEY_A)){
+            ggExpEnterReign(raw);
             *held=0;*tx=*ty=0;return;
         }
         // The act/ending film director has first claim on inputs, so a
         // meaningful choice never turns into an accidental combat strike.
         int sagaMode=ggSaga.mode,sagaChoice=ggSaga.choice;
-        int sagaPaused=ggSaga.paused;
+        int sagaPaused=ggSaga.paused,sagaSaveFailed=ggSaga.saveFailed;
         int sagaAction=ggSagaStep(raw);
         if(sagaAction){
+            if(sagaMode==GG_SAGA_OPEN&&ggSaga.mode==GG_SAGA_IDLE&&sagaAction!=2)
+                ggChronFinishOpening();
             ggChronCombatStow();
             if(sagaAction==2){
-                ggReignSave();ggChron.active=0;ggExpFinish();
-                ggExpMessage("REIGN SAVED: RETURNED TO THE ORIGINAL STORY");
-            }else if(sagaMode!=ggSaga.mode||sagaChoice!=ggSaga.choice||
-                     sagaPaused!=ggSaga.paused)
-                ggExpRenderValid=0;
+                ggExpLeaveReign(ggChronCheckpoint());
+            }else{
+                if(sagaMode!=ggSaga.mode)
+                    ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+                if(sagaMode!=ggSaga.mode||sagaChoice!=ggSaga.choice||
+                   sagaPaused!=ggSaga.paused||sagaSaveFailed!=ggSaga.saveFailed)
+                    ggExpRenderValid=0;
+            }
             ggChron.lastKeys=raw;ggReign.lastKeys=raw;ggQuest.lastKeys=raw;
             *held=0;*tx=*ty=0;return;
         }
@@ -234,14 +335,15 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
         int priorSaga=ggSaga.mode;
         if(ggChronStep(raw)){
-            ggReignSave();
-            ggChron.active=0;
-            ggExpFinish();
-            ggExpMessage("UNWRITTEN REIGN: 2D STORY RESTORED");
+            ggExpLeaveReign(ggChron.checkpointWritten);
         }else{
             // The final-post event queues a full-screen decision. Force
             // its very first picture even before directional input.
-            if(priorSaga!=ggSaga.mode)ggExpRenderValid=0;
+            if(priorSaga!=ggSaga.mode){
+                ggSaga.lastKeys=raw;
+                ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
+                ggExpRenderValid=0;
+            }
             ggReignSquadTick();
             if(ggAmbientTick())ggExpRenderValid=0;
             camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
@@ -249,30 +351,8 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         }
         *held=0;*tx=*ty=0;return;
     }
-    if(pressedChron&&!ggExplore.active&&!ggHybridPicking){
-        if(ggExpCanEnter()){
-            int cx=ggExpClamp((camX+128)>>3,1,WW-2);
-            int cy=ggExpClamp((camY+96)>>3,1,WH-2);
-            int entered=ggChronBegin(cx,cy,paused);
-            if(entered>0){
-                // Suppress the launch SELECT+Y until each key is
-                // released: it cannot issue a command to the new mode.
-                ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
-                paused=1;ggExpRenderValid=0;
-                ggReignBegin();ggReign.lastKeys=raw;
-                ggQuestBegin();ggQuest.lastKeys=raw;
-                ggSagaBegin();ggSaga.lastKeys=raw;
-                ggAmbientBegin();
-                ggOriginBegin();ggOrigin.lastKeys=raw;
-                ggExpMessage(ggOrigin.active?
-                    "UNWRITTEN REIGN: AN ORDINARY LIFE BEGINS":
-                    "THE UNWRITTEN REIGN: RETURN TO YOUR LIFE");
-            }else if(entered==-2)
-                ggExpMessage("NO SAFE EXPEDITION ROUTE: CHOOSE A LAND REGION");
-            else if(entered<0)
-                ggExpMessage("NEXT ACT LOCKED: ADVANCE THE 2D STORY");
-            else ggExpMessage("UNWRITTEN REIGN UNLOCKS AT CHAPTER 3");
-        }
+    if(pressedChron&&!ggHybridPicking&&!ggQuest.talk){
+        if(ggExpCanEnter())ggExpEnterReign(raw);
         *held=0;*tx=*ty=0;return;
     }
     if(pressedWalk){
@@ -286,9 +366,12 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 ggModeInputTransition(&gg3dModeInput,gg3dPhysicalKeys);
                 paused=1;
                 ggHybridPicking=0;
+                ggWalkEditor=debugOn&&!storyOn&&button<0&&
+                    (raw&(KEY_SELECT|KEY_L|KEY_B))==(KEY_SELECT|KEY_L|KEY_B);
                 ggOutdoorReset();
+                ggQuestBegin();
                 ggExpRenderValid=0;
-                ggExpMessage("FREE WALK: L+A EXPLORES PLACES");
+                ggExpMessage(ggWalkCanSculpt()?"WORLD EDITOR":"WORLD WALK: A INTERACTS WITH NEARBY PLACES");
             }else ggExpMessage("WALK FROM A LAND REGION");
         }
         *held=0;*tx=*ty=0;return;
@@ -297,7 +380,6 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         if(ggExplore.active)ggExpFinish();
         if(ggExpCanEnter()){
             ggHybridPicking=1;
-            ggPickAndEnter=button==1;
             ggExpMessage("TAP A PERSON ON THE MAP");
         }
         *held=0;*tx=*ty=0;return;
@@ -313,7 +395,6 @@ void shimInput(int frame,int*held,int*tx,int*ty){
                 // No playable mind selected: stay in 2D, prompt a
                 // deliberate choice instead of possessing a random animal.
                 ggHybridPicking=1;
-                ggPickAndEnter=1;
                 ggExpMessage("TAP A SAPIENT PERSON OR UPLIFTED ANIMAL");
             }
         }
@@ -324,7 +405,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             int x=(camX+*tx)>>3,y=(camY+*ty)>>3;
             int i=(*ty>=0&&*ty<TB_Y)?ggHybridPick(x,y):-1;
             if(i>=0){
-                if(!ggPickAndEnter||!ggExpEnterPerson(i)){
+                if(!ggExpEnterPerson(i)){
                     ggExpRemember(i);
                     ggHybridPicking=0;
                     char nm[48];crName(&cr[i],nm);
@@ -345,32 +426,43 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             ggExpMessage("CREATURE UNAVAILABLE: RETURNED TO MAP");
             *held=0;*tx=*ty=0;return;
         }
-        if(ggExplore.actorId&&pressedTouch){
-            int x=(camX+*tx)>>3,y=(camY+*ty)>>3;
-            int i=(*ty>=0&&*ty<TB_Y)?ggHybridPick(x,y):-1;
-            if(i>=0){
-                int oldPause=ggExplore.wasPaused;
-                ggExpRemember(i);
-                ggHybridBegin(i,oldPause);
-                ggOutdoorReset();
-                ggExpRenderValid=0;
-            }
+        if(ggQuestWalkStep(raw)){
+            if(down||button>=0)ggExpRenderValid=0;
+            *held=0;*tx=*ty=0;return;
+        }
+        int sculpt=ggWalkCanSculpt();
+        if(!sculpt&&pressedTouch&&*tx>=0&&*tx<256&&*ty>=0&&*ty<TB_Y){
+            ggOutdoorSetWaypoint((camX+*tx)>>3,(camY+*ty)>>3);
+            ggExpRenderValid=0;
         }
         if(!(raw&KEY_A))ggOutdoorCaptureA=0;
-        if(pressedField){
+        if((button==2&&fieldMode==GG_FIELD_WALK)||
+           ((down&KEY_A)&&(!sculpt||pressedField))){
             ggOutdoorCaptureA=(raw&KEY_A)!=0;
-            ggOutdoorUse();
+            int x,y;
+            ggExpTarget(&x,&y);
+            if(ggQuestWalkOpen(x,y)){
+                ggQuest.lastKeys=raw;
+                ggExpRenderValid=0;
+                *held=0;*tx=*ty=0;return;
+            }
+            ggOutdoorUseAt(x,y);
             ggExpRenderValid=0;
         }
         if(ggOutdoorCaptureA)raw&=~(KEY_A|KEY_L);
         int beforeX=ggExplore.px,beforeY=ggExplore.py;
-        int action=ggExpStep(raw,*tx,*ty);
+        if(!sculpt)raw=ggOutdoorPace(raw);
+        int action=sculpt?ggExpStep(raw,*tx,*ty):ggExpAdvance(raw,0,0,0);
         if(action&GG_EXP_EXIT)ggExpFinish();
         else if(ggExplore.actorId&&!ggHybridMove(beforeX,beforeY)){
             ggExpFinish();
             ggExpMessage("MIND LOST: RETURNED TO 2D WORLD");
         }else{
             // Keep 2D and first-person cameras on the same live planet.
+            if(!sculpt){
+                ggOutdoorMoveFeedback((raw&KEY_B)!=0,beforeX,beforeY);
+                ggExpTarget(&ggExplore.lastTargetX,&ggExplore.lastTargetY);
+            }
             camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
             camY=ggExpClamp((ggExplore.py>>8)*8-96,0,WH*8-192);
             if(action&GG_EXP_CHANGE){
@@ -421,13 +513,16 @@ void shimPresent(void){
     }
     shimRenderChanged(topBuf,botBuf,&tc,&bc);
     if(bc)ggMapObjectivesDraw(botBuf);
-    static int lastFieldMode;
+    static int lastFieldMode,lastReignChapter;
     int fieldMode=ggFieldMode();
-    if(!shimFilmFullscreen&&(fieldMode||lastFieldMode)&&(bc||fieldMode!=lastFieldMode)){
-        ggFieldStripDraw(botBuf,fieldMode);
+    int reignChapter=fieldMode==GG_FIELD_MAP_LOCKED?ggFieldReignChapter():0;
+    if(!shimFilmFullscreen&&(fieldMode||lastFieldMode)&&
+       (bc||fieldMode!=lastFieldMode||reignChapter!=lastReignChapter)){
+        ggFieldStripDraw(botBuf,fieldMode,reignChapter);
         bc=1;
     }
     lastFieldMode=fieldMode;
+    lastReignChapter=reignChapter;
     if(ggExplore.active){
         // Render on actual camera/world changes, or every eighth frame
         // for subtle clouds/feedback. Static scenes reuse the existing
@@ -460,7 +555,8 @@ void shimPresent(void){
             else if(ggChron.active&&ggSaga.mode)
                 ggSagaDraw(topBuf);
             else{
-                ggExpBuildPreview=!ggChron.active;
+                ggExpBuildPreview=!ggChron.active&&ggWalkCanSculpt();
+                ggExpTravelHud=!ggChron.active;
                 ggExpRender(topBuf);
                 if(ggChron.active){
                     int modal=ggWalkHelp||ggReign.menu||ggQuest.talk;
@@ -472,8 +568,15 @@ void shimPresent(void){
                     ggChronDraw(topBuf,context,modal);
                     ggReignDraw(topBuf);
                     ggQuestDraw(topBuf);
-                }else ggOutdoorHud(topBuf);
-                if(ggWalkHelp)ggFieldGuideDraw(topBuf,ggChron.active,ggExplore.actorId!=0);
+                }else{
+                    char hint[64];
+                    const char *interaction=ggQuestWalkActionAt(ggExplore.lastTargetX,
+                        ggExplore.lastTargetY)?"TOWN WORK":NULL;
+                    ggOutdoorHud(topBuf,ggQuestWalkHint(hint,sizeof hint),interaction,ggExpBuildPreview);
+                    ggQuestDraw(topBuf);
+                }
+                if(ggWalkHelp)ggFieldGuideDraw(topBuf,ggChron.active,
+                                              ggExplore.actorId!=0,ggExpBuildPreview);
             }
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;
@@ -507,13 +610,16 @@ int main(void){
     gg3dsClockInit(&frameClock,new3ds);
     gg3dsGlobeQuality=new3ds;
     gg3dMusicTick=ggWorldMusicTick;
+    (void)atexit(ggSaveActiveExpedition);
 #ifdef GG_HQVOX
     gmVoxWarm();     // predecode vocals, never decode in the frame mixer
 #endif
 #ifdef SHIM_HQ
     shimHqOn=new3ds; // retain the lighter mixer on Old 3DS
 #endif
-    ds_main(); plat_exit(); return 0;
+    ds_main();
+    plat_exit();
+    return 0;
 }
 
 #ifdef GG_TEST_NATIVE_ORIGIN
