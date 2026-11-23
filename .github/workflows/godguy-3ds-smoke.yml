@@ -59,6 +59,23 @@ jobs:
           done
           gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -Wall -Wextra -Werror pc_3ds_sky.c -o /tmp/gg-3ds-sky-safe
           /tmp/gg-3ds-sky-safe
+      - name: Verify restored title and menu globes on all console layouts
+        working-directory: godguy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for layout in ds dsi16 big new3ds; do
+            flags=""
+            case "$layout" in
+              dsi16) flags="-DGG_DSI16";;
+              big) flags="-DGG_BIG";;
+              new3ds) flags="-D__3DS__ -DGG_NEW3DS_ONLY";;
+            esac
+            gcc -O2 -std=c11 -w -DNDSSHIM $flags -Icompat -Isource \\
+              -include unistd.h pc_title_globe.c -lm \\
+              -o "/tmp/gg-menu-globe-$layout"
+            "/tmp/gg-menu-globe-$layout"
+          done
       - name: Render 400x240 story, character turntables and occlusion comparisons
         working-directory: godguy
         shell: bash
@@ -70,6 +87,8 @@ jobs:
           gcc -O1 -g -std=c11 -DGG_NEW3DS_ONLY -fsanitize=undefined,bounds -fno-sanitize-recover=all -w -Icompat -Isource pc_3ds_art_tour.c -lm -o /tmp/gg-3ds-art-tour
           /tmp/gg-3ds-art-tour artifacts/godguy-cinema
           /tmp/gg-3ds-procedural_people artifacts/godguy-cinema/procedural_people_turntable.ppm
+          /tmp/gg-menu-globe-ds artifacts/godguy-cinema/title_globe_ds.ppm
+          /tmp/gg-menu-globe-new3ds artifacts/godguy-cinema/title_globe_new3ds.ppm
           python3 tools/film_capture_png.py artifacts/godguy-cinema
           if command -v ffmpeg >/dev/null; then
             ffmpeg -hide_banner -loglevel error -y -framerate 6 -start_number 0 \
