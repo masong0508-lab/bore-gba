@@ -198,11 +198,16 @@ static const char gfxBuildings[B_N][8][9]={
  [B_ESTATE]={"..S.RRRr",".RmRRRRr","RRRRRRrr","mSSSssss","SWWoWW|o","SmWWoW|W","So|WW|WW","mRRrrsss"},
  [B_WING_E]={"rrrrs...","rrrrrss.","rrrsrssq","ssssssq.","W|oWwmq.","Wo|WWmq.","WW|oWmq.","mmmmkkq."},
  [B_WING_S]={".RRrrsss",".RRRrrss",".sssssss",".Wo|oWmm",".WW|dWmk",".Wo|dWmk",".mmm--km","..eeqqqq"},
- [B_WING_SE]={"rrrs....","rrrrrss.","ssssssq.","mW|oWmq.","mWo|Wmq.","mW|oWmq.","m--mmkq.","qqeeqq.."}
+ [B_WING_SE]={"rrrs....","rrrrrss.","ssssssq.","mW|oWmq.","mWo|Wmq.","mW|oWmq.","m--mmkq.","qqeeqq.."},
+ // Stagger the joints between courses, including where the tiles repeat.
+ [B_PAVING]={"::::::::","m:mmm:mm","p:mmp:mp","p:ppp:pp","::::::::","mmm:mmm:","mmp:mpp:","ppp:ppp:"},
+ // A small timber canopy over a lit stone rim and a deep opening.
+ [B_WELL]={"...Rr...","..RRrr..",".ssssss.","..-..|..","..WWSS..",".SOOOSk.",".mWSSmkk","..kmkkk."}
 };
 static int bldPix(int type,int race,int x,int y){
     if((unsigned)x>=8||(unsigned)y>=8||type<=B_NONE||type>=B_N)return SH(T_GRASS,4);
     char c=gfxBuildings[type][y][x];
+    if(type==B_WELL&&c=='.')c=gfxBuildings[B_PAVING][y][x];
     switch(c){
     case 'R':return PX_ROOFL+race;case 'r':return 128+race;case 's':return PX_ROOFD+race;
     case 'W':return 136;case 'w':return SH(T_SAND,3);case 'd':return SH(T_DIRT,1);
@@ -210,6 +215,7 @@ static int bldPix(int type,int race,int x,int y){
     case 'k':return SH(T_MOUNT,2);case '|':return 137;case '-':return SH(T_DIRT,5);
     case 'c':return SH(T_GRASS,6);case 'C':return PX_FLW+1;case 'e':return SH(T_DIRT,3);
     case 'f':return PX_ROOFL+race;case 'q':return SH(T_GRASS,1);
+    case ':':return SH(T_MOUNT,3);case 'p':return SH(T_MOUNT,4);case 'O':return SH(T_MOUNT,0);
     default:return pxGrass(0,x,y);}
 }
 // ---------------------------------------------------------------- light: windows glow at night, creatures are tinted a little by the day

@@ -32,7 +32,11 @@ static GgOutdoorTarget ggOutdoorTargetAt(int x,int y){
         return target;
     }
     int building=bld[y][x],terrain=world[y][x];
-    if(building==B_FARM)target.kind=GG_OUTDOOR_FARM;
+    if(ggBuildingIsPaving(building)){
+        target.kind=GG_OUTDOOR_LANDSCAPE;
+        target.site=ggBuildingName(building);
+    }
+    else if(building==B_FARM)target.kind=GG_OUTDOOR_FARM;
     else if(building==B_HALL||ggBuildingIsHome(building)||ggBuildingIsWing(building)||
             building==B_TEMPLE||building==B_INN){
         target.kind=GG_OUTDOOR_REST;
@@ -188,7 +192,9 @@ static void ggOutdoorStores(const GgOutdoorTarget *target,Cr *actor){
 static int ggOutdoorLanding(int x,int y,const Cr *actor,int *landX,int *landY){
     for(int d=0;d<4;d++){
         int nx=x+dxs[d],ny=y+dys[d];
-        if(nx<1||ny<1||nx>=WW-1||ny>=WH-1||bld[ny][nx]||occ[ny][nx])continue;
+        if(nx<1||ny<1||nx>=WW-1||ny>=WH-1||occ[ny][nx])continue;
+        int building=bld[ny][nx];
+        if(building&&!ggBuildingIsPaving(building))continue;
         int t=world[ny][nx];
         if(t<=T_WATER||t==T_LAVA||t==T_MOUNT||(unsigned)t>=T_N)continue;
         if(actor&&!ggHybridWalkable(actor,nx,ny))continue;

@@ -644,7 +644,7 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 for(int oy=-3;oy<=3;oy++)for(int ox=-3;ox<=3;ox++){
                     int nx=gx+ox,ny=gy+oy;
                     if((unsigned)nx>=WW||(unsigned)ny>=WH||
-                       !bld[ny][nx])continue;
+                       !ggExpTallStructure(bld[ny][nx]))continue;
                     int rx=nx*256+128-cx,ry=ny*256+128-cy;
                     int z=(rx*fx+ry*fy)/4096;
                     int side=(-rx*fy+ry*fx)/4096;

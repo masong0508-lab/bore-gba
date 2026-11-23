@@ -85,13 +85,20 @@ static int ggExpBuilding(int b){
     case B_HOUSE_EW:case B_HOUSE_NS:return 27;
     case B_ESTATE:return 37;
     case B_WING_E:case B_WING_S:case B_WING_SE:return 23;
+    case B_WELL:return GG_WORLD_WELL_RIM;
     default:return 0;
     }
+}
+static inline int ggExpBuildingWalkable(int kind){
+    return !kind||ggBuildingIsPaving(kind)||ggBuildingIsGate(kind);
+}
+static inline int ggExpTallStructure(int kind){
+    return kind&&!ggBuildingIsPaving(kind)&&kind!=B_WELL;
 }
 static int ggExpWalkable(int x,int y,int fromHeight,int climb){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     int t=world[y][x];
-    int building=bld[y][x],open=!building||ggBuildingIsGate(building);
+    int open=ggExpBuildingWalkable(bld[y][x]);
     if((unsigned)t>=T_N)return 0; // reject damaged terrain indices
     if(ggExplore.actorId){
         // The actor can begin inside their own home or water habitat.
@@ -162,7 +169,8 @@ static void ggExpTarget(int *tx,int *ty){
         if((unsigned)x>=WW||(unsigned)y>=WH)break;
         if(ggMeshGroundAtQ8(wx,wy)>eye)break;
         if(x==px&&y==py)continue;
-        if(bld[y][x]||occ[y][x])break;
+        int building=bld[y][x];
+        if((building&&!ggBuildingIsPaving(building))||occ[y][x])break;
     }
 }
 static int ggExpEditStatus(int tx,int ty,int material,int removing){
@@ -818,14 +826,16 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 int wx=ggExplore.px+floorRayX*d/4096;
                 int wy=ggExplore.py+floorRayY*d/4096;
                 int tx=wx>>8,ty=wy>>8;
-                int type=(unsigned)tx<WW&&(unsigned)ty<WH?
-                    world[ty][tx]:T_DIRT;
+                int inWorld=(unsigned)tx<WW&&(unsigned)ty<WH;
+                int type=inWorld?world[ty][tx]:T_DIRT;
                 if((unsigned)type>=T_N)type=T_DIRT;
+                int paved=inWorld&&ggOutdoorPaved(type,bld[ty][tx]);
                 int r,g,b;
-                ggOutdoorGroundColor(type,&r,&g,&b);
+                if(paved)ggOutdoorPavingColor(&r,&g,&b);
+                else ggOutdoorGroundColor(type,&r,&g,&b);
                 if(d<6*256)
-                    ggMatSample(ggMeshGroundMaterial(type),wx>>2,wy>>2,
-                                seed[type],&r,&g,&b);
+                    ggMatSample(paved?GG_MAT_PAVING:ggMeshGroundMaterial(type),
+                                wx>>2,wy>>2,seed[paved?T_DIRT:type],&r,&g,&b);
                 int mist=rowMist[y];
                 r=(r*(256-mist)+mood.hazeR*mist)/256;
                 g=(g*(256-mist)+mood.hazeG*mist)/256;
@@ -861,6 +871,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             previousX=tx;previousY=ty;
             int type=world[ty][tx],build=bld[ty][tx];
             if((unsigned)type>=T_N)type=T_DIRT;
+            int paved=ggOutdoorPaved(type,build);
+            if(ggBuildingIsPaving(build))build=B_NONE;
             int ground=ggExpGround(type),rise=ggExpBuilding(build);
             // The ground plane has already drawn level or lower land.
             // Only actual raised cliffs and building VOLUMES must be
@@ -910,10 +922,11 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 baseR=wood?160:139;baseG=wood?112:135;baseB=wood?83:144;
                 if(build==B_RUIN){baseR=102;baseG=102;baseB=108;}
             }else{
-                ggOutdoorGroundColor(type,&baseR,&baseG,&baseB);
+                if(paved)ggOutdoorPavingColor(&baseR,&baseG,&baseB);
+                else ggOutdoorGroundColor(type,&baseR,&baseG,&baseB);
                 if(d<=5)
-                    ggMatSample(ggMeshGroundMaterial(type),wx>>2,wy>>2,
-                                ggOutdoorGroundSeed(type,ggExplore.frame),
+                    ggMatSample(paved?GG_MAT_PAVING:ggMeshGroundMaterial(type),wx>>2,wy>>2,
+                                ggOutdoorGroundSeed(paved?T_DIRT:type,ggExplore.frame),
                                 &baseR,&baseG,&baseB);
             }
             if(cinematic&&build){

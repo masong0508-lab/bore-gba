@@ -44,6 +44,7 @@ static int ggChronStructureCover(int build,int tx,int ty,int x,int y,int z){
     int parent=ggResidenceResolveWing(tx,ty,build,&tx,&ty);
     if(parent)build=parent;
     int ground=ggExpGround(ggMeshTerrainAt(tx,ty));
+    if(build==B_WELL)return ggMeshWellSolid(x,y,z,ground);
     int terrainSolid=ggMeshLotSolid(tx,ty,build,x,y,z,ground);
     if(terrainSolid>=0)return terrainSolid;
     terrainSolid=ggMeshFortSolid(tx,ty,build,x,y,z,ground);
@@ -97,6 +98,7 @@ static int ggChronBuildingAt(int x,int y,int z,int relativeToGround){
     int tx=x>>8,ty=y>>8;
     if((unsigned)tx>=WW||(unsigned)ty>=WH)return 1;
     int building=bld[ty][tx];
+    if(ggBuildingIsPaving(building))building=B_NONE;
     // The temple faces west and the hall faces north. Each porch
     // can reach one neighboring tile on its authored entrance side.
     int templeReach=GG_MESH_TEMPLE_REACH+GG_MESH_PORTICO_STEP-GG_MESH_BUILDING_MARGIN;

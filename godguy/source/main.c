@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gg.h"
+#include "world_height.h"
 #include "gmdata.h"      // the music and sound-effect tables (ids like FX_SMITE and GM_TITLE are used by the game; the player is gmplay.h, DS and PC)
 
 #include "ggx.h"
@@ -502,7 +503,19 @@ static void refillWindow(void){
         for(int x=x0-1;x<x0+34&&x<WW;x++)
             if(x>=0&&y>=0) putCell(x,y);
 }
-static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; if(t<=T_WATER||t==T_LAVA||t==T_MOUNT) bioSet(x,y,0); for(int k=0;k<5;k++){ int xx=x+(k==1)-(k==2), yy=y+(k==3)-(k==4); if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } }
+static void setCell(int x,int y,u8 t){
+    if(x<0||y<0||x>=WW||y>=WH)return;
+    world[y][x]=t;
+    if(t<=T_WATER||t==T_LAVA||t==T_MOUNT){
+        bioSet(x,y,0);
+        if(ggBuildingIsPaving(bld[y][x]))bld[y][x]=bldv[y][x]=0;
+    }
+    for(int k=0;k<5;k++){
+        int xx=x+(k==1)-(k==2),yy=y+(k==3)-(k==4);
+        if(xx<0||yy<0||xx>=WW||yy>=WH)continue;
+        if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26)putCell(xx,yy);
+    }
+}
 
 // ---------------------------------------------------------------------------------------------- creatures
 static int curExtra;      // the extra ground the creature being moved can cross (its traits)
@@ -626,7 +639,7 @@ static int vilNear(int race,int x,int y,int r){ int best=-1,bd=r*r+1;
     return best; }
 static int vilAny(int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
 static int buildable(int x,int y){ if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]) return 0; u8 t=world[y][x]; return t==T_GRASS||t==T_DIRT||t==T_FOREST; }
-static void putBld(int v,int x,int y,int type){ if(world[y][x]==T_FOREST) setCell(x,y,T_GRASS); bld[y][x]=(u8)type; bldv[y][x]=(u8)(v+1); if(ggBuildingStopsPawn(type)||ggBuildingIsGate(type))ggFortificationsPresent=1; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static void putBld(int v,int x,int y,int type){ if(world[y][x]==T_FOREST&&!ggBuildingIsPaving(type)) setCell(x,y,T_GRASS); bld[y][x]=(u8)type; bldv[y][x]=(u8)(v+1); if(ggBuildingStopsPawn(type)||ggBuildingIsGate(type))ggFortificationsPresent=1; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
 static int ggFortProtectedPlot(int x,int y){
     if(!ggFortificationsPresent||x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     if(bld[y-1][x]==B_GATE_NS||bld[y+1][x]==B_GATE_NS||
@@ -1646,48 +1659,82 @@ static void fieldApply(int x,int y){
     fxReq(FX_BLESS);
 }
 static const u8 constructionTypes[]={B_HOUSE,B_MANOR,B_WORKSHOP,B_INN,B_MARKET,
-    B_BARRACKS,B_WALL,B_GATE_NS,B_GATE_EW,B_KEEP};
+    B_BARRACKS,B_WALL,B_GATE_NS,B_GATE_EW,B_KEEP,
+    GG_MARKET_SQUARE,GG_GUILD_YARD,GG_GARDEN_COURT,B_PAVING,B_WELL};
 enum { GG_CONSTRUCTION_N=sizeof constructionTypes/sizeof *constructionTypes };
-static int constructionMode;
+static int constructionMode,constructionTurn=-1;
 static const char *constructionName(int mode){
     int kind=constructionTypes[mode];
     if(kind==B_KEEP)return "CASTLE COMPOUND";
     if(kind==B_HOUSE)return "FAMILY HOUSE";
     if(kind==B_MANOR)return "MANOR ESTATE";
+    if(kind==GG_MARKET_SQUARE)return "MARKET SQUARE";
+    if(kind==GG_GUILD_YARD)return "GUILD YARD";
+    if(kind==GG_GARDEN_COURT)return "GARDEN COURT";
     return ggBuildingName(kind);
 }
-static void constructionApply(int x,int y){
-    int kind=constructionTypes[constructionMode],owner=vilAny(x,y,12);
-    if(kind==B_KEEP){
-        if(!ggPlaceFort(owner,x,y,B_GATE_EW)&&!ggPlaceFort(owner,x,y,B_GATE_NS)){
-            siprintf(info,"CASTLE NEEDS A CLEAR 5X5 SITE");
-            return;
+static int constructionTurns(int kind){
+    return kind>=B_N?4:(kind==B_HOUSE||kind==B_KEEP?2:0);
+}
+static const char *constructionFacing(int kind){
+    static const char *const entrance[]={"SOUTH","WEST","NORTH","EAST"};
+    if(!constructionTurns(kind))return "";
+    if(constructionTurn<0)return "AUTO";
+    if(kind>=B_N)return entrance[constructionTurn];
+    return constructionTurn==0?"E-W":"N-S";
+}
+static int constructionPlan(GgBuildPlan *plan,int x,int y){
+    int kind=constructionTypes[constructionMode],turn=constructionTurn;
+    if(kind>=B_N){
+        int count=turn<0?4:1;
+        for(int i=0;i<count;i++){
+            ggCompoundPlan(plan,kind,turn<0?i:turn);
+            if(ggPlanCheck(plan,x,y)==GG_SITE_CLEAR)return GG_SITE_CLEAR;
         }
-    }else if(kind==B_HOUSE||kind==B_MANOR){
-        if(!ggPlaceResidence(owner,x,y,kind)){
-            siprintf(info,kind==B_MANOR?"MANOR NEEDS A CLEAR 2X2 LOT":"HOUSE NEEDS TWO CLEAR PLOTS");
-            return;
+        if(turn<0)ggCompoundPlan(plan,kind,0);
+    }else if(kind==B_KEEP){
+        ggFortPlan(plan,turn==1?B_GATE_NS:B_GATE_EW);
+        int status=ggPlanCheck(plan,x,y);
+        if(status!=GG_SITE_CLEAR&&turn<0){
+            ggFortPlan(plan,B_GATE_NS);
+            if(ggPlanCheck(plan,x,y)==GG_SITE_CLEAR)return GG_SITE_CLEAR;
+            ggFortPlan(plan,B_GATE_EW);
         }
-        if(owner>=0&&vil[owner].houses<255)vil[owner].houses++;
     }else{
-        if(buildable(x,y)&&ggFortProtectedPlot(x,y)){
-            siprintf(info,"KEEP THE CASTLE APPROACH CLEAR");
-            return;
+        plan->count=0;
+        if(kind==B_MANOR)kind=B_ESTATE;
+        else if(kind==B_HOUSE){
+            kind=turn<0?ggResidencePlan(x,y,B_HOUSE):turn==0?B_HOUSE_EW:B_HOUSE_NS;
+            if(!kind)kind=B_HOUSE_EW;
         }
-        if(!ggOpenBuildingPlot(x,y)){
-            siprintf(info,"NEEDS CLEAR GRASS, DIRT OR FOREST");
-            return;
-        }
-        KD_DIRTY();
-        putBld(owner,x,y,kind);
-        if(owner>=0){
-            if(ggBuildingIsHome(kind)&&vil[owner].houses<255)vil[owner].houses++;
-            vilBf[owner]|=(u8)ggBuildingFlag(kind);
-        }
+        ggPlanAdd(plan,0,0,kind,0);
+        if(kind==B_HOUSE_EW||kind==B_ESTATE)ggPlanAdd(plan,1,0,B_WING_E,0);
+        if(kind==B_HOUSE_NS||kind==B_ESTATE)ggPlanAdd(plan,0,1,B_WING_S,0);
+        if(kind==B_ESTATE)ggPlanAdd(plan,1,1,B_WING_SE,0);
     }
+    return ggPlanCheck(plan,x,y);
+}
+
+static const char *constructionIssue(int status){
+    static const char *const issue[]={"LIFT TO BUILD","MOVE AWAY FROM MAP EDGE",
+        "NEEDS CLEAR GRASS, DIRT OR FOREST","A PLOT IS OCCUPIED",
+        "ENTRANCE NEEDS A WALKABLE LANDING","KEEP THE CASTLE APPROACH CLEAR"};
+    return issue[status];
+}
+
+static void constructionFinish(const GgBuildPlan *plan,int x,int y){
+    int status=ggPlanCheck(plan,x,y);
+    if(status!=GG_SITE_CLEAR){ siprintf(info,"%s",constructionIssue(status));return; }
+    int radius=constructionTypes[constructionMode]>=B_N?10:12;
+    ggPlanCommit(plan,vilAny(x,y,radius),x,y);
     siprintf(info,"BUILT %s",constructionName(constructionMode));
     stUse++;
     fxReq(FX_BLESS);
+}
+static void constructionApply(int x,int y){
+    GgBuildPlan plan;
+    constructionPlan(&plan,x,y);
+    constructionFinish(&plan,x,y);
 }
 static void usePower(int tx,int ty,int fresh){
     if(pw[power].kind==PK_BUILD){ if(fresh)constructionApply(tx,ty); return; }
@@ -1789,7 +1836,6 @@ static void usePower(int tx,int ty,int fresh){
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
-#include "world_height.h"
 #include "march_landmarks.h"
 static void newWorld(void){
     mapPinMask=0;
@@ -2249,7 +2295,8 @@ static const u8* zArtOf(int x,int y){
     zArtLookups++;
 #endif
     ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam); int bb=(bld_||t<=T_WATER||t==T_LAVA)?0:bioAt(x,y);
-    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u32 xy=(u32)(x|(y<<16));
+    // Leave all eight bits of the building id independent of its race.
+    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<21)|(bb<<24))+1u; u32 xy=(u32)(x|(y<<16));
     if(z->sig==sig&&z->xy==xy) return z->px;
     int v=tileVar(t,x,y);
     for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):bioPix(best>=0?edgePix(t,best,mask,v,foam,i,j):(!bb&&t==T_GRASS&&v==2?pxMeadow((int)(hsh(x,y,5)&15),i,j):tilePix(t,v,i,j)),bb));
@@ -2295,7 +2342,39 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if((c->rk||(crFl[i]&FL_EVOLVED))&&S>=16){ int cc=c->rk==2?UIP(U_RED):c->rk?UIP(U_GOLD):UIP(U_CYAN); zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
     if((DISEASE(&cr[i])==1||DISEASE(&cr[i])==3)&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UIP(DISEASE(&cr[i])==3?U_PURPLE:U_GREEN));     // the plague's flicker
     if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UIP(U_LGREY)); } }
-static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race; }      // the colour of a building tile when the picture is too small for its art
+// Building colors for views too small to show the tile art.
+static int bZoomCol(int b,int race){
+    if(b==B_PAVING)return SH(T_MOUNT,4);
+    if(b==B_WELL)return SH(T_MOUNT,7);
+    return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race;
+}
+static GgBuildPlan constructionGhost;
+static int constructionGhostX,constructionGhostY,constructionGhostValid,constructionGhostShown;
+static int constructionAimPending;
+static void constructionCancelAim(void){
+    constructionAimPending=constructionGhostShown=0;
+}
+
+static void zConstructionPreview(int S,int K,int ox,int oy){
+    int ink=UIP(constructionGhostValid?U_GREEN:U_RED);
+    for(int i=0;i<constructionGhost.count;i++){
+        const GgPlanCell *cell=&constructionGhost.cell[i];
+        int wx=constructionGhostX+cell->dx,wy=constructionGhostY+cell->dy;
+        if((unsigned)wx>=WW||(unsigned)wy>=WH)continue;
+        int x=(K>1?wx/K:wx*S)-ox,y=(K>1?wy/K:wy*S)-oy;
+        if(S<=2||K>1){ zPut(x,y,ink);continue; }
+        int lane=!cell->kind||ggBuildingIsPaving(cell->kind);
+        if(lane){
+            int corner=S/4;
+            zRect(x,y,corner,1,ink);zRect(x,y,1,corner,ink);
+            zRect(x+S-corner,y+S-1,corner,1,ink);
+            zRect(x+S-1,y+S-corner,1,corner,ink);
+        }else{
+            zRect(x,y,S,1,ink);zRect(x,y+S-1,S,1,ink);
+            zRect(x,y,1,S,ink);zRect(x+S-1,y,1,S,ink);
+        }
+    }
+}
 static int zKey=-1;
 static int zDraw(void){
     zScale(); int S=zS_, sh=zSh_, K=zK_; int ox=zOx(), oy=zOy();
@@ -2303,13 +2382,17 @@ static int zDraw(void){
     // The game loop (including sound) still runs at its regular cadence.
     // Camera movement, creature count, weather, and a divine-power edit
     // force an immediate new image; only redundant interleaved frames skip.
-    int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?1:2))*257)^(weather*977)^(nCr*29); if(!zForce&&key==zKey) return 0; zKey=key; zForce=0;
+    int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?1:2))*257)^(weather*977)^(nCr*29);
+    if(constructionGhostShown)key^=0x20000000;
+    if(!zForce&&key==zKey)return 0;
+    zKey=key;zForce=0;
     memset(gbuf,0,256*ZH);
     if(K>1){       // a planet squeezed K tiles to a pixel: one sampled tile a pixel, creatures as dots
         for(int sy=0;sy<ZH;sy++){ int ty=(oy+sy)*K+K/2; if(ty<0||ty>=WH) continue; u8*d=gbuf+sy*256; for(int sx=0;sx<256;sx++){ int tx=(ox+sx)*K+K/2; if(tx<0||tx>=WW) continue; int t=world[ty][tx]; int b=bld[ty][tx]; int c;
                 if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=bZoomCol(b,race); } else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); }
                 d[sx]=(u8)c; } }
         for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x/K-ox, py=c->y/K-oy; if((unsigned)px<256&&(unsigned)py<ZH&&(arch[sp[c->sp].a].diet==4||arch[sp[c->sp].a].diet==5||c->rk)) gbuf[py*256+px]=(u8)(arch[sp[c->sp].a].diet==5?UIP(U_RED):UIP(U_YELLOW)); }      // (only people, monsters and notables)
+        if(constructionGhostShown)zConstructionPreview(S,K,ox,oy);
         return 1; }
     int tx0=ox>>sh, tx1=(ox+255)>>sh, ty0=oy>>sh, ty1=(oy+ZH-1)>>sh;
     if(S>=16){ int r8=sh-3;      // enlarge each source tile's 8x8 art
@@ -2344,6 +2427,7 @@ static int zDraw(void){
     for(int b=0;b<8;b++) if(boat[b].on&&K==1){ int px=boat[b].x*S-ox, py=boat[b].y*S-oy; if(S>=4) zRect(px,py,S,S,137); if(S>=16) zRect(px+S/4,py+S/8,S/2,S/2,UIP(U_WHITE)); else zRect(px,py,S>2?S:2,S>2?S:2,UIP(U_WHITE)); }      // boats at sea
     // creatures: every one on screen
     for(int ty=ty0-1;ty<=ty1+1;ty++){ if(ty<0||ty>=WH) continue; for(int tx=tx0-1;tx<=tx1+1;tx++){ if(tx<0||tx>=WW) continue; int i=(int)occ[ty][tx]-1; if(i<0||!cr[i].alive) continue; zCrit(i,(tx<<sh)-ox,(ty<<sh)-oy,S); } }
+    if(constructionGhostShown)zConstructionPreview(S,K,ox,oy);
     return 1; }
 // Only 2.6 KiB of signatures: no second framebuffer (43 KiB) and no
 // per-frame allocations. These signatures belong exclusively to the
@@ -2544,27 +2628,34 @@ static void musUpdate(void){
         gmCrowd=c; warHeat-=warHeat/4+(warHeat>0); }
     if((tick&31)==0){ int want=musDirector(); if(gmCur<0){ gmPlay(want); musLast=want; } else if(want==gmCur) musLast=want; else if(want!=musLast&&(musHold<=0||((want==GM_WAR||gmCur==GM_WAR)&&musHold<100000))&&!isJingle(gmCur)){ gmPlay(want); musLast=want; musHold=1800; } }
 }
+#include "construction_preview.h"
 static u16*gfxF[SHAPE_N][2];
 static void makeSprites(void){
     for(int b=0;b<16;b++){ gfxSprPal(b); }
     for(int s=0;s<SHAPE_N;s++) for(int f=0;f<2;f++){ gfxF[s][f]=oamAllocateGfx(&oamMain,SpriteSize_8x8,SpriteColorFormat_16Color); u8 g[32] __attribute__((aligned(4)));
         for(int y=0;y<8;y++) for(int x=0;x<8;x+=2){ int v[2]; for(int q=0;q<2;q++){ v[q]=gfxSprIdx(s,f,x+q,y); } g[y*4+x/2]=(u8)(v[0]|(v[1]<<4)); } vramCopy(gfxF[s][f],g,32); }
+    ggBuildPreviewInit();
 }
 static struct { short x, y; } wpt[20]; static int wptInit;
 static void drawSprites(void){
+    int preview=constructionGhostShown;
+    constructionGhostShown=0;
     if(zBmp) return;  // all 128 were hidden once by zEnterBmp; the zoom renderer draws its own creatures
     int n=0, nc=100;       // creatures use sprites 0..99 (the last few go to a tornado or a black hole while one is on screen), rank crowns 100..107, weather 108..127
     int hs[8][4], nh=0;    // hazard sprites: x, y, shape, flip
     for(int i=0;i<HZ_N&&nh<7;i++){ const Hz*h=&hz[i]; if(!h->kind) continue; int px=h->x*8-camX, py=h->y*8-camY; if(px<-8||px>=256||py<-16||py>=TB_Y) continue;
         if(h->kind==HZ_TORNADO){ int fl=(tick/6)&1; hs[nh][0]=px; hs[nh][1]=py-8; hs[nh][2]=42; hs[nh][3]=fl; nh++; hs[nh][0]=px; hs[nh][1]=py; hs[nh][2]=43; hs[nh][3]=!fl; nh++; } else { int sh=h->kind==HZ_FIRE||h->kind==HZ_DRAGON?46:h->kind==HZ_GOO||h->kind==HZ_BIOMASS?47:h->kind==HZ_GHOST||h->kind==HZ_MOON||h->kind==HZ_GHOSTCIV?48:h->kind==HZ_SNOWMAN||h->kind==HZ_ICE?49:h->kind==HZ_GARDEN?41:h->kind==HZ_NAVY?61:h->kind==HZ_PLANES?1:h->kind==HZ_HYPERCUBE?44:h->kind==HZ_CYBERCORE?54:h->kind==HZ_PUMPKIN?31:44; hs[nh][0]=px; hs[nh][1]=py; hs[nh][2]=sh; hs[nh][3]=(tick/8)&1; nh++; } }
-    int crMax=100-nh;
+    int hazardStart=100-nh;
+    int crMax=hazardStart-(preview?constructionGhost.count:0);
     for(int ty=(camY>>3)-1;ty<(camY>>3)+26&&n<crMax;ty++) for(int tx=(camX>>3)-1;tx<(camX>>3)+34&&n<crMax;tx++){ if(tx<0||ty<0||tx>=WW||ty>=WH) continue; int i=occ[ty][tx]-1; if(i<0) continue; Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x*8+c->ox-camX, py=c->y*8+c->oy-camY; if(px<-8||px>=256||py<-8||py>=TB_Y-6) continue;   // (the bottom rows are the toolbar)
         const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=creatureFamily(c); int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
         oamSet(&oamMain,n,px,py,0,(DISEASE(c)==1||DISEASE(c)==3)?((fam==3||fam==4)?11:3):fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,false,false,false); n++;
         if((c->rk||(crFl[i]&FL_EVOLVED))&&nc<108){ oamSet(&oamMain,nc,px,py-6,0,c->rk==2?10:c->rk?2:6,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
     for(int b=0;b<8;b++) if(boat[b].on&&nc<108){ int px=boat[b].x*8-camX, py=boat[b].y*8-camY; if(px>=-8&&px<256&&py>=-8&&py<TB_Y-6){ oamSet(&oamMain,nc,px,py,0,14,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[45][0],-1,false,false,false,false,false); nc++; } }      // boats at sea
     for(int k=n;k<crMax;k++) oamSetHidden(&oamMain,k,true);
-    for(int k=0;k<nh;k++) oamSet(&oamMain,crMax+k,hs[k][0],hs[k][1],0,hs[k][2]==44?15:hs[k][2]==46?1:hs[k][2]==47?13:(hs[k][2]==41||hs[k][2]>=48)?14:13,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[hs[k][2]][0],-1,false,false,hs[k][3]!=0,false,false);
+    if(preview)ggBuildPreviewDraw(crMax,hazardStart,&constructionGhost,constructionGhostX,
+                                  constructionGhostY,constructionGhostValid);
+    for(int k=0;k<nh;k++) oamSet(&oamMain,hazardStart+k,hs[k][0],hs[k][1],0,hs[k][2]==44?15:hs[k][2]==46?1:hs[k][2]==47?13:(hs[k][2]==41||hs[k][2]>=48)?14:13,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[hs[k][2]][0],-1,false,false,hs[k][3]!=0,false,false);
     for(int k=nc;k<108;k++) oamSetHidden(&oamMain,k,true);
     // weather: rain and snow as sprites falling across the touch screen
     int cnt=weather==WX_RAIN?14:weather==WX_STORM?20:weather==WX_SNOW?16:weather==WX_ASH?12:weather==WX_MAGIC?10:weather==WX_RAGE?16:weather==WX_HEAT?8:0;
@@ -2987,6 +3078,7 @@ static void uiTheatre(void){
 #endif
 static const char* starterHint(void){
     int kind=pw[power].kind;
+    if(kind==PK_BUILD)return "HOLD TO AIM, LIFT TO BUILD";
     if(storyOn&&chapter==0&&stUse<2&&kind==PK_PAINT)
         return "TOUCH THE MAP TO SHAPE THE GROUND";
     if(storyOn&&(chapter==1||chapter==2)){
@@ -3012,7 +3104,7 @@ static void uiStatus(void){
       for(int i=0;i<6;i++){ int y=19+i*13; uiIcon8(143,y,r[i].ic); uiText(155,y+1,r[i].l,U_DIM,1); siprintf(b,"%d",r[i].v); uiTextR(250,y+1,b,U_WHITE); } }
     uiFrame(138,104,116,44,U_PANEL,U_BHI,U_BLO);
     if(pw[power].kind==PK_SPAWN||pw[power].kind==PK_GIFT||pw[power].kind==PK_MUTATE||pw[power].kind==PK_STATUS||pw[power].kind==PK_FIELD||pw[power].kind==PK_BUILD){   // a picker: the choice before, the choice now, the choice after
-        uiText(143,107,"X Y: CHOOSE",U_DIM,1); for(int k=-1;k<=1;k++){ char nm[40]; int ok=1;
+        uiText(143,107,pw[power].kind==PK_BUILD?"X Y  |  B+X Y TURN":"X Y: CHOOSE",U_DIM,1); for(int k=-1;k<=1;k++){ char nm[40]; int ok=1;
             if(pw[power].kind==PK_SPAWN){ spName((spSel+nSp+k)%nSp,nm); } else if(pw[power].kind==PK_GIFT){ int j=k==0?itSel:itNext(itSel,k); itSay(nm,j); } else if(pw[power].kind==PK_STATUS){ int q=(statusSel+6+k)%6; strcpy(nm,statusName[q]); } else if(pw[power].kind==PK_FIELD){ strcpy(nm,fieldName[(fieldMode+FIELD_N+k)%FIELD_N]); } else if(pw[power].kind==PK_BUILD){ strcpy(nm,constructionName((constructionMode+GG_CONSTRUCTION_N+k)%GG_CONSTRUCTION_N)); } else { int t=(trSel+TR_N+k)%TR_N; strcpy(nm,t?trNm[t]:"(CLEAR)"); (void)ok; }
             nm[17]=0; if(k==0) uiRect(140,116+(k+1)*10,112,10,U_SEL); uiText(143,118+(k+1)*10,nm,k==0?U_WHITE:U_DIM,1); } }
     else if(storyOn&&chapter<CHAP_N){
@@ -3037,7 +3129,7 @@ static void uiStatus(void){
     else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/%d",seenN,MON_N); uiText(143,132,b,U_DIM,1); }
     }
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
-    { const char*hint=starterHint(); char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_FIELD){ if(fieldMode>=FIELD_CLINIC) siprintf(b,"%s  R%d",fieldName[fieldMode],fieldRadius); else siprintf(b,"%s",fieldName[fieldMode]); } else if(pw[power].kind==PK_BUILD) siprintf(b,"%s",constructionName(constructionMode)); else siprintf(b,"BRUSH %d",brush);
+    { const char*hint=starterHint(); char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_FIELD){ if(fieldMode>=FIELD_CLINIC) siprintf(b,"%s  R%d",fieldName[fieldMode],fieldRadius); else siprintf(b,"%s",fieldName[fieldMode]); } else if(pw[power].kind==PK_BUILD) siprintf(b,"%s %s",constructionName(constructionMode),constructionFacing(constructionTypes[constructionMode])); else siprintf(b,"BRUSH %d",brush);
       uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1);
       if(storyGoalT>0&&storyOn&&chapter<CHAP_N) uiText(24,166,chap[chapter].goal,U_GOLD,1);
       else if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,hint?hint:pw[power].kind==PK_FIELD?fieldDesc[fieldMode]:pwDesc[power],U_DIM,1); }
@@ -3529,6 +3621,7 @@ int main(void){
         if(calOn){ if(gOnTop!=1){ lcdMainOnTop(); gOnTop=1; } calStep(kd,kh); musUpdate(); if(calDirty){ calDirty=0; calDraw((kh&KEY_TOUCH)!=0); } swiWaitForVBlank(); continue; }
 #endif
         { int ui=titleOn||menuOn||extrasView||sceneOn||dlgOn; penPoll((kh&KEY_TOUCH)!=0,ui);   // hud() pairs any LCD move with the new picture
+          if(ui||view3d)constructionCancelAim();
           if(ui){ if(pen.press||pen.rep){ int h=uiHitSlop(pen.x,pen.y); if(pen.rep&&h>=0&&!(uiBtns[h].key&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT))) h=-1; if(h>=0){ const UiBtn*bt=&uiBtns[h]; int was=bt->sp&&*bt->sp==bt->sv; if(bt->sp) *bt->sp=bt->sv; kd|=was&&bt->key2?bt->key2:bt->key; if(bt->key&(KEY_L|KEY_R)) uiTabDir=(bt->key&KEY_L)?-1:1; } } kd&=~KEY_TOUCH; kh&=~KEY_TOUCH; } }
         { static int rpT; int ui2=(titleOn||menuOn||extrasView)&&!sceneOn&&!dlgOn&&!(titleOn&&konami>0), dir=kh&(KEY_UP|KEY_DOWN);   // GFX1: a held UP or DOWN repeats
           if(ui2&&dir&&!(kd&dir)){ rpT++; if(rpT>=18&&((rpT-18)&3)==0) kd|=dir; } else rpT=0; }
@@ -3746,7 +3839,14 @@ int main(void){
         if(autoSaveDue()){ doSave(); dirty=1; }
         if(pw[power].kind==PK_BUILD&&!view3d&&(kd&(KEY_X|KEY_Y))){
             int direction=(kd&KEY_X)?1:-1;
-            constructionMode=(constructionMode+GG_CONSTRUCTION_N+direction)%GG_CONSTRUCTION_N;
+            if(kh&KEY_B){
+                int count=constructionTurns(constructionTypes[constructionMode])+1;
+                constructionTurn=(constructionTurn+1+count+direction)%count-1;
+            }else{
+                constructionMode=(constructionMode+GG_CONSTRUCTION_N+direction)%GG_CONSTRUCTION_N;
+                constructionTurn=-1;
+                constructionCancelAim();
+            }
             kd&=~(KEY_X|KEY_Y); dirty=1;
         }
         if(pw[power].kind==PK_FIELD&&(kd&(KEY_X|KEY_Y))&&!(view3d&&(kh&(KEY_A|KEY_B)))){
@@ -3759,6 +3859,15 @@ int main(void){
             kd&=~(KEY_X|KEY_Y); dirty=1;
         }
 #ifdef GG_HAS_GLOBE
+        if(view3d&&pw[power].kind==PK_BUILD&&
+           ((pen.press&&!pen.fromUi&&!(kh&KEY_B))||(walkOn&&(kd&KEY_A)&&!(kh&KEY_Y)))){
+            zSet(Z_NORMAL);
+            constructionCancelAim();
+            pen.press=0;
+            kd&=~KEY_A;
+            siprintf(info,"AIM ON THE MAP TO BUILD");
+            dirty=1;
+        }
         if(view3d){
             int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX+=ts; if(kh&KEY_DOWN) rotX-=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))&&(tick&3)==0) rotY+=1; }
             if(rotX>85) rotX=85; if(rotX<-85) rotX=-85; rotY%=360; if(rotY<0) rotY+=360;
@@ -3797,8 +3906,49 @@ int main(void){
           if(pen.held&&!pen.fromUi&&!pen.fromBar&&pen.y<TB_Y&&(kh&KEY_B)){ panning=1; if(pnx>=0&&(pnx!=pen.x||pny!=pen.y)){ int ddx=pnx-pen.x, ddy=pny-pen.y;
                   if(zBmp){ zScale(); zcx+=ddx*8*zK_/zS_; zcy+=ddy*8*zK_/zS_; zClamp(); zSyncCam(); } else { camX+=ddx; camY+=ddy; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; } dirty=1; }
               pnx=pen.x; pny=pen.y; held=1; } else pnx=-1; }
+        int tool=pw[power].kind;
+        if(tool!=PK_BUILD||panning||menuOn||(kh&KEY_B)||pen.fromUi||pen.fromBar||
+           (pen.held&&pen.y>=TB_Y))constructionCancelAim();
         if(panning){ }
-        else if(pen.held&&!pen.fromUi){ if(pen.fromBar){ if((pen.press||pen.rep)&&pen.y>=TB_Y){ tbTouch(pen.x,pen.y); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else if(pen.y>=TB_Y){ held=1; } else {   /* a touch that starts on the toolbar stays on it, a drift upward never paints; a stroke that slides down onto it just stops */ int tx=(pen.x+camX)>>3, ty=(pen.y+camY)>>3; if(zBmp&&!zHit(pen.x,pen.y,&tx,&ty)){ held=1; } else { int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT&&held&&(abs(tx-lastTx)>1||abs(ty-lastTy)>1)){ int n=abs(tx-lastTx)>abs(ty-lastTy)?abs(tx-lastTx):abs(ty-lastTy); if(n>24) n=24; for(int q=1;q<n;q++) usePower(lastTx+(tx-lastTx)*q/n,lastTy+(ty-lastTy)*q/n,0); } if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } } else held=0;
+        else if(pen.rel&&constructionAimPending){
+            constructionFinish(&constructionGhost,constructionGhostX,constructionGhostY);
+            constructionCancelAim();held=0;
+            dirty=1;
+        }else if(pen.held&&!pen.fromUi){
+            // A touch started over the toolbar stays on it for the stroke.
+            if(pen.fromBar){
+                if((pen.press||pen.rep)&&pen.y>=TB_Y){ tbTouch(pen.x,pen.y);fxReq(FX_MENU_MOVE);dirty=1; }
+            }else if(pen.y<TB_Y){
+                int tx=(pen.x+camX)>>3,ty=(pen.y+camY)>>3;
+                if(zBmp&&!zHit(pen.x,pen.y,&tx,&ty))constructionCancelAim();
+                else if(tool==PK_BUILD){
+                    if(pen.press||constructionAimPending){
+                        GgBuildPlan plan={0};
+                        int status=constructionPlan(&plan,tx,ty);
+                        int valid=status==GG_SITE_CLEAR;
+                        if(!constructionAimPending||constructionGhostX!=tx||constructionGhostY!=ty||
+                           constructionGhostValid!=valid||constructionGhost.count!=plan.count||
+                           memcmp(constructionGhost.cell,plan.cell,plan.count*sizeof plan.cell[0]))
+                            dirty=1;
+                        constructionGhost=plan;
+                        constructionGhostX=tx;constructionGhostY=ty;
+                        constructionGhostValid=valid;
+                        constructionAimPending=constructionGhostShown=1;
+                        siprintf(info,"%s",constructionIssue(status));
+                    }
+                }else{
+                    int fresh=!held||tx!=lastTx||ty!=lastTy;
+                    if(tool==PK_PAINT&&held&&(abs(tx-lastTx)>1||abs(ty-lastTy)>1)){
+                        int n=abs(tx-lastTx)>abs(ty-lastTy)?abs(tx-lastTx):abs(ty-lastTy);
+                        if(n>24)n=24;
+                        for(int q=1;q<n;q++)usePower(lastTx+(tx-lastTx)*q/n,lastTy+(ty-lastTy)*q/n,0);
+                    }
+                    if(tool==PK_PAINT||fresh)usePower(tx,ty,!held);
+                    lastTx=tx;lastTy=ty;dirty=1;
+                }
+            }
+            held=1;
+        }else{ held=0;constructionCancelAim(); }
         GG_FRAME_BEGIN(draw);
         refillWindow();
         GG_FRAME_END(draw);

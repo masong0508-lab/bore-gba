@@ -9,7 +9,7 @@ enum {
     GG_MAT_NONE,GG_MAT_MEADOW,GG_MAT_STONE,GG_MAT_WOOD,
     GG_MAT_ROOF,GG_MAT_SAND,GG_MAT_SNOW,GG_MAT_ROCK,
     GG_MAT_WATER,GG_MAT_LEAVES,GG_MAT_FABRIC,
-    GG_MAT_TRACK,GG_MAT_LOAM,GG_MAT_MARSH,GG_MAT_LAVA,GG_MAT_BARK,
+    GG_MAT_TRACK,GG_MAT_LOAM,GG_MAT_MARSH,GG_MAT_LAVA,GG_MAT_BARK,GG_MAT_PAVING,
     GG_MAT_COUNT
 };
 static inline uint32_t ggMatHash(int u,int v,uint32_t seed){
@@ -66,6 +66,18 @@ static inline void ggMatSampleLit(int mat,int u,int v,uint32_t seed,int detail,
             else if(bed==1||joint<=2)shade-=10;
             if(((block>>11)&7u)==0u){rr-=6;gg-=2;bb-=7;}
         }
+        break;
+    }
+    case GG_MAT_PAVING:{
+        // Staggered square setts across tile boundaries. Lit edges and
+        // dark joints read as masonry while the surface follows the grade.
+        int row=v>>4,across=u+((row&1)<<3);
+        int bed=v&15,joint=across&15;
+        int tint=(int)(((uint32_t)(across>>4)*13u^
+                        (uint32_t)row*23u)&15u)-7;
+        shade=bed==0||joint==0?-33:tint+grain/3;
+        if(bed==1||joint==1)shade-=7;
+        if(bed&&joint&&(bed==15||joint==15))shade+=12;
         break;
     }
     case GG_MAT_WOOD:{

@@ -213,12 +213,13 @@ static int marchSettlements(void){
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race==0){ home=v; break; }
     int nearCenter=home>=0&&abs(vil[home].x-WW/2)<=WW/32&&abs(vil[home].y-WH/2)<=WH/32;
     int villages=nVilOn;
-    int keeps=0,gates=0,walls=0,estates=0,families=0;
+    int keeps=0,gates=0,walls=0,estates=0,families=0,wells=0;
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
         int kind=bld[y][x];
         keeps+=kind==B_KEEP;
         gates+=ggBuildingIsGate(kind);
         walls+=kind==B_WALL;
+        wells+=kind==B_WELL;
         int mask=ggResidenceMask(x,y,kind);
         estates+=kind==B_ESTATE&&mask==7;
         families+=(kind==B_HOUSE_EW&&mask==1)||(kind==B_HOUSE_NS&&mask==2);
@@ -231,9 +232,9 @@ static int marchSettlements(void){
     int emptyHomes=0;
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++)emptyHomes+=ggBuildingIsHome(bld[y][x]);
     int ok=nearCenter&&villages>=5&&nVilOn==0&&!emptyHomes&&
-           keeps>=1&&gates==2*keeps&&walls==14*keeps&&estates>=3&&families>=3;
-    printf("Riven March settlements: %s (%d villages, %d keeps, %d gates, %d walls, %d estates, %d family houses)\n",
-           ok?"OK":"FAIL",villages,keeps,gates,walls,estates,families);
+           keeps>=1&&gates==2*keeps&&walls==14*keeps&&estates>=3&&families>=3&&wells>=1;
+    printf("Riven March settlements: %s (%d villages, %d keeps, %d gates, %d walls, %d estates, %d family houses, %d civic courts)\n",
+           ok?"OK":"FAIL",villages,keeps,gates,walls,estates,families,wells);
     return !ok;
 }
 
@@ -245,7 +246,7 @@ static int constructionTool(void){
         occ[y+dy][x+dx]=0;
     }
     for(int i=0;i<PW_N;i++)if(pw[i].kind==PK_BUILD)power=i;
-    constructionMode=GG_CONSTRUCTION_N-1;
+    for(int i=0;i<GG_CONSTRUCTION_N;i++)if(constructionTypes[i]==B_KEEP)constructionMode=i;
     world[y+2][x+2]=T_WATER;
     usePower(x,y,1);
     int partial=0;
@@ -269,7 +270,7 @@ static int constructionTool(void){
     usePower(x+1,y,1);
     int motion=!walkable(&sp[0],x,y+2)&&walkable(&sp[0],x+2,y);
     int ok=!partial&&!dragged&&built&&restored&&motion&&protected&&
-           !bld[y][x+3]&&!bld[y][x+1];
+           bld[y][x+3]==B_PAVING&&bld[y][x+1]==B_PAVING&&walkable(&sp[0],x+1,y);
     printf("Construction tool: %s (atomic castle, save round trip, pawn traversal)\n",
            ok?"OK":"FAIL");
     return !ok;
@@ -330,6 +331,86 @@ static int marchDistrictGrades(void){
     return !(level&&steep);
 }
 
+static int marketSquareConstruction(void){
+    const int x=25,y=46;
+    for(int dy=-4;dy<=4;dy++)for(int dx=-4;dx<=4;dx++){
+        world[y+dy][x+dx]=T_GRASS;
+        bld[y+dy][x+dx]=bldv[y+dy][x+dx]=0;
+        occ[y+dy][x+dx]=0;
+    }
+    int choice=-1;
+    for(int i=0;i<GG_CONSTRUCTION_N;i++)if(!strcmp(constructionName(i),"MARKET SQUARE"))choice=i;
+    if(choice<0){ puts("Market square: FAIL (missing BUILD plan)");return 1; }
+    for(int i=0;i<PW_N;i++)if(pw[i].kind==PK_BUILD)power=i;
+    constructionMode=choice;
+    constructionTurn=0;
+    world[y+1][x+2]=T_WATER;
+    usePower(x,y,1);
+    int untouched=bld[y][x]==B_NONE&&bld[y-2][x-1]==B_NONE&&world[y+2][x]==T_GRASS;
+    world[y+1][x+2]=T_GRASS;
+    usePower(x,y,1);
+    int built=bld[y-2][x-1]==B_MARKET&&bld[y-2][x+1]==B_INN&&bld[y][x]==B_WELL&&
+              bld[y+1][x+2]==B_WORKSHOP&&bld[y+2][x]==B_PAVING&&
+              world[y+2][x]==T_DIRT&&bld[y-2][x-2]==B_NONE;
+    int walking=walkable(&sp[0],x,y+2)&&!ggOpenBuildingPlot(x,y+2)&&
+                !ggOpenBuildingPlot(x,y+3);
+    const char *path="/tmp/gg-market-square-test.sav";
+    int saved=saveGameRaw(path);
+    bld[y][x]=bld[y+2][x]=B_NONE;
+    int persisted=saved&&loadGameRaw(path)&&bld[y][x]==B_WELL&&bld[y+2][x]==B_PAVING;
+    remove(path);
+    for(int dy=-4;dy<=4;dy++)for(int dx=-4;dx<=4;dx++){
+        world[y+dy][x+dx]=T_GRASS;
+        bld[y+dy][x+dx]=bldv[y+dy][x+dx]=0;
+    }
+    constructionTurn=1;
+    GgBuildPlan plan;
+    int fit=constructionPlan(&plan,x,y)==GG_SITE_CLEAR;
+    world[y][x-3]=T_WATER;
+    constructionFinish(&plan,x,y);
+    int rechecked=fit&&!bld[y][x]&&!bld[y-1][x+2];
+    world[y][x-3]=T_GRASS;
+    usePower(x,y,1);
+    int rotated=bld[y-1][x+2]==B_MARKET&&bld[y+1][x+2]==B_INN&&
+                bld[y][x-2]==B_PAVING&&bld[y-2][x-1]==B_NONE;
+    setCell(x-2,y,T_WATER);
+    int washed=bld[y][x-2]==B_NONE;
+    constructionTurn=-1;
+    int ok=untouched&&built&&walking&&persisted&&rechecked&&rotated&&washed;
+    printf("Market square: %s (atomic site, rotation, saved courtyard and rechecked entrance)\n",
+           ok?"OK":"FAIL");
+    return !ok;
+}
+
+static int civicTownGrowth(void){
+    const int x=84,y=48,v=VIL_N-1;
+    int ok=1;
+    for(int legacy=0;legacy<2;legacy++){
+        for(int dy=-9;dy<=9;dy++)for(int dx=-9;dx<=9;dx++){
+            world[y+dy][x+dx]=T_GRASS;
+            bld[y+dy][x+dx]=bldv[y+dy][x+dx]=0;
+            occ[y+dy][x+dx]=0;
+        }
+        vil[v]=(Vil){.on=1,.race=0,.x=x,.y=y,.lvl=3,.stock=100};
+        vilBf[v]=GG_BF_WORKSHOP|GG_BF_INN;
+        if(legacy){
+            putBld(v,x,y,B_MARKET);
+            putBld(v,x+1,y,B_BARRACKS);
+            vilBf[v]|=GG_BF_MARKET|GG_BF_BARRACKS;
+        }
+        ggSettlementGrow(v,20);
+        int markets=0,wells=0,paving=0;
+        for(int dy=-9;dy<=9;dy++)for(int dx=-9;dx<=9;dx++)if(bldv[y+dy][x+dx]==v+1){
+            int kind=bld[y+dy][x+dx];
+            markets+=kind==B_MARKET;wells+=kind==B_WELL;paving+=kind==B_PAVING;
+        }
+        ok&=markets==1&&wells==1&&paving>5&&(vilBf[v]&GG_BF_MARKET)&&
+            vil[v].stock==(legacy?42:46);
+    }
+    printf("Civic growth: %s (market square and a guild yard in a legacy town)\n",ok?"OK":"FAIL");
+    return !ok;
+}
+
 int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     int bad=0, n=(int)(sizeof base/sizeof base[0]); for(int i=0;i<n;i++){ cEdge=(int)base[i][0]; gW=gH=planetSize=(int)base[i][1]; cShape=(int)base[i][2]; genWorld(base[i][3]*977u); if(gh()!=base[i][4]) bad++; }
     printf("planets with COASTS and MOUNTAINS normal identical to before: %d of %d\n",n-bad,n); if(bad){ fails++; printf("  FAIL: the generator changed\n"); }
@@ -348,4 +429,6 @@ int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     fails+=constructionTool();
     fails+=residentialConstruction();
     fails+=marchDistrictGrades();
+    fails+=marketSquareConstruction();
+    fails+=civicTownGrowth();
     printf("%s\n",fails?"GEN FAIL":"GEN OK"); return fails?1:0; }

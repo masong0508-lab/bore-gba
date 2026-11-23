@@ -82,6 +82,96 @@ static void meshResidenceFootprint(unsigned char *pixels){
     bld[y][x]=bld[y+1][x]=bld[y+1][x+1]=B_NONE;
     ggExplore=previous;
 }
+static unsigned long long meshSurfaceHash(const void *data,size_t size){
+    const unsigned char *p=data;
+    unsigned long long hash=0;
+    for(size_t i=0;i<size;i++)hash=hash*131+p[i];
+    return hash;
+}
+static void meshPavedWalk(unsigned char *pixels){
+    const int tx=28,ty=26,cx=tx*256+128,cy=ty*256+128;
+    GgExplore3D previous=ggExplore;
+    int quality=ggExpScenicQuality,scenery=ggExpSceneryEnabled;
+    world[ty][tx]=T_DIRT;
+    world[ty-1][tx]=T_HILL;
+    ggExplore.px=cx-2*256;ggExplore.py=cy;ggExplore.angle=0;
+    ggExpSceneryEnabled=0;
+    for(int q=1;q<=2;q++){
+        ggExpScenicQuality=q;
+        ggMeshWorldDraw(pixels,0);
+        GgMeshContext *m=&ggMeshContext;
+        size_t depthBytes=(size_t)m->w*m->h*sizeof *m->depth;
+        unsigned long long depth=meshSurfaceHash(m->depth,depthBytes);
+        unsigned long long color=meshSurfaceHash(pixels,400*240*3);
+        int count=ggMeshBuildingsDrawn;
+        bld[ty][tx]=B_PAVING;
+        ggMeshWorldDraw(pixels,0);
+        meshRequire(depth==meshSurfaceHash(m->depth,depthBytes)&&
+                    count==ggMeshBuildingsDrawn,
+                    "paving changed the depth of the underlying terrain");
+        meshRequire(color!=meshSurfaceHash(pixels,400*240*3),
+                    "paving blends into dirt at a supported detail level");
+        meshRequire(q!=1||m->textureSamples==0,
+                    "paving added perspective texture work to reduced detail");
+        bld[ty][tx]=B_NONE;
+    }
+    bld[ty][tx]=B_PAVING;
+    meshRequire(ggExpWalkable(tx,ty,ggExpGround(T_GRASS),0)&&
+                ggChronLand(tx,ty),"paving blocks player or Chronicle travel");
+    meshRequire(ggExpLineClear(tx-2,ty,tx+1,ty)&&
+                !ggChronBuildingAt(cx,cy,1,1),
+                "paving obstructs line of sight or combat at ground level");
+    int targetX,targetY;
+    ggExpTarget(&targetX,&targetY);
+    meshRequire(targetX==tx+1&&targetY==ty,
+                "paving blocks the aim ray before its reachable target");
+    ggChron.routeOx=tx-5;ggChron.routeOy=ty-5;
+    ggChron.px[0]=(short)(tx+1);ggChron.py[0]=(short)ty;
+    ggChronNavBuild(0);
+    meshRequire(ggChronNavDistance[5*GG_CHRON_GRID+5]==1,
+                "the Chronicle navigation cache skips a paved cell");
+    bld[ty][tx]=B_NONE;
+    world[ty][tx]=world[ty-1][tx]=T_GRASS;
+    ggExpScenicQuality=quality;ggExpSceneryEnabled=scenery;
+    ggExplore=previous;
+}
+static void meshWellCover(unsigned char *pixels){
+    const int tx=28,ty=26,cx=tx*256+128,cy=ty*256+128;
+    int ground=ggExpGround(T_GRASS);
+    bld[ty][tx]=B_WELL;
+    meshRequire(!ggExpWalkable(tx,ty,ground,0)&&!ggChronLand(tx,ty),
+                "the well does not reserve its tile against walking");
+    meshRequire(ggChronBuildingAt(cx-49,cy,6,1)&&
+                !ggChronBuildingAt(cx,cy,6,1)&&
+                !ggChronBuildingAt(cx-60,cy-60,6,1)&&
+                !ggChronBuildingAt(cx-49,cy,GG_WORLD_EYE_HEIGHT,1),
+                "well cover does not follow a low, hollow, chamfered ring");
+    meshRequire(ggChronBuildingAt(cx-58,cy,9,1)&&
+                !ggChronBuildingAt(cx-58,cy,5,1),
+                "the projecting coping gives cover below its actual height");
+    meshRequire(!ggChronCombatLine(cx-256,cy,ground+6,cx+256,cy,ground+6)&&
+                ggChronCombatLine(cx-256,cy,ground+GG_WORLD_EYE_HEIGHT,
+                                  cx+256,cy,ground+GG_WORLD_EYE_HEIGHT),
+                "shots do not distinguish the well rim from the open air above it");
+    for(int q=1;q<=2;q++){
+        GgMeshContext *m=&ggMeshContext;
+        ggMeshBegin(m,pixels,q,cx-384,cy,ground+6,4096,0,42,65,89);
+        ggMeshBuilding(m,tx,ty,B_WELL,ground,q==2);
+        meshRequire(m->depth[m->horizon*m->w+m->w/2]>180&&
+                    m->triangles<=76,"the well lost its rim or exceeded its mesh budget");
+        ggMeshBegin(m,pixels,q,cx-384,cy,ground+GG_WORLD_EYE_HEIGHT,
+                    4096,0,42,65,89);
+        ggMeshBuilding(m,tx,ty,B_WELL,ground,q==2);
+        meshRequire(!m->depth[m->horizon*m->w+m->w/2],
+                    "the low rim visually covers a standing eye-height ray");
+    }
+    world[ty][tx-1]=T_SAND;
+    int verge=ggMeshGroundAtQ8(cx-53,cy);
+    meshRequire(verge<ground&&ggChronBuildingAt(cx-53,cy,verge,0),
+                "well cover leaves a gap along its downhill foundation");
+    world[ty][tx-1]=T_GRASS;
+    bld[ty][tx]=B_NONE;
+}
 static void meshEntrances(unsigned char *pixels){
     GgMeshContext*m=&ggMeshContext;
     int x=65*256,y=64*256;
@@ -339,6 +429,8 @@ int main(void){
     static unsigned char pixels[400*240*3];
     meshHumanPerspective(pixels);
     meshResidenceFootprint(pixels);
+    meshPavedWalk(pixels);
+    meshWellCover(pixels);
     meshEntrances(pixels);
     meshBuildingSilhouettes(pixels);
     meshPorticoRotation(pixels);

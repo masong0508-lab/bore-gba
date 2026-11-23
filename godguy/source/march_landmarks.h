@@ -111,11 +111,36 @@ static void marchDistricts(void){
         }
         if(x<0)continue;
         // Both residences were checked together and have disjoint plots.
-        for(int dx=-2;dx<=2;dx++)setCell(x+dx,y,T_DIRT);
+        for(int dx=-3;dx<=3;dx++){
+            if(abs(dx)<=2)setCell(x+dx,y,T_DIRT);
+            putBld(-1,x+dx,y,B_PAVING);
+        }
         ggPlaceResidence(-1,x-2,y-2,B_MANOR);
         ggPlaceResidence(-1,x+1,y+1,B_HOUSE);
         putBld(-1,x+2,y-1,marchDistrictSites[i].civic);
         placed[n][0]=(coord_t)x;placed[n][1]=(coord_t)y;n++;
+    }
+}
+
+static void marchCivicCenters(void){
+    static const struct { u16 x,y,minSize; u8 kind,turn; } centers[]={
+        {442,418,128,GG_MARKET_SQUARE,1},
+        {690,533,384,GG_GUILD_YARD,3},
+        {340,635,768,GG_GARDEN_COURT,2}
+    };
+    for(unsigned i=0;i<sizeof centers/sizeof *centers;i++){
+        if(WW<centers[i].minSize)continue;
+        int sx=centers[i].x*WW/MARCH_SPAN,sy=centers[i].y*WH/MARCH_SPAN;
+        int radius=WW/60+8,x=-1,y=-1,best=radius*radius+1;
+        GgBuildPlan plan;
+        ggCompoundPlan(&plan,centers[i].kind,centers[i].turn);
+        for(int dy=-radius;dy<=radius;dy++)for(int dx=-radius;dx<=radius;dx++){
+            int d=dx*dx+dy*dy,nx=sx+dx,ny=sy+dy;
+            if(d>=best||!ggOpenBuildingPlot(nx,ny)||vilAny(nx,ny,5)>=0)continue;
+            if(ggPlanCheck(&plan,nx,ny)!=GG_SITE_CLEAR)continue;
+            best=d;x=nx;y=ny;
+        }
+        if(x>=0)ggPlanCommit(&plan,-1,x,y);
     }
 }
 
@@ -145,6 +170,6 @@ static void marchLandmarks(void){
             }
         if(x>=0)bld[y][x]=(u8)sites[i][2];
     }
-    if(cLife>0)marchDistricts();
+    if(cLife>0){ marchDistricts();marchCivicCenters(); }
 }
 #endif
