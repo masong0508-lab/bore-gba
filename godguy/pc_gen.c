@@ -213,18 +213,27 @@ static int marchSettlements(void){
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race==0){ home=v; break; }
     int nearCenter=home>=0&&abs(vil[home].x-WW/2)<=WW/32&&abs(vil[home].y-WH/2)<=WH/32;
     int villages=nVilOn;
-    int keeps=0,gates=0,walls=0;
+    int keeps=0,gates=0,walls=0,estates=0,families=0;
     for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
-        keeps+=bld[y][x]==B_KEEP;
-        gates+=ggBuildingIsGate(bld[y][x]);
-        walls+=bld[y][x]==B_WALL;
+        int kind=bld[y][x];
+        keeps+=kind==B_KEEP;
+        gates+=ggBuildingIsGate(kind);
+        walls+=kind==B_WALL;
+        int mask=ggResidenceMask(x,y,kind);
+        estates+=kind==B_ESTATE&&mask==7;
+        families+=(kind==B_HOUSE_EW&&mask==1)||(kind==B_HOUSE_NS&&mask==2);
     }
     cLife=0;
+    seedFix=4242;
     newWorld();
     cLife=2;
-    int ok=nearCenter&&villages>=5&&nVilOn==0&&keeps>=1&&gates==2*keeps&&walls==14*keeps;
-    printf("Riven March settlements: %s (%d villages, %d keeps, %d gates, %d walls)\n",
-           ok?"OK":"FAIL",villages,keeps,gates,walls);
+    seedFix=0;
+    int emptyHomes=0;
+    for(int y=0;y<WH;y++)for(int x=0;x<WW;x++)emptyHomes+=ggBuildingIsHome(bld[y][x]);
+    int ok=nearCenter&&villages>=5&&nVilOn==0&&!emptyHomes&&
+           keeps>=1&&gates==2*keeps&&walls==14*keeps&&estates>=3&&families>=3;
+    printf("Riven March settlements: %s (%d villages, %d keeps, %d gates, %d walls, %d estates, %d family houses)\n",
+           ok?"OK":"FAIL",villages,keeps,gates,walls,estates,families);
     return !ok;
 }
 
@@ -266,6 +275,61 @@ static int constructionTool(void){
     return !ok;
 }
 
+static int residentialConstruction(void){
+    const int x=40,y=30,mx=48,my=30;
+    for(int row=y;row<=y+2;row++)for(int col=x;col<=mx+2;col++){
+        world[row][col]=T_GRASS;
+        bld[row][col]=bldv[row][col]=0;
+        occ[row][col]=0;
+    }
+    constructionMode=0;
+    world[y][x+1]=T_WATER;
+    usePower(x,y,1);
+    int house=bld[y][x]==B_HOUSE_NS&&bld[y+1][x]==B_WING_S&&
+              ggResidenceMask(x,y,bld[y][x])==GG_RES_SOUTH;
+    constructionMode=1;
+    world[my+1][mx+1]=T_WATER;
+    usePower(mx,my,1);
+    int atomic=!bld[my][mx]&&!bld[my][mx+1]&&!bld[my+1][mx];
+    world[my+1][mx+1]=T_GRASS;
+    usePower(mx,my,1);
+    int estate=bld[my][mx]==B_ESTATE&&ggResidenceMask(mx,my,B_ESTATE)==7;
+    const char *path="/tmp/gg-residential-lots-test.sav";
+    int saved=saveGameRaw(path);
+    bld[my+1][mx+1]=B_NONE;
+    int restored=saved&&loadGameRaw(path)&&ggResidenceMask(mx,my,B_ESTATE)==7;
+    remove(path);
+    u8 owner=bldv[my][mx];
+    bldv[my][mx+1]=(u8)(owner^1u);
+    int rootX,rootY;
+    int separate=ggResidenceMask(mx,my,B_ESTATE)==(GG_RES_SOUTH|GG_RES_CORNER)&&
+                 !ggResidenceResolveWing(mx+1,my,B_WING_E,&rootX,&rootY);
+    bldv[my][mx+1]=owner;
+    for(int i=0;i<PW_N;i++)if(pw[i].kind==PK_INSPECT)power=i;
+    usePower(mx+1,my,1);
+    int inspectedEstate=owner||!strcmp(info,"MANOR ESTATE");
+    razeAt(mx+1,my,256);
+    int damage=bld[my][mx+1]==B_RUIN&&
+               ggResidenceMask(mx,my,B_ESTATE)==(GG_RES_SOUTH|GG_RES_CORNER);
+    int ok=house&&atomic&&estate&&restored&&separate&&inspectedEstate&&damage;
+    printf("Residential lots: %s (directional house, estate, owner, inspection, save and damage)\n",
+           ok?"OK":"FAIL");
+    return !ok;
+}
+
+static int marchDistrictGrades(void){
+    const int x=64,y=32;
+    for(int dy=-4;dy<=4;dy++)for(int dx=-4;dx<=4;dx++){
+        world[y+dy][x+dx]=T_GRASS;
+        bld[y+dy][x+dx]=occ[y+dy][x+dx]=0;
+    }
+    int level=marchDistrictSite(x,y);
+    world[y-3][x+1]=T_SNOW;
+    int steep=!marchDistrictSite(x,y);
+    printf("District approaches: %s (reject an unclimbable ring)\n",level&&steep?"OK":"FAIL");
+    return !(level&&steep);
+}
+
 int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     int bad=0, n=(int)(sizeof base/sizeof base[0]); for(int i=0;i<n;i++){ cEdge=(int)base[i][0]; gW=gH=planetSize=(int)base[i][1]; cShape=(int)base[i][2]; genWorld(base[i][3]*977u); if(gh()!=base[i][4]) bad++; }
     printf("planets with COASTS and MOUNTAINS normal identical to before: %d of %d\n",n-bad,n); if(bad){ fails++; printf("  FAIL: the generator changed\n"); }
@@ -282,4 +346,6 @@ int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     fails+=marchRoutesAtExtremes();
     fails+=marchSettlements();
     fails+=constructionTool();
+    fails+=residentialConstruction();
+    fails+=marchDistrictGrades();
     printf("%s\n",fails?"GEN FAIL":"GEN OK"); return fails?1:0; }

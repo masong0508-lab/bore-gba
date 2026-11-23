@@ -416,6 +416,7 @@ static u16*mapPtr;
 #endif
 static int winX=-99, winY=-99;
 static u8 bld[MAXD][MAXD], bldv[MAXD][MAXD];   // what stands on a tile (B_*) and which village owns it (+1)
+#include "residential_plots.h"
 static int ggFortificationsPresent;
 static u8 vilRace(int v);
 // Transition tiles: where two kinds of ground meet, the "stronger" one bleeds a dithered fringe into the other, and water gets a foam line on the shore.
@@ -637,10 +638,39 @@ static int ggFortProtectedPlot(int x,int y){
 static int ggOpenBuildingPlot(int x,int y){
     return buildable(x,y)&&!occ[y][x]&&!ggFortProtectedPlot(x,y);
 }
+static int ggResidenceWingPlan(int x,int y,int type){
+    int east=ggOpenBuildingPlot(x+1,y),south=ggOpenBuildingPlot(x,y+1);
+    if(type==B_MANOR)return east&&south&&ggOpenBuildingPlot(x+1,y+1)?B_ESTATE:B_NONE;
+    if(!east)return south?B_HOUSE_NS:B_NONE;
+    if(!south)return B_HOUSE_EW;
+    int streetNS=world[y][x-1]==T_DIRT||world[y][x+2]==T_DIRT;
+    int streetEW=world[y-1][x]==T_DIRT||world[y+2][x]==T_DIRT;
+    if(streetNS!=streetEW)return streetNS?B_HOUSE_NS:B_HOUSE_EW;
+    return (hsh(x,y,81)&1)?B_HOUSE_EW:B_HOUSE_NS;
+}
+static int ggResidencePlan(int x,int y,int type){
+    if((type!=B_HOUSE&&type!=B_MANOR)||!ggOpenBuildingPlot(x,y))return B_NONE;
+    return ggResidenceWingPlan(x,y,type);
+}
+static void ggWriteResidence(int owner,int x,int y,int plan){
+    KD_DIRTY();
+    putBld(owner,x,y,plan);
+    if(plan!=B_HOUSE_NS)putBld(owner,x+1,y,B_WING_E);
+    if(plan!=B_HOUSE_EW)putBld(owner,x,y+1,B_WING_S);
+    if(plan==B_ESTATE)putBld(owner,x+1,y+1,B_WING_SE);
+}
+static int ggPlaceResidence(int owner,int x,int y,int type){
+    int plan=ggResidencePlan(x,y,type);
+    if(!plan)return 0;
+    ggWriteResidence(owner,x,y,plan);
+    return 1;
+}
 static int placeBld(int v,int type,int cost){
     Vil*V=&vil[v]; if(V->stock<cost) return 0; int R=3+V->lvl*3;
     for(int k=0;k<14;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(!ggOpenBuildingPlot(x,y)) continue; if(ggBuildingIsHome(type)){ int near=0; for(int d=0;d<4;d++) if(bld[y+dys[d]][x+dxs[d]]) near=1; if(!near&&V->houses>1) continue; }
-        putBld(v,x,y,type); V->stock-=(u16)cost; return 1; }
+        if(type==B_HOUSE||type==B_MANOR){ if(!ggPlaceResidence(v,x,y,type))continue; }
+        else putBld(v,x,y,type);
+        V->stock-=(u16)cost; return 1; }
     return 0;
 }
 #include "settlement_buildings.h"
@@ -748,12 +778,16 @@ static void vilTick(int v){ KD_DIRTY();
     else if(V->houses<2||pop>V->houses*3){ int choice=(int)(rnd()&3);
         int home=choice?B_HOUSE:B_HUT;
         if(choice==3&&V->lvl>=2&&V->stock>=24)home=B_MANOR;
-        if(placeBld(v,home,home==B_MANOR?24:12)) V->houses++; }
+        int built=placeBld(v,home,home==B_MANOR?24:12);
+        if(!built&&home==B_MANOR)built=placeBld(v,B_HOUSE,12);
+        if(!built&&home!=B_HUT&&V->houses<5)built=placeBld(v,B_HUT,12);
+        if(built) V->houses++; }
     else if(V->farms*2<V->houses&&V->stock>=10){ if(placeBld(v,B_FARM,10)) V->farms++; }
     else if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25){ if(placeBld(v,B_TOWER,25)) V->towers++; }
     if(V->lvl==1&&V->houses>=6&&V->stock>=40){ if(placeBld(v,B_HALL,40)) V->lvl=2; }
     else if(V->lvl==2&&V->houses>=14&&V->stock>=80){ if(placeBld(v,B_HALL,80)) V->lvl=3; }
     ggSettlementGrow(v,pop);
+    ggSettlementExpandHomes(v,pop);
     // war: the restless races pick a neighbour of another people; it ends when one side is gone
     if(V->foe&&(!vil[V->foe-1].on)) V->foe=0;
     if(V->foe&&(rnd()&15)==0&&pop<3) V->foe=0;   // a beaten army goes home
@@ -1617,7 +1651,10 @@ enum { GG_CONSTRUCTION_N=sizeof constructionTypes/sizeof *constructionTypes };
 static int constructionMode;
 static const char *constructionName(int mode){
     int kind=constructionTypes[mode];
-    return kind==B_KEEP?"CASTLE COMPOUND":ggBuildingName(kind);
+    if(kind==B_KEEP)return "CASTLE COMPOUND";
+    if(kind==B_HOUSE)return "FAMILY HOUSE";
+    if(kind==B_MANOR)return "MANOR ESTATE";
+    return ggBuildingName(kind);
 }
 static void constructionApply(int x,int y){
     int kind=constructionTypes[constructionMode],owner=vilAny(x,y,12);
@@ -1626,6 +1663,12 @@ static void constructionApply(int x,int y){
             siprintf(info,"CASTLE NEEDS A CLEAR 5X5 SITE");
             return;
         }
+    }else if(kind==B_HOUSE||kind==B_MANOR){
+        if(!ggPlaceResidence(owner,x,y,kind)){
+            siprintf(info,kind==B_MANOR?"MANOR NEEDS A CLEAR 2X2 LOT":"HOUSE NEEDS TWO CLEAR PLOTS");
+            return;
+        }
+        if(owner>=0&&vil[owner].houses<255)vil[owner].houses++;
     }else{
         if(buildable(x,y)&&ggFortProtectedPlot(x,y)){
             siprintf(info,"KEEP THE CASTLE APPROACH CLEAR");
@@ -1722,12 +1765,31 @@ static void usePower(int tx,int ty,int fresh){
         case PK_NUKE: if(fresh&&dx==0&&dy==0) nukeAt(x,y,5+2*brush>18?18:5+2*brush); break;
         case PK_PLAGUE: if(occ[y][x]){ if(gx.lPlague==1){ if(fresh&&dx==0&&dy==0) siprintf(info,"THE LAW FORBIDS PLAGUE"); } else if(infect(occ[y][x]-1)&&fresh&&dx==0&&dy==0) siprintf(info,"THE PLAGUE SPREADS"); } break;
         case PK_CURSE: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,5); if(v>=0){ vil[v].stock=(u16)(vil[v].stock>150?vil[v].stock-150:0); siprintf(info,"THE VILLAGE STORE ROTS"); } } if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)(c->hp/2+1); c->food=(u8)(c->food/2); } break;
-        case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]){ inspected=occ[y][x]-1; inspKind=1; inspIdx=inspected; inspT=420; } else if(bldv[y][x]){ int v=bldv[y][x]-1; inspKind=2; inspIdx=v; inspT=420; char nm[24]; vilName(v,nm); { char kn[24]=""; if(vilK[v]) kdName(vilK[v]-1,kn); siprintf(info,"%s %s POP%d [%s]",arch[vil[v].race].nm,nm,vil[v].pop,kn); } inspected=-2; } else if(bld[y][x]){ siprintf(info,"%s",ggBuildingName(bld[y][x])); } } break; } }
+        case PK_INSPECT:
+            if(dx!=0||dy!=0)break;
+            if(occ[y][x]){
+                inspected=occ[y][x]-1;inspKind=1;inspIdx=inspected;inspT=420;
+            }else if(bldv[y][x]&&bldv[y][x]<=VIL_N){
+                int v=bldv[y][x]-1;
+                char nm[24],kn[24]="";
+                vilName(v,nm);
+                if(vilK[v])kdName(vilK[v]-1,kn);
+                siprintf(info,"%s %s POP%d [%s]",arch[vil[v].race].nm,nm,vil[v].pop,kn);
+                inspected=-2;inspKind=2;inspIdx=v;inspT=420;
+            }else if(bld[y][x]){
+                int rootX,rootY;
+                int parent=ggResidenceResolveWing(x,y,bld[y][x],&rootX,&rootY);
+                siprintf(info,"%s",ggBuildingName(parent?parent:bld[y][x]));
+                inspected=-2;inspKind=0;inspT=0;
+            }else if(inspected==-2)inspected=-1;
+            break;
+        } }
     if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[48]; crName(c,nm); siprintf(info,"%.30s HP%d/%d",nm,c->hp,maxHp(c)); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
 }
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
+#include "world_height.h"
 #include "march_landmarks.h"
 static void newWorld(void){
     mapPinMask=0;

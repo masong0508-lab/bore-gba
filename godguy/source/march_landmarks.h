@@ -55,6 +55,70 @@ static void marchFort(int surveyX,int surveyY,int gate,int civic){
     putBld(-1,x-1,y-1,civic);
 }
 
+// Survey centers place services on both banks and on the approaches to the
+// woods and bay. Extra stops on larger maps keep the distances between visits
+// manageable while leaving each settlement its own patch of country.
+static const struct { u16 x,y,minSize; u8 civic; } marchDistrictSites[]={
+    {402,491,128,B_WORKSHOP}, {638,492,128,B_MARKET},
+    {574,671,128,B_INN},     {221,442,128,B_INN},
+    {433,351,384,B_MARKET},  {679,666,384,B_WORKSHOP},
+    {283,698,768,B_MARKET},  {706,354,768,B_INN},
+};
+
+static int marchDistrictWalkway(int x,int y){
+    return x>1&&y>1&&x<WW-2&&y<WH-2&&!bld[y][x]&&
+           ((M_LAND>>world[y][x])&1);
+}
+
+static int marchDistrictGrade(int x,int y,int nx,int ny){
+    return abs(ggExpGround(world[y][x])-ggExpGround(world[ny][nx]))<=GG_WORLD_WALK_RISE;
+}
+
+static int marchDistrictSite(int x,int y){
+    // A lane divides the houses and the shop. Its approaches and the whole
+    // outside ring stay open, including a path around either end of the lane.
+    if(!ggOpenBuildingPlot(x+2,y-1)||!ggResidencePlan(x-2,y-2,B_MANOR)||
+       !ggResidencePlan(x+1,y+1,B_HOUSE)||vilAny(x,y,5)>=0)return 0;
+    for(int i=-3;i<=3;i++){
+        if(!ggOpenBuildingPlot(x+i,y)||!marchDistrictWalkway(x+i,y-3)||
+           !marchDistrictWalkway(x+i,y+3)||!marchDistrictWalkway(x-3,y+i)||
+           !marchDistrictWalkway(x+3,y+i))return 0;
+        if(i>-3&&(!marchDistrictGrade(x+i,y-3,x+i-1,y-3)||
+                  !marchDistrictGrade(x+i,y+3,x+i-1,y+3)||
+                  !marchDistrictGrade(x-3,y+i,x-3,y+i-1)||
+                  !marchDistrictGrade(x+3,y+i,x+3,y+i-1)))return 0;
+    }
+    return (marchDistrictWalkway(x-4,y)&&marchDistrictGrade(x-3,y,x-4,y))||
+           (marchDistrictWalkway(x+4,y)&&marchDistrictGrade(x+3,y,x+4,y));
+}
+
+static void marchDistricts(void){
+    enum { N_DISTRICTS=sizeof marchDistrictSites/sizeof *marchDistrictSites };
+    coord_t placed[N_DISTRICTS][2];
+    int n=0, radius=WW/38+11, spacing=8+WW/32;
+    for(int i=0;i<N_DISTRICTS;i++){
+        if(WW<marchDistrictSites[i].minSize)continue;
+        int sx=marchDistrictSites[i].x*WW/MARCH_SPAN;
+        int sy=marchDistrictSites[i].y*WH/MARCH_SPAN;
+        int x=-1,y=-1,best=radius*radius+1;
+        for(int dy=-radius;dy<=radius;dy++)for(int dx=-radius;dx<=radius;dx++){
+            int d=dx*dx+dy*dy,nx=sx+dx,ny=sy+dy;
+            if(d>=best)continue;
+            int k=0;
+            for(;k<n;k++)if(marchDist(nx-placed[k][0],ny-placed[k][1])<spacing)break;
+            if(k!=n||!marchDistrictSite(nx,ny))continue;
+            best=d;x=nx;y=ny;
+        }
+        if(x<0)continue;
+        // Both residences were checked together and have disjoint plots.
+        for(int dx=-2;dx<=2;dx++)setCell(x+dx,y,T_DIRT);
+        ggPlaceResidence(-1,x-2,y-2,B_MANOR);
+        ggPlaceResidence(-1,x+1,y+1,B_HOUSE);
+        putBld(-1,x+2,y-1,marchDistrictSites[i].civic);
+        placed[n][0]=(coord_t)x;placed[n][1]=(coord_t)y;n++;
+    }
+}
+
 static void marchLandmarks(void){
     // Each landmark has its own district. Search the nearby dry ground
     // because river bends, coastlines and vegetation vary by seed.
@@ -81,5 +145,6 @@ static void marchLandmarks(void){
             }
         if(x>=0)bld[y][x]=(u8)sites[i][2];
     }
+    if(cLife>0)marchDistricts();
 }
 #endif

@@ -117,6 +117,21 @@ int main(void){
     require(citizen->food>40&&vil[town].stock<initialStock&&bld[20][22]==B_FARM,
             "farm provisions use real stores and leave the farm standing");
 
+    bld[20][22]=B_INN;bldv[20][22]=0;
+    citizen->hp=(u8)(maxHp(citizen)-20);
+    int injured=citizen->hp;
+    int provisions=citizen->food;
+    initialStock=vil[town].stock;
+    fieldAction();
+    require(citizen->hp>injured&&citizen->food<provisions&&vil[town].stock==initialStock,
+            "the public inn uses the traveler's provisions and leaves village stores alone");
+    citizen->food=16;
+    injured=citizen->hp;
+    fieldAction();
+    require(citizen->hp==injured&&citizen->food==16,
+            "the public inn leaves the traveler's emergency rations alone");
+    citizen->food=(u8)provisions;
+
     bld[20][22]=B_DOCK;bldv[20][22]=0;
     bld[20][31]=B_DOCK;bldv[20][31]=0;
     for(int y=19;y<=21;y++) for(int x=23;x<=30;x++) world[y][x]=T_WATER;

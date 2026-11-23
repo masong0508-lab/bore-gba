@@ -79,4 +79,23 @@ static void ggSettlementGrow(int v,int population){
     }
 }
 
+static void ggSettlementExpandHomes(int v,int population){
+    Vil*V=&vil[v];
+    if(V->lvl<2||population<10||V->stock<12)return;
+    // Upgrade legacy single-plot homes when adjacent land is available.
+    // A few fixed hash probes per city turn keep large worlds bounded.
+    for(unsigned i=0;i<5;i++){
+        unsigned sample=hsh(V->x,V->y,((unsigned)tick>>4)+i);
+        int x=V->x+(int)(sample%13)-6,y=V->y+(int)((sample>>8)%13)-6;
+        if(x<2||y<2||x>=WW-2||y>=WH-2||bldv[y][x]!=v+1||occ[y][x])continue;
+        int type=bld[y][x];
+        if(type!=B_HOUSE&&type!=B_MANOR)continue;
+        int plan=ggResidenceWingPlan(x,y,type);
+        if(!plan)continue;
+        ggWriteResidence(v,x,y,plan);
+        V->stock-=12;
+        return;
+    }
+}
+
 #endif

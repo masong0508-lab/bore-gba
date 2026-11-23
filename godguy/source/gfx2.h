@@ -1,7 +1,8 @@
 // gfx2.h - GodGuy's shared handheld pixel art. Lit clusters, quiet ground,
 // individual settlement silhouettes and connected shorelines use the same
 // 8x8 tiles in DS, DSi and New3DS map modes, including close/micro zoom.
-// Integer maths only (the DS has no FPU). Tile and palette layout is unchanged: ground is still terrain*4+variant, buildings still BT0+type*8+race (the later ones, dock to library, at BT1; see BTILE in main.c).
+// Integer maths only (the DS has no FPU). Ground uses terrain*4+variant.
+// Building tiles use the BT0 and BT1 ranges (see BTILE in main.c).
 // New palette entries (main background): 104..114 details (flowers, hot lava, cactus, cattail), 144..159 roofs (dark, light), 160 window glass.
 #define GFX_PAL_N 192
 #define UI_RESV(i) (((i)>=117&&(i)<=127)||((i)>=161&&(i)<=167))   // toolbar colours (ui.h): the day / night light leaves these slots alone
@@ -165,9 +166,8 @@ static int tileVar(int t,int x,int y){
     if(t==T_FOREST||t==T_JUNGLE||t==T_HILL||t==T_MOUNT||t==T_LAVA) return r;
     int m=vnoise(x,y,6,77); if(m>160&&r<2) return 2; if(m<96&&r<2) return 3; return r&1;
 }
-// Settlement silhouettes occupy the original single tile. Roof ridge,
-// shaded eaves, stone corners, timber framing and warm window points are
-// composed deliberately so a library, temple or tower reads at 1x.
+// Settlement silhouettes use the original 8x8 tiles. Roof ridges,
+// shaded eaves, stone corners and timber framing read at native scale.
 static const char gfxBuildings[B_N][8][9]={
  [B_HUT]={"...R....","..RRr...",".RRrrs..",".srrss..","..wWwq..","..|dwq..","..-ddqq.","...qqq.."},
  [B_HOUSE]={".....m..","..RRrS..",".RRRRrr.","RRRrrrss",".ssssssq",".Wo|dwq.",".WW|dwq.","..--dqq."},
@@ -190,7 +190,15 @@ static const char gfxBuildings[B_N][8][9]={
  // names indicate which way the road passes through the stonework.
  [B_WALL]={"..SSSm..","..S.Sk..","SSSSSSSm","SmmSmkmm","mSkmmkmk","kkkkkkkk","..kmmq..","..mkkq.."},
  [B_GATE_NS]={"S.S..S.S","SSS..SSS","mSk..Smk","SSWkkWSS","mSkddSmk","mSk--Smk","kSk--mkk","qq.--qqq"},
- [B_GATE_EW]={"..SSm...","..Smk...",".SSSkq..","---kk---","...dd...",".SSSkq..","..Smk...","..kqq..."}
+ [B_GATE_EW]={"..SSm...","..Smk...",".SSSkq..","---kk---","...dd...",".SSSkq..","..Smk...","..kqq..."},
+ // North-up home plans. Match roof and wall edges to the shared east,
+ // south and southeast wings so the plots read as a single structure.
+ [B_HOUSE_EW]={"....RRRr","...mRRRr",".RRRRRrr",".sssssss",".W|oWW|o",".Wo|ddW|",".WW|ddWo","..mm--mm"},
+ [B_HOUSE_NS]={"..SRr...",".RRmrrs.",".RRRrrss",".RRRrrss",".RRrrrss",".RRRrrss",".RrRrrss",".RRrrsss"},
+ [B_ESTATE]={"..S.RRRr",".RmRRRRr","RRRRRRrr","mSSSssss","SWWoWW|o","SmWWoW|W","So|WW|WW","mRRrrsss"},
+ [B_WING_E]={"rrrrs...","rrrrrss.","rrrsrssq","ssssssq.","W|oWwmq.","Wo|WWmq.","WW|oWmq.","mmmmkkq."},
+ [B_WING_S]={".RRrrsss",".RRRrrss",".sssssss",".Wo|oWmm",".WW|dWmk",".Wo|dWmk",".mmm--km","..eeqqqq"},
+ [B_WING_SE]={"rrrs....","rrrrrss.","ssssssq.","mW|oWmq.","mWo|Wmq.","mW|oWmq.","m--mmkq.","qqeeqq.."}
 };
 static int bldPix(int type,int race,int x,int y){
     if((unsigned)x>=8||(unsigned)y>=8||type<=B_NONE||type>=B_N)return SH(T_GRASS,4);

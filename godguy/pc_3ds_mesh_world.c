@@ -54,6 +54,34 @@ static void meshHumanPerspective(unsigned char *pixels){
         else frontRed=red;
     }
 }
+static void meshResidenceFootprint(unsigned char *pixels){
+    const int x=22,y=21;
+    GgExplore3D previous=ggExplore;
+    bld[y][x]=B_ESTATE;
+    bld[y][x+1]=B_WING_E;
+    bld[y+1][x]=B_WING_S;
+    bld[y+1][x+1]=B_WING_SE;
+    ggExplore.px=(x-3)*256+128;
+    ggExplore.py=y*256+128;
+    ggExplore.angle=0;
+    ggMeshWorldDraw(pixels,1);
+    meshRequire(ggMeshBuildingsDrawn==1,
+                "the four plots draw the same estate more than once");
+    int eastX=(x+1)*256+128,eastY=y*256+128;
+    int southX=x*256+128,southY=(y+1)*256+128;
+    meshRequire(ggChronBuildingAt(eastX,eastY,12,1)&&
+                ggChronBuildingAt(southX,southY,12,1)&&
+                ggChronBuildingAt(eastX,southY,12,1),
+                "the estate's wings do not provide physical cover");
+    bld[y][x+1]=B_NONE;
+    meshRequire(!ggChronBuildingAt(eastX,eastY,12,1)&&
+                !ggMeshLotSolid(x,y,B_ESTATE,eastX,eastY,
+                                ggExpGround(T_GRASS)+12,ggExpGround(T_GRASS))&&
+                ggChronBuildingAt(southX,southY,12,1),
+                "damage left invisible cover or removed an intact wing");
+    bld[y][x]=bld[y+1][x]=bld[y+1][x+1]=B_NONE;
+    ggExplore=previous;
+}
 static void meshEntrances(unsigned char *pixels){
     GgMeshContext*m=&ggMeshContext;
     int x=65*256,y=64*256;
@@ -310,6 +338,7 @@ int main(void){
     bld[63][70]=B_TEMPLE;
     static unsigned char pixels[400*240*3];
     meshHumanPerspective(pixels);
+    meshResidenceFootprint(pixels);
     meshEntrances(pixels);
     meshBuildingSilhouettes(pixels);
     meshPorticoRotation(pixels);

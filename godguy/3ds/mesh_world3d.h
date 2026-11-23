@@ -734,11 +734,13 @@ static inline int ggMeshBuildingWallTop(GgMeshBuildingFootprint p,int tx,int ty,
 }
 #include "mesh_settlement3d.h"
 #include "mesh_fort3d.h"
+#include "mesh_residential_lots3d.h"
 
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     if(build<=B_NONE||build>=B_N)return;
-    if(ggMeshSettlementDraw(m,tx,ty,build,ground,nearDetail)||
+    if(ggMeshLotDraw(m,tx,ty,build,ground,nearDetail)||
+       ggMeshSettlementDraw(m,tx,ty,build,ground,nearDetail)||
        ggMeshFortDraw(m,tx,ty,build,ground,nearDetail)){
         ggMeshBuildingsDrawn++;
         return;
@@ -1413,8 +1415,12 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     ggMeshSkyWeather(m,ggExplore.frame);
     m->fogMax=(terrain==T_SWAMP||terrain==T_SNOW)?174:132;
     ggMeshTilesDrawn=ggMeshBuildingsDrawn=ggMeshPropsDrawn=0;
-    enum { VIEW_RADIUS=9, VIEW_WIDTH=VIEW_RADIUS*2+1 };
+    enum { VIEW_RADIUS=9, VIEW_WIDTH=VIEW_RADIUS*2+1,
+           LOT_REACH=VIEW_RADIUS+1, LOT_WIDTH=LOT_REACH*2+1 };
     struct { short x,y,forward; } buildings[VIEW_WIDTH*VIEW_WIDTH];
+    // A visible wing queues its parent even when the parent tile is
+    // outside the scan. The extra one-cell border holds those origins.
+    unsigned char buildingSeen[(LOT_WIDTH*LOT_WIDTH+7)/8]={0};
     int buildingCount=0;
     int radius=quality>=2?VIEW_RADIUS:7;
     int propCap=ggFilmScenicBudget(ggExpScenicQuality,0);
@@ -1440,8 +1446,16 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
                forward>=0&&forward<4*256)
                 ggMeshGroundLife(m,tx,ty,t,key);
             if(build){
-                buildings[buildingCount].x=(short)tx;
-                buildings[buildingCount].y=(short)ty;
+                int rootX=tx,rootY=ty;
+                int parent=ggResidenceResolveWing(tx,ty,build,&rootX,&rootY);
+                int slot=(rootY-cy+LOT_REACH)*LOT_WIDTH+rootX-cx+LOT_REACH;
+                unsigned bit=1u<<(slot&7);
+                if(buildingSeen[slot>>3]&bit)continue;
+                buildingSeen[slot>>3]|=(unsigned char)bit;
+                if(parent)forward=((rootX-cx)*256*m->cosine+
+                                   (rootY-cy)*256*m->sine)/4096;
+                buildings[buildingCount].x=(short)rootX;
+                buildings[buildingCount].y=(short)rootY;
                 buildings[buildingCount++].forward=(short)forward;
             }else if(ggExpSceneryEnabled){
                 uint32_t scenic=ggFilmScenicHash(tx,ty,7);

@@ -99,7 +99,7 @@ static int ggChronRoute(void){
             if(dist[q]!=255||!ggChronLand(ox+nx,oy+ny))continue;
             if(!ggChronGateRoute(ox+x,oy+y,ox+nx,oy+ny))continue;
             if(ggExpGround(world[oy+ny][ox+nx])-
-               ggExpGround(world[oy+y][ox+x])>19)continue;
+               ggExpGround(world[oy+y][ox+x])>GG_WORLD_WALK_RISE)continue;
             dist[q]=dist[pos]+1;
             queue[back++]=(unsigned short)q;
         }
@@ -168,7 +168,7 @@ static void ggChronNavBuild(int post){
             // Reverse traversal: a player at the neighbor must be able
             // to climb toward the current cell, not the other way round.
             if(ggExpGround(world[toY][toX])-
-               ggExpGround(world[fromY][fromX])>19)continue;
+               ggExpGround(world[fromY][fromX])>GG_WORLD_WALK_RISE)continue;
             ggChronNavDistance[q]=ggChronNavDistance[pos]+1;
             queue[back++]=(unsigned short)q;
         }
@@ -347,7 +347,7 @@ static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
             if(dist[q]!=255||!ggChronLand(wx,wy))continue;
             if(!ggChronGateRoute(x,y,wx,wy))continue;
             if(ggExpGround(world[wy][wx])-
-               ggExpGround(world[y][x])>19)continue;
+               ggExpGround(world[y][x])>GG_WORLD_WALK_RISE)continue;
             dist[q]=dist[p]+1;
             first[q]=dist[p]?first[p]:(unsigned char)q;
             queue[tail++]=(unsigned char)q;
