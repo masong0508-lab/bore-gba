@@ -23,9 +23,17 @@ int main(void){
     bioClear();
 
     check(!LAWON(LW_RELIEF)&&!LAWON(LW_GREENBELT),"new policies default to off");
-    power=PW_N-1;
+    int field=-1,construction=-1,special=-1;
+    for(int i=0;i<PW_N;i++){
+        if(pw[i].kind==PK_FIELD)field=i;
+        if(pw[i].kind==PK_BUILD)construction=i;
+        if(pw[i].kind==PK_SPECIAL)special=i;
+    }
+    check(field>=0&&construction>=0&&special>=0,"find Field Tools, Build and Special Event");
+    power=field;
     tbBuild();
     check(tbN<12&&tbPos(power)>=0,"field tools are in the starter kit");
+    check(tbPos(construction)<0&&tbHome(construction)==4,"construction starts in Folk");
     tbStep(1);
     check(pw[power].kind==PK_INSPECT,"R wraps inside the Kit");
     tbStep(-1);
@@ -37,9 +45,9 @@ int main(void){
         check(tbPos(i)>=0,"every power is reachable from its tab");
     }
     tbCat=0;
-    favPow[PW_N-2]=1;
+    favPow[special]=1;
     tbBuild();
-    check(tbPos(PW_N-2)>=0,"starred powers appear in Kit");
+    check(tbPos(special)>=0,"starred powers appear in Kit");
     tbCat=0;
     tbBuild();
 
@@ -109,14 +117,15 @@ int main(void){
 
     // Run from a temporary directory like the other shim benchmarks.
     const char *save="field-test.sav";
-    lw[LW_RELIEF]=lw[LW_GREENBELT]=favPow[PW_N-1]=1;
+    lw[LW_RELIEF]=lw[LW_GREENBELT]=favPow[field]=favPow[construction]=1;
     check(saveGameRaw(save),"field save is writable");
     gxDefaults();
-    favPow[PW_N-1]=0;
+    favPow[field]=favPow[construction]=0;
     mapPinMask=1;
     check(loadGameRaw(save),"field save is readable");
     remove(save);
-    check(LAWON(LW_RELIEF)&&LAWON(LW_GREENBELT)&&favPow[PW_N-1],"policy and power favorites round-trip");
+    check(LAWON(LW_RELIEF)&&LAWON(LW_GREENBELT)&&favPow[field]&&favPow[construction],
+          "policy and power favorites round-trip");
     check(!mapPinMask,"session pins reset when another world is loaded");
 
     stUse=0;
