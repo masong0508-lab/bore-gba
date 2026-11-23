@@ -545,8 +545,11 @@ static void meshResidentialApproach(unsigned char *pixels){
                     "house front still projects a long elevated paving slab");
         GgMeshContext*m=&ggMeshContext;
         int center=p.doorCenter,plane=p.doorPlane;
+        // Stand at the *local path* height, not the mountain summit:
+        // a distant eye at the summit projects the lower path offscreen.
+        int pathEye=ggLotPathVertex(&p,plane-42,center).z+12;
         ggMeshBegin(m,pixels,2,rotated?center:plane-350,
-                    rotated?plane-350:center,ground+4,
+                    rotated?plane-350:center,pathEye,
                     rotated?0:4096,rotated?4096:0,42,65,89);
         int prior=m->material,bias=m->depthBias;
         ggLotEntrancePath(m,&p);
