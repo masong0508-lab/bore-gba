@@ -61,10 +61,10 @@ jobs:
         run: |
           set -e
           for target in ds dsi16 new3ds; do
-            flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST -DNDSHW"
+            flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST -DGG_HQVOX"
             case "$target" in
-              dsi16) flags="$flags -DGG_DSI16";;
-              new3ds) flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST -D__3DS__ -DGG_HQVOX";;
+              dsi16) flags="-DNDSSHIM -DGG_PORTABLE_GLOBE_TEST -DGG_DSI16";;
+              new3ds) flags="$flags -D__3DS__";;
             esac
             gcc -O1 -g -std=c11 -w -fsanitize=undefined,bounds -fno-sanitize-recover=all \
               $flags -Icompat -Isource -include unistd.h \
