@@ -499,7 +499,7 @@ static void meshGradeArchitecture(unsigned char *pixels){
             GgMeshContext*m=&ggMeshContext;
             ggMeshBegin(m,pixels,quality,
                         axis?u:p-410,axis?p-410:u,
-                        peak+34,axis?0:4096,axis?4096:0,
+                        peak+4,axis?0:4096,axis?4096:0,
                         42,65,89);
             int priorMaterial=m->material,priorBias=m->depthBias;
             GgMeshFort fort={.mesh=m,.detail=1};
@@ -546,7 +546,7 @@ static void meshResidentialApproach(unsigned char *pixels){
         GgMeshContext*m=&ggMeshContext;
         int center=p.doorCenter,plane=p.doorPlane;
         ggMeshBegin(m,pixels,2,rotated?center:plane-350,
-                    rotated?plane-350:center,ground+38,
+                    rotated?plane-350:center,ground+4,
                     rotated?0:4096,rotated?4096:0,42,65,89);
         int prior=m->material,bias=m->depthBias;
         ggLotEntrancePath(m,&p);
