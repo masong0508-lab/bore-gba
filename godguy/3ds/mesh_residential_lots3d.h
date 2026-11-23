@@ -57,7 +57,11 @@ static void ggLotEntrance(GgLotPlan*p,int x,int y,int floor,int wall){
     ggLotBox(p,x-17,y+width,x,y+width+10,floor+2,top+3,wall);
     ggLotBox(p,x-17,y-width,x,y+width,top,top+3,wall);
     ggLotBox(p,x-9,y-width,x-8,y+width,floor,top,GG_SETTLE_DOOR);
-    ggLotFoot(p,x-29,y-width-8,x-8,y+width+8,floor,GG_SETTLE_FOUNDATION);
+    // The last stone threshold stays structurally solid, but no longer
+    // occupies the entire uphill approach. The earlier stretch becomes
+    // ground-following paving, so residents do not face a floating
+    // rectangular doorstep on a steep two-plot house.
+    ggLotFoot(p,x-19,y-width-8,x-8,y+width+8,floor,GG_SETTLE_FOUNDATION);
 }
 static void ggLotPorch(GgLotPlan*p,int x0,int y0,int x1,int y1,int eave,
                        int wall,int roof,int gabled){
@@ -173,11 +177,53 @@ static void ggLotWindowRow(GgMeshContext*m,const GgLotPlan*p,int axis,int wall,
         }
     }
 }
+// Three continuous, depth-tested stone path sections terminate at the
+// solid entrance threshold. These are thin ground-conforming meshes, not
+// obstruction boxes: player footing, AI routes and projectiles retain the
+// simulation's precise ground and wall collisions.
+static inline GgMeshVertex ggLotPathVertex(const GgLotPlan*p,int plane,int across){
+    GgMeshVertex v=ggMeshFacadePoint(p->rotate,plane,across,0);
+    v.z=ggMeshGroundAtQ8(v.x,v.y)+1;
+    return v;
+}
+static void ggLotEntrancePath(GgMeshContext*m,const GgLotPlan*p){
+    if(m->detailQuality<2)return;
+    int material=m->material,bias=m->depthBias;
+    m->material=GG_MAT_PAVING;m->depthBias=1;
+    for(int i=0;i<3;i++){
+        int a=p->doorPlane-42+i*23/3;
+        int b=p->doorPlane-42+(i+1)*23/3;
+        int l=p->doorCenter-29,r=p->doorCenter+29;
+        GgMeshVertex A=ggLotPathVertex(p,a,l),B=ggLotPathVertex(p,b,l);
+        GgMeshVertex C=ggLotPathVertex(p,b,r),D=ggLotPathVertex(p,a,r);
+        // Each stone stays a separate graded course; alternation adds
+        // recognizable hand-laid paving without texture assets.
+        int shade=(i&1)?8:0;
+        if(p->rotate)ggMeshQuad(m,A,D,C,B,152-shade,141-shade,124-shade);
+        else ggMeshQuad(m,A,B,C,D,152-shade,141-shade,124-shade);
+    }
+    // Two thin mortar joints remain attached to the live terrain, in
+    // both house orientations. Nothing here enters the gameplay collision
+    // query or changes the height used by residents.
+    for(int i=1;i<3;i++){
+        int at=p->doorPlane-42+i*23/3;
+        int l=p->doorCenter-25,r=p->doorCenter+25;
+        GgMeshVertex A=ggLotPathVertex(p,at-1,l);
+        GgMeshVertex B=ggLotPathVertex(p,at+1,l);
+        GgMeshVertex C=ggLotPathVertex(p,at+1,r);
+        GgMeshVertex D=ggLotPathVertex(p,at-1,r);
+        A.z++;B.z++;C.z++;D.z++;
+        if(p->rotate)ggMeshQuad(m,A,D,C,B,113,106,91);
+        else ggMeshQuad(m,A,B,C,D,113,106,91);
+    }
+    m->material=material;m->depthBias=bias;
+}
 static void ggLotOpenings(GgMeshContext*m,const GgLotPlan*p,int build,int detail){
     int prior=m->material,bias=m->depthBias;
     m->material=GG_MAT_NONE;m->depthBias=1;
     int view=p->rotate?m->cy:m->cx;
     if(view<p->doorPlane){
+        if(detail)ggLotEntrancePath(m,p);
         if(detail)ggMeshDoorway(m,p->doorPlane,p->rotate,1,p->doorCenter,100,p->doorFloor);
         else ggLotPane(m,p->rotate,p->doorPlane-GG_MESH_DOOR_OFFSET,
                        p->doorCenter,ggMeshDoorHalfWidth(100),p->doorFloor,

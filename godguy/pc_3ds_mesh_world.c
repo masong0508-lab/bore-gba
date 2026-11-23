@@ -460,6 +460,130 @@ static void meshArchitectureCover(unsigned char *pixels){
     bld[tile][tile]=B_NONE;
     meshRequire(passed,"combat cover disagrees with visible architectural volumes");
 }
+static void meshGradeArchitecture(unsigned char *pixels){
+    // The latest 2x2 residences, castle walls and market plinths all
+    // inherit this geometry: the lower skirt must follow REAL tile
+    // corners, not an unrelated low neighbour's nominal tile centre.
+    const int tx=71,ty=73,cx=tx*256+128,cy=ty*256+128;
+    const int grass=ggExpGround(T_GRASS);
+    world[ty][tx]=T_MOUNT;
+    int peak=ggExpGround(T_MOUNT);
+    int bottom=ggMeshFoundationGround(tx*256+35,ty*256+35,
+                                      tx*256+221,ty*256+221,peak);
+    meshRequire(bottom>grass+2&&bottom<peak-2,
+                "mountain foundation is still sunk to remote grass centres");
+    for(int y=ty*256+36;y<=ty*256+220;y+=23)
+      for(int x=tx*256+36;x<=tx*256+220;x+=23)
+        meshRequire(ggMeshGroundAtQ8(x,y)>bottom,
+                    "corner-fitted skirt exposes a crack in the rendered slope");
+    // Water or an underslung bank must still lower the skirt all the
+    // way to the waterline; the more accurate footing cannot float.
+    world[ty-1][tx]=T_WATER;
+    int low=ggMeshFoundationGround(tx*256+35,ty*256+35,
+                                   tx*256+221,ty*256+221,peak);
+    meshRequire(low<=ggExpGround(T_WATER)-1&&low<bottom,
+                "shoreline foundation no longer seals the submerged shelf");
+    world[ty-1][tx]=T_GRASS;
+    int variation=0;
+    for(int axis=0;axis<2;axis++){
+        int p=axis?cy:cx,u=axis?cx:cy;
+        GgMeshVertex first=ggMeshFortApproachVertex(axis,p-64,u);
+        GgMeshVertex crest=ggMeshFortApproachVertex(axis,p,u);
+        GgMeshVertex last=ggMeshFortApproachVertex(axis,p+64,u);
+        meshRequire(first.z==ggMeshGroundAtQ8(first.x,first.y)+1&&
+                    crest.z==ggMeshGroundAtQ8(crest.x,crest.y)+1&&
+                    last.z==ggMeshGroundAtQ8(last.x,last.y)+1,
+                    "gate approach is floating or clipped below the live hillside");
+        variation+=abs(first.z-crest.z)+abs(last.z-crest.z);
+        int reducedTris=0;
+        for(int quality=1;quality<=2;quality++){
+            GgMeshContext*m=&ggMeshContext;
+            ggMeshBegin(m,pixels,quality,
+                        axis?u:p-410,axis?p-410:u,
+                        peak+4,axis?0:4096,axis?4096:0,
+                        42,65,89);
+            int priorMaterial=m->material,priorBias=m->depthBias;
+            GgMeshFort fort={.mesh=m,.detail=1};
+            ggMeshFortApproach(&fort,axis,p,u);
+            meshRequire(m->fragments>=16&&m->triangles>=2&&
+                        m->material==priorMaterial&&
+                        m->depthBias==priorBias,
+                        "graded gate pavement is invisible or leaks raster state");
+            if(quality==1)reducedTris=m->triangles;
+            else meshRequire(m->triangles>reducedTris&&
+                             m->triangles<=reducedTris+36,
+                             "stone treads do not obey their fixed LOD polygon budget");
+        }
+        for(int i=1;i<GG_FORT_APPROACH_STEPS;i++){
+            int at=p-64+i*128/GG_FORT_APPROACH_STEPS;
+            GgMeshVertex v=ggMeshFortApproachVertex(axis,at,
+                                  u+GG_FORT_APPROACH_HALF-9);
+            meshRequire(v.z==ggMeshGroundAtQ8(v.x,v.y)+1,
+                        "gate stair-joint edge lost ground-plane contact");
+        }
+    }
+    meshRequire(variation>=8,
+                "gate walkway ignores the mountain's three-dimensional slope");
+    world[ty][tx]=T_GRASS;
+}
+static void meshResidentialApproach(unsigned char *pixels){
+    // Multi-plot houses come in both rotations. Their threshold is
+    // structural but the approach follows the actual sloped triangle fan.
+    const int tx=71,ty=73;
+    world[ty][tx]=T_MOUNT;
+    int ground=ggExpGround(T_MOUNT);
+    for(int rotated=0;rotated<2;rotated++){
+        int build=rotated?B_HOUSE_EW:B_HOUSE_NS;
+        GgLotPlan p;
+        ggMeshLotPlan(&p,tx,ty,build,ground,0);
+        meshRequire(p.rotate==rotated&&p.doorPlane>0,
+                    "multi-plot door loses its cardinal orientation");
+        for(int i=0;i<=3;i++)for(int side=-1;side<=1;side+=2){
+            int plane=p.doorPlane-42+i*23/3;
+            int across=p.doorCenter+side*29;
+            GgMeshVertex v=ggLotPathVertex(&p,plane,across);
+            meshRequire(v.z==ggMeshGroundAtQ8(v.x,v.y)+1,
+                        "rotated residential path does not follow real hillside");
+        }
+        int foundThreshold=0;
+        for(int i=0;i<p.mass.count;i++){
+            const GgSettlementPart*b=&p.mass.part[i];
+            if(b->type!=GG_SETTLE_FOOT||b->z1!=p.doorFloor)continue;
+            int first=rotated?b->y0:b->x0;
+            int last=rotated?b->y1:b->x1;
+            if(last-first==11&&first==27)foundThreshold++;
+        }
+        meshRequire(foundThreshold==1&&p.mass.count<GG_SETTLE_PART_LIMIT,
+                    "house front still projects a long elevated paving slab");
+        GgMeshContext*m=&ggMeshContext;
+        int center=p.doorCenter,plane=p.doorPlane;
+        // Stand at the *local path* height, not the mountain summit:
+        // a distant eye at the summit projects the lower path offscreen.
+        int pathEye=ggLotPathVertex(&p,plane-42,center).z+12;
+        ggMeshBegin(m,pixels,2,rotated?center:plane-350,
+                    rotated?plane-350:center,pathEye,
+                    rotated?0:4096,rotated?4096:0,42,65,89);
+        int prior=m->material,bias=m->depthBias;
+        ggLotEntrancePath(m,&p);
+        meshRequire(m->fragments>=16&&m->triangles>=2&&
+                    m->material==prior&&m->depthBias==bias,
+                    "residential approach is a flat decal or breaks render state");
+        int detailTris=m->triangles;
+        ggMeshBegin(m,pixels,1,rotated?center:plane-350,
+                    rotated?plane-350:center,pathEye,
+                    rotated?0:4096,rotated?4096:0,42,65,89);
+        ggLotEntrancePath(m,&p);
+        meshRequire(m->triangles==0&&detailTris>=2,
+                    "stone entry path incorrectly renders during reduced-detail gameplay");
+        for(int seam=1;seam<3;seam++){
+            int at=plane-42+seam*23/3;
+            GgMeshVertex v=ggLotPathVertex(&p,at,center);
+            meshRequire(v.z==ggMeshGroundAtQ8(v.x,v.y)+1,
+                        "residential mortar joint lifts above the walkable terrain");
+        }
+    }
+    world[ty][tx]=T_GRASS;
+}
 static void meshGateTraversal(void){
     GgExplore3D saved=ggExplore;
     const int tile=63,mid=tile*256+128,front=tile*256-24;
@@ -547,6 +671,8 @@ int main(void){
     meshPlantedBoots(pixels);
     meshNearArchitecture(pixels);
     meshArchitectureCover(pixels);
+    meshGradeArchitecture(pixels);
+    meshResidentialApproach(pixels);
     meshGateTraversal();
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,

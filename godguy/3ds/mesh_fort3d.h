@@ -251,6 +251,65 @@ static void ggMeshFortVault(GgMeshFort*f,int axis,int p0,int p1,int mid,
         }
     }
 }
+// The gate passage follows the very same terrain fan as the player's
+// feet. A single flat bridge slab floated above low banks and vanished
+// into mountain slopes. Four short stone courses follow the actual
+// interpolated heights; inset roadside trims are restricted to near LOD.
+// This is paving, not a new collision solid: combat and navigation still
+// pass through the correctly vaulted center of the gate.
+enum { GG_FORT_APPROACH_HALF=42, GG_FORT_APPROACH_STEPS=4 };
+static inline GgMeshVertex ggMeshFortApproachVertex(int axis,int p,int u){
+    GgMeshVertex v=ggMeshFacadePoint(axis,p,u,0);
+    v.z=ggMeshGroundAtQ8(v.x,v.y)+1;
+    return v;
+}
+static void ggMeshFortApproach(GgMeshFort*f,int axis,int p,int u){
+    GgMeshContext*m=f->mesh;
+    if(!m)return;
+    int prior=m->material,bias=m->depthBias;
+    m->material=GG_MAT_PAVING;
+    m->depthBias=1;
+    for(int i=0;i<GG_FORT_APPROACH_STEPS;i++){
+        int p0=p-64+i*128/GG_FORT_APPROACH_STEPS;
+        int p1=p-64+(i+1)*128/GG_FORT_APPROACH_STEPS;
+        GgMeshVertex a=ggMeshFortApproachVertex(axis,p0,u-GG_FORT_APPROACH_HALF);
+        GgMeshVertex b=ggMeshFortApproachVertex(axis,p1,u-GG_FORT_APPROACH_HALF);
+        GgMeshVertex c=ggMeshFortApproachVertex(axis,p1,u+GG_FORT_APPROACH_HALF);
+        GgMeshVertex d=ggMeshFortApproachVertex(axis,p0,u+GG_FORT_APPROACH_HALF);
+        ggMeshFortOrientedQuad(m,axis,0,a,b,c,d,158,145,122);
+        if(f->detail&&m->detailQuality>=2){
+            // The narrow raised edge is outside the walkable central strip.
+            for(int side=-1;side<=1;side+=2){
+                int inner=u+side*(GG_FORT_APPROACH_HALF-7);
+                int outer=u+side*GG_FORT_APPROACH_HALF;
+                GgMeshVertex A=ggMeshFortApproachVertex(axis,p0,inner);
+                GgMeshVertex B=ggMeshFortApproachVertex(axis,p1,inner);
+                GgMeshVertex C=ggMeshFortApproachVertex(axis,p1,outer);
+                GgMeshVertex D=ggMeshFortApproachVertex(axis,p0,outer);
+                A.z++;B.z++;C.z++;D.z++;
+                ggMeshFortOrientedQuad(m,axis,0,A,B,C,D,192,177,147);
+            }
+        }
+    }
+    // Readable individual stone courses on the steep approach. Only the
+    // near-detail path spends triangles on three crosswise mortar joints;
+    // the seam follows the exact walking-height surface and adds NO
+    // collision mass or heap allocation.
+    if(f->detail&&m->detailQuality>=2){
+        for(int i=1;i<GG_FORT_APPROACH_STEPS;i++){
+            int at=p-64+i*128/GG_FORT_APPROACH_STEPS;
+            int nearSide=u-(GG_FORT_APPROACH_HALF-9);
+            int farSide=u+(GG_FORT_APPROACH_HALF-9);
+            GgMeshVertex A=ggMeshFortApproachVertex(axis,at-2,nearSide);
+            GgMeshVertex B=ggMeshFortApproachVertex(axis,at+2,nearSide);
+            GgMeshVertex C=ggMeshFortApproachVertex(axis,at+2,farSide);
+            GgMeshVertex D=ggMeshFortApproachVertex(axis,at-2,farSide);
+            A.z++;B.z++;C.z++;D.z++;
+            ggMeshFortOrientedQuad(m,axis,0,A,B,C,D,120,109,96);
+        }
+    }
+    m->material=prior;m->depthBias=bias;
+}
 static int ggMeshFortGateFloor(int axis,int p,int u,int ground){
     int highest=ground;
     for(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++){
@@ -292,6 +351,7 @@ static void ggMeshFortGate(GgMeshFort*f,int tx,int ty,int build,int ground){
     // Each rim embeds its interior face into the main barrel.
     ggMeshFortVault(f,axis,p-67,p-52,u,floor,0,-1);
     ggMeshFortVault(f,axis,p+52,p+67,u,floor,0,1);
+    ggMeshFortApproach(f,axis,p,u);
     ggMeshFortRail(f,axis,p-48,u-half,u+half,top);
     ggMeshFortRail(f,axis,p+48,u-half,u+half,top);
     if(f->solid)return;
