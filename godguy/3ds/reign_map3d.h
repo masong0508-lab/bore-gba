@@ -45,21 +45,24 @@ static void ggMapRoutePin(u8 *bot,int tx,int ty,u8 r,u8 g,u8 b){
     }
 }
 static int ggMapObjectiveSignature(void){
-    if(!ggChron.active||ggOrigin.active||ggSaga.mode)return 0;
-    int q=ggQuest.stage;
-    int v=q==GG_QUEST_FETCH?ggQuest.target:
-          q==GG_QUEST_RETURN?ggQuest.home:-1;
-    return 1+(ggChron.post+1)*131+
-           q*65537+(v+1)*1021;
+    if(!ggExplore.active||(ggChron.active&&(ggOrigin.active||ggSaga.mode)))return 0;
+    int v=ggQuestObjective();
+    int contract=v<0?0:ggQuest.stage*512+v+1;
+    if(ggChron.active)return 1+(ggChron.post+1)*2048+contract;
+    if(contract)return -contract;
+    if((unsigned)ggOutdoorWaypointX<WW&&(unsigned)ggOutdoorWaypointY<WH)
+        return 16384+ggOutdoorWaypointY*WW+ggOutdoorWaypointX;
+    return 0;
 }
 static void ggMapObjectivesDraw(u8 *bot){
-    if(!ggChron.active||ggOrigin.active||ggSaga.mode)return;
-    int q=ggQuest.stage;
-    int v=q==GG_QUEST_FETCH?ggQuest.target:
-          q==GG_QUEST_RETURN?ggQuest.home:-1;
-    if(v>=0&&v<VIL_N&&vil[v].on)
+    if(!ggExplore.active||(ggChron.active&&(ggOrigin.active||ggSaga.mode)))return;
+    int v=ggQuestObjective();
+    if(v>=0)
         ggMapRoutePin(bot,vil[v].x,vil[v].y,88,221,234);
-    if(ggChron.post<GG_CHRON_POSTS)
+    else if(!ggChron.active&&(unsigned)ggOutdoorWaypointX<WW&&
+            (unsigned)ggOutdoorWaypointY<WH)
+        ggMapRoutePin(bot,ggOutdoorWaypointX,ggOutdoorWaypointY,210,216,214);
+    if(ggChron.active&&ggChron.post<GG_CHRON_POSTS)
         ggMapRoutePin(bot,ggChron.px[ggChron.post],ggChron.py[ggChron.post],244,204,82);
 }
 #endif

@@ -7,10 +7,15 @@
 #define GG_CHRONICLES3D_H
 
 #include "platform_keys3d.h"
+#ifndef GG_CHRON_SAVE_PATH
+#define GG_CHRON_SAVE_PATH "sdmc:/godguy_chronicles.dat"
+#endif
 
-enum { GG_CHRON_ACTS=4, GG_CHRON_POSTS=3, GG_CHRON_FOES=9,
+enum { GG_CHRON_ACTS=4, GG_CHRON_POSTS=3, GG_CHRON_FOES=9, GG_CHRON_SQUAD_MAX=6,
        GG_CHRON_GRID=33, GG_CHRON_CELLS=GG_CHRON_GRID*GG_CHRON_GRID };
 enum { GG_CHRON_BLADE, GG_CHRON_BOW, GG_CHRON_EMBER, GG_CHRON_STYLES };
+enum { GG_CHRON_FRESH, GG_CHRON_RESUME_OPEN, GG_CHRON_RESUME_FIELD,
+       GG_CHRON_RESUME_CHOICE, GG_CHRON_RESUME_DEFEAT };
 enum { GG_CHRON_SHOTS=4 };
 typedef struct { short x,y; signed char hp,post,wait; } GgChronFoe;
 typedef struct {
@@ -21,6 +26,7 @@ typedef struct {
     int active,loaded,act,cleared,frame,lastKeys;
     int hp,stamina,food,rations,morale,score,attackWait,attackFlash;
     int post,won,lost,briefTime,day,dirty;
+    int openingPending,resume,relocated,checkpointRejected,checkpointWritten;
     int routeOx,routeOy; // mission's already-validated 33x33 walking region
     short px[GG_CHRON_POSTS],py[GG_CHRON_POSTS];
     GgChronFoe foe[GG_CHRON_FOES];
@@ -62,10 +68,13 @@ static void ggReignGuardDamage(int index,int damage);
 static void ggReignBlockGuardCells(unsigned char *dist,int width,int ox,int oy);
 static int ggChronActorHeading(int dx,int dy);
 static int ggChronReady(void){return chapter>=3||storyDone;}
-static int ggChronLand(int x,int y){
+static int ggChronTerrain(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
-    if(world[y][x]<=T_WATER||world[y][x]==T_LAVA)return 0;
-    return ggExpBuildingWalkable(bld[y][x])&&!occ[y][x];
+    int t=world[y][x];
+    return t>T_WATER&&t<T_N&&t!=T_LAVA&&ggExpBuildingWalkable(bld[y][x]);
+}
+static int ggChronLand(int x,int y){
+    return ggChronTerrain(x,y)&&!occ[y][x];
 }
 static int ggChronGateRoute(int x,int y,int nx,int ny){
     int dx=nx-x,dy=ny-y;
@@ -76,18 +85,24 @@ static int ggChronNear(int ax,int ay,int bx,int by){
     int dx=ax-bx,dy=ay-by;
     return abs(dx)+abs(dy);
 }
+static int ggChronCanTraverse(int x,int y,int nx,int ny){
+    return ggChronGateRoute(x,y,nx,ny)&&
+           ggExpGround(world[ny][nx])-ggExpGround(world[y][x])<=GG_WORLD_WALK_RISE;
+}
+// Returns the route index only after bounds checking the real map cell.
+static int ggChronRouteIndex(int x,int y){
+    int lx=x-ggChron.routeOx,ly=y-ggChron.routeOy;
+    if((unsigned)lx>=GG_CHRON_GRID||(unsigned)ly>=GG_CHRON_GRID)return -1;
+    return ly*GG_CHRON_GRID+lx;
+}
 // A tiny, once-per-mission flood fill chooses reachable real-world
 // objectives, not arbitrary mountains, islands or impossible water crossings.
-static int ggChronRoute(void){
-    unsigned char dist[GG_CHRON_CELLS];
-    unsigned short queue[GG_CHRON_CELLS];
-    const int sx=ggExplore.px>>8,sy=ggExplore.py>>8;
-    const int ox=sx-16,oy=sy-16;
-    ggChron.routeOx=ox;ggChron.routeOy=oy;
+static int ggChronWalkDistances(int origin,unsigned char *dist,unsigned short *queue){
+    const int ox=ggChron.routeOx,oy=ggChron.routeOy;
     int front=0,back=0;
-    memset(dist,255,sizeof dist);
-    dist[16*GG_CHRON_GRID+16]=0;
-    queue[back++]=16*GG_CHRON_GRID+16;
+    memset(dist,255,GG_CHRON_CELLS);
+    dist[origin]=0;
+    queue[back++]=(unsigned short)origin;
     while(front<back){
         int pos=queue[front++],x=pos%GG_CHRON_GRID,y=pos/GG_CHRON_GRID;
         if(dist[pos]>=254)continue; // no unsigned-distance wrap in a maze
@@ -96,19 +111,28 @@ static int ggChronRoute(void){
             int nx=x+dx[k],ny=y+dy[k];
             if((unsigned)nx>=GG_CHRON_GRID||(unsigned)ny>=GG_CHRON_GRID)continue;
             int q=ny*GG_CHRON_GRID+nx;
-            if(dist[q]!=255||!ggChronLand(ox+nx,oy+ny))continue;
-            if(!ggChronGateRoute(ox+x,oy+y,ox+nx,oy+ny))continue;
-            if(ggExpGround(world[oy+ny][ox+nx])-
-               ggExpGround(world[oy+y][ox+x])>GG_WORLD_WALK_RISE)continue;
+            if(dist[q]!=255||!ggChronTerrain(ox+nx,oy+ny))continue;
+            if(!ggChronCanTraverse(ox+x,oy+y,ox+nx,oy+ny))continue;
             dist[q]=dist[pos]+1;
             queue[back++]=(unsigned short)q;
         }
     }
+    return back;
+}
+static int ggChronRoute(void){
+    unsigned char dist[GG_CHRON_CELLS],fromLast[GG_CHRON_CELLS];
+    unsigned short queue[GG_CHRON_CELLS],next[GG_CHRON_CELLS];
+    const int sx=ggExplore.px>>8,sy=ggExplore.py>>8;
+    const int ox=sx-GG_CHRON_GRID/2,oy=sy-GG_CHRON_GRID/2;
+    const int start=GG_CHRON_CELLS/2;
+    ggChron.routeOx=ox;ggChron.routeOy=oy;
+    int back=ggChronWalkDistances(start,dist,queue),from=start;
     for(int post=0;post<GG_CHRON_POSTS;post++){
-        int goal=7+post*6,choice=16*GG_CHRON_GRID+16,best=0x7fffffff;
+        int goal=7+post*6,choice=-1,best=0x7fffffff;
+        if(post)ggChronWalkDistances(from,fromLast,next);
         for(int n=1;n<back;n++){
             int p=queue[n],x=ox+p%GG_CHRON_GRID,y=oy+p/GG_CHRON_GRID;
-            if(dist[p]<4)continue;
+            if(dist[p]<4||!ggChronLand(x,y)||(post&&fromLast[p]==255))continue;
             int separated=1;
             for(int j=0;j<post;j++)
                 if(ggChronNear(x,y,ggChron.px[j],ggChron.py[j])<5)
@@ -129,9 +153,10 @@ static int ggChronRoute(void){
                 ((x*11+y*7+post*13+ggChron.act*17)&15);
             if(cost<best){best=cost;choice=p;}
         }
+        if(choice<0)return 0; // no reachable distinct site
         ggChron.px[post]=(short)(ox+choice%GG_CHRON_GRID);
         ggChron.py[post]=(short)(oy+choice/GG_CHRON_GRID);
-        if(best==0x7fffffff)return 0; // no reachable distinct site
+        from=choice;
     }
     return 1;
 }
@@ -142,12 +167,11 @@ static void ggChronNavBuild(int post){
     // player's feet. Render/UI lookups are constant-time and cheap.
     memset(ggChronNavDistance,255,sizeof ggChronNavDistance);
     if(post<0||post>=GG_CHRON_POSTS)return;
-    int xx=ggChron.px[post]-ggChron.routeOx;
-    int yy=ggChron.py[post]-ggChron.routeOy;
-    if((unsigned)xx>=GG_CHRON_GRID||(unsigned)yy>=GG_CHRON_GRID)
-        return;
+    int x=ggChron.px[post],y=ggChron.py[post];
+    int origin=ggChronRouteIndex(x,y);
+    if(origin<0||!ggChronTerrain(x,y))return;
     unsigned short queue[GG_CHRON_CELLS];
-    int front=0,back=0,origin=yy*GG_CHRON_GRID+xx;
+    int front=0,back=0;
     queue[back++]=(unsigned short)origin;
     ggChronNavDistance[origin]=0;
     static const signed char dx[4]={1,0,-1,0};
@@ -163,12 +187,10 @@ static void ggChronNavBuild(int post){
             int q=ny*GG_CHRON_GRID+nx;
             if(ggChronNavDistance[q]!=255)continue;
             int fromX=ggChron.routeOx+nx,fromY=ggChron.routeOy+ny;
-            if(!ggChronLand(fromX,fromY))continue;
-            if(!ggChronGateRoute(fromX,fromY,toX,toY))continue;
+            if(!ggChronTerrain(fromX,fromY))continue;
             // Reverse traversal: a player at the neighbor must be able
             // to climb toward the current cell, not the other way round.
-            if(ggExpGround(world[toY][toX])-
-               ggExpGround(world[fromY][fromX])>GG_WORLD_WALK_RISE)continue;
+            if(!ggChronCanTraverse(fromX,fromY,toX,toY))continue;
             ggChronNavDistance[q]=ggChronNavDistance[pos]+1;
             queue[back++]=(unsigned short)q;
         }
@@ -191,7 +213,7 @@ static int ggChronNavNext(int x,int y,int *nx,int *ny,int *steps){
            (unsigned)ty>=GG_CHRON_GRID)continue;
         int q=ty*GG_CHRON_GRID+tx;
         if(ggChronNavDistance[q]<d&&
-           ggChronGateRoute(x,y,ggChron.routeOx+tx,ggChron.routeOy+ty)){
+           ggChronCanTraverse(x,y,ggChron.routeOx+tx,ggChron.routeOy+ty)){
             *nx=ggChron.routeOx+tx;
             *ny=ggChron.routeOy+ty;
             return 1;
@@ -230,64 +252,75 @@ static void ggChronSpawn(void){
         }
     }
 }
+#include "chronicle_checkpoint3d.h"
+
 static void ggChronLoad(void){
     if(ggChron.loaded)return;
     ggChron.loaded=1;
     // Companion progress uses a separate tiny file: never alters the
     // regular GodGuy world's serialized save format.
-    FILE *f=fopen("sdmc:/godguy_chronicles.dat","rb");
-    if(!f)return;
-    u32 data[4];
-    int good=fread(data,sizeof data,1,f)==1;
-    fclose(f);
-    if(good&&data[0]==0x47474348u&&data[1]==1&&data[2]<=GG_CHRON_ACTS &&
-       data[3]==(data[0]^data[1]^data[2]^0x5aa59669u))
-        ggChron.cleared=(int)data[2];
+    const char *const files[]={GG_CHRON_SAVE_PATH,GG_CHRON_SAVE_PATH ".bak"};
+    for(unsigned i=0;i<sizeof files/sizeof *files;i++){
+        FILE *f=fopen(files[i],"rb");
+        if(!f)continue;
+        u32 data[4];
+        int good=fread(data,sizeof data,1,f)==1;
+        fclose(f);
+        if(good&&data[0]==0x47474348u&&data[1]==1&&data[2]<=GG_CHRON_ACTS&&
+           data[3]==(data[0]^data[1]^data[2]^0x5aa59669u)){
+            ggChron.cleared=(int)data[2];
+            return;
+        }
+    }
 }
-static void ggChronSave(void){
+static int ggChronSave(void){
     const u32 data[4]={0x47474348u,1,(u32)ggChron.cleared,
                         0x47474348u^1u^(u32)ggChron.cleared^0x5aa59669u};
-    FILE *f=fopen("sdmc:/godguy_chronicles.dat","wb");
-    if(!f)return;
-    (void)fwrite(data,sizeof data,1,f);
-    fclose(f);
+    return ggChronWriteRecord(GG_CHRON_SAVE_PATH,GG_CHRON_SAVE_PATH ".tmp",
+                              GG_CHRON_SAVE_PATH ".bak",data,sizeof data);
 }
 static int ggChronUnlockedAct(int act){
     if(act<0||act>=GG_CHRON_ACTS)return 0;
     return storyDone||chapter>=ggChronRequires[act];
 }
+static int ggChronFindCamp(int x,int y,int oldPause){
+    x=ggExpClamp(x,1,WW-2);y=ggExpClamp(y,1,WH-2);
+    // A resident can enter Reign from their own occupied tile. Start the
+    // expedition on the nearest open ground before laying out its posts.
+    for(int r=0;r<=14;r++)for(int dy=-r;dy<=r;dy++){
+        int dx=r-abs(dy);
+        if(ggChronLand(x-dx,y+dy))return ggExpBegin(x-dx,y+dy,oldPause);
+        if(dx&&ggChronLand(x+dx,y+dy))return ggExpBegin(x+dx,y+dy,oldPause);
+    }
+    return 0;
+}
 static int ggChronBegin(int x,int y,int oldPause){
     ggChronLoad();
     if(!ggChronReady())return 0;
-    int act=ggChron.cleared<GG_CHRON_ACTS?ggChron.cleared:GG_CHRON_ACTS-1;
+    int cleared=ggChron.cleared;
+    int act=cleared<GG_CHRON_ACTS?cleared:GG_CHRON_ACTS-1;
     if(!ggChronUnlockedAct(act))return -1;
     ggExplore.actorId=0; // do not inherit a former hybrid POV walk rule
-    if(!ggExpBegin(x,y,oldPause))return -2;
-    ggChron.active=1;
-    ggChron.act=act;
-    ggChron.frame=ggChron.lastKeys=0;
-    ggChron.hp=100;ggChron.stamina=100;ggChron.food=100;
-    ggChron.rations=3;ggChron.morale=70;ggChron.score=0;
-    ggChron.post=0;ggChron.won=ggChron.lost=0;
-    ggChron.attackWait=ggChron.attackFlash=ggChron.recoverySpan=0;
-    ggChron.style=GG_CHRON_BLADE;ggChron.focus=100;
-    ggChron.charge=ggChron.swing=ggChron.heavy=ggChron.guardTicks=0;
-    ggChron.combatNotice=ggChron.combatNoticeT=0;
-    memset(ggChron.foeWindup,0,sizeof ggChron.foeWindup);
-    memset(ggChron.foeStruckAt,0,sizeof ggChron.foeStruckAt);
-    memset(ggChron.foeAlert,0,sizeof ggChron.foeAlert);
+    const GgChronicles fresh={.loaded=1,.act=act,.cleared=cleared,.dirty=1,
+        .hp=100,.stamina=100,.focus=100,.food=100,.rations=3,.morale=70,
+        .style=GG_CHRON_BLADE,.openingPending=1,.briefTime=165};
+    ggChron=fresh;
+    GgChronCheckpoint checkpoint;
+    int saved=ggChronReadCheckpoint(&checkpoint);
+    if(saved>0&&ggChronRestoreCheckpoint(&checkpoint,oldPause)){
+        ggChron.active=1;
+        memset(ggChron.foeGuard,-1,sizeof ggChron.foeGuard);
+        return 1;
+    }
+    ggChron=fresh;
+    ggChron.checkpointRejected=saved!=0;
     memset(ggChron.foeGuard,-1,sizeof ggChron.foeGuard);
-    memset(ggChron.shots,0,sizeof ggChron.shots);
-    ggChron.briefTime=165;ggChron.day=0;ggChron.dirty=1;
-    // The 3D role is the expedition's commander, NOT possession of a
-    // random sapient citizen from the original story.
-    ggExplore.actorId=0;
-    ggExplore.actorIndex=-1;
+    if(!ggChronFindCamp(x,y,oldPause))return -2;
     if(!ggChronRoute()){
-        ggChron.active=0;
         ggExplore.active=0;
         return -2; // no traversable route: never create a soft-locked act
     }
+    ggChron.active=1;
     ggChronSpawn();
     ggChronNavBuild(0);
     return 1;
@@ -345,9 +378,7 @@ static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
             if((unsigned)nx>=W||(unsigned)ny>=W)continue;
             int q=ny*W+nx,wx=fx+nx-R,wy=fy+ny-R;
             if(dist[q]!=255||!ggChronLand(wx,wy))continue;
-            if(!ggChronGateRoute(x,y,wx,wy))continue;
-            if(ggExpGround(world[wy][wx])-
-               ggExpGround(world[y][x])>GG_WORLD_WALK_RISE)continue;
+            if(!ggChronCanTraverse(x,y,wx,wy))continue;
             dist[q]=dist[p]+1;
             first[q]=dist[p]?first[p]:(unsigned char)q;
             queue[tail++]=(unsigned char)q;
@@ -435,11 +466,12 @@ static int ggChronStep(int raw){
     if(!ggChron.active)return 0;
     int down=raw&~ggChron.lastKeys;
     ggChron.lastKeys=raw;
-    if(down&KEY_START)return 1; // Retreat to intact 2D story, no lost world
+    if(down&KEY_START){ggChronCheckpoint();return 1;}
     if(ggChron.won||ggChron.lost){
         ggChron.frame++;
         return 0; // Ending remains readable until START is pressed
     }
+    ggChron.openingPending=0;
     ggChron.frame++;
     ggChron.day=(ggChron.frame/800)%4;
     if(ggChron.attackWait)ggChron.attackWait--;
@@ -466,6 +498,7 @@ static int ggChronStep(int raw){
     }else if((ggChron.frame&1)==0&&!ggChron.charge&&!ggChron.guardTicks&&
              !ggChron.swing&&!(raw&GG_3DS_ZL))
         ggChron.stamina=ggExpClamp(ggChron.stamina+1,0,100);
+    int secured=0;
     if(ggChron.briefTime==0){
         ggChronCombatStep(raw,down);
         if((down&KEY_Y)&&ggChron.rations>0){
@@ -480,6 +513,7 @@ static int ggChronStep(int raw){
                            ggChron.px[p],ggChron.py[p])<=2 &&
                (!ggChronEnemiesAt(p)||ggSagaParley(p))){
                 ggChron.post++;
+                secured=1;
                 if(ggChron.post<GG_CHRON_POSTS)
                     ggChronNavBuild(ggChron.post);
                 ggChron.rations=ggExpClamp(ggChron.rations+1,0,9);
@@ -495,6 +529,8 @@ static int ggChronStep(int raw){
                     // A chapter ends with a decision, not an automatic
                     // victory; saving that decision unlocks the next act.
                     ggSagaStartChoice();
+                    ggChronCheckpoint();
+                    return 0;
                 }
             }
         }
@@ -509,6 +545,7 @@ static int ggChronStep(int raw){
         ggChron.hp=0;ggChron.lost=1;ggChron.dirty=1;
         ggChronCombatStow();
     }
+    if(secured||ggChron.lost)ggChronCheckpoint();
     return 0;
 }
 static int ggChronProject(int x,int y,int *sx,int *foot,int *scale){
@@ -734,7 +771,7 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
     const char *objective="REIGN";
     line[0]='\0';
     if(ggChron.won)objective="VICTORY";
-    else if(ggChron.lost)objective="EXPEDITION LOST";
+    else if(ggChron.lost)objective="COMMANDER DOWN";
     else if(ggChron.post<GG_CHRON_POSTS){
         static const char *const tasks[GG_CHRON_ACTS][GG_CHRON_POSTS]={
             {"RESCUE THE CARAVAN","REOPEN THE FORD","LIGHT THE WATCH FIRE"},
@@ -792,7 +829,7 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
     const char *cue=cues[ggChron.style];
     if(modal)cue="";
     else if(ggChron.won)cue="START WORLD MAP";
-    else if(ggChron.lost)cue="START RETREAT";
+    else if(ggChron.lost)cue="A RALLY AT CAMP   START WORLD MAP";
     else if(ggChron.charge)cue=ggChron.charge>=ggChronChargeThreshold(ggChron.style)?
         "RELEASE A FOR POWER":"RELEASE A FOR QUICK ATTACK";
     else if(ggChron.combatNoticeT>0&&result>0&&(unsigned)result<sizeof response/sizeof *response)
@@ -802,7 +839,7 @@ static void ggChronDraw(u8 *out,const char *context,int modal){
     else if(ggChron.food<35)cue="LOW FOOD   SECURE A POST FOR RATIONS";
     snprintf(line,sizeof line,"%.63s",cue);
     ggExpText(out,10,227,line,230,211,163);
-    if(ggChron.briefTime>0&&!modal){
+    if(ggChron.briefTime>0&&!modal&&!ggChron.lost){
         ggExpRect(out,22,69,356,65,17,31,44);
         ggExpRect(out,22,69,356,2,187,139,79);
         ggExpText(out,38,82,ggChron.won?"THE ROAD BELONGS TO THE LIVING.":

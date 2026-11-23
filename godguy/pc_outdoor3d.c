@@ -57,8 +57,10 @@ int main(void){
             "the existing three-button quick save reaches the map unchanged");
     inputFrame(0);
     constructionAimPending=constructionGhostShown=1;
+    debugOn=1;
     inputFrame(KEY_SELECT|KEY_L|KEY_TOUCH);
     require(ggExplore.active&&!ggExplore.actorId,"SELECT+L opens walking from the map without possessing anyone");
+    require(!ggWalkCanSculpt(),"the normal entry stays in travel even in a debug-enabled save");
     require(!constructionAimPending&&!constructionGhostShown,
             "3DS mode changes cancel an aimed building instead of committing a masked touch release");
     inputFrame(0);
@@ -67,17 +69,30 @@ int main(void){
     require(ggOutdoorTargetAt(21,20).kind==GG_OUTDOOR_LANDSCAPE,
             "paving is outdoor ground for field actions");
     bld[20][22]=B_RUIN;
-    fieldAction();
-    require(jrN==1&&mapPinMask,"surveying a ruin records a discovery and marks the map");
+    inputFrame(KEY_A);inputFrame(0);
+    require(jrN==1&&mapPinMask,"A surveys a ruin and records the discovery on the map");
     fieldAction();
     require(jrN==1&&mapPinMask==1,"revisiting a ruin does not duplicate the journal or pins");
     bld[20][22]=0;
     ggExplore.material=3;
     int edits=ggExplore.edits;
+    int px=ggExplore.px,py=ggExplore.py;
+    inputFrame(KEY_X);inputFrame(0);
+    inputFrame(KEY_Y);inputFrame(0);
+    inputFrame(KEY_A);inputFrame(0);
+    require(ggExplore.material==3&&ggExplore.edits==edits,
+            "normal travel controls cannot select a terrain material or paint the world");
+    touchPx=24*8+4-camX;touchPy=23*8+4-camY;
+    inputFrame(KEY_TOUCH);inputFrame(0);
+    require(ggExplore.px==px&&ggExplore.py==py,
+            "tapping the walking map does not teleport the traveler");
+    require(ggOutdoorWaypointX==24&&ggOutdoorWaypointY==23,
+            "the map places a waypoint at the touched tile");
     inputFrame(KEY_L|KEY_A);
     inputFrame(KEY_A);
     require(ggExplore.edits==edits,"releasing L first cannot turn an interaction into painting");
     require(jrN==1&&mapPinMask==1,"viewing ordinary terrain leaves discovery slots free");
+    debugOn=0;
     inputFrame(0);
     inputFrame(KEY_START);
     inputFrame(0);
@@ -85,6 +100,9 @@ int main(void){
 
     touchShortcut(60);
     require(ggExplore.active&&!ggExplore.actorId,"touch shortcut opens 3D walking");
+    storyOn=1;stUse=6;
+    unlockTiers();
+    require(chapter==0&&dlgPend<0,"an earned map scene waits while the walk owns input");
     touchShortcut(160);
     int before=ggExplore.frame,xBefore=ggExplore.px;
     inputFrame(KEY_UP);inputFrame(0);
@@ -92,10 +110,19 @@ int main(void){
             "controls pause the live 3D view");
     inputFrame(KEY_B);inputFrame(0);
     require(ggExplore.active&&ggExplore.frame>before,"back resumes the same view from controls");
-    touchShortcut(60);
-    require(!ggExplore.active,"touch shortcut returns to the world map");
+    ggQuest.talk=1;
+    inputFrame(KEY_SELECT|KEY_L);inputFrame(0);
+    require(!ggExplore.active&&!ggQuest.talk,
+            "leaving a walk clears its town dialogue before returning to the map");
+    unlockTiers();
+    require(chapter==1&&dlgPend==1,"the earned chapter scene queues when map input returns");
+    chapter=0;dlgPend=-1;storyOn=0;stUse=0;
     touchShortcut(260);
     require(!ggChron.active&&strstr(info,"CHAPTER 3"),"locked story shortcut explains how to unlock it");
+    ggChron.loaded=1;ggChron.cleared=1;chapter=3;
+    require(ggFieldMode()==GG_FIELD_MAP_LOCKED&&ggFieldReignChapter()==5,
+            "completed acts show the next story milestone on the map");
+    ggChron.cleared=chapter=0;
 
     int person=addCr(0,20,20);
     require(person>=0,"spawn a real citizen");
@@ -105,6 +132,12 @@ int main(void){
     inputFrame(KEY_TOUCH);inputFrame(0);
     require(ggExplore.active&&!ggHybridPicking&&ggHybridResolve()==person,
             "tapping a citizen immediately opens their point of view");
+    int neighbor=addCr(1,24,25);
+    require(neighbor>=0,"spawn a second citizen near the player");
+    touchPx=24*8+4-camX;touchPy=25*8+4-camY;
+    inputFrame(KEY_TOUCH);inputFrame(0);
+    require(ggHybridResolve()==person&&ggOutdoorWaypointX==24&&ggOutdoorWaypointY==25,
+            "waypoint taps keep the selected resident");
     Cr *citizen=&cr[person];
     int ox=ggExplore.px,oy=ggExplore.py;
     ggExplore.px=21*256+128;
@@ -176,11 +209,40 @@ int main(void){
     for(int x=21;x<bank;x++)world[80][x]=T_WATER;
     require(ggOutdoorFindFerry(20,80,NULL,&lx,&ly)&&lx==bank+1&&ly==80,
             "a ferry can reach the far dock at the route limit");
+
+    inputFrame(KEY_START);inputFrame(0);
+    camX=70*8-128;camY=70*8-96;
+    inputFrame(KEY_SELECT|KEY_L);inputFrame(0);
+    require(ggExplore.active,"travel begins in the open March fixture");
+    aimEast();
+    for(int i=0;i<36;i++)inputFrame(KEY_UP);
+    inputFrame(0);
+    int walkedX=ggExplore.px>>8,walkedY=ggExplore.py>>8;
+    require(walkedX>70,"the traveler has left their original map position");
+    chapter=3;
+    ggOrigin.loaded=1;
+    inputFrame(KEY_SELECT|KEY_Y);inputFrame(0);
+    require(ggChron.active&&(ggExplore.px>>8)==walkedX&&(ggExplore.py>>8)==walkedY,
+            "select and Y start a new expedition from the traveler's feet");
+    ggOrigin.phase=GG_ORIGIN_EPILOGUE;
+    inputFrame(KEY_START);inputFrame(KEY_START);
+    require(ggChron.active&&!ggOrigin.active&&ggSaga.mode==GG_SAGA_OPEN,
+            "holding Start after the origin ends does not exit Reign");
+    inputFrame(0);inputFrame(KEY_B);inputFrame(0);
+    require(!ggChron.openingPending&&!ggSaga.mode,"skipping the opening enters the live expedition");
+    ggChron.hp=0;ggChron.rations=2;
+    inputFrame(0);
+    require(ggChron.lost,"losing all health records a defeated expedition");
+    inputFrame(KEY_A);inputFrame(0);
+    require(ggChron.active&&!ggChron.lost&&ggChron.hp==35&&ggChron.rations==1,
+            "A rallies at the camp and uses a ration while preserving the expedition");
+    inputFrame(KEY_START);inputFrame(0);
+    require(!ggChron.active&&!ggExplore.active,"the rallied expedition exits to the map");
     mapPtr=(u16*)bgGetMapPtr(0);
     checkMarch(128,4242);
     checkMarch(256,77);
     checkMarch(512,69778);
     checkMarch(1024,4243);
-    puts("OUTDOOR OK: free walking, bounded discovery and live stores, ferry with stable citizen identity");
+    puts("OUTDOOR OK: grounded travel, persistent resident identity and native Reign handoffs");
     return 0;
 }

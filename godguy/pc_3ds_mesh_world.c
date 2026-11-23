@@ -82,6 +82,114 @@ static void meshResidenceFootprint(unsigned char *pixels){
     bld[y][x]=bld[y+1][x]=bld[y+1][x+1]=B_NONE;
     ggExplore=previous;
 }
+static int meshFaceAspect(const GgMeshContext *m,int span,int height){
+    // At equal depth, these are the same horizontal and vertical scales
+    // used by the native 3D camera.
+    return span*m->focal*100/(height*m->vertical*256);
+}
+static void meshBuildingFrontage(unsigned char *pixels){
+    static const struct { int build,aspect; } single[]={
+        {B_HUT,103},{B_HOUSE,100},{B_MANOR,60},
+        {B_WORKSHOP,94},{B_INN,75},{B_BARRACKS,78}
+    };
+    const int row=60,ground=ggExpGround(T_GRASS);
+    GgMeshContext *m=&ggMeshContext;
+    ggMeshBegin(m,pixels,2,0,0,ground+GG_WORLD_EYE_HEIGHT,4096,0,42,65,89);
+    for(unsigned i=0;i<sizeof single/sizeof single[0];i++){
+        unsigned variants=0;
+        for(int tx=53;tx<75;tx++){
+            int build=single[i].build;
+            GgSettlementPlan p;
+            ggMeshSettlementPlan(&p,tx,row,build,ground);
+            variants|=1u<<p.variant;
+            int width=p.x1-p.x0,frontage=p.y1-p.y0;
+            int aspect=meshFaceAspect(m,width<frontage?width:frontage,p.eave-ground);
+            if(aspect<single[i].aspect)
+                fprintf(stderr,"Building %d variant %d has %d%% short-wall aspect, expected %d%%\n",
+                        build,p.variant,aspect,single[i].aspect);
+            meshRequire(aspect>=single[i].aspect,"settlement walls still look pinched head-on");
+            int firstRoof=1,doors=0;
+            for(int k=0;k<p.count;k++){
+                const GgSettlementPart *b=&p.part[k];
+                meshRequire(b->x0>=0&&b->y0>=0&&b->x1<256&&b->y1<256,
+                            "a widened building overhangs its claimed plot");
+                if(b->color==GG_SETTLE_DOOR){
+                    doors++;
+                    meshRequire(b->z1-b->z0==GG_WORLD_DOOR_HEIGHT&&
+                                b->y1-b->y0==(build==B_HUT?44:54),
+                                "the widened mass also scales the human doorway");
+                }
+                if(build==B_HOUSE&&firstRoof&&b->type==GG_SETTLE_ROOF){
+                    int rise=b->z1-ggSettlementRoofFrame(b).eave;
+                    meshRequire(rise>=12&&rise<=17,"a steep cottage gable overwhelms the widened walls");
+                    firstRoof=0;
+                }
+            }
+            meshRequire(doors==1,"settlement frontage has no single entrance panel");
+            meshRequire(build!=B_HOUSE||!firstRoof,"the cottage lost its main roof");
+        }
+        meshRequire(variants==7,"frontage fixture does not exercise all settlement variants");
+    }
+    const int shop=55,shopX=shop*256+130,shopY=row*256+38;
+    bld[row][shop]=B_WORKSHOP;
+    world[row-1][shop]=T_SAND;
+    int verge=ggMeshGroundAtQ8(shopX,shopY);
+    meshRequire(verge<ground&&ggChronBuildingAt(shopX,shopY,verge,0)&&
+                !ggChronBuildingAt(shopX,row*256-1,verge,0),
+                "the broadened workshop footing floats or obstructs the neighboring plot");
+    int eye=ground+GG_WORLD_EYE_HEIGHT;
+    ggMeshBegin(m,pixels,2,shopX-500,shopY,eye,4096,0,42,65,89);
+    ggMeshBuilding(m,shop,row,B_WORKSHOP,ground,1);
+    meshRequire(ggChronBuildingAt(shopX,shopY,eye,0)&&
+                m->depth[m->horizon*m->w+m->w/2]>100,
+                "the broadened storefront and its cover disagree at the wall edge");
+    world[row-1][shop]=T_GRASS;
+    bld[row][shop]=B_NONE;
+    for(int axis=0;axis<2;axis++){
+        int tx=57+axis*3,build=axis?B_HOUSE_EW:B_HOUSE_NS;
+        GgLotPlan p;
+        bld[row][tx]=build;
+        bld[row+!axis][tx+axis]=axis?B_WING_E:B_WING_S;
+        ggMeshLotPlan(&p,tx,row,build,ground,ggResidenceMask(tx,row,build));
+        GgLotRect wall=p.elevation[0].wall;
+        const GgSettlementPart *main=&p.mass.part[1];
+        int width=axis?wall.y1-wall.y0:wall.x1-wall.x0;
+        int span=axis?wall.x1-wall.x0:wall.y1-wall.y0;
+        meshRequire(meshFaceAspect(m,width,main->z1-ground)>=80&&span>=440,
+                    "the family house lost its broad side or its continuous second room");
+        int localX=axis?wall.x1-12:wall.x0+8,localY=axis?wall.y0+8:wall.y1-12;
+        int x=tx*256+localX,y=row*256+localY;
+        meshRequire(ggChronBuildingAt(x,y,ground+GG_WORLD_EYE_HEIGHT,0),
+                    "the outer end of the family room gives no cover");
+        ggMeshBegin(m,pixels,2,axis?x:x-420,axis?y-420:y,eye,
+                    axis?0:4096,axis?4096:0,42,65,89);
+        ggMeshBuilding(m,tx,row,build,ground,1);
+        meshRequire(m->depth[m->horizon*m->w+m->w/2]>100,
+                    "the outer family room has cover without its visible wall");
+        bld[row][tx]=bld[row+!axis][tx+axis]=B_NONE;
+    }
+    for(unsigned mask=0;mask<=7;mask++){
+        GgLotPlan p;
+        ggMeshLotPlan(&p,57,row,B_ESTATE,ground,mask);
+        for(int i=0;i<p.mass.count;i++){
+            const GgSettlementPart *b=&p.mass.part[i];
+            meshRequire(b->x0>=0&&b->x1<512&&b->y0>=0&&b->y1<512,
+                        "an estate roof or foundation projects beyond the estate");
+            for(int y=b->y0/256;y<=b->y1/256;y++)for(int x=b->x0/256;x<=b->x1/256;x++){
+                int cell=x+2*y;
+                meshRequire(!cell||(mask&(1u<<(cell-1))),
+                            "demolishing an estate wing leaves geometry on the vacant plot");
+            }
+        }
+    }
+    int start=62*256;
+    GgMeshBuildingFootprint hall=ggMeshBuildingFootprint(62,62,B_HALL);
+    GgMeshBuildingFootprint temple=ggMeshBuildingFootprint(62,62,B_TEMPLE);
+    meshRequire(hall.x1-hall.x0>=220&&temple.y1-temple.y0>=220&&
+                hall.y0==start+GG_MESH_BUILDING_MARGIN&&
+                temple.x0==start+GG_MESH_BUILDING_MARGIN,
+                "civic walls are narrow or their covered entrances moved into the street");
+}
 static unsigned long long meshSurfaceHash(const void *data,size_t size){
     const unsigned char *p=data;
     unsigned long long hash=0;
@@ -211,7 +319,7 @@ static void meshBuildingSilhouettes(unsigned char *pixels){
         int build,dx,dy,dz,minDepth,maxDepth;
         const char *failure;
     } checks[]={
-        {B_HOUSE,-110,0,41,176,65535,"cottage roof lacks a raised gable"},
+        {B_HOUSE,-110,0,37,176,65535,"cottage roof lacks a raised gable"},
         {B_TOWER,-82,0,56,166,65535,"tower gallery does not project beyond its shaft"},
         {B_TEMPLE,-142,62,13,195,65535,"temple has no load-bearing porch on the visible gable"},
         {B_RUIN,-100,0,6,0,145,"ruin breach is blocked by an intact exterior wall"},
@@ -429,6 +537,7 @@ int main(void){
     static unsigned char pixels[400*240*3];
     meshHumanPerspective(pixels);
     meshResidenceFootprint(pixels);
+    meshBuildingFrontage(pixels);
     meshPavedWalk(pixels);
     meshWellCover(pixels);
     meshEntrances(pixels);

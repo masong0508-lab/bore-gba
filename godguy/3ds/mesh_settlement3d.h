@@ -31,7 +31,8 @@ typedef struct {
 typedef struct {
     GgSettlementPart part[GG_SETTLE_PART_LIMIT];
     int count,ox,oy,ground,variant;
-    int x0,y0,x1,y1,eave,floor,hasDoor,upper;
+    int x0,y0,x1,y1,eave,floor,doorBayHalf,upper;
+    int upperX,upperY0,upperY1;
 } GgSettlementPlan;
 
 static inline int ggMeshSettlementHandles(int build){
@@ -67,12 +68,14 @@ static void ggSettlementWall(GgSettlementPlan*p,int x0,int y0,int x1,int y1,
 }
 static void ggSettlementHouseShell(GgSettlementPlan*p,int x0,int y0,int x1,int y1,
                                    int top,int color){
-    int half=(y1-y0)/2,center=(y0+y1)/2,width=ggMeshDoorHalfWidth(half);
+    int center=(y0+y1)/2,doorBay=p->doorBayHalf;
+    int width=ggMeshDoorHalfWidth(doorBay);
     int low=center-width,high=center+width;
-    p->floor=ggMeshDoorFloor(p->ox+x0,0,1,p->oy+y0,p->oy+y1);
+    p->floor=ggMeshDoorFloor(p->ox+x0,0,1,p->oy+center-doorBay,p->oy+center+doorBay);
     int lintel=p->floor+GG_WORLD_DOOR_HEIGHT;
     int eave=top>lintel+3?top:lintel+3;
-    p->x0=x0;p->x1=x1;p->y0=y0;p->y1=y1;p->eave=eave;p->hasDoor=1;
+    p->x0=x0;p->x1=x1;p->y0=y0;p->y1=y1;p->eave=eave;
+    p->upperX=x0-12;p->upperY0=y0;p->upperY1=y1;
     ggSettlementWall(p,x0,y0,x1,y1,eave,color);
     // Two structural returns and an overhead lintel give the doorway
     // an actual recess. The closing door sits behind the wall plane.
@@ -103,40 +106,40 @@ static void ggSettlementDwelling(GgSettlementPlan*p,int build){
     if(build==B_HUT){
         static const unsigned char wall[]={GG_SETTLE_OAK,GG_SETTLE_LIMESTONE,GG_SETTLE_GREEN};
         static const unsigned char roof[]={GG_SETTLE_THATCH,GG_SETTLE_SHINGLE,GG_SETTLE_TERRA};
-        ggSettlementHouseShell(p,58,58,194-v*5,198,g+22,wall[v]);
+        ggSettlementHouseShell(p,44,34,210-v*3,222,g+21,wall[v]);
         int t=p->eave;
-        ggSettlementRoof(p,40,43,207-v*5,213,t-1,t+15+2*v,v==1,
-                          v==2?165:128,v==1?24:0,roof[v],0);
+        ggSettlementRoof(p,28,19,226-v*3,237,t-1,t+12+v,v==1,
+                          v==2?154:128,v==1?24:0,roof[v],0);
         if(v==0){
-            ggSettlementCanopy(p,23,85,60,171,g+19,g+23,GG_SETTLE_THATCH);
+            ggSettlementCanopy(p,17,78,53,178,g+18,g+22,GG_SETTLE_THATCH);
         }else if(v==1){
-            ggSettlementChimney(p,170,143,t,t+23,11,GG_SETTLE_LIMESTONE);
+            ggSettlementChimney(p,176,157,t,t+20,11,GG_SETTLE_LIMESTONE);
         }else{
-            ggSettlementWall(p,168,139,222,207,g+17,GG_SETTLE_CEDAR);
-            ggSettlementRoof(p,159,129,232,218,g+16,g+24,1,0,0,GG_SETTLE_SHINGLE,0);
+            ggSettlementWall(p,184,138,230,214,g+17,GG_SETTLE_CEDAR);
+            ggSettlementRoof(p,175,129,241,225,g+16,g+24,1,0,0,GG_SETTLE_SHINGLE,0);
         }
         return;
     }
     static const unsigned char wall[]={GG_SETTLE_PLASTER,GG_SETTLE_CREAM,GG_SETTLE_CLAY};
     static const unsigned char roof[]={GG_SETTLE_TERRA,GG_SETTLE_SLATE,GG_SETTLE_SHINGLE};
-    int x1=v==0?182:v==1?203:190;
-    ggSettlementHouseShell(p,28,44-v*3,x1,212+v*3,g+26,wall[v]);
+    int x1=v==0?210:v==1?218:212,y0=25-v*2,y1=231+v*2;
+    ggSettlementHouseShell(p,28,y0,x1,y1,g+25,wall[v]);
     int t=p->eave;
     if(v==1){
         // A jettied upper storey overhangs the shaded lower walls.
-        p->upper=t+2;
-        ggSettlementBox(p,15,35,x1+9,221,t-1,t+2,GG_SETTLE_DARK_OAK);
-        ggSettlementBox(p,16,36,x1+8,220,t+2,t+12,GG_SETTLE_LIMESTONE);
-        ggSettlementBox(p,14,34,x1+10,222,t+10,t+12,GG_SETTLE_DARK_OAK);
-        ggSettlementRoof(p,8,29,x1+15,227,t+11,t+25,0,128,0,roof[v],0);
-        ggSettlementChimney(p,173,169,t+12,t+30,12,GG_SETTLE_MASONRY);
+        p->upper=t;p->upperX=16;p->upperY0=y0-5;p->upperY1=y1+5;
+        ggSettlementBox(p,15,y0-6,x1+9,y1+6,t-1,t+2,GG_SETTLE_DARK_OAK);
+        ggSettlementBox(p,16,y0-5,x1+8,y1+5,t+2,t+10,GG_SETTLE_LIMESTONE);
+        ggSettlementBox(p,14,y0-7,x1+10,y1+7,t+8,t+10,GG_SETTLE_DARK_OAK);
+        ggSettlementRoof(p,8,y0-13,x1+15,y1+13,t+9,t+22,0,128,0,roof[v],0);
+        ggSettlementChimney(p,173,169,t+10,t+28,12,GG_SETTLE_MASONRY);
     }else{
-        ggSettlementRoof(p,8,28,x1+14,228,t-1,t+23,0,
-                          v==2?166:128,0,roof[v],0);
-        ggSettlementChimney(p,144,173,t,t+30,13,GG_SETTLE_LIMESTONE);
+        ggSettlementRoof(p,8,y0-12,x1+14,y1+12,t-1,t+(v==2?14:16),0,
+                          v==2?143:128,0,roof[v],0);
+        ggSettlementChimney(p,144,173,t,t+27,13,GG_SETTLE_LIMESTONE);
         int y=v==0?143:34;
-        ggSettlementWall(p,x1-19,y,230,y+80,g+18,GG_SETTLE_CEDAR);
-        ggSettlementRoof(p,x1-26,y-9,240,y+89,g+17,g+26,1,0,0,
+        ggSettlementWall(p,x1-19,y,235,y+80,g+18,GG_SETTLE_CEDAR);
+        ggSettlementRoof(p,x1-26,y-9,246,y+89,g+17,g+26,1,0,0,
                           v==0?GG_SETTLE_SHINGLE:GG_SETTLE_TERRA,0);
     }
 }
@@ -166,44 +169,44 @@ static void ggSettlementPublic(GgSettlementPlan*p,int build){
     int g=p->ground;
     if(build==B_MARKET){ggSettlementMarket(p);return;}
     if(build==B_MANOR){
-        ggSettlementHouseShell(p,69,42,222,212,g+46,GG_SETTLE_LIMESTONE);
+        ggSettlementHouseShell(p,56,24,230,232,g+39,GG_SETTLE_LIMESTONE);
         int t=p->eave;
-        p->upper=g+25;
-        ggSettlementRoof(p,52,27,239,226,t-1,t+17,0,128,44,GG_SETTLE_SLATE,0);
-        ggSettlementFoot(p,23,82,65,174,g+2,GG_SETTLE_FOUNDATION);
-        ggSettlementFoot(p,34,78,66,178,g+3,GG_SETTLE_LIMESTONE);
-        ggSettlementFoot(p,43,86,67,170,g+4,GG_SETTLE_LIMESTONE);
-        ggSettlementFoot(p,42,87,62,105,g+29,GG_SETTLE_MASONRY);
-        ggSettlementFoot(p,42,151,62,169,g+29,GG_SETTLE_MASONRY);
-        ggSettlementBox(p,37,81,74,174,g+26,g+30,GG_SETTLE_LIMESTONE);
-        ggSettlementRoof(p,31,76,79,180,g+29,g+42,0,128,0,GG_SETTLE_TERRA,0);
-        ggSettlementChimney(p,183,166,t,t+27,14,GG_SETTLE_LIMESTONE);
+        p->upper=g+23;
+        ggSettlementRoof(p,41,11,246,245,t-1,t+14,0,128,44,GG_SETTLE_SLATE,0);
+        ggSettlementFoot(p,13,75,53,181,g+2,GG_SETTLE_FOUNDATION);
+        ggSettlementFoot(p,23,72,55,184,g+3,GG_SETTLE_LIMESTONE);
+        ggSettlementFoot(p,34,80,57,176,g+4,GG_SETTLE_LIMESTONE);
+        ggSettlementFoot(p,30,80,50,98,g+26,GG_SETTLE_MASONRY);
+        ggSettlementFoot(p,30,158,50,176,g+26,GG_SETTLE_MASONRY);
+        ggSettlementBox(p,26,73,64,183,g+23,g+27,GG_SETTLE_LIMESTONE);
+        ggSettlementRoof(p,20,69,69,187,g+26,g+36,0,128,0,GG_SETTLE_TERRA,0);
+        ggSettlementChimney(p,183,166,t,t+22,14,GG_SETTLE_LIMESTONE);
     }else if(build==B_WORKSHOP){
-        ggSettlementHouseShell(p,91,47,228,210,g+25,GG_SETTLE_MASONRY);
+        ggSettlementHouseShell(p,76,26,234,230,g+23,GG_SETTLE_MASONRY);
         int t=p->eave;
-        ggSettlementRoof(p,79,33,242,224,t-1,t+12,0,145,0,GG_SETTLE_SHINGLE,0);
-        ggSettlementCanopy(p,21,65,98,203,g+21,t+4,GG_SETTLE_SLATE);
-        ggSettlementFoot(p,29,71,96,196,g+1,GG_SETTLE_FOUNDATION);
-        ggSettlementFoot(p,33,166,85,193,g+6,GG_SETTLE_OAK);
-        ggSettlementFoot(p,177,151,217,191,t+11,GG_SETTLE_MASONRY);
-        ggSettlementChimney(p,197,170,t+11,t+30,15,GG_SETTLE_CLAY);
+        ggSettlementRoof(p,64,14,248,242,t-1,t+10,0,145,0,GG_SETTLE_SHINGLE,0);
+        ggSettlementCanopy(p,18,45,85,209,g+19,t+3,GG_SETTLE_SLATE);
+        ggSettlementFoot(p,25,51,81,203,g+1,GG_SETTLE_FOUNDATION);
+        ggSettlementFoot(p,30,168,72,195,g+6,GG_SETTLE_OAK);
+        ggSettlementFoot(p,177,151,217,191,t+9,GG_SETTLE_MASONRY);
+        ggSettlementChimney(p,197,170,t+9,t+26,15,GG_SETTLE_CLAY);
     }else if(build==B_INN){
-        ggSettlementHouseShell(p,67,43,209,215,g+36,GG_SETTLE_CREAM);
+        ggSettlementHouseShell(p,55,25,225,231,g+31,GG_SETTLE_CREAM);
         int t=p->eave;
-        p->upper=t-11;
-        ggSettlementBox(p,49,37,219,221,t-13,t-10,GG_SETTLE_DARK_OAK);
-        ggSettlementBox(p,50,37,218,221,t-10,t+1,GG_SETTLE_PLASTER);
-        ggSettlementRoof(p,36,25,233,232,t,t+17,0,128,0,GG_SETTLE_TERRA,0);
-        ggSettlementCanopy(p,18,58,71,201,g+20,g+26,GG_SETTLE_SHINGLE);
-        ggSettlementFoot(p,25,62,66,194,g+1,GG_SETTLE_FOUNDATION);
+        p->upper=t-11;p->upperX=40;p->upperY0=19;p->upperY1=237;
+        ggSettlementBox(p,39,19,235,237,t-13,t-10,GG_SETTLE_DARK_OAK);
+        ggSettlementBox(p,40,19,234,237,t-10,t+1,GG_SETTLE_PLASTER);
+        ggSettlementRoof(p,29,8,248,248,t,t+14,0,128,0,GG_SETTLE_TERRA,0);
+        ggSettlementCanopy(p,15,49,62,207,g+19,g+24,GG_SETTLE_SHINGLE);
+        ggSettlementFoot(p,22,53,58,200,g+1,GG_SETTLE_FOUNDATION);
         ggSettlementBox(p,23,70,59,76,t-5,t-3,GG_SETTLE_DARK_OAK);
         ggSettlementBox(p,27,72,31,76,t-11,t-3,GG_SETTLE_OAK);
         ggSettlementBox(p,20,70,43,76,t-15,t-9,GG_SETTLE_BRASS);
-        ggSettlementChimney(p,178,174,t,t+24,13,GG_SETTLE_MASONRY);
+        ggSettlementChimney(p,178,174,t,t+22,13,GG_SETTLE_MASONRY);
     }else{
-        ggSettlementHouseShell(p,55,40,222,216,g+34,GG_SETTLE_MASONRY);
+        ggSettlementHouseShell(p,49,28,229,228,g+32,GG_SETTLE_MASONRY);
         int t=p->eave;
-        ggSettlementRoof(p,44,27,236,229,t-1,t+16,1,128,39,GG_SETTLE_SLATE,0);
+        ggSettlementRoof(p,38,15,243,241,t-1,t+14,1,128,39,GG_SETTLE_SLATE,0);
         for(int side=0;side<2;side++){
             int y=side?161:39;
             ggSettlementFoot(p,22,y-3,78,y+57,g+3,GG_SETTLE_FOUNDATION);
@@ -218,7 +221,8 @@ static void ggSettlementPublic(GgSettlementPlan*p,int build){
 static void ggMeshSettlementPlan(GgSettlementPlan*p,int tx,int ty,int build,int ground){
     p->count=0;p->ox=tx*256;p->oy=ty*256;p->ground=ground;
     p->variant=ggMeshSettlementVariant(tx,ty,build);
-    p->hasDoor=0;p->upper=0;
+    // Facade width can grow while the human-scale opening stays the same.
+    p->doorBayHalf=build==B_MARKET?0:build==B_HUT?70:100;p->upper=0;
     if(build==B_HUT||build==B_HOUSE)ggSettlementDwelling(p,build);
     else ggSettlementPublic(p,build);
 }
@@ -360,7 +364,7 @@ static void ggSettlementGlazing(GgMeshContext*m,int axis,int plane,int facing,
 }
 static void ggSettlementFacade(GgMeshContext*m,const GgSettlementPlan*p,int build,
                                int nearDetail){
-    if(!p->hasDoor)return;
+    if(!p->doorBayHalf)return;
     int prior=m->material,bias=m->depthBias;
     m->material=GG_MAT_NONE;m->depthBias=1;
     int x0=p->ox+p->x0,x1=p->ox+p->x1,y0=p->oy+p->y0,y1=p->oy+p->y1;
@@ -368,13 +372,13 @@ static void ggSettlementFacade(GgMeshContext*m,const GgSettlementPlan*p,int buil
     int g=p->ground,lower=g+9,upper=lower+7;
     int slit=build==B_BARRACKS?6:build==B_HUT?10:14;
     if(m->cx<x0){
-        ggMeshDoorway(m,x0,0,1,cy,(y1-y0)/2,p->floor);
+        ggMeshDoorway(m,x0,0,1,cy,p->doorBayHalf,p->floor);
         for(int side=-1;side<=1;side+=2){
             int y=cy+side*(y1-y0)/3;
             ggSettlementGlazing(m,0,x0-14,1,y,slit,lower,upper,nearDetail);
         }
         if(p->upper){
-            int plane=x0-(build==B_INN?19:14);
+            int plane=p->ox+p->upperX-2;
             for(int i=-1;i<=1;i++)
                 ggSettlementGlazing(m,0,plane,1,cy+i*46,slit-3,
                                     p->upper+2,p->upper+8,nearDetail);
@@ -391,8 +395,7 @@ static void ggSettlementFacade(GgMeshContext*m,const GgSettlementPlan*p,int buil
             ggSettlementGlazing(m,1,plane,facing,cx+side*(x1-x0)/4,
                                 slit,lower,upper,nearDetail);
         if(p->upper){
-            if(build==B_INN)plane=facing>0?p->oy+35:p->oy+223;
-            if(build==B_HOUSE)plane=facing>0?p->oy+34:p->oy+222;
+            plane=p->oy+(facing>0?p->upperY0-2:p->upperY1+2);
             for(int side=-1;side<=1;side+=2)
                 ggSettlementGlazing(m,1,plane,facing,cx+side*(x1-x0)/4,
                                     slit-3,p->upper+2,p->upper+8,nearDetail);

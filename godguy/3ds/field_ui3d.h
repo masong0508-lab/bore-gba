@@ -6,8 +6,8 @@ enum { GG_FIELD_HIDDEN, GG_FIELD_MAP_LOCKED, GG_FIELD_MAP_READY,
        GG_FIELD_MODAL };
 static const char *const ggFieldButtons[][3]={
     {NULL,NULL,NULL},
-    {"WALK IN 3D","FOLLOW PERSON","REIGN AT CH 3"},
-    {"WALK IN 3D","FOLLOW PERSON","ENTER REIGN"},
+    {"WORLD WALK","AS A RESIDENT","REIGN AFTER 3"},
+    {"WORLD WALK","AS A RESIDENT","ENTER REIGN"},
     {NULL,"CANCEL",NULL},
     {"BACK TO MAP","CONTROLS","INTERACT"},
     {"BACK TO MAP","CONTROLS","COUNCIL"},
@@ -30,10 +30,15 @@ static void ggFieldStripText(u8 *out,int x,const char *label,int muted){
         }
     }
 }
-static void ggFieldStripDraw(u8 *out,int mode){
+static void ggFieldStripDraw(u8 *out,int mode,int reignChapter){
     memset(out,0,320*GG_3DS_MAP_TOP*3);
     for(int i=0;i<3;i++){
         const char *label=ggFieldButtons[mode][i];
+        char lock[24];
+        if(mode==GG_FIELD_MAP_LOCKED&&i==2){
+            snprintf(lock,sizeof lock,"REIGN AFTER %d",reignChapter);
+            label=lock;
+        }
         if(!label)continue;
         int x=GG_FIELD_LEFT+i*GG_FIELD_STEP;
         int muted=mode==GG_FIELD_MAP_LOCKED&&i==2;
@@ -51,7 +56,7 @@ static void ggFieldStripDraw(u8 *out,int mode){
     }
     if(mode==GG_FIELD_PICK)ggFieldStripText(out,16,"TAP A PERSON",0);
 }
-static void ggFieldGuideDraw(u8 *out,int combat,int following){
+static void ggFieldGuideDraw(u8 *out,int combat,int following,int sculpt){
     ggExpRect(out,24,34,352,157,16,28,38);
     ggExpRect(out,24,34,352,2,200,158,90);
     ggExpText(out,40,47,combat?"REIGN CONTROLS":"3D WORLD CONTROLS",247,224,174);
@@ -63,11 +68,12 @@ static void ggFieldGuideDraw(u8 *out,int combat,int following){
         ggExpText(out,40,136,"X OBJECTIVE    Y RATION    SELECT COUNCIL",225,234,232);
         ggExpText(out,40,152,"START RETURNS TO THE WORLD MAP",225,234,232);
     }else{
-        ggExpText(out,40,88,"L + A INTERACT WITH THE AIMED SITE",225,234,232);
-        ggExpText(out,40,104,"A PLACE    Y CLEAR    X MATERIAL",225,234,232);
+        ggExpText(out,40,88,sculpt?"L + A INTERACT AT A NEARBY SITE":"A INTERACT AT A NEARBY SITE",225,234,232);
+        ggExpText(out,40,104,sculpt?"A PLACE    Y CLEAR    X MATERIAL":
+                  "TAP THE MAP TO MARK A WAYPOINT",225,234,232);
         ggExpText(out,40,120,"SELECT SAVE    START RETURN TO MAP",225,234,232);
-        ggExpText(out,40,136,following?"TAP A PERSON TO FOLLOW THEM":
-                  "TAP LAND ON THE MAP TO TRAVEL",225,234,232);
+        ggExpText(out,40,136,following?"THIS RESIDENT'S HEALTH AND FOOD APPLY":
+                  "HALLS AND MARKETS OFFER LOCAL WORK",225,234,232);
     }
     ggExpText(out,40,179,"A OR B CLOSE",174,211,221);
 }
