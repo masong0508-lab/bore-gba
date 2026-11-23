@@ -234,6 +234,35 @@ static void meshArchitectureCover(unsigned char *pixels){
     bld[tile][tile]=B_NONE;
     meshRequire(passed,"combat cover disagrees with visible architectural volumes");
 }
+static void meshGateTraversal(void){
+    GgExplore3D saved=ggExplore;
+    const int tile=63,mid=tile*256+128,front=tile*256-24;
+    const int eye=ggExpGround(T_GRASS)+GG_WORLD_EYE_HEIGHT;
+    for(int north=0;north<=1;north++){
+        int gate=north?B_GATE_NS:B_GATE_EW;
+        bld[tile][tile]=gate;
+        int ax=north?mid:front,ay=north?front:mid;
+        int bx=north?mid:front+320,by=north?front+320:mid;
+        meshRequire(ggChronGateRoute(tile,tile,tile+!north,tile+north)&&
+                   !ggChronGateRoute(tile,tile,tile+north,tile+!north),
+                    "campaign path crosses a gate sideways through its masonry");
+        meshRequire(ggChronCombatLine(ax,ay,eye,bx,by,eye),
+                    "visible gate passage blocks a shot through its center");
+        ggExplore.px=ax;ggExplore.py=ay;ggExplore.angle=north?64:0;
+        for(int step=0;step<16;step++)ggExpAdvance(KEY_UP,0,0,0);
+        meshRequire(north?ggExplore.py>=by:ggExplore.px>=bx,
+                    "first-person movement cannot walk through a gate");
+        int dx=north?78:0,dy=north?0:78;
+        meshRequire(!ggChronCombatLine(ax+dx,ay+dy,eye,bx+dx,by+dy,eye),
+                    "gate pier does not stop a shot");
+        ggExplore.px=ax+dx;ggExplore.py=ay+dy;
+        for(int step=0;step<16;step++)ggExpAdvance(KEY_UP,0,0,0);
+        meshRequire(north?ggExplore.py<mid:ggExplore.px<mid,
+                    "first-person movement passes through a gate pier");
+    }
+    bld[tile][tile]=B_NONE;
+    ggExplore=saved;
+}
 static void meshRoundGeometryRegression(unsigned char *pixels){
     // Exercise the real final facet of every circular world primitive.
     // In particular, the six/eight-sided closing vertex used to read
@@ -288,6 +317,7 @@ int main(void){
     meshPlantedBoots(pixels);
     meshNearArchitecture(pixels);
     meshArchitectureCover(pixels);
+    meshGateTraversal();
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
                 "cinema is still a raycast image, not 3D mesh geometry");

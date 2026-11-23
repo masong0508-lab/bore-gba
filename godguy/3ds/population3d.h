@@ -41,7 +41,7 @@ static int ggExpLineClear(int fromX,int fromY,int x,int y){
     for(int q=1;q<n;q++){
         int tx=fromX+dx*q/n,ty=fromY+dy*q/n;
         if((unsigned)tx>=WW||(unsigned)ty>=WH)return 0;
-        if(bld[ty][tx])return 0;
+        if(bld[ty][tx]&&!ggBuildingIsGate(bld[ty][tx]))return 0;
         if(ggExpGround(world[ty][tx])>
             here+(there-here)*q/n+4)return 0;
     }

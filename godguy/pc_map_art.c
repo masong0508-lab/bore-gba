@@ -74,6 +74,7 @@ static void artInvariants(void){
     }
     for(int b=1;b<B_N;b++)for(int r=0;r<8;r++)for(int y=0;y<8;y++)for(int x=0;x<8;x++){
         int p=bldPix(b,r,x,y);ART_CHECK(p>=0&&p<GFX_PAL_N&&!UI_RESV(p),"building writes a reserved palette index");
+        ART_CHECK(shimTiles[BTILE(b,r)*64+y*8+x]==p,"building tile upload differs from map art");
     }
     // Magic-biome keys exceed16 bits. Repeated redraws must reuse their
     // transition tiles rather than consuming the entire484-slot cache.
@@ -118,5 +119,5 @@ int main(int argc,char**argv){
     zForce=1;zDraw();zFlush();if(!artSave(argv[1],"map_close"))return 3;
     zSet(Z_MICRO);zForce=1;zDraw();zFlush();if(!artSave(argv[1],"map_micro"))return 3;
     if(argc<3){artInvariants();if(artErrors)return 1;}
-    printf("MAP ART OK: native captures; 13 terrains, 11 buildings, 16 creature families\n");return 0;
+    printf("MAP ART OK: native captures; 13 terrains, %d buildings, 16 creature families\n",B_N-1);return 0;
 }

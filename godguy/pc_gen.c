@@ -213,11 +213,56 @@ static int marchSettlements(void){
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race==0){ home=v; break; }
     int nearCenter=home>=0&&abs(vil[home].x-WW/2)<=WW/32&&abs(vil[home].y-WH/2)<=WH/32;
     int villages=nVilOn;
+    int keeps=0,gates=0,walls=0;
+    for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
+        keeps+=bld[y][x]==B_KEEP;
+        gates+=ggBuildingIsGate(bld[y][x]);
+        walls+=bld[y][x]==B_WALL;
+    }
     cLife=0;
     newWorld();
     cLife=2;
-    int ok=nearCenter&&villages>=5&&nVilOn==0;
-    printf("Riven March settlements: %s (central village %d, settled villages %d, empty villages %d)\n",ok?"OK":"FAIL",nearCenter,villages,nVilOn);
+    int ok=nearCenter&&villages>=5&&nVilOn==0&&keeps>=1&&gates==2*keeps&&walls==14*keeps;
+    printf("Riven March settlements: %s (%d villages, %d keeps, %d gates, %d walls)\n",
+           ok?"OK":"FAIL",villages,keeps,gates,walls);
+    return !ok;
+}
+
+static int constructionTool(void){
+    const int x=16,y=16;
+    for(int dy=-4;dy<=4;dy++)for(int dx=-4;dx<=4;dx++){
+        world[y+dy][x+dx]=T_GRASS;
+        bld[y+dy][x+dx]=bldv[y+dy][x+dx]=0;
+        occ[y+dy][x+dx]=0;
+    }
+    for(int i=0;i<PW_N;i++)if(pw[i].kind==PK_BUILD)power=i;
+    constructionMode=GG_CONSTRUCTION_N-1;
+    world[y+2][x+2]=T_WATER;
+    usePower(x,y,1);
+    int partial=0;
+    for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++)partial+=bld[y+dy][x+dx]!=B_NONE;
+    world[y+2][x+2]=T_GRASS;
+    usePower(x,y,0);
+    int dragged=!!bld[y][x];
+    usePower(x,y,1);
+    int built=bld[y][x]==B_KEEP&&bld[y][x+2]==B_GATE_EW&&bld[y][x-2]==B_GATE_EW;
+    const char *path="/tmp/gg-settlement-fixture.sav";
+    favPow[power]=1;
+    int saved=saveGameRaw(path);
+    bld[y][x]=B_NONE;
+    favPow[power]=0;
+    int restored=saved&&loadGameRaw(path)&&bld[y][x]==B_KEEP&&
+                 bld[y][x+2]==B_GATE_EW&&favPow[power];
+    remove(path);
+    int protected=!ggOpenBuildingPlot(x+3,y)&&!ggOpenBuildingPlot(x+1,y);
+    constructionMode=0;
+    usePower(x+3,y,1);
+    usePower(x+1,y,1);
+    int motion=!walkable(&sp[0],x,y+2)&&walkable(&sp[0],x+2,y);
+    int ok=!partial&&!dragged&&built&&restored&&motion&&protected&&
+           !bld[y][x+3]&&!bld[y][x+1];
+    printf("Construction tool: %s (atomic castle, save round trip, pawn traversal)\n",
+           ok?"OK":"FAIL");
     return !ok;
 }
 
@@ -236,4 +281,5 @@ int main(){ int fails=0; makeSpecies(); cSea=cClim=cWet=0; cCoast=cMtn=0;
     fails+=marchVariety();
     fails+=marchRoutesAtExtremes();
     fails+=marchSettlements();
+    fails+=constructionTool();
     printf("%s\n",fails?"GEN FAIL":"GEN OK"); return fails?1:0; }

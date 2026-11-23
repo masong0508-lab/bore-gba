@@ -2,8 +2,7 @@
 // Two cameras must see the same windows, arch and masonry HEIGHT.
 #include <stdio.h>
 #include <stdlib.h>
-enum {B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,
-       B_DOCK,B_TEMPLE,B_STATUE,B_LIBRARY,B_BORDER,B_N};
+#include "source/building_types.h"
 #include "3ds/film_facade3d.h"
 static void check(int ok,const char*why){
     if(!ok){fprintf(stderr,"3DS FACADE FAIL: %s\n",why);exit(1);}

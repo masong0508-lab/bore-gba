@@ -732,9 +732,17 @@ static inline int ggMeshBuildingWallTop(GgMeshBuildingFootprint p,int tx,int ty,
     }
     return wallTop;
 }
+#include "mesh_settlement3d.h"
+#include "mesh_fort3d.h"
+
 static void ggMeshBuilding(GgMeshContext*m,int tx,int ty,int build,
                             int ground,int nearDetail){
     if(build<=B_NONE||build>=B_N)return;
+    if(ggMeshSettlementDraw(m,tx,ty,build,ground,nearDetail)||
+       ggMeshFortDraw(m,tx,ty,build,ground,nearDetail)){
+        ggMeshBuildingsDrawn++;
+        return;
+    }
     if(build==B_BORDER){
         ggMeshBorderMarker(m,tx*256+128,ty*256+128,ground);
         ggMeshBuildingsDrawn++;
@@ -1468,11 +1476,12 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
     for(int i=0;i<buildingCount;i++){
         int tx=buildings[i].x,ty=buildings[i].y,forward=buildings[i].forward;
         int build=bld[ty][tx];
-        int detailed=forward<6*256&&forward>-128;
+        int detailed=forward<(quality>=2?6:4)*256&&forward>-128;
         m->material=(build==B_HOUSE||build==B_HUT||
                      build==B_DOCK||build==B_FARM)?GG_MAT_WOOD:GG_MAT_STONE;
         m->materialSeed=(int)ggFilmScenicHash(tx,ty,17);
-        if(detailed&&forward>128&&build!=B_DOCK&&build!=B_BORDER)
+        if(detailed&&forward>128&&build!=B_DOCK&&build!=B_BORDER&&
+           build!=B_WALL&&!ggBuildingIsGate(build))
             ggMeshContactShadow(m,tx*256+128,ty*256+128,105,
                                 ggExpBuilding(build));
         ggMeshBuilding(m,tx,ty,build,ggExpGround(ggMeshTerrainAt(tx,ty)),detailed);

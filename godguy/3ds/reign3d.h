@@ -518,6 +518,7 @@ static int ggReignGuardStep(int fromX,int fromY,int goalX,int goalY,
             if((unsigned)nx>=W||(unsigned)ny>=W)continue;
             int q=ny*W+nx,wx=fromX+nx-R,wy=fromY+ny-R;
             if(dist[q]!=255||!ggChronLand(wx,wy))continue;
+            if(!ggChronGateRoute(x,y,wx,wy))continue;
             if(ggExpGround(world[wy][wx])-
                ggExpGround(world[y][x])>19)continue;
             dist[q]=dist[p]+1;

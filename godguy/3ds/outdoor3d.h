@@ -33,7 +33,7 @@ static GgOutdoorTarget ggOutdoorTargetAt(int x,int y){
     }
     int building=bld[y][x],terrain=world[y][x];
     if(building==B_FARM)target.kind=GG_OUTDOOR_FARM;
-    else if(building==B_HALL||building==B_HOUSE||building==B_HUT||building==B_TEMPLE)
+    else if(building==B_HALL||ggBuildingIsHome(building)||building==B_TEMPLE||building==B_INN)
         target.kind=GG_OUTDOOR_REST;
     else if(building==B_DOCK)target.kind=GG_OUTDOOR_DOCK;
     else{
@@ -41,6 +41,7 @@ static GgOutdoorTarget ggOutdoorTargetAt(int x,int y){
         else if(building==B_TOWER)target.site="WATCHTOWER";
         else if(building==B_STATUE)target.site="STONE MARKER";
         else if(building==B_LIBRARY)target.site="LIBRARY";
+        else if(building>=B_WORKSHOP&&building<B_N)target.site=ggBuildingName(building);
         else if(terrain==T_MOUNT||terrain==T_SNOW||terrain==T_HILL)target.site="RIDGE";
         else if(terrain==T_SAND||terrain==T_WATER||terrain==T_DEEP)target.site="WATER'S EDGE";
         else if(terrain==T_FOREST||terrain==T_JUNGLE||terrain==T_SWAMP)target.site="FORAGING GROUND";

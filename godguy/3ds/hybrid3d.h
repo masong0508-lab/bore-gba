@@ -77,7 +77,7 @@ static int ggHybridMove(int oldPX,int oldPY){
         if((nx-fromX>1||nx-fromX< -1||
             ny-fromY>1||ny-fromY< -1)||
            (unsigned)nx>=WW||(unsigned)ny>=WH||
-           bld[ny][nx]||occ[ny][nx]||
+           (bld[ny][nx]&&!ggBuildingIsGate(bld[ny][nx]))||occ[ny][nx]||
            !ggHybridWalkable(c,nx,ny)){
             ggExplore.px=oldPX;
             ggExplore.py=oldPY;
