@@ -28,22 +28,32 @@ jobs:
         run: |
           command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
           [ -x /usr/bin/python3 ] || ln -sf "$(command -v python3)" /usr/bin/python3     # (the build scripts call /usr/bin/python3)
-          # Both SDK builders must update the same package database and
-          # libraries. A partial upgrade cannot qualify release images.
-          # pkg.devkitpro.org occasionally returns transient 403 on its
-          # database mirrors. Retry the FULL upgrade + SDK installation;
-          # never silently use stale or partially synchronized libraries.
-          for attempt in 1 2 3 4; do
-            if dkp-pacman -Syu --noconfirm &&
-               dkp-pacman -S --needed --noconfirm nds-dev ndstool; then
-              break
-            fi
-            if [ "$attempt" -eq 4 ]; then
-              echo "devkitPro DS SDK installation failed after four complete attempts" >&2
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
+          # The immutable devkitARM container already ships DS/3DS SDKs.
+          # Package mirrors sometimes reject ALL database requests with 403.
+          # Verify the complete installed SDK first; only attempt network
+          # synchronization if required bits are actually missing. Both
+          # native 3DS builds publish their installed package versions and
+          # still MUST produce byte-identical executables before release.
+          if test -x "$DEVKITARM/bin/arm-none-eabi-gcc" &&
+             test -x "$DEVKITPRO/tools/bin/ndstool" &&
+             test -d "$DEVKITPRO/calico" &&
+             test -f "$DEVKITPRO/libnds/include/nds.h" &&
+             test -f "$DEVKITPRO/libctru/lib/libctru.a"; then
+            echo "Verified complete container-provided console SDK (offline)"
+          else
+            for attempt in 1 2 3 4; do
+              if dkp-pacman -Syu --noconfirm &&
+                 dkp-pacman -S --needed --noconfirm nds-dev ndstool 3ds-dev; then
+                break
+              fi
+              if [ "$attempt" -eq 4 ]; then
+                echo "Missing required SDK and package mirrors unavailable" >&2
+                exit 1
+              fi
+              sleep $((attempt * 5))
+            done
+          fi
+          dkp-pacman -Q devkitarm-gcc devkitarm-newlib libnds calico ndstool libctru
           ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
 
       - name: Regenerate professionally mastered vocal chops and 168-track sequences
@@ -177,7 +187,14 @@ jobs:
       - name: godguy.3dsx  (3DS, libctru)
         working-directory: godguy
         run: |
-          dkp-pacman -S --needed --noconfirm 3ds-dev
+          # The same immutable image supplies the 3DS SDK. Only access
+          # remote package indices if libctru/PICA tooling is missing.
+          if ! test -s "$DEVKITPRO/libctru/lib/libctru.a" ||
+             ! test -s "$DEVKITPRO/libctru/lib/libcitro3d.a" ||
+             ! test -x "$DEVKITPRO/tools/bin/3dsxtool" ||
+             ! test -x "$DEVKITPRO/tools/bin/picasso"; then
+            dkp-pacman -S --needed --noconfirm 3ds-dev
+          fi
           export DEVKITPRO=/opt/devkitpro
           chmod +x 3ds/build.sh
           echo "MIXED-PORT New3DS source and compiler provenance"
@@ -336,22 +353,29 @@ jobs:
       - name: SDK, tools and film cels
         working-directory: godguy
         run: |
-          # Match the mixed-port builder: installing without -Syu kept
-          # libctru 2.7.0 here while that job linked 2.7.1, changing the ROM.
-          # Match the DS job's exact database upgrade, including retries
-          # for transient server 403 responses. The package versions and
-          # final binary-reproducibility gate remain mandatory.
-          for attempt in 1 2 3 4; do
-            if dkp-pacman -Syu --noconfirm &&
-               dkp-pacman -S --needed --noconfirm 3ds-dev; then
-              break
-            fi
-            if [ "$attempt" -eq 4 ]; then
-              echo "devkitPro New3DS SDK installation failed after four complete attempts" >&2
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
+          # Build with the exact same container-provided SDK as the mixed
+          # console job. Updating only one SDK job introduces binary drift.
+          # The final release gate compares both compiled 3DSX bytes and
+          # rejects different versions, rather than trusting version names.
+          if test -x "$DEVKITARM/bin/arm-none-eabi-gcc" &&
+             test -s "$DEVKITPRO/libctru/lib/libctru.a" &&
+             test -s "$DEVKITPRO/libctru/lib/libcitro3d.a" &&
+             test -x "$DEVKITPRO/tools/bin/3dsxtool" &&
+             test -x "$DEVKITPRO/tools/bin/picasso"; then
+            echo "Verified complete container-provided New3DS SDK (offline)"
+          else
+            for attempt in 1 2 3 4; do
+              if dkp-pacman -Syu --noconfirm &&
+                 dkp-pacman -S --needed --noconfirm 3ds-dev; then
+                break
+              fi
+              if [ "$attempt" -eq 4 ]; then
+                echo "Missing New3DS SDK and package mirrors unavailable" >&2
+                exit 1
+              fi
+              sleep $((attempt * 5))
+            done
+          fi
           command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
           /usr/bin/python3 -c 'from PIL import Image' 2>/dev/null || { apt-get update && apt-get install -y python3-pil; }
           /usr/bin/python3 -c 'import numpy,scipy,mido' 2>/dev/null || { apt-get update && apt-get install -y python3-numpy python3-scipy python3-mido; }
