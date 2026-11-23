@@ -41,6 +41,20 @@ static void marchFerryLandings(int surveyY){
     }
 }
 
+static void marchFort(int surveyX,int surveyY,int gate,int civic){
+    int x0=surveyX*WW/1024,y0=surveyY*WH/1024;
+    int radius=WW/40+8,best=radius*radius+1,x=-1,y=-1;
+    for(int dy=-radius;dy<=radius;dy++)for(int dx=-radius;dx<=radius;dx++){
+        int d=dx*dx+dy*dy,nx=x0+dx,ny=y0+dy;
+        if(d>=best||!ggFortSite(nx,ny,gate)||vilAny(nx,ny,6)>=0)continue;
+        best=d;x=nx;y=ny;
+    }
+    if(x<0||!ggPlaceFort(-1,x,y,gate))return;
+    // Keep the external approaches clear. A service building sits
+    // inside one courtyard corner and the other side stays open.
+    putBld(-1,x-1,y-1,civic);
+}
+
 static void marchLandmarks(void){
     // Each landmark has its own district. Search the nearby dry ground
     // because river bends, coastlines and vegetation vary by seed.
@@ -51,6 +65,10 @@ static void marchLandmarks(void){
     };
     marchFerryLandings(474);
     marchFerryLandings(714);
+    if(cLife>0){
+        marchFort(652,345,B_GATE_EW,B_BARRACKS);
+        marchFort(380,704,B_GATE_NS,B_MARKET);
+    }
     for(unsigned i=0;i<sizeof sites/sizeof *sites;i++){
         int x0=sites[i][0]*WW/1024,y0=sites[i][1]*WH/1024;
         int distance=WW/40+5,best=distance*distance+1,x=-1,y=-1;

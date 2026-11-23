@@ -79,21 +79,30 @@ static int ggExpBuilding(int b){
     case B_TEMPLE:return 34;
     case B_STATUE:return 28;
     case B_LIBRARY:return 31;
+    case B_MANOR:return 36;
+    case B_WORKSHOP:return 23;
+    case B_INN:return 35;
+    case B_BARRACKS:return 31;
+    case B_MARKET:return 20;
+    case B_KEEP:return 55;
+    case B_WALL:return 28;
+    case B_GATE_NS:case B_GATE_EW:return 36;
     default:return 0;
     }
 }
 static int ggExpWalkable(int x,int y,int fromHeight,int climb){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     int t=world[y][x];
+    int building=bld[y][x],open=!building||ggBuildingIsGate(building);
     if((unsigned)t>=T_N)return 0; // reject damaged terrain indices
     if(ggExplore.actorId){
         // The actor can begin inside their own home or water habitat.
         // Allow fractional travel there; ggHybridMove applies the true
         // species and trait rules at every tile boundary.
         if(x==(ggExplore.px>>8)&&y==(ggExplore.py>>8))return 1;
-        return !bld[y][x]&&!occ[y][x];
+        return open&&!occ[y][x];
     }
-    if(t<=T_WATER||t==T_LAVA||bld[y][x])return 0;
+    if(t<=T_WATER||t==T_LAVA||!open)return 0;
     return ggExpGround(t)-fromHeight<=(climb?30:19);
 }
 static int ggExpBegin(int x,int y,int priorPause){
@@ -201,6 +210,7 @@ static int ggExpEdit(int tx,int ty,int material,int removing){
     ggExplore.edits++;
     return 1;
 }
+static int ggExpGateStepAllowed(int x,int y);
 static int ggExpAdvance(int held,int touchX,int touchY,int build){
     if(!ggExplore.active)return 0;
     int down=held&~ggExplore.lastHeld;
@@ -226,9 +236,11 @@ static int ggExpAdvance(int held,int touchX,int touchY,int build){
         int dy=(ggExpSin[a]*forward+ggExpCos[a]*strafe)*speed/4096;
         int from=ggExpGround(world[ggExplore.py>>8][ggExplore.px>>8]);
         int nx=ggExplore.px+dx,ny=ggExplore.py+dy;
-        if(ggExpWalkable(nx>>8,ggExplore.py>>8,from,held&KEY_B))
+        if(dx&&ggExpWalkable(nx>>8,ggExplore.py>>8,from,held&KEY_B)&&
+           ggExpGateStepAllowed(nx,ggExplore.py))
             ggExplore.px=nx;
-        if(ggExpWalkable(ggExplore.px>>8,ny>>8,from,held&KEY_B))
+        if(dy&&ggExpWalkable(ggExplore.px>>8,ny>>8,from,held&KEY_B)&&
+           ggExpGateStepAllowed(ggExplore.px,ny))
             ggExplore.py=ny;
         if(ggExplore.px!=oldX||ggExplore.py!=oldY)ggExplore.stepPhase++;
         else ggExplore.stepPhase=0;
@@ -657,6 +669,13 @@ compiled:
     ggExpFilmDrawDepth=0;
 }
 #include "mesh_world3d.h"
+static int ggExpGateStepAllowed(int x,int y){
+    int tx=x>>8,ty=y>>8,kind=bld[ty][tx];
+    if(!ggBuildingIsGate(kind))return 1;
+    int ground=ggExpGround(ggMeshTerrainAt(tx,ty));
+    int eye=ggMeshGroundAtQ8(x,y)+GG_WORLD_EYE_HEIGHT;
+    return ggMeshFortSolid(tx,ty,kind,x,y,eye,ground)==0;
+}
 #include "mesh_character3d.h"
 #include "mesh_people_billboard3d.h"
 #include "person_motion3d.h"

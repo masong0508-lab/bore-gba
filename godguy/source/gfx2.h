@@ -169,8 +169,8 @@ static int tileVar(int t,int x,int y){
 // shaded eaves, stone corners, timber framing and warm window points are
 // composed deliberately so a library, temple or tower reads at 1x.
 static const char gfxBuildings[B_N][8][9]={
- [B_HUT]={"...R....","..RRr...",".RRrrs..",".sssss..","..WwW...","..Wdwq..","..dddqq.","...qqq.."},
- [B_HOUSE]={"..RR....",".RRRrr..","RRRrrrs.","ssssssss",".W|WwWq.",".o|dodq.",".W|dwwq.",".dddddq."},
+ [B_HUT]={"...R....","..RRr...",".RRrrs..",".srrss..","..wWwq..","..|dwq..","..-ddqq.","...qqq.."},
+ [B_HOUSE]={".....m..","..RRrS..",".RRRRrr.","RRRrrrss",".ssssssq",".Wo|dwq.",".WW|dwq.","..--dqq."},
  [B_HALL]={"..|ff...","..|f....","S.S.S.S.","SmmmmmSq","SkWdoSkq","SmmdoSkq","SmmddSkq","SmmmmSSq"},
  [B_FARM]={"|------|",".cC.cC.|",".ce.ce.e",".cC.cC.e",".ce.ce.e",".cC.cC.e",".ee.eee|","|------|"},
  [B_TOWER]={"..S.S...","..SmS...","..Smkq..","..Sokq..","..Smkq..","..Sokq..","..Sdkq..",".SSSSqq."},
@@ -179,7 +179,18 @@ static const char gfxBuildings[B_N][8][9]={
  [B_TEMPLE]={"...ff...","...S....","..RRrr..",".RRRrrs.",".SSSSSSq",".S|o|Skq",".S|d|Skq","SSSSSSSq"},
  [B_STATUE]={"...SS...","...Wk...","..SSmk..","...Sm...","...Sk...","..SSmk..",".SSmmmkq",".qqqqqq."},
  [B_LIBRARY]={".RRRRrr.",".RRrrrs.",".ssssss.",".W|W|wq.",".o|o|oq.",".W|W|wq.",".WWddwq.",".dddddq."},
- [B_BORDER]={"........","...|ff..","...|f...","...|....","...|q...","...|q...","..SSq...","..qqq..."}
+ [B_BORDER]={"........","...|ff..","...|f...","...|....","...|q...","...|q...","..SSq...","..qqq..."},
+ [B_MANOR]={".R...R..","RRr.RRr.","RRrsRRrs","SSSssSSq","WoW|oWmq","WW||Wwmq","Wo|ddomq","SSm--mqq"},
+ [B_WORKSHOP]={".....SS.",".....Sm.",".RRRRSm.","RRrrrss.",".ss||swq",".W|dd|mq",".WoddCmq",".--eeeqq"},
+ [B_INN]={"..RRrr..",".RRRRrs.","RRRRrrs.",".ssssss.",".oW|o|fq",".WWdd|Wq",".Woee|mq","..--kqq."},
+ [B_BARRACKS]={".f..f...",".|..|...","..RRrr..",".RRRRrs.","SSSSSSSq","Smomomkq","Sm|ddmkq",".kk--qq."},
+ [B_MARKET]={"........",".RRWWRR.","RRWWRRWw","s|sws|sq",".|..C|q.",".|cCc|q.",".W----wq","..eeqq.."},
+ [B_KEEP]={"S.S..S.S","SmSm.Smk","SmSSSSmk","SokmSmok","SmkmSmkk","Smkmddmk","SSmSddmk",".kkk--kq"},
+ // The wall tiles join at their midpoints in either direction. Gate
+ // names indicate which way the road passes through the stonework.
+ [B_WALL]={"..SSSm..","..S.Sk..","SSSSSSSm","SmmSmkmm","mSkmmkmk","kkkkkkkk","..kmmq..","..mkkq.."},
+ [B_GATE_NS]={"S.S..S.S","SSS..SSS","mSk..Smk","SSWkkWSS","mSkddSmk","mSk--Smk","kSk--mkk","qq.--qqq"},
+ [B_GATE_EW]={"..SSm...","..Smk...",".SSSkq..","---kk---","...dd...",".SSSkq..","..Smk...","..kqq..."}
 };
 static int bldPix(int type,int race,int x,int y){
     if((unsigned)x>=8||(unsigned)y>=8||type<=B_NONE||type>=B_N)return SH(T_GRASS,4);

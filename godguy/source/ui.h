@@ -217,7 +217,7 @@ static const u8 uiKindIcon[PK_KIND_N]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_
     [PK_PRINT_WATER]=IC10_FLOOD, [PK_PRINT_MOUNTAIN]=IC10_QUAKE,
     [PK_PRINT_BIOME]=IC10_MUTATE, [PK_PRINT_CLEAR]=IC10_SMITE,
     [PK_POSSESS]=IC10_VIBE, [PK_HOME]=IC10_SETTLE, [PK_BORDER]=IC10_SETTLE,
-    [PK_SPECIAL]=IC10_METEOR, [PK_FIELD]=IC10_FIELD };
+    [PK_SPECIAL]=IC10_METEOR, [PK_FIELD]=IC10_FIELD, [PK_BUILD]=IC10_SETTLE };
 static int uiIconForKind(int kind){
     static const u8 fieldIcons[FIELD_N]={IC10_SURVEY,IC10_RATIONS,IC10_CLINIC,IC10_RESTORE};
     return kind==PK_FIELD?fieldIcons[fieldMode]:uiKindIcon[kind];
@@ -299,7 +299,7 @@ static int tbHome(int pi){
     if(k==PK_SPAWN||k==PK_HEAL||k==PK_FEED||k==PK_BLOOM||k==PK_VIBE||k==PK_MUTATE
         ||k==PK_UPLIFT||k==PK_MONOLITH||k==PK_STATUS||k==PK_GARDEN||k==PK_POSSESS) return 2;
     if(k==PK_SETTLE||k==PK_WAR||k==PK_PEACE||k==PK_BLESS||k==PK_GIFT||(k>=PK_INSPIRE&&k<=PK_DUSTG)
-        ||k==PK_LOOT||k==PK_HOME||k==PK_BORDER||k==PK_FIELD) return 4;
+        ||k==PK_LOOT||k==PK_HOME||k==PK_BORDER||k==PK_FIELD||k==PK_BUILD) return 4;
     return 3;
 }
 static int tbStarter(int i){

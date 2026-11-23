@@ -49,7 +49,8 @@ static u32 worldSeed, seedFix;               // the seed of this planet; seedFix
 static u32 stKill, stGift, stUse;                 // monsters slain, gifts given, powers used (the story counts them)
 static u8 seenB[(SP_N+7)/8], slainB[(SP_N+7)/8]; static int seenN;   // the bestiary: which kinds of monster have appeared / been slain
 #define ACH_N 46
-static u8 favVil[FAV_N], favKd[16], favItem[600], favPow[80];   // saved stars on cities, kingdoms, items and powers
+enum { GG_BUILD_FAVORITE=80 };
+static u8 favVil[FAV_N], favKd[16], favItem[600], favPow[GG_BUILD_FAVORITE+1];   // saved stars on cities, kingdoms, items and powers
 static void achCheck(void);
 static u32 achX[3];   /* achievements 32 and up, the political powers used (a bit each), and event flags (1 schism, 2 crab bomb, 4 stomp, 8 goo, 16 fire elemental, 32 had a kingdom): they ride in the spare words of the stats block */
 #define ACH_HAS(i) ((i)<32?(int)((achBits>>(i))&1):(int)((achX[0]>>((i)-32))&1))
@@ -369,7 +370,7 @@ static void shadeRGB(int idx,int*r,int*g,int*b){
     if(*r>31)*r=31;if(*g>31)*g=31;if(*b>31)*b=31;
 }
 // buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
-enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_TEMPLE, B_STATUE, B_LIBRARY, B_BORDER, B_N };
+#include "building_types.h"
 #define BT0 (T_N*4)
 #define BT1 124      // the tiles of the later buildings (dock .. library, 8 a type: 124..155), after the meadow tiles at 108..123
 #define BTILE(b,r) ((b)<B_DOCK?BT0+(b)*8+(r):BT1+((b)-B_DOCK)*8+(r))
@@ -415,11 +416,13 @@ static u16*mapPtr;
 #endif
 static int winX=-99, winY=-99;
 static u8 bld[MAXD][MAXD], bldv[MAXD][MAXD];   // what stands on a tile (B_*) and which village owns it (+1)
+static int ggFortificationsPresent;
 static u8 vilRace(int v);
 // Transition tiles: where two kinds of ground meet, the "stronger" one bleeds a dithered fringe into the other, and water gets a foam line on the shore.
 // They are made on demand (64 bytes each) into spare tile slots and remembered, so a window of the map needs only a few dozen of them.
-#define TR0 156          // (the buildings' tiles end at 155; the toolbar's start at 640)
-#define TR_SLOTS 484
+#define TR0 (BT1+(B_N-B_DOCK)*8)
+#define TR_SLOTS (640-TR0) // terrain cache ends at the start of the toolbar
+_Static_assert(TR0>BTILE(B_N-1,7)&&TR_SLOTS>256,"world tile memory layout");
 static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
 static u32 trKey[1024]; static u16 trVal[1024]; static int trUsed;
 static inline int bioPix(int p,int b){ return (b&&p<T_N*8)?BIO_PAL+(b-1)*8+(p&7):p; }      // a pixel of ground, in the colours of biome b   // a small hash of the transition tiles made so far
@@ -502,7 +505,7 @@ static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[
 
 // ---------------------------------------------------------------------------------------------- creatures
 static int curExtra;      // the extra ground the creature being moved can cross (its traits)
-static int walkable(const Sp*s,int x,int y){ if(x<0||y<0||x>=WW||y>=WH) return 0; return ((arch[s->a].mask|curExtra)>>world[y][x])&1; }
+static int walkable(const Sp*s,int x,int y){ if(x<0||y<0||x>=WW||y>=WH) return 0; return !((ggFortificationsPresent)&&ggBuildingStopsPawn(bld[y][x]))&&(((arch[s->a].mask|curExtra)>>world[y][x])&1); }
 static int edgeOut;     // a creature tried to walk off the map (EDGE = VANISH)
 static int wgNc;      // (10d: how many creatures the war groups were last counted from; 0 when the lists are out of date)
 static int wgKeep; static u8 wgOf[MAXC];      // (10f: wgOf, the group each creature belonged to (village +1), is carried through compact(); wgKeep: how many creatures at the front of the list still have a good wgOf after it)
@@ -622,21 +625,33 @@ static int vilNear(int race,int x,int y,int r){ int best=-1,bd=r*r+1;
     return best; }
 static int vilAny(int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
 static int buildable(int x,int y){ if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]) return 0; u8 t=world[y][x]; return t==T_GRASS||t==T_DIRT||t==T_FOREST; }
-static void putBld(int v,int x,int y,int type){ if(world[y][x]==T_FOREST) setCell(x,y,T_GRASS); bld[y][x]=(u8)type; bldv[y][x]=(u8)(v+1); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static void putBld(int v,int x,int y,int type){ if(world[y][x]==T_FOREST) setCell(x,y,T_GRASS); bld[y][x]=(u8)type; bldv[y][x]=(u8)(v+1); if(ggBuildingStopsPawn(type)||ggBuildingIsGate(type))ggFortificationsPresent=1; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static int ggFortProtectedPlot(int x,int y){
+    if(!ggFortificationsPresent||x<1||y<1||x>=WW-1||y>=WH-1)return 0;
+    if(bld[y-1][x]==B_GATE_NS||bld[y+1][x]==B_GATE_NS||
+       bld[y][x-1]==B_GATE_EW||bld[y][x+1]==B_GATE_EW)return 1;
+    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)
+        if(bld[y+dy][x+dx]==B_KEEP)return 1;
+    return 0;
+}
+static int ggOpenBuildingPlot(int x,int y){
+    return buildable(x,y)&&!occ[y][x]&&!ggFortProtectedPlot(x,y);
+}
 static int placeBld(int v,int type,int cost){
     Vil*V=&vil[v]; if(V->stock<cost) return 0; int R=3+V->lvl*3;
-    for(int k=0;k<14;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(!buildable(x,y)) continue; if(type==B_HOUSE||type==B_HUT){ int near=0; for(int d=0;d<4;d++) if(bld[y+dys[d]][x+dxs[d]]) near=1; if(!near&&V->houses>1) continue; }
+    for(int k=0;k<14;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(!ggOpenBuildingPlot(x,y)) continue; if(ggBuildingIsHome(type)){ int near=0; for(int d=0;d<4;d++) if(bld[y+dys[d]][x+dxs[d]]) near=1; if(!near&&V->houses>1) continue; }
         putBld(v,x,y,type); V->stock-=(u16)cost; return 1; }
     return 0;
 }
+#include "settlement_buildings.h"
 // ---- boats and docks (after the wiki): a town of some size builds a dock on its shore; now and then a boat carries settlers across the water to a new shore and they found a village there
 typedef struct { u8 on, race, n, i; s16 x, y, tx, ty; u16 t; u8 path[128]; } Boat; static Boat boat[8];      // path: the steps (0 up, 1 right, 2 down, 3 left) found when it set sail
-static void bldFlags(int v){ const Vil*V=&vil[v]; int f=0; for(int dy=-12;dy<=12;dy++) for(int dx=-12;dx<=12;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bldv[y][x]==v+1){ if(bld[y][x]==B_TEMPLE) f|=1; else if(bld[y][x]==B_STATUE) f|=2; else if(bld[y][x]==B_LIBRARY) f|=4; } } vilBf[v]=(u8)f; }
+static void bldFlags(int v){ const Vil*V=&vil[v]; int f=0; for(int dy=-12;dy<=12;dy++) for(int dx=-12;dx<=12;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bldv[y][x]==v+1) f|=ggBuildingFlag(bld[y][x]); } vilBf[v]=(u8)f; }
 static int hasDock(int v){ const Vil*V=&vil[v]; for(int dy=-9;dy<=9;dy++) for(int dx=-9;dx<=9;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_DOCK&&bldv[y][x]==v+1) return 1; } return 0; }
 static int isWater(int x,int y){ return x>=0&&y>=0&&x<WW&&y<WH&&(world[y][x]==T_WATER||world[y][x]==T_DEEP); }
 static int vilFound(int race,int x,int y);
 static void dockTry(int v){      // a dock: a land tile of the village beside water
-    Vil*V=&vil[v]; for(int k=0;k<40;k++){ int x=V->x+(int)(rnd()%17)-8, y=V->y+(int)(rnd()%17)-8; if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]||world[y][x]<=T_WATER||world[y][x]==T_LAVA) continue;
+    Vil*V=&vil[v]; for(int k=0;k<40;k++){ int x=V->x+(int)(rnd()%17)-8, y=V->y+(int)(rnd()%17)-8; if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]||world[y][x]<=T_WATER||world[y][x]==T_LAVA||ggFortProtectedPlot(x,y)) continue;
         if(!(isWater(x+1,y)||isWater(x-1,y)||isWater(x,y+1)||isWater(x,y-1))) continue; bld[y][x]=B_DOCK; bldv[y][x]=(u8)(v+1); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); return; } }
 #ifdef GG_BIGMAP
 #define BW 121      // the sea is searched in a window of BW x BW tiles round the dock (the DS gets a smaller one: its RAM is tight)
@@ -650,7 +665,7 @@ static void boatLaunch(int v){
     // a search across the water for the nearest shore at least 12 tiles away where nobody lives yet
     int ox=sx-BW/2, oy=sy-BW/2; memset(bfsDir,255,sizeof bfsDir); int qh=0, qt=0; bfsQ[qt++]=(u16)((BW/2)*BW+BW/2); bfsDir[(BW/2)*BW+BW/2]=4; int goal=-1, gtx=0, gty=0, rot=(int)(rnd()&3);
     while(qh<qt&&goal<0){ int c=bfsQ[qh++]; int cx=c%BW, cy=c/BW; int wx=ox+cx, wy=oy+cy;
-        if(abs(wx-V->x)+abs(wy-V->y)>=12) for(int k=0;k<4;k++){ int d=(k+rot)&3; int tx=wx+dxs[d], ty=wy+dys[d]; if(buildable(tx,ty)&&vilAny(tx,ty,9)<0){ goal=c; gtx=tx; gty=ty; break; } }
+        if(abs(wx-V->x)+abs(wy-V->y)>=12) for(int k=0;k<4;k++){ int d=(k+rot)&3; int tx=wx+dxs[d], ty=wy+dys[d]; if(buildable(tx,ty)&&!ggFortProtectedPlot(tx,ty)&&vilAny(tx,ty,9)<0){ goal=c; gtx=tx; gty=ty; break; } }
         if(goal>=0) break;
         for(int k=0;k<4;k++){ int d=(k+rot)&3; int nx=cx+dxs[d], ny=cy+dys[d]; if(nx<0||ny<0||nx>=BW||ny>=BW||bfsDir[ny*BW+nx]!=255||!isWater(ox+nx,oy+ny)) continue; bfsDir[ny*BW+nx]=(u8)d; bfsQ[qt++]=(u16)(ny*BW+nx); } }
     if(goal<0) return;
@@ -662,12 +677,12 @@ static void boatTick(void){
         if(B->i>=B->n){ int v=vilFound(B->race,B->tx,B->ty); if(v>=0){ for(int q=0;q<4;q++) addCr(B->race,B->tx+(int)(rnd()%5)-2,B->ty+(int)(rnd()%5)-2); char vn[24], s2[48]; vilName(v,vn); siprintf(s2,"SETTLERS SAIL TO %.20s",vn); logEv(s2); } B->on=0; continue; }
         int d=B->path[B->i++]; B->x=(s16)(B->x+dxs[d]); B->y=(s16)(B->y+dys[d]); } }
 static int vilFound(int race,int x,int y){
-    KD_DIRTY(); if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
+    KD_DIRTY(); if(!buildable(x,y)||ggFortProtectedPlot(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
     Vil*V=&vil[v]; memset(V,0,sizeof *V); gxVilReset(v); vilBf[v]=0; vilSick[v]=0; V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
     putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; joyInvalidate(); vilIndexInvalidate(); return v;
 }
 static const char* vilWhyNot(int x,int y){      // the reason vilFound said no (for the message under a SETTLE touch)
-    if(x<2||y<2||x>=WW-2||y>=WH-2) return "TOO NEAR THE MAP EDGE"; if(bld[y][x]) return "SOMETHING IS BUILT HERE"; { u8 t=world[y][x]; if(t!=T_GRASS&&t!=T_DIRT&&t!=T_FOREST) return "NEEDS GRASS, DIRT OR FOREST"; }
+    if(x<2||y<2||x>=WW-2||y>=WH-2) return "TOO NEAR THE MAP EDGE"; if(bld[y][x]) return "SOMETHING IS BUILT HERE"; if(ggFortProtectedPlot(x,y)) return "KEEP THE GATE APPROACH CLEAR"; { u8 t=world[y][x]; if(t!=T_GRASS&&t!=T_DIRT&&t!=T_FOREST) return "NEEDS GRASS, DIRT OR FOREST"; }
     if(vilAny(x,y,9)>=0) return "TOO NEAR ANOTHER VILLAGE"; return "TOO MANY VILLAGES"; }
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; KD_DIRTY(); for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
     for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; vilBf[v]=0; vilSick[v]=0; joyInvalidate(); vilIndexInvalidate(); }
@@ -679,8 +694,17 @@ static void atmoReset(void){ atO2=21*16; atCO2=30*16; atDust=0; atTemp=0; atFire
 static void atmoDust(int d){ atDust+=d*16; if(atDust<0) atDust=0; if(atDust>100*16) atDust=100*16; }
 static void razeAt(int x,int y,int chance){   // a building falls to ruin (fire, lightning, meteors, and the calamities: see burnAt and calamity.h)
     if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1; if(v>=0) KD_DIRTY();
-    if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
-    { int ob=bld[y][x]; bld[y][x]=B_RUIN; bldv[y][x]=0; if(v>=0&&v<VIL_N&&(ob==B_TEMPLE||ob==B_STATUE||ob==B_LIBRARY)) vilBf[v]&=(u8)~(ob==B_TEMPLE?1:ob==B_STATUE?2:4); } if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+    int old=bld[y][x];
+    bld[y][x]=B_RUIN; bldv[y][x]=0;
+    if(v>=0&&v<VIL_N&&vil[v].on){
+        Vil *V=&vil[v];
+        if(ggBuildingIsHome(old)&&V->houses)V->houses--;
+        if(old==B_FARM&&V->farms)V->farms--;
+        if(old==B_TOWER&&V->towers)V->towers--;
+        if(ggBuildingFlag(old))bldFlags(v);
+    }
+    if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y);
+}
 static void burnAt(int x,int y,int chance){ if(gx.lFire) return; if(!gx.lAtmo&&ATV(atO2)>28){ chance+=(ATV(atO2)-28)*8; if(chance>255) chance=255; }      // rich air feeds fires
     int had=x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]&&bld[y][x]!=B_RUIN; razeAt(x,y,chance); if(had&&bld[y][x]==B_RUIN) atFire+=3; }   // fire, lightning and meteors on a building (WORLD > LAWS > FIRE ON HOMES: SAFE turns them off)
 // village mood, -100 sad .. 100 joyful (after the wiki's happiness), worked out on the spot so a loaded game goes on exactly as the saved one: food, crowding, war, sickness, loyalty, the air and the ground
@@ -709,7 +733,7 @@ static void vilTick(int v){ KD_DIRTY();
     if((tick&7)==0||vilBf[v]==0) bldFlags(v);
     if(pop){      // recovery: the folk clear the ruins that fires and wars left round the village (a ruin blocks building for ever otherwise) and rebuild a hall that fell
         int R=3+V->lvl*3; for(int k=0;k<2;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_RUIN){ bld[y][x]=B_NONE; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } }
-        { int cx=V->x, cy=V->y; if(V->stock>=20&&(bld[cy][cx]==B_RUIN||bld[cy][cx]==B_NONE)){ u8 t=world[cy][cx]; if(t==T_GRASS||t==T_DIRT||t==T_FOREST){ bld[cy][cx]=B_NONE; putBld(v,cx,cy,B_HALL); V->stock=(u16)(V->stock-20); char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"%.14s REBUILDS ITS HALL",vn); logEv(s2); } } } }
+        { int cx=V->x, cy=V->y; if(V->stock>=20&&(bld[cy][cx]==B_RUIN||bld[cy][cx]==B_NONE)&&!ggFortProtectedPlot(cx,cy)){ u8 t=world[cy][cx]; if(t==T_GRASS||t==T_DIRT||t==T_FOREST){ bld[cy][cx]=B_NONE; putBld(v,cx,cy,B_HALL); V->stock=(u16)(V->stock-20); char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"%.14s REBUILDS ITS HALL",vn); logEv(s2); } } } }
     if(V->lvl>=2&&pop>=16&&!(vilBf[v]&1)&&V->stock>=30&&(rnd()%6)==0&&placeBld(v,B_TEMPLE,30)){ vilBf[v]|=1; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A TEMPLE RISES IN %.16s",vn); logEv(s2); }
     if(!(vilBf[v]&2)&&V->stock>=40&&(rnd()%10)==0){ int hero=0; for(int dy=-8;dy<=8&&!hero;dy++) for(int dx=-8;dx<=8;dx++){ int x=V->x+dx, y=V->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&(cr[j].dir>=1||cr[j].rk)&&sp[cr[j].sp].a==V->race){ hero=1; break; } } if(hero&&placeBld(v,B_STATUE,40)){ vilBf[v]|=2; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A STATUE HONOURS A HERO OF %.12s",vn); logEv(s2); } }
     if(V->lvl>=2&&pop>=14&&!(vilBf[v]&4)&&V->stock>=35&&(rnd()%8)==0&&placeBld(v,B_LIBRARY,35)){ vilBf[v]|=4; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A LIBRARY OPENS IN %.14s",vn); logEv(s2); }
@@ -721,11 +745,15 @@ static void vilTick(int v){ KD_DIRTY();
     V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
     // what to build next: homes for everyone, fields to feed them, then towers, then a bigger hall
     if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25&&(rnd()&3)==0){ if(placeBld(v,B_TOWER,25)) V->towers++; }
-    else if(V->houses<2||pop>V->houses*3){ if(placeBld(v,(rnd()&3)?B_HOUSE:B_HUT,12)) V->houses++; }
+    else if(V->houses<2||pop>V->houses*3){ int choice=(int)(rnd()&3);
+        int home=choice?B_HOUSE:B_HUT;
+        if(choice==3&&V->lvl>=2&&V->stock>=24)home=B_MANOR;
+        if(placeBld(v,home,home==B_MANOR?24:12)) V->houses++; }
     else if(V->farms*2<V->houses&&V->stock>=10){ if(placeBld(v,B_FARM,10)) V->farms++; }
     else if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25){ if(placeBld(v,B_TOWER,25)) V->towers++; }
     if(V->lvl==1&&V->houses>=6&&V->stock>=40){ if(placeBld(v,B_HALL,40)) V->lvl=2; }
     else if(V->lvl==2&&V->houses>=14&&V->stock>=80){ if(placeBld(v,B_HALL,80)) V->lvl=3; }
+    ggSettlementGrow(v,pop);
     // war: the restless races pick a neighbour of another people; it ends when one side is gone
     if(V->foe&&(!vil[V->foe-1].on)) V->foe=0;
     if(V->foe&&(rnd()&15)==0&&pop<3) V->foe=0;   // a beaten army goes home
@@ -1445,14 +1473,14 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE, PK_FIREEL, PK_GOO, PK_CRABBOMB, PK_CRABZILLA, PK_UPLIFT, PK_MONOLITH, PK_STATUS, PK_ALIEN, PK_DRAGON, PK_MOON, PK_BIOMASS, PK_ICE, PK_GARDEN, PK_BOLT_SMALL, PK_BOLT_MEDIUM, PK_PRINT_COPY, PK_PRINT_FOREST, PK_PRINT_WATER, PK_PRINT_MOUNTAIN, PK_PRINT_BIOME, PK_PRINT_CLEAR, PK_POSSESS, PK_HOME, PK_BORDER, PK_SPECIAL, PK_FIELD, PK_KIND_N };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE, PK_FIREEL, PK_GOO, PK_CRABBOMB, PK_CRABZILLA, PK_UPLIFT, PK_MONOLITH, PK_STATUS, PK_ALIEN, PK_DRAGON, PK_MOON, PK_BIOMASS, PK_ICE, PK_GARDEN, PK_BOLT_SMALL, PK_BOLT_MEDIUM, PK_PRINT_COPY, PK_PRINT_FOREST, PK_PRINT_WATER, PK_PRINT_MOUNTAIN, PK_PRINT_BIOME, PK_PRINT_CLEAR, PK_POSSESS, PK_HOME, PK_BORDER, PK_SPECIAL, PK_FIELD, PK_BUILD, PK_KIND_N };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},{"CORRUPT",PK_PAINT,101},{"INFERNAL",PK_PAINT,102},{"ENCHANT",PK_PAINT,103},{"GREENHOUSE",PK_AIR,0},{"OXYGEN",PK_AIR,1},{"DUST CLOUD",PK_AIR,2},
     {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},
     {"TORNADO",PK_TORNADO,0},{"ACID RAIN",PK_ACID,0},{"BLACK HOLE",PK_HOLE,0},{"ATOMIC BOMB",PK_NUKE,0},{"PLAGUE",PK_PLAGUE,0},{"CURSE",PK_CURSE,0},
-    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0},{"FIRE ELEM.",PK_FIREEL,0},{"GREY GOO",PK_GOO,0},{"CRAB BOMB",PK_CRABBOMB,0},{"CRABZILLA",PK_CRABZILLA,0},{"UPLIFT",PK_UPLIFT,0},{"MONOLITH",PK_MONOLITH,0},{"STATUS",PK_STATUS,0},{"ALIEN INVASION",PK_ALIEN,0},{"FAR DRAGON",PK_DRAGON,0},{"MOON HORRORS",PK_MOON,0},{"BIOMASS",PK_BIOMASS,0},{"DREAM ICE",PK_ICE,0},{"GARDEN SURPRISE",PK_GARDEN,0},{"SMALL LIGHTNING",PK_BOLT_SMALL,0},{"MEDIUM LIGHTNING",PK_BOLT_MEDIUM,0},{"PRINTER COPY",PK_PRINT_COPY,0},{"PRINTER FOREST",PK_PRINT_FOREST,0},{"PRINTER WATER",PK_PRINT_WATER,0},{"PRINTER MOUNTAIN",PK_PRINT_MOUNTAIN,0},{"PRINTER BIOME",PK_PRINT_BIOME,0},{"PRINTER CLEAR",PK_PRINT_CLEAR,0},{"POSSESS",PK_POSSESS,0},{"SEND HOME",PK_HOME,0},{"BORDER BRUSH",PK_BORDER,0},{"SPECIAL EVENT",PK_SPECIAL,0},{"FIELD TOOLS",PK_FIELD,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
+    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0},{"FIRE ELEM.",PK_FIREEL,0},{"GREY GOO",PK_GOO,0},{"CRAB BOMB",PK_CRABBOMB,0},{"CRABZILLA",PK_CRABZILLA,0},{"UPLIFT",PK_UPLIFT,0},{"MONOLITH",PK_MONOLITH,0},{"STATUS",PK_STATUS,0},{"ALIEN INVASION",PK_ALIEN,0},{"FAR DRAGON",PK_DRAGON,0},{"MOON HORRORS",PK_MOON,0},{"BIOMASS",PK_BIOMASS,0},{"DREAM ICE",PK_ICE,0},{"GARDEN SURPRISE",PK_GARDEN,0},{"SMALL LIGHTNING",PK_BOLT_SMALL,0},{"MEDIUM LIGHTNING",PK_BOLT_MEDIUM,0},{"PRINTER COPY",PK_PRINT_COPY,0},{"PRINTER FOREST",PK_PRINT_FOREST,0},{"PRINTER WATER",PK_PRINT_WATER,0},{"PRINTER MOUNTAIN",PK_PRINT_MOUNTAIN,0},{"PRINTER BIOME",PK_PRINT_BIOME,0},{"PRINTER CLEAR",PK_PRINT_CLEAR,0},{"POSSESS",PK_POSSESS,0},{"SEND HOME",PK_HOME,0},{"BORDER BRUSH",PK_BORDER,0},{"SPECIAL EVENT",PK_SPECIAL,0},{"FIELD TOOLS",PK_FIELD,0},{"BUILD",PK_BUILD,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
-_Static_assert(PW_N<=sizeof favPow,"Update the saved favorites format before adding more powers");
+_Static_assert(PW_N==GG_BUILD_FAVORITE+1&&PW_N<=sizeof favPow,"Construction favorite save index");
 enum { FIELD_SURVEY, FIELD_RATIONS, FIELD_CLINIC, FIELD_RESTORE, FIELD_N };
 static int fieldMode, fieldRadius=2;
 #ifndef PCTEST
@@ -1583,7 +1611,43 @@ static void fieldApply(int x,int y){
     stUse++;
     fxReq(FX_BLESS);
 }
+static const u8 constructionTypes[]={B_HOUSE,B_MANOR,B_WORKSHOP,B_INN,B_MARKET,
+    B_BARRACKS,B_WALL,B_GATE_NS,B_GATE_EW,B_KEEP};
+enum { GG_CONSTRUCTION_N=sizeof constructionTypes/sizeof *constructionTypes };
+static int constructionMode;
+static const char *constructionName(int mode){
+    int kind=constructionTypes[mode];
+    return kind==B_KEEP?"CASTLE COMPOUND":ggBuildingName(kind);
+}
+static void constructionApply(int x,int y){
+    int kind=constructionTypes[constructionMode],owner=vilAny(x,y,12);
+    if(kind==B_KEEP){
+        if(!ggPlaceFort(owner,x,y,B_GATE_EW)&&!ggPlaceFort(owner,x,y,B_GATE_NS)){
+            siprintf(info,"CASTLE NEEDS A CLEAR 5X5 SITE");
+            return;
+        }
+    }else{
+        if(buildable(x,y)&&ggFortProtectedPlot(x,y)){
+            siprintf(info,"KEEP THE CASTLE APPROACH CLEAR");
+            return;
+        }
+        if(!ggOpenBuildingPlot(x,y)){
+            siprintf(info,"NEEDS CLEAR GRASS, DIRT OR FOREST");
+            return;
+        }
+        KD_DIRTY();
+        putBld(owner,x,y,kind);
+        if(owner>=0){
+            if(ggBuildingIsHome(kind)&&vil[owner].houses<255)vil[owner].houses++;
+            vilBf[owner]|=(u8)ggBuildingFlag(kind);
+        }
+    }
+    siprintf(info,"BUILT %s",constructionName(constructionMode));
+    stUse++;
+    fxReq(FX_BLESS);
+}
 static void usePower(int tx,int ty,int fresh){
+    if(pw[power].kind==PK_BUILD){ if(fresh)constructionApply(tx,ty); return; }
     if(pw[power].kind==PK_FIELD){ if(fresh) fieldApply(tx,ty); return; }
     KD_DIRTY();
     const Pw*P=&pw[power]; int r=brush;
@@ -1658,7 +1722,7 @@ static void usePower(int tx,int ty,int fresh){
         case PK_NUKE: if(fresh&&dx==0&&dy==0) nukeAt(x,y,5+2*brush>18?18:5+2*brush); break;
         case PK_PLAGUE: if(occ[y][x]){ if(gx.lPlague==1){ if(fresh&&dx==0&&dy==0) siprintf(info,"THE LAW FORBIDS PLAGUE"); } else if(infect(occ[y][x]-1)&&fresh&&dx==0&&dy==0) siprintf(info,"THE PLAGUE SPREADS"); } break;
         case PK_CURSE: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,5); if(v>=0){ vil[v].stock=(u16)(vil[v].stock>150?vil[v].stock-150:0); siprintf(info,"THE VILLAGE STORE ROTS"); } } if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)(c->hp/2+1); c->food=(u8)(c->food/2); } break;
-        case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]){ inspected=occ[y][x]-1; inspKind=1; inspIdx=inspected; inspT=420; } else if(bldv[y][x]){ int v=bldv[y][x]-1; inspKind=2; inspIdx=v; inspT=420; char nm[24]; vilName(v,nm); { char kn[24]=""; if(vilK[v]) kdName(vilK[v]-1,kn); siprintf(info,"%s %s POP%d [%s]",arch[vil[v].race].nm,nm,vil[v].pop,kn); } inspected=-2; } } break; } }
+        case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]){ inspected=occ[y][x]-1; inspKind=1; inspIdx=inspected; inspT=420; } else if(bldv[y][x]){ int v=bldv[y][x]-1; inspKind=2; inspIdx=v; inspT=420; char nm[24]; vilName(v,nm); { char kn[24]=""; if(vilK[v]) kdName(vilK[v]-1,kn); siprintf(info,"%s %s POP%d [%s]",arch[vil[v].race].nm,nm,vil[v].pop,kn); } inspected=-2; } else if(bld[y][x]){ siprintf(info,"%s",ggBuildingName(bld[y][x])); } } break; } }
     if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[48]; crName(c,nm); siprintf(info,"%.30s HP%d/%d",nm,c->hp,maxHp(c)); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
 }
 static int planetSize=128;
@@ -1667,6 +1731,7 @@ static void (*loadHook)(const char*,int);
 #include "march_landmarks.h"
 static void newWorld(void){
     mapPinMask=0;
+    ggFortificationsPresent=0;
     dlgPend=-1; joyInvalidate(); vilIndexInvalidate();
 #ifndef PCTEST
     storyGoalT=0;
@@ -1734,7 +1799,7 @@ static int saveGameRaw(const char*path){
     if(ok) ok&=svWrite(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svWrite(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svWrite(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=jrN; ok&=svWrite(&n,sizeof n,1,f)==1; ok&=svWrite(jr,34,24,f)==24; ok&=svWrite(jrYear,2,24,f)==24; u32 sx[8]={achBits,stWars,stCapt,stAllies,stSnack,achX[0],achX[1],achX[2]}; ok&=svWrite(sx,4,8,f)==8; ok&=svWrite(favVil,1,FAV_N,f)==(size_t)FAV_N; ok&=svWrite(favKd,1,8,f)==8; ok&=svWrite(favItem,1,600,f)==600; ok&=svWrite(favPow,1,40,f)==40; }
     if(ok){ u32 mg=0x31584747u, sz=sizeof gx, cs[2]={stBorn,stDied}; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&gx,sizeof gx,1,f)==1; ok&=svWrite(cs,4,2,f)==2; }   // GGX1 trailer: old builds never read it
     if(ok){ u32 mg=0x31484747u, sz=sizeof(Hz); ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(hz,sizeof(Hz),HZ_N,f)==(size_t)HZ_N; }   // GGH1 trailer (calamity.h): the tornadoes and black holes in flight
-    if(ok){ u32 mg=0x31424747u; ok&=svWrite(&mg,4,1,f)==1; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(ok){ int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; if(ok) ok&=svWrite(favPow+40,1,24,f)==24; } }      // (the stars on powers 40 to 63 ride behind the atmosphere: there are more than 40 powers now)   // GGB1 trailer: the biomes and the atmosphere
+    if(ok){ u32 mg=0x31424747u; ok&=svWrite(&mg,4,1,f)==1; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(ok){ int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,favPow[GG_BUILD_FAVORITE],0}; ok&=svWrite(at,sizeof at,1,f)==1; if(ok) ok&=svWrite(favPow+40,1,24,f)==24; } }      // (the stars on powers 40 to 63 ride behind the atmosphere: the reserved atmosphere word at[6] stores the construction favorite)
     if(ok){ u32 mg=0x31544747u, sz=sizeof(Boat), nb=0; for(int b=0;b<8;b++) nb+=boat[b].on?1u:0u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&nb,4,1,f)==1; for(int b=0;b<8&&ok;b++) if(boat[b].on) ok&=svWrite(&boat[b],sizeof(Boat),1,f)==1; }      // GGT1 trailer: the boats at sea (only those; none, and it is twelve bytes). Older builds never read it
     if(ok){ u32 mg=0x314C4747u, n=LW_N; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(lw,1,LW_N,f)==LW_N; }      // GGL1 trailer: the World Laws that differ from their defaults (an old build never reads it; an old save has none)
     if(ok) ok&=idWrite(f);      // GGN1 trailer (ggid.h): permanent creature ids, their flag words, the stars on creatures and the notable table. Old builds never read it; an old save has none (ids are then handed out in list order)
@@ -1780,7 +1845,7 @@ static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexIn
     memset(hz,0,sizeof hz); if(ok&&h.ver>=9){ u32 mg=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x31484747u&&svRead(&sz,4,1,f)==1&&(sz==sizeof(Hz)||sz==sizeof(HzOld))){ if(sz==sizeof(Hz)){ Hz t2[HZ_N]; if(svRead(t2,sizeof(Hz),HZ_N,f)==(size_t)HZ_N) memcpy(hz,t2,sizeof hz); }
             else { HzOld t3[HZ_N]; if(svRead(t3,sizeof(HzOld),HZ_N,f)==(size_t)HZ_N) for(int i=0;i<HZ_N;i++){ Hz*q=&hz[i]; const HzOld*o=&t3[i]; q->kind=o->kind; q->x=o->x; q->y=o->y; q->dx=o->dx; q->dy=o->dy; q->r=o->r; q->t=o->t; q->life=o->life; q->age=o->age; } }
             for(int i=0;i<HZ_N;i++) if(hz[i].kind>HZ_PUMPKIN||hz[i].x>=gW||hz[i].y>=gH) memset(&hz[i],0,sizeof hz[i]); } }   // GGH1 trailer: an old save has none
-    int bioRead=0; bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24){ memcpy(favPow+40,fp,24); bioRead=1; } } } } }   // GGB1 trailer: an old save has none
+    int bioRead=0; bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; favPow[GG_BUILD_FAVORITE]=(u8)(at[6]==1); u8 fp[24]; if(svRead(fp,1,24,f)==24){ memcpy(favPow+40,fp,24); bioRead=1; } } } } }   // GGB1 trailer: an old save has none
     memset(boat,0,sizeof boat); if(ok&&bioRead){ u32 mg=0, sz=0, nb=0; if(svRead(&mg,4,1,f)==1&&mg==0x31544747u&&svRead(&sz,4,1,f)==1&&sz==sizeof(Boat)&&svRead(&nb,4,1,f)==1&&nb<=8){ for(u32 b=0;b<nb;b++){ Boat t; if(svRead(&t,sizeof t,1,f)!=1) break; if(t.on&&t.race<8&&t.x>=0&&t.y>=0&&t.x<gW&&t.y<gH&&t.tx>=0&&t.ty>=0&&t.tx<gW&&t.ty<gH&&t.n<=128&&t.i<=t.n) boat[b]=t; } } }   // GGT1 trailer: the boats at sea (an old save has none)
     memset(lw,0,sizeof lw); int lwRead=0; if(ok&&bioRead){ u32 mg=0, n=0; if(svRead(&mg,4,1,f)==1&&mg==0x314C4747u&&svRead(&n,4,1,f)==1&&n<=sizeof lw){ u8 t[sizeof lw]; memset(t,0,sizeof t); if(svRead(t,1,n,f)==n){ for(u32 k=0;k<n&&k<LW_N;k++) lw[k]=t[k]&1; lwRead=1; } } }      // GGL1 trailer: an old save has none, so every law is at its default
     { int idOk=ok&&lwRead&&idRead(f); if(!idOk) idAssign(); memset(kx,0,sizeof kx); if(idOk){ u32 mg=0, n=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x314B4747u&&svRead(&n,4,1,f)==1&&n==KN_N&&svRead(&sz,4,1,f)==1&&sz==sizeof(KdX)){ KdX t[KN_N]; if(svRead(t,sizeof(KdX),KN_N,f)==KN_N){ for(int i=0;i<KN_N;i++){ if(t[i].tribute>2||t[i].tax>2) continue; kx[i]=t[i]; kx[i].ctr2&=0x3FFF; } u32 g2=0, n2=0; if(svRead(&g2,4,1,f)==1&&g2==0x31524747u&&svRead(&n2,4,1,f)==1&&n2==sizeof hall){ svRead(hall,1,sizeof hall,f); } } } } }      // GGK1 trailer (after GGN1): none in an old save; GGR1 (the hall of rulers) behind it      // GGN1 trailer: ids, flags, stars, notables (none in an old save: ids in list order, no records)
@@ -1790,6 +1855,11 @@ static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexIn
     bioCount(); bioRescan();
     svClose(f);
     if(!ok){ return 0; }
+    ggFortificationsPresent=0;
+    for(int y=0;y<WH&&!ggFortificationsPresent;y++)for(int x=0;x<WW;x++)
+        if(ggBuildingStopsPawn(bld[y][x])||ggBuildingIsGate(bld[y][x])){
+            ggFortificationsPresent=1;break;
+        }
     mapPinMask=0;
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     for(int q=0;q<4;q++) if(rz[q].until>(int)h.tick&&(rz[q].a<0||rz[q].a>=8||rz[q].x<0||rz[q].y<0||rz[q].x>=gW||rz[q].y>=gH)){ memset(rz,0,sizeof rz); rzN=0; break; }
@@ -2486,7 +2556,7 @@ static int sceneFilmLength;
 _Static_assert(sizeof fmvClips/sizeof *fmvClips==CHAP_N+1,"One FMV per chapter plus the finale");
 _Static_assert(sizeof fmvPortraitOffsets/sizeof *fmvPortraitOffsets==(W_N+1)*FMV_PORTRAIT_CELS,
     "Portrait cels for the cast and older Mira");
-static const char* const pwDesc[]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT (FIVE ELEMENTAL VARIANTS)","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS", "MOVE ONE CREATURE WITH THE D-PAD","SEND A CREATURE TO ITS HOME","TOGGLE A CITY'S BORDER MARKERS","CYCLE THROUGH SPECIAL EVENTS","X/Y SWITCHES FIELD TOOLS"};
+static const char* const pwDesc[]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT (FIVE ELEMENTAL VARIANTS)","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS", "MOVE ONE CREATURE WITH THE D-PAD","SEND A CREATURE TO ITS HOME","TOGGLE A CITY'S BORDER MARKERS","CYCLE THROUGH SPECIAL EVENTS","X/Y SWITCHES FIELD TOOLS","X/Y CHOOSE. TAP OPEN LAND."};
 _Static_assert(sizeof pwDesc/sizeof *pwDesc==PW_N,"Each power needs a description");
 static const char*const fieldDesc[FIELD_N]={
     "TAP A HOME TO OPEN ITS CITY LEDGER",
@@ -2879,9 +2949,9 @@ static void uiStatus(void){
     { struct { int ic; const char*l; int v; } r[6]={{IC8_LIFE,"LIFE",alive},{IC8_FOLK,"FOLK",folk},{IC8_HOME,"HOMES",hh},{IC8_FLAG,"VILLAGES",nVilOn},{IC8_SKULL,"MONSTERS",monCountHud()},{IC8_STAR,"SLAIN",(int)stKill}};
       for(int i=0;i<6;i++){ int y=19+i*13; uiIcon8(143,y,r[i].ic); uiText(155,y+1,r[i].l,U_DIM,1); siprintf(b,"%d",r[i].v); uiTextR(250,y+1,b,U_WHITE); } }
     uiFrame(138,104,116,44,U_PANEL,U_BHI,U_BLO);
-    if(pw[power].kind==PK_SPAWN||pw[power].kind==PK_GIFT||pw[power].kind==PK_MUTATE||pw[power].kind==PK_STATUS||pw[power].kind==PK_FIELD){   // a picker: the choice before, the choice now, the choice after
+    if(pw[power].kind==PK_SPAWN||pw[power].kind==PK_GIFT||pw[power].kind==PK_MUTATE||pw[power].kind==PK_STATUS||pw[power].kind==PK_FIELD||pw[power].kind==PK_BUILD){   // a picker: the choice before, the choice now, the choice after
         uiText(143,107,"X Y: CHOOSE",U_DIM,1); for(int k=-1;k<=1;k++){ char nm[40]; int ok=1;
-            if(pw[power].kind==PK_SPAWN){ spName((spSel+nSp+k)%nSp,nm); } else if(pw[power].kind==PK_GIFT){ int j=k==0?itSel:itNext(itSel,k); itSay(nm,j); } else if(pw[power].kind==PK_STATUS){ int q=(statusSel+6+k)%6; strcpy(nm,statusName[q]); } else if(pw[power].kind==PK_FIELD){ strcpy(nm,fieldName[(fieldMode+FIELD_N+k)%FIELD_N]); } else { int t=(trSel+TR_N+k)%TR_N; strcpy(nm,t?trNm[t]:"(CLEAR)"); (void)ok; }
+            if(pw[power].kind==PK_SPAWN){ spName((spSel+nSp+k)%nSp,nm); } else if(pw[power].kind==PK_GIFT){ int j=k==0?itSel:itNext(itSel,k); itSay(nm,j); } else if(pw[power].kind==PK_STATUS){ int q=(statusSel+6+k)%6; strcpy(nm,statusName[q]); } else if(pw[power].kind==PK_FIELD){ strcpy(nm,fieldName[(fieldMode+FIELD_N+k)%FIELD_N]); } else if(pw[power].kind==PK_BUILD){ strcpy(nm,constructionName((constructionMode+GG_CONSTRUCTION_N+k)%GG_CONSTRUCTION_N)); } else { int t=(trSel+TR_N+k)%TR_N; strcpy(nm,t?trNm[t]:"(CLEAR)"); (void)ok; }
             nm[17]=0; if(k==0) uiRect(140,116+(k+1)*10,112,10,U_SEL); uiText(143,118+(k+1)*10,nm,k==0?U_WHITE:U_DIM,1); } }
     else if(storyOn&&chapter<CHAP_N){
         const Chap*C=&chap[chapter];
@@ -2905,7 +2975,7 @@ static void uiStatus(void){
     else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/%d",seenN,MON_N); uiText(143,132,b,U_DIM,1); }
     }
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
-    { const char*hint=starterHint(); char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_FIELD){ if(fieldMode>=FIELD_CLINIC) siprintf(b,"%s  R%d",fieldName[fieldMode],fieldRadius); else siprintf(b,"%s",fieldName[fieldMode]); } else siprintf(b,"BRUSH %d",brush);
+    { const char*hint=starterHint(); char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_FIELD){ if(fieldMode>=FIELD_CLINIC) siprintf(b,"%s  R%d",fieldName[fieldMode],fieldRadius); else siprintf(b,"%s",fieldName[fieldMode]); } else if(pw[power].kind==PK_BUILD) siprintf(b,"%s",constructionName(constructionMode)); else siprintf(b,"BRUSH %d",brush);
       uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1);
       if(storyGoalT>0&&storyOn&&chapter<CHAP_N) uiText(24,166,chap[chapter].goal,U_GOLD,1);
       else if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,hint?hint:pw[power].kind==PK_FIELD?fieldDesc[fieldMode]:pwDesc[power],U_DIM,1); }
@@ -3612,6 +3682,11 @@ int main(void){
             dirty=1;
         }
         if(autoSaveDue()){ doSave(); dirty=1; }
+        if(pw[power].kind==PK_BUILD&&!view3d&&(kd&(KEY_X|KEY_Y))){
+            int direction=(kd&KEY_X)?1:-1;
+            constructionMode=(constructionMode+GG_CONSTRUCTION_N+direction)%GG_CONSTRUCTION_N;
+            kd&=~(KEY_X|KEY_Y); dirty=1;
+        }
         if(pw[power].kind==PK_FIELD&&(kd&(KEY_X|KEY_Y))&&!(view3d&&(kh&(KEY_A|KEY_B)))){
             int d=(kd&KEY_X)?1:-1;
             if(kh&KEY_B){

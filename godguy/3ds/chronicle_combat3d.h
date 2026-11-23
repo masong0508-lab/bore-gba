@@ -41,8 +41,12 @@ static int ggChronRuinCover(GgMeshBuildingFootprint p,int top,int x,int y,int z)
 }
 static int ggChronStructureCover(int build,int tx,int ty,int x,int y,int z){
     if(!ggExpBuilding(build)||build==B_DOCK)return 0;
-    GgMeshBuildingFootprint p=ggMeshBuildingFootprint(tx,ty,build);
     int ground=ggExpGround(ggMeshTerrainAt(tx,ty));
+    int terrainSolid=ggMeshFortSolid(tx,ty,build,x,y,z,ground);
+    if(terrainSolid>=0)return terrainSolid;
+    terrainSolid=ggMeshSettlementSolid(tx,ty,build,x,y,z,ground);
+    if(terrainSolid>=0)return terrainSolid;
+    GgMeshBuildingFootprint p=ggMeshBuildingFootprint(tx,ty,build);
     int nominal=ground+ggExpBuilding(build)+(build==B_FARM?6:0);
     if(build==B_RUIN)return ggChronRuinCover(p,nominal,x,y,z);
     if(build==B_STATUE){

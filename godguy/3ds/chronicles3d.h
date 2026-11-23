@@ -65,7 +65,12 @@ static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     if(world[y][x]<=T_WATER||world[y][x]==T_LAVA)return 0;
-    return !bld[y][x]&&!occ[y][x];
+    return (!bld[y][x]||ggBuildingIsGate(bld[y][x]))&&!occ[y][x];
+}
+static int ggChronGateRoute(int x,int y,int nx,int ny){
+    int dx=nx-x,dy=ny-y;
+    return ggBuildingGateAllows(bld[y][x],dx,dy)&&
+           ggBuildingGateAllows(bld[ny][nx],dx,dy);
 }
 static int ggChronNear(int ax,int ay,int bx,int by){
     int dx=ax-bx,dy=ay-by;
@@ -92,6 +97,7 @@ static int ggChronRoute(void){
             if((unsigned)nx>=GG_CHRON_GRID||(unsigned)ny>=GG_CHRON_GRID)continue;
             int q=ny*GG_CHRON_GRID+nx;
             if(dist[q]!=255||!ggChronLand(ox+nx,oy+ny))continue;
+            if(!ggChronGateRoute(ox+x,oy+y,ox+nx,oy+ny))continue;
             if(ggExpGround(world[oy+ny][ox+nx])-
                ggExpGround(world[oy+y][ox+x])>19)continue;
             dist[q]=dist[pos]+1;
@@ -116,7 +122,8 @@ static int ggChronRoute(void){
                 for(int xx=x-2;xx<=x+2;xx++)
                     if((unsigned)xx<WW&&(unsigned)yy<WH &&
                        (bld[yy][xx]==B_HALL||bld[yy][xx]==B_TOWER||
-                        bld[yy][xx]==B_RUIN||bld[yy][xx]==B_TEMPLE))
+                        bld[yy][xx]==B_RUIN||bld[yy][xx]==B_TEMPLE||
+                        bld[yy][xx]==B_KEEP||bld[yy][xx]==B_MARKET))
                         landmark=1;
             int cost=diff*15-landmark*16+
                 ((x*11+y*7+post*13+ggChron.act*17)&15);
@@ -157,6 +164,7 @@ static void ggChronNavBuild(int post){
             if(ggChronNavDistance[q]!=255)continue;
             int fromX=ggChron.routeOx+nx,fromY=ggChron.routeOy+ny;
             if(!ggChronLand(fromX,fromY))continue;
+            if(!ggChronGateRoute(fromX,fromY,toX,toY))continue;
             // Reverse traversal: a player at the neighbor must be able
             // to climb toward the current cell, not the other way round.
             if(ggExpGround(world[toY][toX])-
@@ -182,7 +190,8 @@ static int ggChronNavNext(int x,int y,int *nx,int *ny,int *steps){
         if((unsigned)tx>=GG_CHRON_GRID||
            (unsigned)ty>=GG_CHRON_GRID)continue;
         int q=ty*GG_CHRON_GRID+tx;
-        if(ggChronNavDistance[q]<d){
+        if(ggChronNavDistance[q]<d&&
+           ggChronGateRoute(x,y,ggChron.routeOx+tx,ggChron.routeOy+ty)){
             *nx=ggChron.routeOx+tx;
             *ny=ggChron.routeOy+ty;
             return 1;
@@ -336,6 +345,7 @@ static int ggChronEnemyRoute(int fx,int fy,int tx,int ty,int *outX,int *outY){
             if((unsigned)nx>=W||(unsigned)ny>=W)continue;
             int q=ny*W+nx,wx=fx+nx-R,wy=fy+ny-R;
             if(dist[q]!=255||!ggChronLand(wx,wy))continue;
+            if(!ggChronGateRoute(x,y,wx,wy))continue;
             if(ggExpGround(world[wy][wx])-
                ggExpGround(world[y][x])>19)continue;
             dist[q]=dist[p]+1;

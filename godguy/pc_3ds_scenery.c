@@ -3,8 +3,7 @@
 #include <stdlib.h>
 enum {T_DEEP,T_WATER,T_SAND,T_GRASS,T_FOREST,T_HILL,T_MOUNT,
        T_SNOW,T_LAVA,T_DESERT,T_SWAMP,T_JUNGLE,T_DIRT,T_N};
-enum {B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,
-       B_DOCK,B_TEMPLE,B_STATUE,B_LIBRARY,B_BORDER,B_N};
+#include "source/building_types.h"
 #include "3ds/film_scenery3d.h"
 static void check(int okay,const char*why){
     if(!okay){fprintf(stderr,"3DS SCENERY FAIL: %s\n",why);exit(1);}
