@@ -464,7 +464,14 @@ static int trTile(int t,int n,int mask,int v,int foam,int b){
     trKey[hi]=key+1; trVal[hi]=(u16)slot; return slot; }
 // These zoom numbers are part of the shared save format.
 enum { Z_PLANET, Z_VFAR, Z_FAR, Z_NORMAL, Z_CLOSE, Z_MICRO };
-#if defined(__3DS__) || defined(GG_LEGACY_GLOBE_TEST)
+// The spherical planet view is a shared console feature, not a
+// New3DS-only decoration. DS/DSi use the already present 2x sampling
+// path and a smaller maximum disc to preserve ARM9 drawing headroom.
+// Host game tests keep their historical zoom contract unless they
+// explicitly opt in to the restored portable-globe regression.
+#if defined(__3DS__) || defined(GG_LEGACY_GLOBE_TEST) || \
+    defined(GG_PORTABLE_GLOBE_TEST) || defined(NDSHW) || \
+    (defined(ARM9) && !defined(NDSSHIM))
 #define GG_HAS_GLOBE 1
 enum { Z_MIN=Z_PLANET };
 #else
@@ -2075,7 +2082,16 @@ static void globeAim(int lon,int lat,int*cL,int*sL,int*cP,int*sP){ lon%=360; if(
 static inline void globeDir(int nx,int ny,int nz,int cL,int sL,int cP,int sP,int*tx,int*ty){
     int t=(-sP*ny+cP*nz)>>14; int mx=(cL*nx+sL*t)>>14, my=(cP*ny+sP*nz)>>14, mz=(-sL*nx+cL*t)>>14;
     *tx=(atan2Turn(mx,mz)*WW)>>16; int ix=(my+16384)>>3; if(ix<0) ix=0; if(ix>4096) ix=4096; int yy=gAsin[ix]; *ty=(yy*WH)>>12; if(*tx>=WW) *tx=WW-1; if(*ty>=WH) *ty=WH-1; if(*ty<0) *ty=0; }
-static int globeR(void){ int R=3500/zoom3; return R>GR_MAX?GR_MAX:R<26?26:R; }
+static int globeR(void){
+    int R=3500/zoom3;
+#ifdef __3DS__
+    return R>GR_MAX?GR_MAX:R<26?26:R;
+#else
+    // A 176px planet is fully readable on DS/DSi; the original 240px
+    // disc required too many globeDir/biome/cloud samples on 67 MHz ARM9.
+    return R>88?88:R<26?26:R;
+#endif
+}
 static int globePick(int px,int py,int*tx,int*ty){
     int R=globeR(); globeTables(R); int x=px-128, y=96-py; int d2=x*x+y*y; if(d2>R*R) return 0; int cL,sL,cP,sP; globeAim(rotY,rotX,&cL,&sL,&cP,&sP);
     globeDir(gxn[x+R],gxn[y+R],gnz[d2],cL,sL,cP,sP,tx,ty); return 1; }
@@ -2833,36 +2849,69 @@ static void startWorld(int story){
     if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,&fmvClips[0]); dlgPend=0; }
 }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
-#ifdef GG_HAS_GLOBE
-static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
+// Shared 3D menu globe (DS, DSi, New3DS). This never allocates a
+// framebuffer or a texture; terrain comes from the actual world[][]. The
+// DS uses a 46px precomputed hemisphere, keeping the source's 54px 3DS
+// loading globe and the original world-space rotation/lighting.
+#ifdef __3DS__
+#define GG_TITLE_GLOBE_RADIUS 54
+#else
+#define GG_TITLE_GLOBE_RADIUS 46
+#endif
+#define GG_TITLE_GLOBE_DIAMETER (2*GG_TITLE_GLOBE_RADIUS+1)
+#define GG_TITLE_GLOBE_PIXELS (GG_TITLE_GLOBE_DIAMETER*GG_TITLE_GLOBE_DIAMETER)
+static short plLon[GG_TITLE_GLOBE_PIXELS],plWy[GG_TITLE_GLOBE_PIXELS];
+static u8 plJ[GG_TITLE_GLOBE_PIXELS];
 #ifdef NDSSHIM
-static signed char plZ[109*109];
+static signed char plZ[GG_TITLE_GLOBE_PIXELS];
 #define PLZSET(k) plZ[k]=(signed char)(z*14.f);
 #define PLZ(k) plZ[k]
 #else
 #define PLZSET(k)
 #define PLZ(k) 0
 #endif
-static int plInit; static short plHalo[180][2];
-static void uiWorldPreview(int cx,int cy,int R){   // the planet as a lit ball (the sphere maths is done once for radius 54; any smaller radius samples it)
-    const int B=54; if(!plInit){ plInit=1; for(int y=-B;y<=B;y++) for(int x=-B;x<=B;x++){ int k=(y+B)*109+(x+B); plJ[k]=255; if(x*x+y*y>B*B) continue; float nx=(float)x/B, ny=(float)y/B, z=sqrtf(1.f-nx*nx-ny*ny);
-            float lon=atan2f(nx,z), lat=asinf(ny); plLon[k]=(short)((0.5f+lon/6.2831853f)*4096); plWy[k]=(short)((0.5f+lat/3.1415927f)*4096); float l=0.3f+0.7f*(-nx*0.45f-ny*0.45f+z*0.8f); plJ[k]=(u8)(l<0.5f?0:l<0.78f?1:2); PLZSET(k) }
-        for(int a=0;a<180;a++){ float r=(float)B+1.5f; plHalo[a][0]=(short)(r*cosf(a*2*0.0174533f)); plHalo[a][1]=(short)(r*sinf(a*2*0.0174533f)); } }
-    if(R<4) R=4; if(R>B) R=B; int shift=(tick>>5)*WW/600;
-    for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); uiZSet(cx+x,cy+y,3+PLZ(k)); }
-    for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0]*R/B,cy+plHalo[a][1]*R/B,U_CYAN); }
-#else
-static void uiWorldPreview(int cx,int cy,int radius){
-    int w=radius*2, h=radius+radius/2;
-    int left=cx-w/2, top=cy-h/2;
-    uiFrame(left-2,top-2,w+4,h+4,U_SHADOW,U_CYAN,U_BLO);
-    for(int y=0;y<h;y++){
-        const u8 *row=world[y*WH/h];
-        u8 *dst=uiBuf+(top+y)*256+left;
-        for(int x=0;x<w;x++) dst[x]=(u8)(64+row[x*WW/w]);
+static int plInit;static short plHalo[180][2];
+// The surface cache is a real shaded hemisphere; rotate the WORLD
+// coordinates rather than spinning a flat map under a circular mask.
+static void uiWorldPreview(int cx,int cy,int R){
+    const int B=GG_TITLE_GLOBE_RADIUS,D=GG_TITLE_GLOBE_DIAMETER;
+    if(!plInit){
+        plInit=1;
+        for(int y=-B;y<=B;y++)for(int x=-B;x<=B;x++){
+            int k=(y+B)*D+(x+B);
+            plJ[k]=255;
+            if(x*x+y*y>B*B)continue;
+            float nx=(float)x/B,ny=(float)y/B;
+            float z=sqrtf(1.f-nx*nx-ny*ny);
+            float lon=atan2f(nx,z),lat=asinf(ny);
+            plLon[k]=(short)((0.5f+lon/6.2831853f)*4096);
+            plWy[k]=(short)((0.5f+lat/3.1415927f)*4096);
+            float light=0.3f+0.7f*(-nx*0.45f-ny*0.45f+z*0.8f);
+            plJ[k]=(u8)(light<0.5f?0:light<0.78f?1:2);
+            PLZSET(k)
+        }
+        for(int a=0;a<180;a++){
+            float rr=(float)B+1.5f;
+            plHalo[a][0]=(short)(rr*cosf(a*2*0.0174533f));
+            plHalo[a][1]=(short)(rr*sinf(a*2*0.0174533f));
+        }
     }
+    if(R<4)R=4;if(R>B)R=B;
+    int shift=(int)(((unsigned)tick>>5)*(unsigned)WW/600u);
+    for(int y=-R;y<=R;y++)for(int x=-R;x<=R;x++){
+        if(x*x+y*y>R*R)continue;
+        int k=((y*B/R)+B)*D+((x*B/R)+B);
+        if(plJ[k]==255)continue;
+        int wx=((plLon[k]*WW>>12)+shift)%WW;
+        int wy=plWy[k]*WH>>12;
+        if(wy<0)wy=0;if(wy>=WH)wy=WH-1;
+        uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]);
+        uiZSet(cx+x,cy+y,3+PLZ(k));
+    }
+    for(int a=0;a<180;a++)
+        uiPx(cx+plHalo[a][0]*R/B,
+             cy+plHalo[a][1]*R/B,U_CYAN);
 }
-#endif
 static void uiLoadHook(const char*msg,int pct){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=3) uiRect(0,y,256,1,U_PANEL); for(int k=0;k<60;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     uiWorldPreview(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
@@ -2920,7 +2969,10 @@ static void uiCreate(void){
         int vw=uiTextW(v[i],1); if(sel){ uiIcon8(154-vw-14,y+2,IC8_LEFT); uiIcon8(150,y+2,IC8_RIGHT); } uiTextR(148,y+2,v[i],vc); }
     // the preview of the planet as it will be, and what it is
     uiFrame(163,18,90,90,U_SHADOW,U_BLO,U_BHI);
-    for(int y=0;y<88;y++) for(int x=0;x<88;x++){ int wx=x*WW/88, wy=y*WH/88; int t=world[wy][wx]; uiPx(164+x,19+y,100+t*3+((wx+wy)&1)); }
+    // The seed and climate are previewed on the same lit, rotating
+    // sphere used by the title and loading screens. A rectangular
+    // equirectangular atlas is no longer passed off as a 3D globe.
+    uiWorldPreview(208,63,41);
     char b[24]; uiBar(165,113,86,7,cLand,100,U_GREEN); siprintf(b,"LAND %d%%",cLand); uiTextC(208,123,b,U_WHITE,1);
     siprintf(b,"%dX%d",planetSize,planetSize); uiTextC(208,138,b,U_DIM,1);
     uiTextC(208,149,storyOn?"STORY":"FREE PLAY",U_GOLD,1); uiTextC(208,159,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL",diff==0?U_GREEN:diff==2?U_RED:U_LGREY,1);
@@ -2946,7 +2998,7 @@ static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     return n; }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
-        case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_PEOPLES: strcpy(l,"POPULATION"); break; case MI_MMICON: strcpy(l,"MAP DOTS"); strcpy(v,mmIcons?"EVERY KIND":"FOLK ONLY"); break; case MI_AUTOSAVE: strcpy(l,"AUTOSAVE"); strcpy(v,autoSaveOn?"ON":"OFF"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
+        case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_PEOPLES: strcpy(l,"POPULATION"); break; case MI_MMICON: strcpy(l,"MAP DOTS"); strcpy(v,mmIcons?"EVERY KIND":"FOLK ONLY"); break; case MI_AUTOSAVE: strcpy(l,"AUTOSAVE"); strcpy(v,autoSaveOn?"ON":"OFF"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=ACH_HAS(i); siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
         case MI_MMODE: strcpy(l,"MAP TINT"); strcpy(v,mmMode==0?"KINGDOM":mmMode==1?"CULTURE":mmMode==2?"FAITH":mmMode==3?"LANGUAGE":mmMode==4?"RELATIONS":"CITY"); break;
         case MI_SCALE: strcpy(l,"UI SCALE"); strcpy(v,hwUiScale==0?"NORMAL":hwUiScale==1?"LARGE":"HUGE"); break; case MI_CAL: strcpy(l,"CALIBRATE TOUCH"); strcpy(v,">"); break; case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
@@ -2997,6 +3049,13 @@ static void uiSlots(void){     // the SAVE SLOTS screen: every slot with the yea
 #ifdef NDSHW
     { char b[44]; siprintf(b,"CHIP %dK    %d SLOT%s OF %dK",(int)(hwCap/1024),hwSlots,hwSlots>1?"S":"",(int)(hwSlotSz/1024)); uiText(8,19+NSLOT*15+3,b,U_DIM,1); uiText(8,19+NSLOT*15+14,"L / R: HOW MANY SLOTS",U_LGREY,1); }
 #endif
+    // The lower half of the slot page is unused on 1-4 slot cartridges.
+    // Keep a small planet there without covering the selection buttons
+    // or the footer. The underlying world is not changed by this preview.
+    if(NSLOT<=4){
+        uiWorldPreview(208,144,25);
+        uiTextC(208,170,"YOUR WORLD",U_GOLD,1);
+    }
     gfxHint("A: USE THIS SLOT   X: ERASE   B: BACK",U_LGREY); }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
