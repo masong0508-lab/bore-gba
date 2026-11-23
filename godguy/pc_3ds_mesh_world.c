@@ -460,6 +460,60 @@ static void meshArchitectureCover(unsigned char *pixels){
     bld[tile][tile]=B_NONE;
     meshRequire(passed,"combat cover disagrees with visible architectural volumes");
 }
+static void meshGradeArchitecture(unsigned char *pixels){
+    // The latest 2x2 residences, castle walls and market plinths all
+    // inherit this geometry: the lower skirt must follow REAL tile
+    // corners, not an unrelated low neighbour's nominal tile centre.
+    const int tx=71,ty=73,cx=tx*256+128,cy=ty*256+128;
+    const int grass=ggExpGround(T_GRASS);
+    world[ty][tx]=T_MOUNT;
+    int peak=ggExpGround(T_MOUNT);
+    int bottom=ggMeshFoundationGround(tx*256+35,ty*256+35,
+                                      tx*256+221,ty*256+221,peak);
+    meshRequire(bottom>grass+2&&bottom<peak-2,
+                "mountain foundation is still sunk to remote grass centres");
+    for(int y=ty*256+36;y<=ty*256+220;y+=23)
+      for(int x=tx*256+36;x<=tx*256+220;x+=23)
+        meshRequire(ggMeshGroundAtQ8(x,y)>bottom,
+                    "corner-fitted skirt exposes a crack in the rendered slope");
+    // Water or an underslung bank must still lower the skirt all the
+    // way to the waterline; the more accurate footing cannot float.
+    world[ty-1][tx]=T_WATER;
+    int low=ggMeshFoundationGround(tx*256+35,ty*256+35,
+                                   tx*256+221,ty*256+221,peak);
+    meshRequire(low<=ggExpGround(T_WATER)-1&&low<bottom,
+                "shoreline foundation no longer seals the submerged shelf");
+    world[ty-1][tx]=T_GRASS;
+    int variation=0;
+    for(int axis=0;axis<2;axis++){
+        int p=axis?cy:cx,u=axis?cx:cy;
+        GgMeshVertex first=ggMeshFortApproachVertex(axis,p-64,u);
+        GgMeshVertex crest=ggMeshFortApproachVertex(axis,p,u);
+        GgMeshVertex last=ggMeshFortApproachVertex(axis,p+64,u);
+        meshRequire(first.z==ggMeshGroundAtQ8(first.x,first.y)+1&&
+                    crest.z==ggMeshGroundAtQ8(crest.x,crest.y)+1&&
+                    last.z==ggMeshGroundAtQ8(last.x,last.y)+1,
+                    "gate approach is floating or clipped below the live hillside");
+        variation+=abs(first.z-crest.z)+abs(last.z-crest.z);
+        for(int quality=1;quality<=2;quality++){
+            GgMeshContext*m=&ggMeshContext;
+            ggMeshBegin(m,pixels,quality,
+                        axis?u:p-410,axis?p-410:u,
+                        peak+34,axis?0:4096,axis?4096:0,
+                        42,65,89);
+            int priorMaterial=m->material,priorBias=m->depthBias;
+            GgMeshFort fort={.mesh=m,.detail=1};
+            ggMeshFortApproach(&fort,axis,p,u);
+            meshRequire(m->fragments>=16&&m->triangles>=2&&
+                        m->material==priorMaterial&&
+                        m->depthBias==priorBias,
+                        "graded gate pavement is invisible or leaks raster state");
+        }
+    }
+    meshRequire(variation>=8,
+                "gate walkway ignores the mountain's three-dimensional slope");
+    world[ty][tx]=T_GRASS;
+}
 static void meshGateTraversal(void){
     GgExplore3D saved=ggExplore;
     const int tile=63,mid=tile*256+128,front=tile*256-24;
@@ -547,6 +601,7 @@ int main(void){
     meshPlantedBoots(pixels);
     meshNearArchitecture(pixels);
     meshArchitectureCover(pixels);
+    meshGradeArchitecture(pixels);
     meshGateTraversal();
     ggExpRenderMode(pixels,1);
     meshRequire(ggExpMeshActive&&ggMeshContext.w==400,
