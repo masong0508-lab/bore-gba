@@ -291,6 +291,23 @@ static void ggMeshFortApproach(GgMeshFort*f,int axis,int p,int u){
             }
         }
     }
+    // Readable individual stone courses on the steep approach. Only the
+    // near-detail path spends triangles on three crosswise mortar joints;
+    // the seam follows the exact walking-height surface and adds NO
+    // collision mass or heap allocation.
+    if(f->detail&&m->detailQuality>=2){
+        for(int i=1;i<GG_FORT_APPROACH_STEPS;i++){
+            int at=p-64+i*128/GG_FORT_APPROACH_STEPS;
+            int nearSide=u-(GG_FORT_APPROACH_HALF-9);
+            int farSide=u+(GG_FORT_APPROACH_HALF-9);
+            GgMeshVertex A=ggMeshFortApproachVertex(axis,at-2,nearSide);
+            GgMeshVertex B=ggMeshFortApproachVertex(axis,at+2,nearSide);
+            GgMeshVertex C=ggMeshFortApproachVertex(axis,at+2,farSide);
+            GgMeshVertex D=ggMeshFortApproachVertex(axis,at-2,farSide);
+            A.z++;B.z++;C.z++;D.z++;
+            ggMeshFortOrientedQuad(m,axis,0,A,B,C,D,120,109,96);
+        }
+    }
     m->material=prior;m->depthBias=bias;
 }
 static int ggMeshFortGateFloor(int axis,int p,int u,int ground){
