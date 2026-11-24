@@ -2040,7 +2040,13 @@ static void applyLight(void){
 static u8 gbuf[256*192] __attribute__((aligned(4)));
 #ifdef GG_HAS_GLOBE
 // CPU-rendered globe used by the 3DS in addition to its native 3D world.
+#ifdef __3DS__
 #define GR_MAX 120
+#else
+// Portable gameplay caps the disc at 88px. Do not reserve the unused
+// 89..120 radius normal table in the 4 MiB DS memory layout.
+#define GR_MAX 88
+#endif
 static u16 gnz[GR_MAX*GR_MAX+1]; static s16 gxn[2*GR_MAX+1]; static int gR=0;
 static u16 gAtan[257]; static u16 gAsin[4097]; static u8 gCloud[64][64]; static int gInit;
 static u16 gSavedPal[256];
@@ -2882,7 +2888,8 @@ static void uiWorldPreview(int cx,int cy,int R){
             plJ[k]=255;
             if(x*x+y*y>B*B)continue;
             float nx=(float)x/B,ny=(float)y/B;
-            float z=sqrtf(1.f-nx*nx-ny*ny);
+            // Integer radicand stays nonnegative even on the exact rim.
+            float z=sqrtf((float)(B*B-x*x-y*y))/B;
             float lon=atan2f(nx,z),lat=asinf(ny);
             plLon[k]=(short)((0.5f+lon/6.2831853f)*4096);
             plWy[k]=(short)((0.5f+lat/3.1415927f)*4096);
