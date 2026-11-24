@@ -65,12 +65,26 @@ int main(void){
     sphereVerify(128,76,GG_TITLE_GLOBE_RADIUS,"loading");
     slSel=0;uiSlots();
     if(NSLOT<=4)sphereVerify(208,144,25,"save slots");
+    // The WORLD menu's narrow gutter is deliberately outside every
+    // row and button; its centre and interior must depict live terrain.
+    fieldLedgerOpen=0;wTab=wTabPrev=wSel=0;uiWorld();
+    int worldGlobePixels=0;
+    for(int dy=-8;dy<=8;dy++)for(int dx=-8;dx<=8;dx++){
+        if(dx*dx+dy*dy>64)continue;
+        int col=uiBuf[(46+dy)*256+243+dx];
+        worldGlobePixels+=col>=100&&col<100+T_N*3;
+    }
+    CHECK(worldGlobePixels>=50,
+          "WORLD settings globe is absent or covered by another panel");
     CHECK(GG_TITLE_GLOBE_DIAMETER<=109,
           "DS/DSi sphere cache exceeds native 3DS resource budget");
 #ifdef GG_HAS_GLOBE
     zoom3=30;
 #ifndef __3DS__
     CHECK(globeR()<=88,"DS/DSi planet exceeded ARM9 pixel budget");
+    CHECK(GR_MAX==88&&sizeof gnz==2u*(88u*88u+1u)&&
+          sizeof gxn==2u*(2u*88u+1u),
+          "DS/DSi still reserves normals beyond its maximum rendered radius");
 #endif
     CHECK(globePick(128,96,&camX,&camY),
           "full planetary view no longer picks the centre");
