@@ -33,6 +33,65 @@ static void sphereVerify(int cx,int cy,int R,const char*name){
         failed++;
     }
 }
+// Compare the optimized title's actual pixels against the original
+// coordinate formulas; ignore the outer halo where the rim overlaps.
+static void compareTitlePixels(int R){
+    const int B=GG_TITLE_GLOBE_RADIUS,D=GG_TITLE_GLOBE_DIAMETER;
+    int shift=(int)(((unsigned)tick>>5)*(unsigned)WW/600u);
+    for(int y=-R+4;y<=R-4;y++)for(int x=-R+4;x<=R-4;x++){
+        if(x*x+y*y>(R-4)*(R-4))continue;
+        int k=((y*B/R)+B)*D+((x*B/R)+B);
+        if(plJ[k]==255)continue;
+        int wx=((plLon[k]*WW>>12)+shift)%WW;
+        int wy=plWy[k]*WH>>12;
+        if(wy<0)wy=0;if(wy>=WH)wy=WH-1;
+        if(uiBuf[(96+y)*256+128+x]!=100+world[wy][wx]*3+plJ[k]){
+            CHECK(0,"optimized title changed interior sphere pixels");return;
+        }
+    }
+}
+static void sharedTuningVerify(void){
+    const int widths[]={64,128,192,256,512,768,1024};
+    const int ticks[]={0,31,32,9000,1234567,2147483647};
+    for(unsigned w=0;w<sizeof(widths)/sizeof(widths[0]);w++){
+        for(unsigned t=0;t<sizeof(ticks)/sizeof(ticks[0]);t++){
+            int width=widths[w];
+            int shift=(int)(((unsigned)ticks[t]>>5)*(unsigned)width/600u);
+            int phase=ggTitlePhase(ticks[t],width);
+            for(int lon=0;lon<4096;lon++){
+                if(ggTitleLongitude(lon,width,phase)!=((lon*width>>12)+shift)%width){
+                    CHECK(0,"title rotation diverged from reference");return;
+                }
+            }
+        }
+    }
+#ifdef GG_HAS_GLOBE
+    int savedW=WW,savedH=WH;
+    for(int size=128;size<=MAXD;size*=2){
+        gW=size;gH=size/2;globeCloudTables();
+        for(int x=0;x<WW;x++)CHECK(gCloudX[x]==x*64/WW,"cloud longitude cache");
+        for(int y=0;y<WH;y++)CHECK(gCloudY[y]==y*64/WH,"cloud latitude cache");
+    }
+    gW=savedW;gH=savedH;globeCloudTables();
+    CHECK(gCloudW==WW&&gCloudH==WH,"cloud cache invalidated on restored dimensions");
+#endif
+    // Drive the real world event after visual tests, with a richer hostile
+    // donor and a richer unrelated donor to prove eligibility restrictions.
+    memset(vil,0,sizeof vil);memset(vilK,0,sizeof vilK);
+    for(int v=0;v<5;v++){vil[v].on=1;vil[v].pop=3;}
+    vil[0].stock=30;vil[1].stock=250;
+    vil[2].stock=390;vil[2].foe=1;
+    vil[3].stock=390;vil[3].race=1;
+    vil[4].stock=50;
+    jrN=0;
+    eventDo(EV_RELIEF);
+    CHECK(vil[0].stock==90&&vil[1].stock==190,"relief conserves stocks and prioritizes the poorest");
+    CHECK(vil[2].stock==390&&vil[3].stock==390,"relief skips hostile or unrelated donors");
+    CHECK(jrN==1&&strstr(jr[0],"RECEIVES RELIEF")!=NULL,"relief enters journal");
+    CHECK(reliefCaravan()==10&&vil[1].stock==180&&vil[4].stock==60,"donor keeps its reserve");
+    CHECK(reliefCaravan()==0&&jrN==2,"no phantom relief without available surplus");
+    CHECK(ggReliefAmount(300,79)==21&&ggReliefAmount(400,80)==0,"aid threshold and recipient cap");
+}
 int main(void){
     mapPtr=(u16*)bgGetMapPtr(0);
     rs=773;planetSize=128;
@@ -48,10 +107,12 @@ int main(void){
     uiWorldPreview(128,96,32);
     CHECK(uiBuf[0]==U_BG,"3D title preview writes outside the sphere");
     sphereVerify(128,96,32,"portable sphere");
+    compareTitlePixels(32);
     static u8 still[256*192];memcpy(still,uiBuf,sizeof still);
     tick=9000;uiWorldPreview(128,96,32);
     CHECK(memcmp(still,uiBuf,sizeof still)!=0,
           "title planet stopped rotating with the world");
+    compareTitlePixels(32);
     // The live title and all settings submenus draw the same sphere.
     mScr=0;mSel=0;uiTitle();
     sphereVerify(206,128,34,"main title");
@@ -78,8 +139,9 @@ int main(void){
     CHECK(gbuf[96*256+128]!=1,
           "restored interactive planet still renders only empty space");
 #endif
+    sharedTuningVerify();
     printf(failed?"TITLE GLOBE FAIL (%d)\n":
-           "TITLE GLOBE OK: rotating lit sphere, menus, creator, loading, slots, playable planet zoom\n",
+           "TITLE GLOBE OK: rotating lit sphere, menus, planet zoom, pixel parity, cloud cache, relief event\n",
            failed);
     return failed?1:0;
 }

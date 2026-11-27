@@ -12,6 +12,7 @@
 #include <string.h>
 #include "gg.h"
 #include "world_height.h"
+#include "gg_shared_tuning.h"
 #include "gmdata.h"      // the music and sound-effect tables (ids like FX_SMITE and GM_TITLE are used by the game; the player is gmplay.h, DS and PC)
 
 #include "ggx.h"
@@ -1242,11 +1243,39 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
 #include "calamity.h"           // the Calamity pack: tornado, black hole, acid rain, atomic bomb, plague, curse
 #include "wild.h"           // Pack C and D: fire elemental, goo, ghosts, crab powers, bandits, sapient animals and dens
 #include "disasters.h"       // alien invasion, far-land dragon, moon horrors, biomass, dream ice and garden surprise
-enum { EV_COMET, EV_HARVEST, EV_MUNCH, EV_FEST, EV_PROPHET, EV_FAMINE, EV_MIGRATE, EV_GOLDEN, EV_CARAVAN, EV_BLOOM, EV_CRISIS, EV_COLD, EV_N };
+enum { EV_COMET, EV_HARVEST, EV_MUNCH, EV_FEST, EV_PROPHET, EV_FAMINE, EV_MIGRATE, EV_GOLDEN, EV_CARAVAN, EV_BLOOM, EV_CRISIS, EV_COLD, EV_RELIEF, EV_N };
 static const u8 evW[EV_N][10]={   // weights by the ten world ages: dark, hope, sun, tears, moon, chaos, wonders, ice, ash, despair
     {2,3,3,2,3,5,2,4,5,4},{4,6,6,3,4,2,5,3,1,1},{2,3,4,2,2,3,5,3,2,1},{4,5,4,3,4,1,5,2,2,4},
     {3,3,2,4,5,2,5,3,2,2},{3,1,1,4,2,4,1,3,5,5},{4,3,3,4,3,3,4,2,3,2},{5,4,3,3,2,1,5,2,1,1},
-    {3,3,4,3,3,2,4,2,1,1},{2,2,3,5,3,2,5,3,1,1},{1,2,4,1,3,5,2,1,3,5},{2,3,1,2,4,2,1,6,2,3} };
+    {3,3,4,3,3,2,4,2,1,1},{2,2,3,5,3,2,5,3,1,1},{1,2,4,1,3,5,2,1,3,5},{2,3,1,2,4,2,1,6,2,3},
+    {2,4,3,5,3,1,4,5,4,3} }; // emergency food relief
+// A relief caravan redistributes actual stores between peaceful, populated
+// towns in the same kingdom (or independent towns of the same people).
+// Two bounded scans; no new save fields, world allocations or random draws.
+static int reliefCaravan(void){
+    int to=-1,from=-1;
+    for(int v=0;v<VIL_N;v++){
+        if(!vil[v].on||!vil[v].pop||vil[v].foe||vil[v].stock>=80)continue;
+        if(to<0||vil[v].stock<vil[to].stock)to=v;
+    }
+    if(to<0)return 0;
+    for(int v=0;v<VIL_N;v++){
+        if(v==to||!vil[v].on||!vil[v].pop||vil[v].foe||vil[v].stock<=180)continue;
+        if(vilK[v]!=vilK[to]||(!vilK[to]&&vil[v].race!=vil[to].race))continue;
+        if(from<0||vil[v].stock>vil[from].stock)from=v;
+    }
+    if(from<0)return 0;
+    int amount=ggReliefAmount(vil[from].stock,vil[to].stock);
+    if(!amount)return 0;
+    vil[from].stock=(u16)(vil[from].stock-amount);
+    vil[to].stock=(u16)(vil[to].stock+amount);
+    char name[72],entry[48];
+    vilName(to,name);
+    siprintf(entry,"%.15s RECEIVES RELIEF",name);
+    logEv(entry);
+    fxReq(FX_BLESS);
+    return amount;
+}
 static void eventDo(int e){      // one world event; each one is written to the journal
     char s[72]; int ag=worldAge();
     switch(e){
@@ -1261,7 +1290,8 @@ static void eventDo(int e){      // one world event; each one is written to the 
     case EV_CARAVAN: { int n=0, ids[KN_N]; for(int k=0;k<KN_N;k++) if(kd[k].on&&kd[k].tech>=2) ids[n++]=k; if(!n) return; int k=ids[rnd()%n]; int g=kd[k].gold+120; kd[k].gold=(u16)(g>60000?60000:g); kdName(k,s); char t[72]; siprintf(t,"A MERCHANT CARAVAN ENRICHES %.28s",s); logEv(t); siprintf(info,"A MERCHANT CARAVAN"); } return;
     case EV_BLOOM: { static const u8 tt[6]={TR_GIGGLY,TR_ZEN,TR_FLOATY,TR_LEAN,TR_REGEN,TR_FERTILE}; int n=0; for(int i=0;i<nCr&&n<8;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],tt[rnd()%6],0); n++; } if(!n) return; siprintf(info,"A MUTANT BLOOM"); logEv("A MUTANT BLOOM CHANGES THE WILD"); fxReq(FX_BIRTH); } return;
     case EV_CRISIS: { int n=0, ids[KN_N]; for(int k=0;k<KN_N;k++) if(kd[k].on) ids[n++]=k; if(!n) return; int k=ids[rnd()%n]; kd[k].reign=250; kdName(k,s); char t[72]; siprintf(t,"A SUCCESSION CRISIS SHAKES %.26s",s); logEv(t); siprintf(info,"SUCCESSION CRISIS"); } return;
-    case EV_COLD: weather=3; weatherT=1800; siprintf(info,"A COLD SNAP"); logEv("A COLD SNAP BLANKETS THE LAND"); break; }
+    case EV_COLD: weather=3; weatherT=1800; siprintf(info,"A COLD SNAP"); logEv("A COLD SNAP BLANKETS THE LAND"); break;
+    case EV_RELIEF: reliefCaravan(); break; }
     (void)ag; }
 static void eventTick(void){   // now and then the world has an event of its own: a weighted table by the age of the world (disasters off take the comet out instead of doubling the harvests)
     if(tick<1500||(tick%1500)!=0||rnd()%3) return; int ag=worldAge(), w[EV_N], tot=0;
@@ -2044,6 +2074,20 @@ static u8 gbuf[256*192] __attribute__((aligned(4)));
 static u16 gnz[GR_MAX*GR_MAX+1]; static s16 gxn[2*GR_MAX+1]; static int gR=0;
 static u16 gAtan[257]; static u16 gAsin[4097]; static u8 gCloud[64][64]; static int gInit;
 static u16 gSavedPal[256];
+// Map cloud coordinates once when the planet dimensions change instead
+// of dividing twice at every rendered globe pixel (including 3DS cirrus).
+static u8 gCloudX[MAXD],gCloudY[MAXD];
+static int gCloudW,gCloudH;
+static void globeCloudTables(void){
+    if(gCloudW!=WW){
+        for(int x=0;x<WW;x++)gCloudX[x]=(u8)(x*64/WW);
+        gCloudW=WW;
+    }
+    if(gCloudH!=WH){
+        for(int y=0;y<WH;y++)gCloudY[y]=(u8)(y*64/WH);
+        gCloudH=WH;
+    }
+}
 // palette: 1 space, 2 3 stars, 8.. ground (13 kinds x 8 light levels), 112.. clouds, 120.. atmosphere, 126 127 128 lights, 129 sparkle
 #define GP_GROUND 8
 #define GP_CLOUD 112
@@ -2133,6 +2177,7 @@ static void globeDrawNow(void){
     for(int k=0;k<44;k++){ int x=(int)(hsh(k,1,9)%256), y=(int)(hsh(k,2,9)%192); gbuf[y*256+x]=(u8)(2+((k+(tick>>5))&1)); }
 #endif
     int drift=tick>>6, R2=R*R, H=R+3, step=2;
+    if(gClouds)globeCloudTables();
     const int cloudThr=(weather==WX_RAIN||weather==WX_STORM||weather==WX_ASH||weather==WX_RAGE)?105:weather==WX_SNOW?125:weather==WX_MAGIC?95:weather==WX_HEAT?180:165;
 #ifdef __3DS__
     H=R+7;
@@ -2167,12 +2212,12 @@ static void globeDrawNow(void){
                 int lvl=lam<-1500?0:(lam+1500)*7/17000; if(lvl>7) lvl=7;
                 if(lvl<0) lvl=0;
                 int cv=0;
-                if(gClouds) cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63];
+                if(gClouds) cv=gCloud[gCloudY[ty]][(gCloudX[tx]+drift)&63];
 #ifdef __3DS__
                 if(gClouds && cv>cloudThr-17 && cv<=cloudThr && lvl>1) lvl--; // projected cloud shadow
 #endif
                 col=(u8)(GP_GROUND+terr*8+lvl);
-                { int bb=bioAt(tx,ty); if(bb&&terr>T_WATER&&terr!=T_LAVA) col=(u8)(GP_BIO+(bb-1)*8+lvl); }
+                if(terr>T_WATER&&terr!=T_LAVA){ int bb=bioAt(tx,ty); if(bb) col=(u8)(GP_BIO+(bb-1)*8+lvl); }
                 if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN){
 #ifdef __3DS__
                     col=(u8)(lam<2400?GP3_LIGHT+3+((tick>>4)&1):GP3_LIGHT+7);
@@ -2199,7 +2244,7 @@ static void globeDrawNow(void){
                 // cloud texture: the same 64x64 noise is sampled offset in
                 // world-space and animated at half the lower layer's speed.
                 if(gClouds&&cv<=cloudThr && lam>1000){
-                    int high=gCloud[(((ty*64/WH)+17)&63)][((((tx*64/WW)+37)+(drift>>1))&63)];
+                    int high=gCloud[(gCloudY[ty]+17)&63][(gCloudX[tx]+37+(drift>>1))&63];
                     if(high>236 && ((tx+ty)&3)==0) col=(u8)(GP_CLOUD+7);
                 }
                 if(nz<4000){
@@ -2719,7 +2764,7 @@ static const char* const helpTxt[]={
     "D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)",
     "SELECT   NEXT INFO PAGE","START    PAUSE MENU","L+R+SELECT    SAVE NOW","",
 #ifdef __3DS__
-    "3DS OUTDOOR WALKING","SELECT+L   WALK FROM MAP","L+A        USE TARGET","START      RETURN TO MAP","",
+    "NEW 3DS OUTDOOR WALKING","SELECT+L   WALK FROM MAP","SELECT+R   VIEW AS RESIDENT","A          INTERACT WITH TARGET","SELECT+Y   REIGN WHEN UNLOCKED","START      RETURN TO MAP","",
 #endif
     "STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.",
     "100%: MEET AND SLAY EVERY","MONSTER AFTER THE STORY.","",
@@ -2728,7 +2773,8 @@ static const char* const helpTxt[]={
     "EVENTS TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE",
     "AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SETS SIM RULES.","",
     "KIT SHOWS STARTERS AND STARRED POWERS.","STAR POWERS IN THE WORLD BROWSER.",
-    "WORLD > PINS BOOKMARKS MAP VIEWS.",0};
+    "WORLD > PINS BOOKMARKS MAP VIEWS.","",
+    "SETTLEMENTS: RELIEF CARAVANS","MOVE SURPLUS FOOD TO HUNGRY","PEACEFUL TOWNS OF THE SAME PEOPLE","OR KINGDOM. KEEP STORES STOCKED.","CHECK THE JOURNAL FOR ARRIVALS.",0};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage;
 static const Dl*dlgSet; static char lastInfo[64];
 static const FmvClip *sceneClip;
@@ -2897,12 +2943,16 @@ static void uiWorldPreview(int cx,int cy,int R){
         }
     }
     if(R<4)R=4;if(R>B)R=B;
-    int shift=(int)(((unsigned)tick>>5)*(unsigned)WW/600u);
+    int shift=ggTitlePhase(tick,WW);
+    // Cache the shared X/Y sample mapping once per preview. At the
+    // maximum DS radius this avoids thousands of runtime divisions.
+    unsigned short axis[GG_TITLE_GLOBE_DIAMETER];
+    for(int p=-R;p<=R;p++)axis[p+R]=(unsigned short)(p*B/R+B);
     for(int y=-R;y<=R;y++)for(int x=-R;x<=R;x++){
         if(x*x+y*y>R*R)continue;
-        int k=((y*B/R)+B)*D+((x*B/R)+B);
+        int k=axis[y+R]*D+axis[x+R];
         if(plJ[k]==255)continue;
-        int wx=((plLon[k]*WW>>12)+shift)%WW;
+        int wx=ggTitleLongitude(plLon[k],WW,shift);
         int wy=plWy[k]*WH>>12;
         if(wy<0)wy=0;if(wy>=WH)wy=WH-1;
         uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]);
