@@ -73,6 +73,19 @@ def assert_project():
     assert len(verify_source_events(restored_patterns)) == 8813
     assert sum(cell[0] == 97 for pat in restored_patterns for row in pat for cell in row) == 715 + tonal['melodic_releases_added']
 
+    # Post-source bass revoicing: source note onsets, other instruments,
+    # gated notes and sample bytes must all remain intact.
+    from winner_bass_rework import transform as recompose_bass
+    remixed,bass_report=recompose_bass(restored)
+    assert bass_report['original_attacks']==8813, bass_report
+    assert bass_report['bass_notes']==1265, bass_report
+    assert bass_report['bars_reworked']==144, bass_report
+    assert bass_report['bass_pitches_changed']>=600, bass_report
+    assert bass_report['bass_velocities_adjusted']>=1200, bass_report
+    remixed_patterns,_=decode_patterns(remixed)
+    assert sum(1<=cell[0]<=96 for pat in remixed_patterns for row in pat for cell in row)==8813
+    assert sum(cell[0]==97 for pat in remixed_patterns for row in pat for cell in row)==715+tonal['melodic_releases_added']
+
     # No artificial pitch or time-stretching of the isolated original singing.
     from winner_voice import make as make_vocal_cues
     cues=make_vocal_cues()

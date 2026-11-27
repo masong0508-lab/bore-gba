@@ -2010,8 +2010,8 @@ __attribute__((noinline,long_call)) static void winnerRoomMix(s8*outL,s8*outR){
         if(feed>127) feed=127; else if(feed< -128) feed= -128;
         winnerRoom[rp]=(s8)feed;
         rp=(rp+1)&WINNER_ROOM_MASK;
-        outL[i]=(s8)softClip((l>>2)+((eL*21+eR*9)>>7));
-        outR[i]=(s8)softClip((r>>2)+((eR*21+eL*9)>>7));
+        outL[i]=(s8)softClip((l>>2)+((eL*16+eR*7)>>7));
+        outR[i]=(s8)softClip((r>>2)+((eR*16+eL*7)>>7));
     }
     winnerRoomPos=(u16)rp;
     winnerRoomLow=low;
