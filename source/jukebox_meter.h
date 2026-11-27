@@ -3,11 +3,12 @@
 /* Shared eight-band analyzer and 14-bar renderer. The mixer samples are read-only.
    Fixed calibration avoids treble clipping when the bass is quiet. */
 static inline int vzAbs(int x){return x<0?-x:x;}
-static inline __attribute__((always_inline)) void meter_analyze(const signed char *L,const signed char *R,int *lp,volatile unsigned short *out){
+static inline __attribute__((always_inline)) void meter_analyze_channel(const signed char *L,const signed char *R,int *lp,volatile unsigned short *out,int side){
     unsigned e[8]={0,0,0,0,0,0,0,0};
     static const unsigned char alpha[5]={192,112,64,32,16};
     for(int i=0;i<304;i+=4){
-        int a=L[i]+R[i],b=L[i+1]+R[i+1],c=L[i+2]+R[i+2],d=L[i+3]+R[i+3];
+        int a=side?L[i]-R[i]:L[i]+R[i],b=side?L[i+1]-R[i+1]:L[i+1]+R[i+1];
+        int c=side?L[i+2]-R[i+2]:L[i+2]+R[i+2],d=side?L[i+3]-R[i+3]:L[i+3]+R[i+3];
         e[0]+=vzAbs(a-b)+vzAbs(c-d);int ab=a+b,cd=c+d;
         e[1]+=vzAbs(ab-cd);int x=ab+cd,prev=x;
         for(int k=0;k<5;k++){
@@ -17,6 +18,14 @@ static inline __attribute__((always_inline)) void meter_analyze(const signed cha
         e[7]+=vzAbs(prev);
     }
     for(int k=0;k<8;k++)out[k]=(unsigned short)(e[k]>>6);
+}
+/* Use the side channel when the mid channel nearly cancels. The sparse
+   energy estimate adds 24 pairs per buffer, not a second filter bank. */
+static inline __attribute__((always_inline)) void meter_analyze(const signed char *L,const signed char *R,int *lp,volatile unsigned short *out){
+    unsigned mid=0,side=0;
+    for(int i=1;i<304;i+=13){mid+=vzAbs((int)L[i]+R[i]);side+=vzAbs((int)L[i]-R[i]);}
+    if(side>2*mid)meter_analyze_channel(L,R,lp,out,1);
+    else meter_analyze_channel(L,R,lp,out,0);
 }
 static const unsigned short meter_gain[8]={256,331,799,660,778,700,734,312};
 static const unsigned short meter_thresholds[48]={

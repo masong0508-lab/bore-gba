@@ -26,8 +26,21 @@ int main(void){
         for(int i=0;i<240*160;i++){int x=i%240,y=i/240;if(x<8||x>=66||y<28||y>=57)assert(pixels[i]==0x1234);}
         for(int i=0;i<14;i++)assert(eq[i]<=48&&pk[i]<=48);
     }
+    /* Center and opposite-polarity stereo must retain the same bands. */
+    for(int f=0;f<3;f++){
+        unsigned short center[8];int center_lp[5]={0},side_lp[5]={0};
+        double hz=f==0?80:f==1?880:6000;
+        for(int frame=0;frame<20;frame++){
+            for(int i=0;i<304;i++)l[i]=r[i]=(signed char)(80*sin(6.28318530718*hz*(frame*304+i)/18157.0));
+            meter_analyze(l,r,center_lp,center);
+            for(int i=0;i<304;i++)r[i]=-l[i];
+            memcpy(before,r,sizeof(r));meter_analyze(l,r,side_lp,bands);
+            assert(!memcmp(before,r,sizeof(r)));
+            assert(!memcmp(center,bands,sizeof(bands)) && "stereo phase cancellation");
+        }
+    }
     meter_paint(pixels,bands,&live,eq,pk,hold,&beat,&prev,0);
     for(int i=0;i<14;i++)assert(eq[i]==0&&pk[i]==0&&hold[i]==0);
-    puts("jukebox meter: PCM preservation, frequency response, bounds, reset PASS");
+    puts("jukebox meter: PCM preservation, frequency response, bounds, stereo and reset PASS");
     return 0;
 }
