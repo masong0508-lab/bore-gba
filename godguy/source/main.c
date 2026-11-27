@@ -775,9 +775,9 @@ static int villageGreenbelt(int v){
     }
     return 0;
 }
-static void vilTick(int v){ KD_DIRTY();
-    Vil*V=&vil[v]; if(!V->on) return; int pop=0, sk=0;
-    for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8){ pop++; if(DISEASE(&cr[j])==1) sk++; } } }   // (the tiles around the village, not every creature on the planet)
+static void vilTick(int v){
+    Vil*V=&vil[v]; if(!V->on) return; KD_DIRTY(); int pop=0, sk=0;
+    for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; int half=ggCircleHalfWidth10(dy), lo=V->x-half, hi=V->x+half; if(lo<0)lo=0; if(hi>=WW)hi=WW-1; for(int x=lo;x<=hi;x++){ int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8){ pop++; if(DISEASE(&cr[j])==1) sk++; } } }   // (the tiles around the village, not every creature on the planet)
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
     if(pop&&LAWON(LW_RELIEF)&&V->stock<64) villageRelief(v);
     if(pop&&LAWON(LW_GREENBELT)) villageGreenbelt(v);
@@ -788,7 +788,7 @@ static void vilTick(int v){ KD_DIRTY();
     if(V->lvl>=2&&pop>=16&&!(vilBf[v]&1)&&V->stock>=30&&(rnd()%6)==0&&placeBld(v,B_TEMPLE,30)){ vilBf[v]|=1; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A TEMPLE RISES IN %.16s",vn); logEv(s2); }
     if(!(vilBf[v]&2)&&V->stock>=40&&(rnd()%10)==0){ int hero=0; for(int dy=-8;dy<=8&&!hero;dy++) for(int dx=-8;dx<=8;dx++){ int x=V->x+dx, y=V->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&(cr[j].dir>=1||cr[j].rk)&&sp[cr[j].sp].a==V->race){ hero=1; break; } } if(hero&&placeBld(v,B_STATUE,40)){ vilBf[v]|=2; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A STATUE HONOURS A HERO OF %.12s",vn); logEv(s2); } }
     if(V->lvl>=2&&pop>=14&&!(vilBf[v]&4)&&V->stock>=35&&(rnd()%8)==0&&placeBld(v,B_LIBRARY,35)){ vilBf[v]|=4; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A LIBRARY OPENS IN %.14s",vn); logEv(s2); }
-    if((vilBf[v]&1)&&sk){ for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&DISEASE(&cr[j])==1&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8&&(rnd()&1)){ SET_DISEASE(&cr[j],2); sk--; } } } }      /* the temple's priests tend the sick: half of the plagued folk recover (and stay immune) */
+    if((vilBf[v]&1)&&sk){ for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; int half=ggCircleHalfWidth10(dy), lo=V->x-half, hi=V->x+half; if(lo<0)lo=0; if(hi>=WW)hi=WW-1; for(int x=lo;x<=hi;x++){ int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&DISEASE(&cr[j])==1&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8&&(rnd()&1)){ SET_DISEASE(&cr[j],2); sk--; } } } }      /* the temple's priests tend the sick: half of the plagued folk recover (and stay immune) */
     if(sk>=12&&vilSick[v]<12){ char vn[24], b[40]; vilName(v,vn); siprintf(b,"PLAGUE IN %.20s",vn); logEv(b); }      // the journal line
     vilSick[v]=(u8)(sk>255?255:sk);
     if(V->lvl>=2&&pop>=10){ if(!hasDock(v)){ if((rnd()%6)==0) dockTry(v); } else if(nVilOn<VIL_N-2&&(rnd()%10)==0) boatLaunch(v); }
@@ -1017,7 +1017,11 @@ static void kingdomTick(void){
             else if(ally&&(kd[a].rel[b]<10||kd[b].rel[a]<10)){ kd[a].allies&=(u16)~(1<<b); kd[b].allies&=(u16)~(1<<a); char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s BREAK THEIR ALLIANCE",x,y); logEv(s); } } }
     // soldiers march on the nearest enemy city; rebellious cities of big kingdoms split off
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int k=vilK[v]-1; Vil*V=&vil[v];
-        if(V->foe&&(!vil[V->foe-1].on||!(kd[k].war>>(vilK[V->foe-1]-1)&1))) V->foe=0;
+        if(V->foe){
+            int target=V->foe-1;
+            if(target>=VIL_N||!vil[target].on||!vilK[target]||vilK[target]>KN_N||
+               !(kd[k].war&(1u<<(vilK[target]-1))))V->foe=0;
+        }
         if(kd[k].war&&!V->foe&&gx.vDef[v]!=1){ int best=-1, bd=80*80; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]&&u!=v&&(kd[k].war>>(vilK[u]-1)&1)){ int dx=vil[u].x-V->x, dy=vil[u].y-V->y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=u; } } if(best>=0) V->foe=(u8)(best+1); }
         { int c,p,w; kdStats(k,&c,&p,&w); int cap=kd[k].cap?kd[k].cap-1:-1;
           if(cap<0||!vil[cap].on||vilK[cap]!=k+1){ int bp=-1; kd[k].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==k+1&&vil[u].pop>=bp){ bp=vil[u].pop; kd[k].cap=(u8)(u+1); } cap=kd[k].cap-1; }
@@ -1037,17 +1041,31 @@ static const Ach ach[ACH_N]={ {"FIRST SPARK","USE A POWER"},{"TOUCH OF GOD","USE
  {"PUPPETEER","USE 5 POLITICAL POWERS"},{"SCHISM","SEE A SHATTERED CROWN"},{"WISE KING","A RULER WITH ALL STATS 7+"},{"BANDIT KING","10 OUTLAWS AT ONCE"},{"HAUNTED","4 GHOSTS AT ONCE"},{"UPLIFTED","MAKE AN ANIMAL SAPIENT"},{"CRAB RAVE","DROP A CRAB BOMB"},{"STOMPED","LET CRABZILLA STOMP"},{"NO MORE KINGS","END THE LAST KINGDOM"},{"TREASURY","A KINGDOM WITH 5000 GOLD"},
  {"LEGENDARY","SEE A LEGENDARY ITEM CARRIED"},{"SLAYER","A BOSS FALLS TO FOLK"},{"GHOST STORY","SEE A GHOST"},{"DEN MOTHER","SAPIENT ANIMALS BUILD A DEN"},{"STANDING STONE","RAISE A MONOLITH"},{"GREY AREA","SEE GREY GOO"},{"FIRE SPIRIT","SEE A FIRE ELEMENTAL"},{"ALLIANCE WEB","SEE 10 ALLIANCES"},{"CENTURY","REACH YEAR 100"},{"DYNASTY","A REIGN OF 120 YEARS"} };
 static int denCount, monoN; static int banditCount(void); static int sapientCount(void); static int hzCount(int kind); static int itRar(int i);
-static int achOK(int i){ int c=0,p=0,w=0,king=0,emp=0,vas=0,tech=0,l3=0,nv=0; for(int k=0;k<KN_N;k++) if(kd[k].on){ king++; achX[2]|=32; emp+=kd[k].empire; vas+=kd[k].lord!=0; if(kd[k].tech>=9) tech=1; } for(int v=0;v<VIL_N;v++) if(vil[v].on){ nv++; if(vil[v].lvl>=3) l3=1; } (void)c;(void)p;(void)w;
+typedef struct { int king,emp,vas,tech,l3,nv,wise,wealth,dynty; } GGAchSnapshot;
+// One census serves all 46 achievements for this simulation tick.
+// No persistent cache means no stale counts when loading a different save.
+static GGAchSnapshot achSnapshot(void){
+    GGAchSnapshot a={0};
+    for(int k=0;k<KN_N;k++)if(kd[k].on){
+        a.king++;a.emp+=kd[k].empire;a.vas+=kd[k].lord!=0;
+        a.tech|=kd[k].tech>=9;a.wealth|=kd[k].gold>=5000;a.dynty|=kd[k].reign>=120;
+        if(!a.wise&&kdRStat(k,0)>=7&&kdRStat(k,1)>=7&&kdRStat(k,2)>=7&&kdRStat(k,3)>=7)a.wise=1;
+    }
+    for(int v=0;v<VIL_N;v++)if(vil[v].on){a.nv++;a.l3|=vil[v].lvl>=3;}
+    if(a.king)achX[2]|=32;
+    return a;
+}
+static int achOK(int i,const GGAchSnapshot*a){
     switch(i){ case 0: return stUse>=1; case 1: return stUse>=100; case 2: return stUse>=1000; case 3: return stKill>=1; case 4: return stKill>=50; case 5: return stKill>=300; case 6: return seenN>=50; case 7: return seenN>=MON_N; case 8: return stGift>=25;
-        case 9: return king>0; case 10: return emp>0; case 11: return vas>0; case 12: return stWars>=5; case 13: return stAllies>=1; case 14: return l3; case 15: return nv>=12; case 16: return tech; case 17: return stCapt>=3; case 18: return stMut>=20;
+        case 9: return a->king>0; case 10: return a->emp>0; case 11: return a->vas>0; case 12: return stWars>=5; case 13: return stAllies>=1; case 14: return a->l3; case 15: return a->nv>=12; case 16: return a->tech; case 17: return stCapt>=3; case 18: return stMut>=20;
         case 19: return ((trSeen>>TR_CHILL)&255)==255; case 20: return traitMetCount()>=20; case 21: return year>=60; case 22: return storyDone; case 23: return fullDone; case 24: return stSnack>=20; case 25: return stSnack>=100;
-        case 26: return __builtin_popcount(achX[1])>=5; case 27: return (achX[2]&1)!=0; case 28: { for(int k=0;k<KN_N;k++) if(kd[k].on&&kdRStat(k,0)>=7&&kdRStat(k,1)>=7&&kdRStat(k,2)>=7&&kdRStat(k,3)>=7) return 1; return 0; }
-        case 29: return banditCount()>=10; case 30: return hzCount(5 /*HZ_GHOST*/)>=4; case 31: return sapientCount()>=1; case 32: return (achX[2]&2)!=0; case 33: return (achX[2]&4)!=0; case 34: return king==0&&(achX[2]&32)!=0;
-        case 35: { for(int k=0;k<KN_N;k++) if(kd[k].on&&kd[k].gold>=5000) return 1; return 0; }
+        case 26: return __builtin_popcount(achX[1])>=5; case 27: return (achX[2]&1)!=0; case 28: return a->wise;
+        case 29: return banditCount()>=10; case 30: return hzCount(5 /*HZ_GHOST*/)>=4; case 31: return sapientCount()>=1; case 32: return (achX[2]&2)!=0; case 33: return (achX[2]&4)!=0; case 34: return a->king==0&&(achX[2]&32)!=0;
+        case 35: return a->wealth;
         case 36: { for(int j=0;j<nCr;j++) if(cr[j].alive&&((cr[j].wep&&itRar(cr[j].wep-1)==3)||(cr[j].arm&&itRar(cr[j].arm-1)==3))) return 1; return 0; }
         case 37: { for(int j=0;j<nCr;j++) if(cr[j].alive&&(crFl[j]&FL_SLAYER)) return 1; return 0; } case 38: return hzCount(5)>=1; case 39: return denCount>0; case 40: return monoN>0; case 41: return (achX[2]&8)!=0; case 42: return (achX[2]&16)!=0;
-        case 43: return stAllies>=10; case 44: return year>=100; default: { for(int k=0;k<KN_N;k++) if(kd[k].on&&kd[k].reign>=120) return 1; return 0; } } }
-static void achCheck(void){ for(int i=0;i<ACH_N;i++) if(!ACH_HAS(i)&&((i!=29&&i!=31&&i!=36&&i!=37)||(tick&255)==33)&&achOK(i)){ ACH_SET(i); char b[40]; siprintf(b,"ACHIEVED: %s",ach[i].nm); logEv(b); fxReq(FX_UNLOCK); } }
+        case 43: return stAllies>=10; case 44: return year>=100; default: return a->dynty; } }
+static void achCheck(void){ const unsigned hi=(1u<<(ACH_N-32))-1u; if(achBits==~0u&&(achX[0]&hi)==hi)return; GGAchSnapshot a=achSnapshot(); for(int i=0;i<ACH_N;i++) if(!ACH_HAS(i)&&((i!=29&&i!=31&&i!=36&&i!=37)||(tick&255)==33)&&achOK(i,&a)){ ACH_SET(i); char b[40]; siprintf(b,"ACHIEVED: %s",ach[i].nm); logEv(b); fxReq(FX_UNLOCK); } }
 static int stepToward(Cr*c,int i,const Sp*s,int tx,int ty){   // one step towards a tile along the longer axis, then the other
     int dx=tx-c->x, dy=ty-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int ax=dx<0?-dx:dx, ay=dy<0?-dy:dy; int first=ax>=ay;
     for(int k=0;k<2;k++){ int mx=((k==0)==first)?sx:0, my=((k==0)==first)?0:sy; if(!mx&&!my) continue; int nx=c->x+mx, ny=c->y+my; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return 1; } }
@@ -1243,28 +1261,37 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
 #include "calamity.h"           // the Calamity pack: tornado, black hole, acid rain, atomic bomb, plague, curse
 #include "wild.h"           // Pack C and D: fire elemental, goo, ghosts, crab powers, bandits, sapient animals and dens
 #include "disasters.h"       // alien invasion, far-land dragon, moon horrors, biomass, dream ice and garden surprise
-enum { EV_COMET, EV_HARVEST, EV_MUNCH, EV_FEST, EV_PROPHET, EV_FAMINE, EV_MIGRATE, EV_GOLDEN, EV_CARAVAN, EV_BLOOM, EV_CRISIS, EV_COLD, EV_RELIEF, EV_N };
+enum { EV_COMET, EV_HARVEST, EV_MUNCH, EV_FEST, EV_PROPHET, EV_FAMINE, EV_MIGRATE, EV_GOLDEN, EV_CARAVAN, EV_BLOOM, EV_CRISIS, EV_COLD, EV_RELIEF, EV_REBUILD, EV_N };
 static const u8 evW[EV_N][10]={   // weights by the ten world ages: dark, hope, sun, tears, moon, chaos, wonders, ice, ash, despair
     {2,3,3,2,3,5,2,4,5,4},{4,6,6,3,4,2,5,3,1,1},{2,3,4,2,2,3,5,3,2,1},{4,5,4,3,4,1,5,2,2,4},
     {3,3,2,4,5,2,5,3,2,2},{3,1,1,4,2,4,1,3,5,5},{4,3,3,4,3,3,4,2,3,2},{5,4,3,3,2,1,5,2,1,1},
     {3,3,4,3,3,2,4,2,1,1},{2,2,3,5,3,2,5,3,1,1},{1,2,4,1,3,5,2,1,3,5},{2,3,1,2,4,2,1,6,2,3},
-    {2,4,3,5,3,1,4,5,4,3} }; // emergency food relief
+    {2,4,3,5,3,1,4,5,4,3}, {2,4,3,4,3,2,5,3,5,4} }; // relief and reconstruction
 // A relief caravan redistributes actual stores between peaceful, populated
 // towns in the same kingdom (or independent towns of the same people).
 // Two bounded scans; no new save fields, world allocations or random draws.
+static int reliefGroup(int v){
+    if(vilK[v])return vilK[v]<=KN_N?vilK[v]-1:-1;
+    return vil[v].race<8?KN_N+vil[v].race:-1;
+}
 static int reliefCaravan(void){
+    // Find the best surplus donor per community in one pass. An
+    // isolated starving village can no longer block other deliveries.
+    int donors[KN_N+8];
+    for(int g=0;g<KN_N+8;g++)donors[g]=-1;
+    for(int v=0;v<VIL_N;v++){
+        if(!vil[v].on||!vil[v].pop||vil[v].foe||vil[v].stock<=180)continue;
+        int g=reliefGroup(v);
+        if(g>=0&&(donors[g]<0||vil[v].stock>vil[donors[g]].stock))donors[g]=v;
+    }
     int to=-1,from=-1;
     for(int v=0;v<VIL_N;v++){
         if(!vil[v].on||!vil[v].pop||vil[v].foe||vil[v].stock>=80)continue;
-        if(to<0||vil[v].stock<vil[to].stock)to=v;
+        int g=reliefGroup(v);
+        if(g<0||donors[g]<0)continue;
+        if(to<0||vil[v].stock<vil[to].stock){to=v;from=donors[g];}
     }
-    if(to<0)return 0;
-    for(int v=0;v<VIL_N;v++){
-        if(v==to||!vil[v].on||!vil[v].pop||vil[v].foe||vil[v].stock<=180)continue;
-        if(vilK[v]!=vilK[to]||(!vilK[to]&&vil[v].race!=vil[to].race))continue;
-        if(from<0||vil[v].stock>vil[from].stock)from=v;
-    }
-    if(from<0)return 0;
+    if(to<0||from<0)return 0;
     int amount=ggReliefAmount(vil[from].stock,vil[to].stock);
     if(!amount)return 0;
     vil[from].stock=(u16)(vil[from].stock-amount);
@@ -1275,6 +1302,39 @@ static int reliefCaravan(void){
     logEv(entry);
     fxReq(FX_BLESS);
     return amount;
+}
+// A civic rebuilding party clears up to four ruined plots in one
+// peaceful town. Work costs supplies, and never overwrites occupants,
+// intact structures, foreign property, water, lava or protected gates.
+static int rebuildCaravan(void){
+    int first=(int)((unsigned)tick%VIL_N);
+    for(int i=0;i<VIL_N;i++){
+        int v=first+i;if(v>=VIL_N)v-=VIL_N;
+        Vil*V=&vil[v];
+        if(!V->on||!V->pop||V->foe||V->stock<48)continue;
+        int made=0;
+        for(int dy=-4;dy<=4&&made<4&&V->stock>=48;dy++){
+            int y=V->y+dy;if((unsigned)y>=WH)continue;
+            for(int dx=-4;dx<=4&&made<4&&V->stock>=48;dx++){
+                int x=V->x+dx;if((unsigned)x>=WW||occ[y][x]||bld[y][x]!=B_RUIN)continue;
+                if(bldv[y][x]&&bldv[y][x]!=v+1)continue;
+                int t=world[y][x];
+                if(t!=T_DIRT&&t!=T_GRASS&&t!=T_FOREST)continue;
+                if(ggFortProtectedPlot(x,y))continue;
+                bld[y][x]=B_NONE;bldv[y][x]=0;
+                if(t==T_DIRT)setCell(x,y,T_GRASS);
+                else if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26)putCell(x,y);
+                V->stock-=8;made++;
+            }
+        }
+        if(made){
+            KD_DIRTY();
+            char name[72],entry[48];vilName(v,name);
+            siprintf(entry,"%.15s REBUILDS %d PLOTS",name,made);
+            logEv(entry);fxReq(FX_BLESS);return made;
+        }
+    }
+    return 0;
 }
 static void eventDo(int e){      // one world event; each one is written to the journal
     char s[72]; int ag=worldAge();
@@ -1291,11 +1351,12 @@ static void eventDo(int e){      // one world event; each one is written to the 
     case EV_BLOOM: { static const u8 tt[6]={TR_GIGGLY,TR_ZEN,TR_FLOATY,TR_LEAN,TR_REGEN,TR_FERTILE}; int n=0; for(int i=0;i<nCr&&n<8;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],tt[rnd()%6],0); n++; } if(!n) return; siprintf(info,"A MUTANT BLOOM"); logEv("A MUTANT BLOOM CHANGES THE WILD"); fxReq(FX_BIRTH); } return;
     case EV_CRISIS: { int n=0, ids[KN_N]; for(int k=0;k<KN_N;k++) if(kd[k].on) ids[n++]=k; if(!n) return; int k=ids[rnd()%n]; kd[k].reign=250; kdName(k,s); char t[72]; siprintf(t,"A SUCCESSION CRISIS SHAKES %.26s",s); logEv(t); siprintf(info,"SUCCESSION CRISIS"); } return;
     case EV_COLD: weather=3; weatherT=1800; siprintf(info,"A COLD SNAP"); logEv("A COLD SNAP BLANKETS THE LAND"); break;
-    case EV_RELIEF: reliefCaravan(); break; }
+    case EV_RELIEF: reliefCaravan(); break;
+    case EV_REBUILD: if(LAWON(LW_GROWTH))rebuildCaravan(); break; }
     (void)ag; }
 static void eventTick(void){   // now and then the world has an event of its own: a weighted table by the age of the world (disasters off take the comet out instead of doubling the harvests)
     if(tick<1500||(tick%1500)!=0||rnd()%3) return; int ag=worldAge(), w[EV_N], tot=0;
-    for(int e=0;e<EV_N;e++){ w[e]=evW[e][ag]; if(e==EV_COMET&&(gx.dis==0||(gx.dis==1&&rnd()%3)||!LAWON(LW_NATDIS))) w[e]=0; if(e==EV_CRISIS&&!LAWON(LW_SUCCESSION)) w[e]=0; if(e==EV_COLD&&!LAWON(LW_WEATHER)) w[e]=0; tot+=w[e]; }
+    for(int e=0;e<EV_N;e++){ w[e]=evW[e][ag]; if(e==EV_COMET&&(gx.dis==0||(gx.dis==1&&rnd()%3)||!LAWON(LW_NATDIS))) w[e]=0; if(e==EV_CRISIS&&!LAWON(LW_SUCCESSION)) w[e]=0; if(e==EV_COLD&&!LAWON(LW_WEATHER)) w[e]=0; if(e==EV_REBUILD&&!LAWON(LW_GROWTH))w[e]=0; tot+=w[e]; }
     if(tot<=0) return; int r=(int)(rnd()%(u32)tot), e=0; while(e<EV_N-1&&r>=w[e]){ r-=w[e]; e++; } eventDo(e); }
 static void weatherTick(void){
     if(!LAWON(LW_WEATHER)){ if(weather) weather=0; if(flashT>0) flashT--; return; }
@@ -1365,7 +1426,9 @@ static void simulate(void){
     if((tick&63)==17) atmoTick();
     { static int gcx=-1, gcy=-1; int x0=(camX>>3)-1, y0=(camY>>3)-1; int camMoved=(x0!=gcx||y0!=gcy); int fullScan=camMoved||(tick&63)==0; if(fullScan){ gcx=x0; gcy=y0; glideOn=1; }      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick), and only while something is gliding
       if(glideOn){ int rem=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ if(!cellTot[cellOf(x,y)]){ x|=7; continue; } int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; if(c->ox||c->oy) rem=1; } glideOn=rem; } }
-    int n=nCr; if(n==0) return; int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
+    int n=nCr;
+    // An empty planet still has weather, geology, time and world events.
+    if(n>0){ int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
 #ifdef GG_FULLTURNS
     per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
 #endif
@@ -1379,6 +1442,7 @@ static void simulate(void){
     if(n>600){ int x0=camX>>3, y0=camY>>3; for(int k=0;k<40;k++){ int x=x0+(int)(rnd()%32), y=y0+(int)(rnd()%20); if(x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive){ Cr*c=&cr[j]; if(++c->t>=effSpd(c)){ c->t=0; think(j); } } } }   // and whoever is on screen is always played at full pace
     }
     GG_FRAME_END(creatures);
+    }
     if(LAWON(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&!bld[y][x]&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // EROSION: the shore crumbles into sand
     // the ground heals: dirt turns back to grass beside grass, lava cools
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
@@ -1543,7 +1607,7 @@ static void chapterDone(void){   // a chapter is finished (by play, or by the de
     if(chapter>=3&&!auralOpen){ auralOpen=1; siprintf(info,"AURAL SCULPTURES UNLOCKED"); }
     if(chapter>=CHAP_N){ storyDone=1; tierOpen=14; musReq(GM_GODHOOD); fxReq(FX_CHAPTER_DONE); }
     else { if(chapter+1>tierOpen) tierOpen=chapter+1>14?14:chapter+1; musReq(GM_ASCEND); fxReq(FX_CHAPTER_DONE); } }
-static int slainCount(void){ int n=0; for(int m=0;m<MON_N;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; n+=(slainB[sI>>3]>>(sI&7))&1; } return n; }
+static int slainCount(void){ int n=0; const int first=8+(ARCH_A-8)*16; for(int byte=first>>3;byte<(first+MON_N)>>3;byte++)n+=__builtin_popcount((unsigned)slainB[byte]); return n; }
 static void checkFull(void){ if(!fullDone&&storyDone&&seenN>=MON_N&&slainCount()>=MON_N){ fullDone=1; siprintf(info,"100%%! THE REMIXES ARE YOURS"); musReq(GM_GODHOOD); fxReq(FX_UNLOCK); } }
 static void unlockTiers(void){   // every 256 ticks: is the chapter you are on done?
 #ifdef GG_NATIVE_STORY_BUSY
@@ -2774,7 +2838,7 @@ static const char* const helpTxt[]={
     "AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SETS SIM RULES.","",
     "KIT SHOWS STARTERS AND STARRED POWERS.","STAR POWERS IN THE WORLD BROWSER.",
     "WORLD > PINS BOOKMARKS MAP VIEWS.","",
-    "SETTLEMENTS: RELIEF CARAVANS","MOVE SURPLUS FOOD TO HUNGRY","PEACEFUL TOWNS OF THE SAME PEOPLE","OR KINGDOM. KEEP STORES STOCKED.","CHECK THE JOURNAL FOR ARRIVALS.",0};
+    "SETTLEMENTS: RELIEF CARAVANS","MOVE SURPLUS FOOD TO HUNGRY","PEACEFUL TOWNS OF THE SAME PEOPLE","OR KINGDOM. KEEP STORES STOCKED.","CHECK THE JOURNAL FOR ARRIVALS.","REBUILDING CREWS RECLAIM RUINS","USING SUPPLIES FROM THEIR TOWN.","THE BESTIARY TRACKS ALL VARIANTS.",0};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage;
 static const Dl*dlgSet; static char lastInfo[64];
 static const FmvClip *sceneClip;
@@ -3456,7 +3520,7 @@ static void uiStory(void){
     { int o; int tot=itCount(&o); siprintf(b,"ITEMS %d/%d  MET %d/%d  SLAIN %u",o,tot,seenN,MON_N,(unsigned)stKill); uiText(6,172,b,U_DIM,1); }
     uiFlush(); }
 static void uiBest(void){
-    char b[64]; siprintf(b,"%d/%d MET",seenN,MON_N); uiWin("BESTIARY",b,"UP DOWN  LEFT RIGHT +10   * = SLAIN"); int first=bestSel-7; if(first<0) first=0; if(first>MON_N-15) first=MON_N-15;
+    char b[64]; siprintf(b,"%d/%d MET  %d SLAIN",seenN,MON_N,slainCount()); uiWin("BESTIARY",b,"UP DOWN  LEFT RIGHT +/-10  * = SLAIN"); int first=bestSel-7; if(first<0) first=0; if(first>MON_N-15) first=MON_N-15;
     for(int r=0;r<15;r++){ int m=first+r; int s_=8+(ARCH_A+m/16-8)*16+m%16; int seen=(seenB[s_>>3]>>(s_&7))&1, sl=(slainB[s_>>3]>>(s_&7))&1; char n2[40]; if(seen) monName(m,n2); else strcpy(n2,"??????????"); char nn[8]; siprintf(nn,"%3d",m+1);
         int y=17+r*10; if(m==bestSel) uiRect(4,y-1,240,10,U_SEL); else if(r&1) uiRect(4,y-1,240,10,U_PANEL); uiText(8,y,nn,U_DIM,1); uiText(32,y,n2,seen?U_WHITE:U_DIM,1); if(sl) uiIcon8(228,y,IC8_STAR); else if(seen) uiIcon8(228,y,IC8_SKULL); }
     uiScroll(MON_N,first,15,16,150); uiFlush(); }
@@ -3910,7 +3974,7 @@ int main(void){
             kd&=~(KEY_UP|KEY_DOWN|KEY_A|KEY_B);
         }else
 #endif
-        if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
+        if(page==2){ if(kd&KEY_UP) bestSel=ggBestiaryMove(bestSel,-1,MON_N); if(kd&KEY_DOWN) bestSel=ggBestiaryMove(bestSel,1,MON_N); if(kd&KEY_LEFT) bestSel=ggBestiaryMove(bestSel,-10,MON_N); if(kd&KEY_RIGHT) bestSel=ggBestiaryMove(bestSel,10,MON_N); if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(extrasView&&(page==1||page==13||page==14)){ if(page==14){ if(wTab!=wTabPrev) dirty=1; worldInput(kd); } if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A|KEY_X|KEY_Y|KEY_SELECT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==12){ brBuild(); if(kd&KEY_UP) brSel=brSel>0?brSel-1:0; if(kd&KEY_DOWN) brSel=brSel<brN-1?brSel+1:(brN?brN-1:0); if(kd&KEY_LEFT){ brCat=(brCat+6)%7; brSel=0; } if(kd&KEY_RIGHT){ brCat=(brCat+1)%7; brSel=0; }
             if((kd&KEY_Y)&&brCat==5){ brKind=(brKind+1)%8; brSel=0; } if((kd&KEY_X)&&brN){ u8*f=brFav(&brL[brSel]); if(f){ *f^=1; if(brL[brSel].type==4) tbInvalidate(); fxReq(*f?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,*f?"STARRED":"STAR REMOVED"); } else if(brL[brSel].type>=5&&brL[brSel].id<nCr){ int on=crStarToggle(brL[brSel].id); fxReq(on?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,on?"STARRED":"STAR REMOVED"); } }
