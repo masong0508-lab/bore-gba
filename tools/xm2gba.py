@@ -967,7 +967,7 @@ def design_pan(S, used, insts, sid=None):
 def song_list():
     text = open(SONGS_H, encoding="utf-8").read() if os.path.exists(SONGS_H) else ""
     found = re.findall(r'^\s*SONG_XM\(\s*(\w+)\s*,\s*"[^"]*"\s*,\s*"([^"]+)"\s*\)', text, re.M)
-    return [TITLE] + [s for s in found if s[0] != TITLE[0]]
+    return [TITLE] + [s for s in found if s[0] not in (TITLE[0], 'duck_cover_remix')]
 
 # ---- BAR FIT: long chord / loop samples that were recorded as exactly one bar at some tempo ----
 # Amiga Music's three chord samples (instruments 1-3) are one-bar loops recorded at 120 BPM (exactly 4.000 s when played at C-5), but the

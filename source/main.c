@@ -1860,6 +1860,7 @@ typedef struct {            // one converted tracker song (generated into musicd
     int nord, loop, rowN, rfr;                                        // orders in the song, loop order, samples per row (+ fraction/256)
 } XmSong;
 #include "musicdata.h"
+#include "duckcover_remix.h"
 #include "winner_vocals.h"
 #define R_DMA2SAD (*(volatile u32*)0x040000C8)
 #define R_DMA2DAD (*(volatile u32*)0x040000CC)

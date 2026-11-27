@@ -123,3 +123,5 @@ SONG_XM(winner_koala,"CORPORATIONS (YOU'RE WINNER)","tools/winner_koala.xm")
 SONG_ADP(corporations,"CORPORATIONS (ORIGINAL)","source/music/corporations.adp")
 // DUCK & COVER: a Koala Sampler project (145 BPM) rebuilt as a 174 BPM drum & bass tracker song (tools/make_duckcover.py): the sampled chops are 4-bit ADPCM-quality samples
 SONG_XM(duck_cover_dnb,"DUCK & COVER (ORIGINAL)","tools/duckcover/duck_cover_dnb.xm")
+// New arrangement shares PCM data with the retained hidden original.
+SONG_XM(duck_cover_remix,"DUCK & COVER","tools/duckcover/duck_cover_dnb.xm")
