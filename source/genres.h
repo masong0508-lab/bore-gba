@@ -39,3 +39,5 @@ GENRE("OHIO HOE",G_BREAKS|G_HOUSE)
 // WORTHLESS CLOUDS is left out on purpose: it is on no genre station. It only plays on ALL SONGS FM, and only once it is unlocked (unlocks.h).
 GENRE("CORPORATIONS (YOU'RE WINNER)",G_HOUSE|G_HIPHOP)
 GENRE("CORPORATIONS (ORIGINAL)",G_HOUSE|G_HIPHOP)
+GENRE("DUCK & COVER",G_BREAKS)
+GENRE("DUCK & COVER (ORIGINAL)",G_BREAKS)
