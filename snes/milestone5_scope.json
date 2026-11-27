@@ -1,0 +1,69 @@
+{
+  "platform": "SNES",
+  "milestone": 5,
+  "status": "native prototype, not full port",
+  "mission_limits": [
+    11,
+    8,
+    6,
+    4,
+    6,
+    4,
+    15,
+    4
+  ],
+  "campaigns": [
+    "Base",
+    "BOREagotchi",
+    "Land BOREFORE Time",
+    "BOREZIES",
+    "World War Bore",
+    "BORTUA FIGHTER",
+    "BOREpilogue and Legacy",
+    "BORE-OUT MAN"
+  ],
+  "expansion_group_ids": [
+    0,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    4
+  ],
+  "mission_total": 58,
+  "max_household": 8,
+  "arena_count": 4,
+  "dojos": false,
+  "weak_arcade_games_to_remove": [
+    1,
+    2
+  ],
+  "native_audio": {
+    "tracks": [
+      "THE DIPPER MAN",
+      "THE TICKING BOMB"
+    ],
+    "max_upload_bytes_per_frame": 128,
+    "spc_voices": 8,
+    "full_soundtrack_target": 44
+  },
+  "gba_baseline": {
+    "sha256": "adc952e998e08ec112164d68fc454d207d3b40a0083e52fe64fae54db1406493",
+    "bytes": 28704768,
+    "version": "V14 local binary candidate",
+    "expansions": 7
+  },
+  "snes_candidate": {
+    "sha256": "f712f0dc7241ad9f3af4d084ca06f74091defda6d7872c8437b84d3f965eba95",
+    "bytes": 262144
+  },
+  "test_status": {
+    "modeled_frames": 2375,
+    "modeled_cpu_instructions": 6487639,
+    "spc_emulator": "libgme",
+    "full_system_emulator": false
+  },
+  "source_status": "Full local development kit is distributed separately; this record does not claim the native GBA source build reproduces V14 or the SNES runtime is committed."
+}

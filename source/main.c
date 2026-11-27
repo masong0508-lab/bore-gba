@@ -2252,23 +2252,13 @@ static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
 // TOUKEBOX VISUALIZER: the real sound. While the Toukebox is open (vzLive counts down from 30 frames, set by its screen), every buffer the mixer finishes is
 // split into 8 bands by a bank of one-pole low passes (x, then the difference of neighbouring low passes), every second sample. vzOut[b] = the average size
 // of band b in that buffer (b 0 = treble ... 7 = bass). The screen turns it into bar heights (vzLevel).
-static volatile u8 vzLive; static volatile u16 vzOutB[3][8]; static s32 vzLp[7]; static u32 vzPk=1600;   // vzOutB: the readings per buffer, so the screen can show the buffer that is playing, not the one just rendered
+#include "jukebox_meter.h"
+_Static_assert(MUS_N==304,"Jukebox analyzer expects the native 304-sample music buffer");
+static volatile u8 vzLive;
+static volatile u16 vzOutB[3][8];
+static int vzLp[5];
 IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R,int bi){
-    static const u8 al[7]={230,150,90,50,28,15,8};   // each low pass: how much of the new sample it takes (/256), the cut-off halves roughly each step
-    s32 lp[7]; u32 e[8]; for(int k=0;k<7;k++) lp[k]=vzLp[k]; for(int k=0;k<8;k++) e[k]=0;
-    for(int i=0;i<MUS_N;i+=2){
-        s32 x=((int)L[i]+(int)R[i])<<2, prev=x;
-        for(int k=0;k<7;k++){ lp[k]+=((x-lp[k])*al[k])>>8; s32 d=prev-lp[k]; e[k]+=(u32)(d<0?-d:d); prev=lp[k]; }
-        e[7]+=(u32)(prev<0?-prev:prev);
-    }
-    for(int k=0;k<7;k++) vzLp[k]=lp[k];
-    for(int k=0;k<8;k++){ u32 v=e[k]/((MUS_N+1)>>1); vzOutB[bi][k]=(u16)(v>65535?65535:v); }
-    { u32 b7=(u32)vzOutB[bi][7]<<4; if(b7>vzPk) vzPk=b7; else vzPk-=vzPk>>9; }   // the loudest the bass has been lately (<<4), slowly forgotten: the bars adapt to the song and to the volume
-}
-static int vzLevel(int b){   // bar height 1..12 for band b. Tuned on two real songs (a drum and bass track and a house track), each at full and at half volume:
-    // every band has its own floor and ceiling (th, a geometric ladder), and the readings are first scaled so the recent bass peak counts as 100.
-    static const u8 th[8][11]={{1,1,2,2,3,3,4,5,6,8,10},{3,4,5,6,7,9,11,13,16,20,25},{5,6,7,8,9,10,12,14,16,19,22},{6,7,8,10,11,13,15,18,21,24,28},{6,7,8,10,12,14,17,20,24,29,34},{7,8,10,12,15,18,22,26,32,38,46},{7,8,10,12,15,18,22,27,33,40,48},{20,23,28,32,38,45,53,62,72,85,100}};
-    int pk=(int)(vzPk>>4); if(pk<40) pk=40; int v=((int)vzOutB[mPlayI][b]*100)/pk, h=1; while(h<12&&v>=th[b][h-1]) h++; return h;
+    meter_analyze(L,R,vzLp,vzOutB[bi]);
 }
 IWRAM_ARM static void musMixAny(int b){
     for(int c=0;c<MUS_VOICES;c++){ int g=mStemG[c], t=mStemT[c]; if(g!=t) mStemG[c]=(u16)(g<t?(g+12>t?t:g+12):(g-12<t?t:g-12)); }   // stems glide in and out over a third of a second
@@ -6165,25 +6155,10 @@ static int jbLab(int x,int y,const char*t){ return text(x,y,t,RGB(22,25,29),1)+7
 #define JB_VY0 28                 // its box: y 28 .. 57
 #define JB_VY1 57
 static void jbPaintViz(int live){
-    rect(JB_VX0-1,JB_VY0,JB_VX1-JB_VX0+2,JB_VY1-JB_VY0,JB_CARD);
-    static const u8 mapB[14]={7,6,6,5,5,4,4,3,3,2,2,1,1,0};   // bar i listens to this band: the 8 bands stretched over 14 bars, bass first (the two end bars share a band with a neighbour: they are smoothed below)
-    int lv[8]; for(int b=0;b<8;b++) lv[b]=live?vzLevel(b):1;
-    if(live) vzLive=30;
-    int bass=lv[7]+lv[6]; { static int pb; if(bass>=pb+3) jbBeat=4; pb=bass; }   // a jump in the low end: the beat
-    for(int i=0;i<14;i++){
-        int t=lv[mapB[i]]*4; if(i>0&&i<13) t=(lv[mapB[i]]*8+lv[mapB[i-1]]*2+lv[mapB[i+1]]*2)/3;   // (the neighbours blend in: a smooth curve instead of eight steps)
-        int e=jbEq4[i]; if(!live) t=4; if(t>e) e+=(t-e+1)>>1; else e=e>t+2?e-2:t; jbEq4[i]=(u8)e;   // quick to rise, easy to fall
-        if(e>=jbPk4[i]){ jbPk4[i]=(u8)e; jbPkT[i]=22; } else if(jbPkT[i]) jbPkT[i]--; else if(jbPk4[i]>e) jbPk4[i]--;   // the cap holds, then drops
-        int x=JB_VX0+i*4, full=e>>2;
-        for(int k=0;k<12;k++){
-            int y=JB_VY1-3-k*2; u16 c;
-            if(k<full||(k==full&&(e&3)>=2)) { c=!live?RGB(6,8,13):k<6?RGB(6,24,8):k<9?RGB(24,26,5):k<11?RGB(30,16,4):RGB(31,8,6); if(k==full-1&&live&&k>2) c=k<6?RGB(14,31,14):k<9?RGB(31,31,12):k<11?RGB(31,24,10):RGB(31,16,14); }
-            else c=RGB(4,6,10);   // an unlit segment
-            rect(x,y,3,1,c); rect(x,y+1,3,1,c==RGB(4,6,10)?RGB(3,4,8):(u16)((c>>1)&0x3DEF));
-        }
-        if(live&&jbPk4[i]>4){ int k=jbPk4[i]>>2; if(k>12) k=12; rect(x,JB_VY1-3-(k-1)*2-2,3,1,WHITE); }
-    }
-    if(jbBeat){ rect(JB_VX0-1,JB_VY1-1,JB_VX1-JB_VX0+2,1,jbBeat>2?GOLD:RGB(20,16,5)); jbBeat--; }   // the beat: a gold line under the bars
+    static int prevBass;
+    int bi=mPlayI;
+    if((unsigned)bi>=3)bi=0;
+    meter_paint(fb,vzOutB[bi],&vzLive,jbEq4,jbPk4,jbPkT,&jbBeat,&prevBass,live);
 }
 static void jbPaintHead(int fr){
     rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,JB_HY1-JB_PY0-1,JB_BODY); rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,15,JB_HEAD);
@@ -6290,20 +6265,23 @@ static void jukeboxScreen(void){
         if(jbPlaying&&(mKind?mDone:mLaps>=1)){   // song over (no crossfade: the next one starts right at the end): the mode picks the next one
             jbGo(jbNextSong(jbCur,0)); if(jbCur>=0) cur=jbCur; dH=dL=dF=1; }
         { int liveNow=(sSnd&&jbPlaying&&jbCur>=0);
-          if(liveNow&&(fr&1)==0&&!dH){ jbPaintViz(1); dV=1; }   // the visualizer: 30 pictures a second, only its own box
+          if(liveNow&&!dH){ jbPaintViz(1); dV=1; }   // each display frame; narrow meter rectangle only
           if(liveNow&&(fr%15)==0) dH=1;                         // the clock and the progress bar: twice a second is plenty
           if(liveNow&&(fr&1)==0&&tw(songs[jbMap[jbCur]].name,1)>232-(JB_VX1+6)) dH=1;   // a long title on the card scrolls: that needs the quicker picture
           if((fr&3)==0){ int fw=tw(songs[jbMap[cur]].name,1); if(fw>JB_NW) dL=1; } }   // a long name on the cursor row scrolls
         if(jbMsgT>0&&--jbMsgT==0) dH=1;
         { int st=(cur==jbCur&&jbPlaying); if(st!=lastStop){ lastStop=st; dF=1; } }   // A says STOP while the cursor is on the playing song
         int y0=SH, y1=0;
-        if(dV&&!dH){ y0=JB_VY0; y1=JB_VY1; } dV=0;
+        int onlyViz=dV&&!dH&&!dL&&!dF;
+        if(dV&&!dH&&!onlyViz){ y0=JB_VY0; y1=JB_VY1; } dV=0;
         if(dH){ jbPaintHead(fr); y0=0; y1=JB_HY1; dH=0; }
         if(dL){ jbPaintList(cur,fr); if(JB_HY1<y0) y0=JB_HY1; y1=JB_LY1+1; dL=0; }
         if(dF){ jbPaintFoot(cur); if(JB_LY1+1<y0) y0=JB_LY1+1; y1=SH; dF=0; }
         vsync();
-        if(y1>y0) dmaRows(fb,VRAM_ADDR,0,ROW_W,y0,y1);
+        if(onlyViz)dmaRows(fb,VRAM_ADDR,4,33,JB_VY0,JB_VY1);
+        else if(y1>y0) dmaRows(fb,VRAM_ADDR,0,ROW_W,y0,y1);
     }
+    vzLive=0;
     jbPlaying=0; settingsSave();   // (the volume you set is an option: saved with the others; the song plays on, the main menu crossfades from it)
     while(keyNow()) vsync();
 }
