@@ -66,6 +66,17 @@ static void sharedTuningVerify(void){
         }
     }
 #ifdef GG_HAS_GLOBE
+    // Exercise actual lookup generation at all supported radii; compare
+    // every sample to the previous 64-bit division formula.
+    for(int R=26;R<=GR_MAX;R++){
+        globeTables(R);
+        for(int d2=0;d2<=R*R;d2++){
+            u32 ref=(u32)(((unsigned long long)(R*R-d2)<<28)/(unsigned)(R*R));
+            if(gnz[d2]!=(u16)isqrt32(ref)){
+                CHECK(0,"optimized depth differs from original");break;
+            }
+        }
+    }
     int savedW=WW,savedH=WH;
     for(int size=128;size<=MAXD;size*=2){
         gW=size;gH=size/2;globeCloudTables();
@@ -97,6 +108,11 @@ static void livingWorldVerify(void){
     CHECK(ggBestiaryMove(319,1,MON_N)==320,"bestiary can pass the old 320-entry cap");
     CHECK(ggBestiaryMove(MON_N-5,10,MON_N)==MON_N-1,"bestiary clamps final page");
     CHECK(ggBestiaryMove(2,-10,MON_N)==0,"bestiary clamps first page");
+    memset(slainB,0,sizeof slainB);
+    int first=8+(ARCH_A-8)*16,last=first+MON_N-1;
+    slainB[0]=255;slainB[first>>3]|=(u8)(1u<<(first&7));
+    slainB[last>>3]|=(u8)(1u<<(last&7));
+    CHECK(slainCount()==2,"slain count excludes non-monsters and includes final variant");
     for(int dy=-10;dy<=10;dy++)for(int dx=-10;dx<=10;dx++)
         CHECK((dx>=-ggCircleHalfWidth10(dy)&&dx<=ggCircleHalfWidth10(dy))==
               (dx*dx+dy*dy<=100),"optimized village circle equals original");
@@ -119,6 +135,7 @@ static void livingWorldVerify(void){
           "isolated poorest city no longer blocks a feasible relief delivery");
     // Reconstruction uses the real terrain, ownership and stock arrays.
     memset(vil,0,sizeof vil);memset(vilK,0,sizeof vilK);
+    if(!LAWON(LW_GROWTH))lw[LW_GROWTH]^=1;
     vil[0].on=1;vil[0].pop=8;vil[0].stock=100;vil[0].x=32;vil[0].y=32;
     for(int y=28;y<=36;y++)for(int x=28;x<=36;x++){
         world[y][x]=T_GRASS;bld[y][x]=B_NONE;bldv[y][x]=0;occ[y][x]=0;
@@ -192,7 +209,7 @@ int main(void){
     sharedTuningVerify();
     livingWorldVerify();
     printf(failed?"TITLE GLOBE FAIL (%d)\n":
-           "TITLE GLOBE OK: rotating lit sphere, menus, planet zoom, pixel parity, cloud cache, relief event\n",
+           "GODGUY SHARED OK: globe parity, catalogue, civic recovery, achievements, empty planet\n",
            failed);
     return failed?1:0;
 }
