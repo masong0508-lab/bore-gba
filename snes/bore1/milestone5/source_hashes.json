@@ -1,0 +1,126 @@
+{
+  "gba_v14_sha256": "adc952e998e08ec112164d68fc454d207d3b40a0083e52fe64fae54db1406493",
+  "snes_rom_sha256": "f712f0dc7241ad9f3af4d084ca06f74091defda6d7872c8437b84d3f965eba95",
+  "files": [
+    {
+      "file": "build_prototype.py",
+      "sha256": "79d16865b7cbf4872e5c37502d8697121643c84290efdad520a0f02d98770b47",
+      "bytes": 10425
+    },
+    {
+      "file": "build_milestone2.py",
+      "sha256": "583c850b61663f54590ff7a4caabdb7f0d9ff3c10c481250f36b2c79d117457c",
+      "bytes": 15148
+    },
+    {
+      "file": "build_milestone3.py",
+      "sha256": "0cd13cef1599ceb4ea5081226dff269abb45951f22c13356bc794486f1e6004a",
+      "bytes": 4424
+    },
+    {
+      "file": "build_milestone4.py",
+      "sha256": "bc66c07de47e6fb3db72c14c34c9adf28b8e011a930201ab726d085ec6e3774a",
+      "bytes": 12813
+    },
+    {
+      "file": "build_milestone5.py",
+      "sha256": "73770f365720249d37e4244a1059de996c15c710a4ea9e638c4435b07d8730f6",
+      "bytes": 6025
+    },
+    {
+      "file": "test_milestone4.py",
+      "sha256": "8f862937bf010d14cdac2d934074f776f1f5ce7f41f138e62e2bbaa7b8ef0a0f",
+      "bytes": 12480
+    },
+    {
+      "file": "test_milestone5.py",
+      "sha256": "e6fd24122f16dd209bca4512a4222c7e1e14c3bc34358c0e02c612d822a3cad1",
+      "bytes": 6457
+    },
+    {
+      "file": "native_audio.py",
+      "sha256": "e53a814c2d92ca672641a7d8aa1d56c2ea339786e5c2f00e0f50f90fa6b48882",
+      "bytes": 12747
+    },
+    {
+      "file": "verify_audio.py",
+      "sha256": "1d9267a226d95ca0d557888575b748811b3e82ad2ff3b313243b9022881ff5a5",
+      "bytes": 1830
+    },
+    {
+      "file": "brr.c",
+      "sha256": "8c13e7c20a2f127f0f8e641dac58b6882dd60d0d3007238b2af7ad0df398edd5",
+      "bytes": 1229
+    },
+    {
+      "file": "track_0.json",
+      "sha256": "e96101dbec692c51de2fab6b7abde172a8754bda054a443edfaf6efbc3237366",
+      "bytes": 481
+    },
+    {
+      "file": "track_31.json",
+      "sha256": "7fa9c1957f86dea92744b8e07c46a3f874f00f721f3a14bbebd90849e88deb24",
+      "bytes": 482
+    },
+    {
+      "file": "native_verification.json",
+      "sha256": "7acd5efa02c4b25e77f046ea2eb73e7ad7439f477dea9bef98e2622bdaced56e",
+      "bytes": 1562
+    },
+    {
+      "file": "m5_test.json",
+      "sha256": "cb59392d74e85cd526bd505427619ae38c59d4d3723e896ec45d0b752790fac1",
+      "bytes": 980
+    },
+    {
+      "file": "audio_report.json",
+      "sha256": "a2cb2c62340cce1ca80b2ece5c41f83d7b2cf6dd5c0d4c2b39dda25ee689f598",
+      "bytes": 385
+    },
+    {
+      "file": "spc_test.json",
+      "sha256": "caa9cc14786d9e8f6c334476301eccb0bb8f10841878322cfcb2a725886f6404",
+      "bytes": 689
+    },
+    {
+      "file": "m4_test.json",
+      "sha256": "f2c7e4e3d15e58376ed809bbe1531aeab8a6e98559678b066e8df29d05b7f022",
+      "bytes": 989
+    },
+    {
+      "file": "test_spc.py",
+      "sha256": "0ca322ee21f45493df548489db20e335ae36d4a679aef0de66f4624b75854458",
+      "bytes": 2074
+    },
+    {
+      "file": "README.txt",
+      "sha256": "9162412bb76665d4c8273a4e118abca36af118a639527d772549b06c3d3098e6",
+      "bytes": 1163
+    },
+    {
+      "file": "track_0.bin",
+      "sha256": "8b4b1f4a4f4e93bfa76e41d3612b63700a64185c6e703326e736fc8df44351bb",
+      "bytes": 39923
+    },
+    {
+      "file": "track_31.bin",
+      "sha256": "c06fbfaa02b1292f63bba7a0d6ab03b85eaa92352a6b02e62660d922b2d6a865",
+      "bytes": 62662
+    },
+    {
+      "file": "track_0.spc",
+      "sha256": "c2322259248b83e0634c23f02d7f2f50461bb1c6e392200c5459afb921e3487c",
+      "bytes": 66048
+    },
+    {
+      "file": "track_31.spc",
+      "sha256": "9a0813529f3ff1c485d29c7e09ca612c1e8b8f30109c5383c8684ac474e280d5",
+      "bytes": 66048
+    },
+    {
+      "file": "native_title.bin",
+      "sha256": "3cb719f9852b5109a92790cce106655492632a1a53562ef07daaedab76cd96c6",
+      "bytes": 51696
+    }
+  ]
+}

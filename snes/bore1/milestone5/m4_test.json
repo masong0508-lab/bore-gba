@@ -1,0 +1,26 @@
+{
+  "rom_sha256": "96e30f3e44668e11ddfcf13892fd57792a92c72fcaa88b2108f325ad8686cfbe",
+  "rom_bytes": 131072,
+  "apu_payload_bytes": 51696,
+  "modeled_frames": 690,
+  "cpu_instructions": 5290176,
+  "passed": [
+    "reset and tile/OAM upload",
+    "full byte-by-byte modeled IPL transfer",
+    "APU unavailable timeout",
+    "all four packs/eight campaigns",
+    "eight member cap",
+    "home and town movement/interactions",
+    "currency and needs",
+    "chapter progress isolation",
+    "four distinct arena maps",
+    "out-of-range strike",
+    "rival pursuit",
+    "three-rival fight and reward",
+    "arena exit",
+    "two-slot save and corrupt newest fallback",
+    "MSU present/missing media fallback",
+    "ROM header checksum"
+  ],
+  "limitations": "Instruction-level harness with modeled peripherals, not real console or full-system emulator; SPC audio independently emulated by libgme. M4 saves use separate record area from M2/M3, no migration yet. Full BORE game not ported."
+}

@@ -1,0 +1,19 @@
+{
+  "title": "THE TICKING BOMB",
+  "events": 2677,
+  "accepted": 2659,
+  "dropped": 18,
+  "voice_steals": 259,
+  "same_tick_replaced": 140,
+  "score_bytes": 9258,
+  "uncompressed_score_bytes": 18059,
+  "dictionary_entries": 169,
+  "spectral_reductions": [],
+  "brr_bytes": 52380,
+  "driver_bytes": 700,
+  "aram_end": 63174,
+  "echo_bytes": 2048,
+  "aram_free": 314,
+  "duration_seconds": 117.1,
+  "source_sha256": "adc952e998e08ec112164d68fc454d207d3b40a0083e52fe64fae54db1406493"
+}

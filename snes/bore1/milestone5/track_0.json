@@ -1,0 +1,19 @@
+{
+  "title": "THE DIPPER MAN",
+  "events": 3278,
+  "accepted": 3278,
+  "dropped": 0,
+  "voice_steals": 22,
+  "same_tick_replaced": 16,
+  "score_bytes": 11431,
+  "uncompressed_score_bytes": 23204,
+  "dictionary_entries": 111,
+  "spectral_reductions": [],
+  "brr_bytes": 27468,
+  "driver_bytes": 700,
+  "aram_end": 40435,
+  "echo_bytes": 8192,
+  "aram_free": 16909,
+  "duration_seconds": 170.88,
+  "source_sha256": "adc952e998e08ec112164d68fc454d207d3b40a0083e52fe64fae54db1406493"
+}

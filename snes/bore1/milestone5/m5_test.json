@@ -1,0 +1,34 @@
+{
+  "rom_sha256": "f712f0dc7241ad9f3af4d084ca06f74091defda6d7872c8437b84d3f965eba95",
+  "rom_bytes": 262144,
+  "tracks": [
+    39923,
+    62662
+  ],
+  "native_upload_sequences": [
+    1,
+    2,
+    1
+  ],
+  "max_upload_bytes_per_frame": 128,
+  "modeled_frames": 2375,
+  "cpu_instructions": 6487639,
+  "passed": [
+    "native upload across banks",
+    "switch to track 2 and back",
+    "movement and actions during upload",
+    "no audio hardware timeout",
+    "byte acknowledgment timeout",
+    "MSU success/failure fallback",
+    "eight campaign ledgers and four pack groups",
+    "eight-member cap",
+    "town travel and shop",
+    "chapter isolation",
+    "three-rival arena challenge",
+    "four arena maps",
+    "mission reward",
+    "two-record SRAM and fallback",
+    "ROM checksum"
+  ],
+  "limitations": "Instruction-level modeled peripherals, not hardware or full-system emulator. Resident SPC programs tested separately in libgme; no integrated real APU/CPU test yet."
+}
