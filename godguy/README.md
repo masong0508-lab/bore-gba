@@ -1,5 +1,8 @@
 # BORE: GODGUY (Nintendo DS)
 
+**Living-world and catalogue pass (27 November 2026).** The bestiary now scrolls through all 576 monster variants; LEFT/RIGHT jumps ten rows and the header distinguishes encountered variants from unique slain variants. World laws, weather and seasonal progression continue even on empty worlds. Relief caravans skip isolated destinations when another needy town has an eligible donor. Reconstruction is a world-age event, enabled by Growth, that restores up to four unoccupied ruined plots for eight supplies each while retaining a 40-supply reserve. The shared village census uses exact clipped circle rows, achievement milestones share one census, and globe zoom uses an integer recurrence with the same depth samples as before. DS/DSi globe tables are sized for their actual maximum radius, saving 13,440 bytes of static storage. No save-format change is required.
+
+
 **New 3DS 3D-world target (21 November 2026):** The 3DS homebrew
 `godguy.3dsx` now requires a **New Nintendo 3DS/3DS XL or New Nintendo
 2DS XL**. Original 3DS/2DS models are unsupported by this build and
