@@ -2,6 +2,11 @@
 name: Build GodGuy DS ROMs
 on:
   push:
+    branches: [main]
+    paths:
+      - 'godguy/**'
+      - '.github/workflows/godguy-nds.yml'
+  pull_request:
     paths:
       - 'godguy/**'
       - '.github/workflows/godguy-nds.yml'
