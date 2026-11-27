@@ -1607,7 +1607,7 @@ static void chapterDone(void){   // a chapter is finished (by play, or by the de
     if(chapter>=3&&!auralOpen){ auralOpen=1; siprintf(info,"AURAL SCULPTURES UNLOCKED"); }
     if(chapter>=CHAP_N){ storyDone=1; tierOpen=14; musReq(GM_GODHOOD); fxReq(FX_CHAPTER_DONE); }
     else { if(chapter+1>tierOpen) tierOpen=chapter+1>14?14:chapter+1; musReq(GM_ASCEND); fxReq(FX_CHAPTER_DONE); } }
-static int slainCount(void){ int n=0; const int first=8+(ARCH_A-8)*16; for(int byte=first>>3;byte<(first+MON_N)>>3;byte++)n+=__builtin_popcount((unsigned)slainB[byte]); return n; }
+static int slainCount(void){ int n=0; const int first=8+(ARCH_A-8)*16; for(int byte=first>>3;byte<((first+MON_N)>>3);byte++)n+=__builtin_popcount((unsigned)slainB[byte]); return n; }
 static void checkFull(void){ if(!fullDone&&storyDone&&seenN>=MON_N&&slainCount()>=MON_N){ fullDone=1; siprintf(info,"100%%! THE REMIXES ARE YOURS"); musReq(GM_GODHOOD); fxReq(FX_UNLOCK); } }
 static void unlockTiers(void){   // every 256 ticks: is the chapter you are on done?
 #ifdef GG_NATIVE_STORY_BUSY
@@ -2134,7 +2134,11 @@ static void applyLight(void){
 static u8 gbuf[256*192] __attribute__((aligned(4)));
 #ifdef GG_HAS_GLOBE
 // CPU-rendered globe used by the 3DS in addition to its native 3D world.
+#ifdef __3DS__
 #define GR_MAX 120
+#else
+#define GR_MAX 88
+#endif
 static u16 gnz[GR_MAX*GR_MAX+1]; static s16 gxn[2*GR_MAX+1]; static int gR=0;
 static u16 gAtan[257]; static u16 gAsin[4097]; static u8 gCloud[64][64]; static int gInit;
 static u16 gSavedPal[256];
@@ -2181,7 +2185,19 @@ static void globeTables(int R){
         for(int i=0;i<=4096;i++){ float v=(i-2048)/2048.0f; gAsin[i]=(u16)((0.5f-asinf(v>1?1:v<-1?-1:v)/3.1415927f)*4095.0f); }
         for(int y=0;y<64;y++) for(int x=0;x<64;x++) gCloud[y][x]=(u8)((vnoise(x*3,y*3,8,77)*3+vnoise(x*3,y*3,4,78))>>2); }
     if(R==gR) return; gR=R; for(int i=0;i<=2*R;i++) gxn[i]=(s16)((i-R)*16384/R);
-    for(int d2=0;d2<=R*R;d2++){ u32 num=(u32)(((unsigned long long)(R*R-d2)<<28)/(unsigned)(R*R)); gnz[d2]=(u16)isqrt32(num); } }
+    // The old expression divided a 64-bit numerator for every depth
+    // sample. Walk its exact quotient and remainder instead. This is
+    // bit-identical and replaces thousands of divisions with subtracts.
+    unsigned rr=(unsigned)(R*R), num=1u<<28, carry=0;
+    unsigned q=num/rr, rem=num%rr;
+    for(unsigned d2=0;d2<=rr;d2++){
+        gnz[d2]=(u16)isqrt32(num);
+        if(d2==rr)break;
+        num-=q;
+        if(carry<rem){num--;carry+=rr;}
+        carry-=rem;
+    }
+}
 static int atan2Turn(int y,int x){   // angle of (x forward, y sideways) as a fraction of a turn, 0..65535 (0 = straight ahead)
     int ax=x<0?-x:x, ay=y<0?-y:y; if(!ax&&!ay) return 32768; int r=ax>=ay?gAtan[(ay<<8)/ax]:16384-gAtan[(ax<<8)/ay];   // 0..16384 (quarter turn)
     int psi=x>=0?r:32768-r; if(y<0) psi=-psi; return psi&65535; }
@@ -2197,7 +2213,7 @@ static int globeR(void){
 #else
     // A 176px planet is fully readable on DS/DSi; the original 240px
     // disc required too many globeDir/biome/cloud samples on 67 MHz ARM9.
-    return R>88?88:R<26?26:R;
+    return R>GR_MAX?GR_MAX:R<26?26:R;
 #endif
 }
 static int globePick(int px,int py,int*tx,int*ty){
