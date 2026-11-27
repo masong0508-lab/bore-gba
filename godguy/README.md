@@ -57,7 +57,9 @@ A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in 
 
 **Latest feature notes (18 November 2026).** See [`../docs/GODGUY_REMAINING_FEATURES.md`](../docs/GODGUY_REMAINING_FEATURES.md) for the bee colony queen/worker behaviour, autosave switch, SEND HOME and BORDER BRUSH powers, culture palette variants, species colour preferences, new law effects, ten age labels and version-14 captain-rout save extension. The [WorldBox gap list](WORLDBOX_GAP_LIST.md) distinguishes completed work from the remaining creature and interface items.
 
-**World view.** DS and DSi have five flat zoom levels from Very Far through Micro. Legacy saves with globe zoom open in Normal view at their last flat map position. The 3DS also offers the rotating globe and its native 3D world mode.
+**World view.** DS, DSi and New 3DS offer Planet, Very Far, Far, Normal, Close and Micro views. Press X+Y to zoom out and L+R to zoom in; in Planet view B+drag spins the sphere, A toggles clouds, and Y+A enables globe walking. The New 3DS also offers its native 3D world mode. The shared globe reuses dimension-specific cloud coordinates and cached title sampling to reduce repeated division without changing terrain, lighting, or the save format.
+
+**Relief caravans.** Peaceful, populated settlements can now share food as a world-age event. A needy town with fewer than 80 stores can receive up to 60 from a compatible surplus town; the donor keeps at least 180 and the recipient never exceeds 100 through this event. Arrivals appear in the journal. No new save data is required. Independent towns must share a people; kingdom towns must belong to the same kingdom.
 
 **DS builds (which one to use).** Start with `godguy_hw.nds`, made by
 `build_hw.sh`. It uses its own ARM9 startup and ARM7 sound/touch routines,
