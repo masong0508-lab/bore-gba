@@ -11,7 +11,7 @@
 enum {
     // PLAY
     XO_NEED,      // how fast REST / CLEAN / COMFY drain: OFF SLOW NORMAL FAST BRUTAL
-    XO_DAY,       // length of a game day: 3 / 6 / 12 / 24 real minutes, or the clock stopped
+    XO_DAY,       // length of a game day: 6 / 12 / 24 / 48 real minutes, or the clock stopped
     XO_JOB,       // career on / off (off = no shifts, no quota, no bills)
     XO_BILLS,     // bills taken at midnight: NONE HALF NORMAL DOUBLE
     XO_QUOTA,     // trick-point quota of a shift: EASY NORMAL HARD INSANE
@@ -100,8 +100,8 @@ static const u16 accentTab[NACC]={ RGB(31,26,6), RGB(12,28,16), RGB(14,24,31), R
 static const char* const accentNm[NACC]={"GOLD","MINT","SKY","PINK","ORANGE","LILAC"};
 
 // ---- helpers: the number each choice stands for ----
-static inline int oNeedPct(void){ static const u8 t[5]={0,50,100,150,200}; return t[xo[XO_NEED]]; }
-static inline int oStepsMin(void){ static const u8 t[5]={7,15,30,60,0}; return t[xo[XO_DAY]]; }   // logic steps per game minute, 0 = stopped
+static inline int oNeedPct(void){ static const u8 t[5]={0,25,50,75,100}; return t[xo[XO_NEED]]; }
+static inline int oStepsMin(void){ static const u8 t[5]={15,30,60,120,0}; return t[xo[XO_DAY]]; }   // logic steps per game minute, 0 = stopped
 static inline int oStageDays(int st){   // game days a stage lasts before the next one (0 = for ever); ELDER is the last stage and has no row
     static const u8 t[10]={1,2,3,5,7,10,14,21,30,60};
     if(st<0||st>3) return 0;
@@ -111,8 +111,8 @@ static inline int oQuotaPct(void){ static const u8 t[4]={60,100,150,200}; return
 static inline int oScorePct(void){ static const u16 t[4]={50,100,200,300}; return t[xo[XO_SCORE]]; }
 static inline int oComboLen(void){ static const u16 t[4]={90,150,240,360}; return t[xo[XO_COMBO]]; }   // steps (60 per second)
 static inline int oSpeedPct(void){ static const u8 t[4]={80,100,125,150}; return t[xo[XO_SPEED]]; }
-static inline int oFoodEvery(void){ static const u16 t[4]={0,240,120,60}; return t[xo[XO_HUNGER]]; }  // steps per FOOD point, 0 = never
-static inline int oWcEvery(void){ static const u16 t[4]={0,200,100,50}; return t[xo[XO_HUNGER]]; }
+static inline int oFoodEvery(void){ static const u16 t[4]={0,720,360,180}; return t[xo[XO_HUNGER]]; }  // steps per FOOD point, 0 = never
+static inline int oWcEvery(void){ static const u16 t[4]={0,600,300,150}; return t[xo[XO_HUNGER]]; }
 static inline int oToastLen(void){ static const u8 t[3]={25,45,90}; return t[xo[XO_TOAST]]; }
 static inline int oRepDelay(void){ static const u8 t[3]={12,7,4}; return t[xo[XO_REPEAT]]; }       // frames held before the cursor repeats
 static inline int oRepMask(void){ static const u8 t[3]={3,1,0}; return t[xo[XO_REPEAT]]; }          // repeats when (held & mask) == 0

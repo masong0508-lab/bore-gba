@@ -3309,7 +3309,7 @@ static const char* const lifeHelp[]={
     "Fun comes from skating. A bored or sad Bore is",
     "slower and scores less. Food and sleep heal you.",
     ">Work and Money",
-    "A day lasts six real minutes. On the phone, pick a",
+    "A normal day lasts 12 real minutes. Pick a",
     "CAREER (there are nine). A normal job counts the",
     "time you spend at your work marker. PRO SKATER",
     "counts trick points instead. Good shifts pay and earn",
