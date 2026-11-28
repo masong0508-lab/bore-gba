@@ -863,7 +863,8 @@ static void hhTick(void){   // once per logic step in the life game
     petTick(&planned);   // pets.h (pets live with you even when nobody else does)
     if(!hhN) return;
     relTick(); hhAmbient(); bcTick();
-    int fe=oFoodEvery(), we=oWcEvery();
+    int fe=oFoodEvery(), we=oWcEvery(), np=oNeedPct();
+    int hhNeedEvery=np?30000/np:0;
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m];
         if(stTvStoryAbsentUid(s->uid)){ // Missy in hospital, or Mamesy after the crash: unavailable to NPC life routines
             s->act=HA_AWAY; s->use=HN_REST; s->item=0; s->pn=s->pi=0;
@@ -873,10 +874,10 @@ static void hhTick(void){   // once per logic step in the life game
         // needs drain (gently: the Sims you do not watch should not be in constant crisis)
         if(fe&&lfr%(fe*2)==0&&s->need[HN_FOOD]>0) s->need[HN_FOOD]--;
         if(we&&lfr%(we*2)==0&&s->need[HN_WC]>0) s->need[HN_WC]--;
-        if(lfr%300==m*7){ for(int n=HN_REST;n<HN_N;n++) if(s->need[n]>0) s->need[n]--; }
+        if(hhNeedEvery&&lfr%hhNeedEvery==m*7){ for(int n=HN_REST;n<HN_N;n++) if(s->need[n]>0) s->need[n]--; }
         if(s->bubT) s->bubT--;
         if(s->hp<HP_MAX&&lfr%HP_REGEN==(m*11)%HP_REGEN) s->hp++;   // health creeps back (knocked out Sims wake at 30)
-        if(lfr%(150-s->tr[TR_OUT]*8)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
+        if(np&&lfr%((150-s->tr[TR_OUT]*8)*100/np)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
         if(prHeld(s)){ s->act=HA_AWAY; continue; }   // prison.h: the prisoner is out while you are at home, everyone else while you are in the cell
         if(xo[XO_MULTIFL]){   // floors step 4: Sims who are not on your floor wait (parked), the ones whose floor you came to step out of the stairs
             if(hhFl[m]!=curFl){

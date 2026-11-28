@@ -24,7 +24,7 @@ static const char* const lbFps[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const 
     *const lbOnOff[2]={"OFF","ON"}, *const lbFree[3]={"OFF","LOW","HIGH"}, *const lbPop[3]={"LOW","MEDIUM","HIGH"}, *const lbPipe[2]={"ADULTS ONLY","LATE TEENS"}, *const lbShow[4]={"OFF","FPS","DETAIL","FULL"}, *const lbWarn[2]={"ON","OFF"}, *const lbRom[2]={"FAST","SAFE"},
     *const lbCam[4]={"OFF","OVER 10000","OVER 5000","OVER 2000"}, *const lbHud[3]={"FULL","SLIM","OFF"};
 static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *const lbHunger[4]={"OFF","SLOW","NORMAL","FAST"},
-    *const lbDay[5]={"3 MIN","6 MIN","12 MIN","24 MIN","STOPPED"}, *const lbBills[4]={"NONE","HALF","NORMAL","DOUBLE"},
+    *const lbDay[5]={"6 MIN","12 MIN","24 MIN","48 MIN","STOPPED"}, *const lbBills[4]={"NONE","HALF","NORMAL","DOUBLE"},
     *const lbQuota[4]={"EASY","NORMAL","HARD","INSANE"}, *const lbScore[4]={"X0.5","X1","X2","X3"},
     *const lbCombo[4]={"1.5 SEC","2.5 SEC","4 SEC","6 SEC"}, *const lbSpeed[4]={"80 %","100 %","125 %","150 %"},
     *const lbDays[10]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS"},

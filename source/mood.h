@@ -18,8 +18,8 @@
 #define MOOD_ONE        256   // 1 meter point
 #define MOOD_FUN_START  50
 #define MOOD_HAP_START  60
-#define MOOD_FUN_DECAY  4     // fun lost per step (1/256 pt): 4 = 1 pt per second, 100 to 0 in ~100 s of nothing
-#define MOOD_BORED_AFTER 900  // steps (15 s) without anything fun before boredom doubles the drain
+#define MOOD_FUN_DECAY  2     // fun lost per step (1/256 pt), slower boredom
+#define MOOD_BORED_AFTER 3600 // steps (60 s) without anything fun before boredom doubles the drain
 #define MOOD_CRUISE     3     // fun regained per step while skating fast (cancels most of the drain, fills nothing)
 #define MOOD_GRIND      12    // fun per step while grinding (~2.8 pt/s)
 #define MOOD_AIRTIME    20    // fun per step while airborne (~4.7 pt/s), only after MOOD_AIR_MIN steps in the air

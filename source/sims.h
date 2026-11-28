@@ -32,7 +32,7 @@
 // HOW TO ADD A NEED: a variable (saved in simsPack/simsUnpack), a rate in simsTick, a use in simBegin, a bar in hud.h.
 //
 // TUNING
-#define SIM_STEPS_MIN  15     // logic steps per game minute (60/s): 15 = a game day is 6 real minutes
+#define SIM_STEPS_MIN  30     // logic steps per game minute (60/s): 30 = a game day is 12 real minutes
 #define SIM_RATE_NRG   7      // energy lost per step, 1/1024 pt (7 = 1 pt per 2.4 s, 100 to 0 in ~4 minutes)
 #define SIM_RATE_HYG   5
 #define SIM_RATE_COM   6
@@ -41,8 +41,8 @@
 #define SIM_GAIN_SIT   300    // comfort per step on the sofa (~5.5 s)
 #define SIM_LOW        20     // a need below this shows in the thought bubble
 #define SIM_SLEEPY_TOP 20     // % of top speed lost when ENERGY is below SIM_LOW
-#define SIM_STRK_WIN   2700   // steps (45 s, 3 game hours) after a met want in which the next one counts as a STREAK
-#define SIM_WANT_STALE 10800  // steps (3 minutes, 12 game hours) before a want nobody met is swapped for a new one (a locked want stays)
+#define SIM_STRK_WIN   5400   // steps (90 s, 3 game hours) after a met want in which the next one counts as a STREAK
+#define SIM_WANT_STALE 21600  // steps (6 minutes, 12 game hours) before a want nobody met is swapped for a new one (a locked want stays)
 #define SIM_WANT_GAP   240    // steps before an emptied want slot rolls a new want (a fear slot waits twice as long)
 #define SIM_NIGHT_FROM 1320   // 22:00 ... 06:00: awake costs energy 50% faster, sleep restores 25% faster
 #define SIM_NIGHT_TO   360
@@ -870,15 +870,20 @@ static void simEnd(void){
     else if(simAct==3){ moodEvent(M_SOFA); simEvent(SE_SOFA); }
     simAct=0; simActT=0; simActN=0;
 }
+// Round a positive fixed-point decay up to at least one unit; OFF still freezes it.
+static inline int lifeNeedRate(int rate,int pct,int trait){
+    if(pct<=0||trait<=0)return 0;
+    int n=(rate*pct*trait+5000)/10000; return n?n:1;
+}
 // once per logic step while alive. pr = keys pressed this step, tx,ty = the tile the skater stands on.
 static void simsTick(unsigned pr,int tx,int ty){
     simT++;
     int pct=simDecayPct[simWishes()?simZone:2]*oNeedPct()/100*abPct(AB_STAMINA,-8)/100, night=simIsNight();   // STAMINA ability: -8% need drain a point
     if(simAct==0){   // needs drain only when not being refilled; NEAT keeps you clean longer, ACTIVE needs the sofa less
-        simCrN+=SIM_RATE_NRG*pct/100*(night?3:2)/2;
-        simCrH+=SIM_RATE_HYG*pct/100*(130-6*pTr[TR_NEAT])/100;
-        simCrC+=SIM_RATE_COM*pct/100*(130-6*pTr[TR_ACT])/100;
-        if(hhOthers()){ simCrS+=4*pct/100*(70+6*pTr[TR_OUT])/100; while(simCrS>=1024){ simCrS-=1024; if(sSoc>0){ sSoc--; if(sSoc==SIM_LOW) simEvent(SE_LONELY); } } }   // outgoing Sims get lonely faster
+        simCrN+=lifeNeedRate(SIM_RATE_NRG,pct,night?150:100);
+        simCrH+=lifeNeedRate(SIM_RATE_HYG,pct,130-6*pTr[TR_NEAT]);
+        simCrC+=lifeNeedRate(SIM_RATE_COM,pct,130-6*pTr[TR_ACT]);
+        if(hhOthers()){ simCrS+=lifeNeedRate(4,pct,70+6*pTr[TR_OUT]); while(simCrS>=1024){ simCrS-=1024; if(sSoc>0){ sSoc--; if(sSoc==SIM_LOW) simEvent(SE_LONELY); } } }   // outgoing Sims get lonely faster
         while(simCrN>=1024){ simCrN-=1024; if(sNrg>0) sNrg--; }
         while(simCrH>=1024){ simCrH-=1024; if(sHyg>0) sHyg--; }
         while(simCrC>=1024){ simCrC-=1024; if(sCom>0) sCom--; }
