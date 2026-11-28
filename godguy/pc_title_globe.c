@@ -66,6 +66,17 @@ static void sharedTuningVerify(void){
         }
     }
 #ifdef GG_HAS_GLOBE
+    // Exercise actual lookup generation at all supported radii; compare
+    // every sample to the previous 64-bit division formula.
+    for(int R=26;R<=GR_MAX;R++){
+        globeTables(R);
+        for(int d2=0;d2<=R*R;d2++){
+            u32 ref=(u32)(((unsigned long long)(R*R-d2)<<28)/(unsigned)(R*R));
+            if(gnz[d2]!=(u16)isqrt32(ref)){
+                CHECK(0,"optimized depth differs from original");break;
+            }
+        }
+    }
     int savedW=WW,savedH=WH;
     for(int size=128;size<=MAXD;size*=2){
         gW=size;gH=size/2;globeCloudTables();
@@ -91,6 +102,62 @@ static void sharedTuningVerify(void){
     CHECK(reliefCaravan()==10&&vil[1].stock==180&&vil[4].stock==60,"donor keeps its reserve");
     CHECK(reliefCaravan()==0&&jrN==2,"no phantom relief without available surplus");
     CHECK(ggReliefAmount(300,79)==21&&ggReliefAmount(400,80)==0,"aid threshold and recipient cap");
+}
+// These tests exercise the shared implementation used by all native ports.
+static void livingWorldVerify(void){
+    CHECK(ggBestiaryMove(319,1,MON_N)==320,"bestiary can pass the old 320-entry cap");
+    CHECK(ggBestiaryMove(MON_N-5,10,MON_N)==MON_N-1,"bestiary clamps final page");
+    CHECK(ggBestiaryMove(2,-10,MON_N)==0,"bestiary clamps first page");
+    memset(slainB,0,sizeof slainB);
+    int first=8+(ARCH_A-8)*16,last=first+MON_N-1;
+    slainB[0]=255;slainB[first>>3]|=(u8)(1u<<(first&7));
+    slainB[last>>3]|=(u8)(1u<<(last&7));
+    CHECK(slainCount()==2,"slain count excludes non-monsters and includes final variant");
+    for(int dy=-10;dy<=10;dy++)for(int dx=-10;dx<=10;dx++)
+        CHECK((dx>=-ggCircleHalfWidth10(dy)&&dx<=ggCircleHalfWidth10(dy))==
+              (dx*dx+dy*dy<=100),"optimized village circle equals original");
+    memset(vil,0,sizeof vil);memset(vilK,0,sizeof vilK);memset(kd,0,sizeof kd);
+    memset(achX,0,sizeof achX);achBits=0;
+    for(int v=0;v<12;v++){vil[v].on=1;vil[v].pop=3;vil[v].lvl=v==7?3:1;}
+    kd[0].on=1;kd[0].empire=1;kd[0].tech=9;
+    kd[KN_N-1].on=1;kd[KN_N-1].lord=1;
+    achCheck();
+    CHECK(ACH_HAS(9)&&ACH_HAS(10)&&ACH_HAS(11)&&ACH_HAS(14)&&ACH_HAS(15)&&ACH_HAS(16),
+          "single achievement snapshot retains city and kingdom milestones");
+    memset(kd,0,sizeof kd);achCheck();
+    CHECK(ACH_HAS(34),"history remembers the last kingdom even after it falls");
+    // The most desperate city is isolated. The next eligible city must
+    // still receive aid instead of the whole event being blocked.
+    memset(vil,0,sizeof vil);memset(vilK,0,sizeof vilK);
+    for(int v=0;v<3;v++){vil[v].on=1;vil[v].pop=3;}
+    vil[0].stock=1;vil[0].race=1;vil[1].stock=40;vil[2].stock=250;
+    CHECK(reliefCaravan()==60&&vil[0].stock==1&&vil[1].stock==100&&vil[2].stock==190,
+          "isolated poorest city no longer blocks a feasible relief delivery");
+    // Reconstruction uses the real terrain, ownership and stock arrays.
+    memset(vil,0,sizeof vil);memset(vilK,0,sizeof vilK);
+    if(!LAWON(LW_GROWTH))lw[LW_GROWTH]^=1;
+    vil[0].on=1;vil[0].pop=8;vil[0].stock=100;vil[0].x=32;vil[0].y=32;
+    for(int y=28;y<=36;y++)for(int x=28;x<=36;x++){
+        world[y][x]=T_GRASS;bld[y][x]=B_NONE;bldv[y][x]=0;occ[y][x]=0;
+    }
+    world[32][31]=T_DIRT;bld[32][31]=B_RUIN;
+    bld[32][33]=B_RUIN;bldv[32][33]=2; // another town's property
+    bld[31][32]=B_HOUSE;bldv[31][32]=1; // intact home
+    jrN=0;
+    eventDo(EV_REBUILD);
+    CHECK(bld[32][31]==B_NONE&&world[32][31]==T_GRASS&&vil[0].stock==92,
+          "reconstruction reclaims a ruin using real town supplies");
+    CHECK(bld[32][33]==B_RUIN&&bld[31][32]==B_HOUSE,
+          "reconstruction respects foreign plots and existing homes");
+    CHECK(jrN==1&&strstr(jr[0],"REBUILDS")!=NULL,"reconstruction event is recorded");
+    CHECK(rebuildCaravan()==0&&jrN==1,"no fake reconstruction on an intact city");
+    // With no creatures, the simulation must still advance weather.
+    memset(vil,0,sizeof vil);memset(vilK,0,sizeof vilK);memset(occ,0,sizeof occ);
+    nCr=0;nVilOn=0;cellClear();gxDefaults();
+    if(!LAWON(LW_WEATHER))lw[LW_WEATHER]^=1;
+    tick=1;paused=0;weather=WX_CLEAR;weatherT=15;
+    simulate();
+    CHECK(weatherT==14,"lifeless planet still advances weather");
 }
 int main(void){
     mapPtr=(u16*)bgGetMapPtr(0);
@@ -140,8 +207,9 @@ int main(void){
           "restored interactive planet still renders only empty space");
 #endif
     sharedTuningVerify();
+    livingWorldVerify();
     printf(failed?"TITLE GLOBE FAIL (%d)\n":
-           "TITLE GLOBE OK: rotating lit sphere, menus, planet zoom, pixel parity, cloud cache, relief event\n",
+           "GODGUY SHARED OK: globe parity, catalogue, civic recovery, achievements, empty planet\n",
            failed);
     return failed?1:0;
 }
